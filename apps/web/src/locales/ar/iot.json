@@ -1,0 +1,57 @@
+{
+  "headers": {
+    "overview": { "title": "إدارة أجهزة إنترنت الأشياء", "subtitle": "اتصال الأجهزة الصناعية — MQTT و OPC-UA و Modbus" },
+    "devices": { "title": "أجهزة إنترنت الأشياء", "subtitle": "إدارة الأجهزة وأجهزة الاستشعار المتصلة" },
+    "tags": { "title": "وسوم إنترنت الأشياء", "subtitle": "مراقبة وإدارة وسوم البيانات" },
+    "gateways": { "title": "بوابات الحافة", "subtitle": "بوابات جمع بيانات Modbus محلية — الحالة المباشرة والنبض" },
+    "drivers": { "title": "مشغّلات البروتوكولات", "subtitle": "إدارة مشغّلات بروتوكولات الاتصال" },
+    "streams": { "title": "تدفقات البيانات", "subtitle": "تدفق ومراقبة البيانات لحظياً" },
+    "historian": { "title": "اتجاهات الأرشيف", "subtitle": "تصفّح الوسوم المؤرشفة والكفاءة والمؤشرات وعرض اتجاهها المباشر" },
+    "mqtt": { "title": "عميل MQTT", "subtitle": "مراقبة مباشرة لحركة الوسيط — كل موضوع تنشره بوابات الحافة تحت mes360/#." }
+  },
+  "dform": {
+    "createTitle": "إنشاء جهاز", "editTitle": "تعديل الجهاز",
+    "deviceCode": "رمز الجهاز", "name": "الاسم", "type": "النوع", "protocol": "البروتوكول",
+    "tGateway": "بوابة", "tSensor": "حساس", "tMeter": "عدّاد", "tDrive": "محرّك",
+    "pModbusTcp": "Modbus TCP", "pModbusRtuTcp": "Modbus RTU عبر TCP", "pModbusRtu": "Modbus RTU (تسلسلي)", "pOpcua": "OPC UA", "pHttp": "HTTP/REST",
+    "serialPort": "المنفذ التسلسلي", "baudRate": "معدل الباود", "parity": "التماثل", "pNone": "بدون", "pEven": "زوجي", "pOdd": "فردي", "stopBits": "بتات التوقف",
+    "ipAddress": "عنوان IP", "port": "المنفذ",
+    "edgeAcq": "جمع بيانات بوابة الحافة", "assignedGateway": "البوابة المُسندة", "selectGateway": "اختر البوابة", "noneDash": "— بدون —", "onlineSuffix": " • متصل",
+    "scope": "النطاق", "machine": "ماكينة", "line": "خط", "area": "منطقة",
+    "productionLine": "خط الإنتاج", "boundMachine": "الماكينة المرتبطة", "selectMachine": "اختر الماكينة…",
+    "selectLine": "اختر الخط", "selectArea": "اختر المنطقة", "selectDash": "— اختر —",
+    "modbusUnitId": "معرّف وحدة Modbus", "pollInterval": "فترة الاستطلاع (مللي ثانية)", "pollPlaceholder": "1000 (افتراضي)",
+    "deleteTitle": "حذف {{name}}؟", "deleteDesc": "سيؤدي هذا إلى حذف هذا الجهاز وكل البيانات المرتبطة به نهائيًا."
+  },
+  "tform": {
+    "createTitle": "إنشاء وسم", "editTitle": "تعديل الوسم",
+    "tagCode": "رمز الوسم", "tagName": "اسم الوسم", "tagType": "نوع الوسم",
+    "measurement": "قياس", "counter": "عدّاد", "status": "حالة", "setpoint": "نقطة ضبط", "alarm": "إنذار", "event": "حدث", "energy": "طاقة",
+    "dataType": "نوع البيانات", "integer": "عدد صحيح", "float": "عدد عشري", "boolean": "منطقي", "string": "نص", "timestamp": "طابع زمني",
+    "sourceDevice": "الجهاز المصدر", "selectDevice": "اختر الجهاز", "noneDash": "— بدون —",
+    "unit": "الوحدة", "scope": "النطاق", "scopeCounterHint": " (الماكينة مطلوبة للعدّادات)",
+    "machine": "ماكينة", "line": "خط", "area": "منطقة", "productionLine": "خط الإنتاج",
+    "select": "اختر", "selectDash": "— اختر —",
+    "modbusBinding": "ربط Modbus", "registerAddress": "عنوان السجل", "registerType": "نوع السجل",
+    "holding": "سجل احتفاظ (Holding)", "input": "سجل إدخال (Input)", "coil": "ملف (Coil)", "discrete": "إدخال منفصل (Discrete)",
+    "wordCount": "عدد الكلمات", "word1": "1 (16 بت)", "word2": "2 (32 بت)",
+    "wordOrder": "ترتيب الكلمات (32 بت)", "bigEndian": "Big-endian", "littleEndian": "Little-endian",
+    "scaleFactor": "معامل القياس", "offset": "الإزاحة",
+    "counterMapping": "تعيين العدّاد — +1 لكل حافة، يُطبَّق على أمر العمل الجاري للماكينة",
+    "counterRole": "دور العدّاد", "crNone": "بدون", "crTotal": "الإجمالي (السيئ = الإجمالي − الجيد)", "crGood": "جيد", "crBad": "سيئ",
+    "edgeTrigger": "مُشغّل الحافة", "etRising": "صاعد (0→1)", "etFalling": "هابط (1→0)", "etChange": "أي تغيير",
+    "description": "الوصف",
+    "historize": "أرشفة (تخزين السلاسل الزمنية في InfluxDB)", "machineStatusDriver": "مُحرّك حالة الماكينة (يقود التشغيل / الخمول / التوقف)",
+    "boolHelp": "BOOL: صحيح → تشغيل؛ خطأ → عطل (توقف غير مخطط) عند وجود أمر عمل جارٍ، وإلا خمول.",
+    "intHelp": "INT: القيمة → الحالة. اترك الخريطة فارغة لاستخدام الافتراضي القياسي (0 خمول · 1 تشغيل · 2 عطل · 3 توقف مخطط · 4 إعداد · 5 تغيير · 6 نقص تغذية · 7 محجوب · 8 غير متصل · 9 صيانة).",
+    "countersRunningOnly": "تتراكم العدّادات فقط أثناء التشغيل.",
+    "statusMap": "خريطة الحالة (JSON اختياري)",
+    "deleteTitle": "حذف الوسم {{name}}؟", "deleteDesc": "سيؤدي هذا إلى حذف هذا الوسم وكل البيانات التاريخية نهائيًا."
+  },
+  "drvform": {
+    "createTitle": "إضافة مشغّل IoT", "editTitle": "تعديل المشغّل",
+    "cancel": "إلغاء", "saving": "جارٍ الحفظ...", "save": "حفظ",
+    "protocol": "البروتوكول", "version": "الإصدار", "description": "الوصف",
+    "deleteTitle": "حذف المشغّل", "deleteConfirmPre": "هل أنت متأكد أنك تريد حذف", "deleting": "جارٍ الحذف...", "delete": "حذف"
+  }
+}

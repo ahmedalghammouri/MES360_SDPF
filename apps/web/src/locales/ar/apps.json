@@ -1,0 +1,22 @@
+{
+  "title": "التطبيقات",
+  "subtitle": "{{count}} مساحة عمل · {{groups}} فئات",
+  "search": "ابحث في التطبيقات…",
+  "eyebrow": "مشغّل التطبيقات",
+  "heroTitle": "كل مساحات العمل بنقرة واحدة",
+  "heroSubtitle": "انتقل إلى التخطيط والإنتاج والجودة والصيانة والمواد وتحليلات المصنع — كل أدوات MES360° في مكان واحد.",
+  "all": "الكل",
+  "noMatch": "لا توجد تطبيقات مطابقة لـ ”{{query}}“",
+  "clearFilters": "مسح الفلاتر",
+  "shownOfTotal": "{{shown}} من {{total}} تطبيقًا",
+  "categories": {
+    "Planning & Scheduling": "التخطيط والجدولة",
+    "Production": "الإنتاج",
+    "Performance & KPIs": "الأداء والمؤشرات",
+    "Quality": "الجودة",
+    "Maintenance": "الصيانة",
+    "Materials & PLM": "المواد وإدارة المنتج",
+    "Monitoring & IoT": "المراقبة وإنترنت الأشياء",
+    "Insights & Admin": "التحليلات والإدارة"
+  }
+}

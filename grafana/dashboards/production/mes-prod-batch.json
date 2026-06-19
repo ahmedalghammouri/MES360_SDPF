@@ -1,0 +1,491 @@
+{
+  "uid": "mes-prod-batch",
+  "title": "Batch Performance",
+  "description": "Batch yield and disposition.",
+  "tags": [
+    "mes360",
+    "production",
+    "batch"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "",
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "factory",
+        "label": "Factory",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT name AS \"__text\", code AS \"__value\" FROM factories WHERE \"isActive\" = true ORDER BY name",
+        "query": "SELECT name AS \"__text\", code AS \"__value\" FROM factories WHERE \"isActive\" = true ORDER BY name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "Saudi Industrial Detergent Company",
+          "value": "SIDCO"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "Saudi Industrial Detergent Company",
+            "value": "SIDCO"
+          }
+        ],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT a.name AS \"__text\", a.id AS \"__value\" FROM areas a JOIN factories f ON f.id = a.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY a.name",
+        "query": "SELECT a.name AS \"__text\", a.id AS \"__value\" FROM areas a JOIN factories f ON f.id = a.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY a.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "line",
+        "label": "Production Line",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT l.name AS \"__text\", l.id AS \"__value\" FROM production_lines l JOIN factories f ON f.id = l.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY l.name",
+        "query": "SELECT l.name AS \"__text\", l.id AS \"__value\" FROM production_lines l JOIN factories f ON f.id = l.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY l.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "machine",
+        "label": "Machine",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT m.name AS \"__text\", m.id AS \"__value\" FROM machines m JOIN factories f ON f.id = m.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY m.name",
+        "query": "SELECT m.name AS \"__text\", m.id AS \"__value\" FROM machines m JOIN factories f ON f.id = m.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY m.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "shift",
+        "label": "Shift",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT s.name AS \"__text\", s.id AS \"__value\" FROM shift_templates s JOIN factories f ON f.id = s.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY s.name",
+        "query": "SELECT s.name AS \"__text\", s.id AS \"__value\" FROM shift_templates s JOIN factories f ON f.id = s.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY s.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "product",
+        "label": "Product",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT k.name AS \"__text\", k.id AS \"__value\" FROM skus k JOIN factories f ON f.id = k.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY k.name",
+        "query": "SELECT k.name AS \"__text\", k.id AS \"__value\" FROM skus k JOIN factories f ON f.id = k.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY k.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "batch",
+        "label": "Batch",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT b.\"batchNumber\" AS \"__text\", b.id AS \"__value\" FROM batch_records b JOIN factories f ON f.id = b.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY b.\"startTime\" DESC NULLS LAST LIMIT 500",
+        "query": "SELECT b.\"batchNumber\" AS \"__text\", b.id AS \"__value\" FROM batch_records b JOIN factories f ON f.id = b.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY b.\"startTime\" DESC NULLS LAST LIMIT 500",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Batches",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COUNT(*) AS value FROM batch_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"startTime\") AND ('$factory' = '' OR f.code = '$factory')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 2,
+      "title": "Good Qty",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COALESCE(SUM(\"goodQuantity\"),0) AS value FROM batch_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"startTime\") AND ('$factory' = '' OR f.code = '$factory')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 3,
+      "title": "Scrap Qty",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COALESCE(SUM(\"scrapQuantity\"),0) AS value FROM batch_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"startTime\") AND ('$factory' = '' OR f.code = '$factory')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 4,
+      "title": "Avg Yield %",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT CASE WHEN SUM(quantity)>0 THEN ROUND(100.0*SUM(\"goodQuantity\")/SUM(quantity),1) ELSE 0 END AS value FROM batch_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"startTime\") AND ('$factory' = '' OR f.code = '$factory')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 60
+              },
+              {
+                "color": "yellow",
+                "value": 75
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 5,
+      "title": "Recent Batches",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.\"batchNumber\" AS \"Batch\", k.name AS \"Product\", t.status AS \"Status\", t.quantity AS \"Qty\", t.\"goodQuantity\" AS \"Good\", t.\"scrapQuantity\" AS \"Scrap\", t.\"startTime\" AS \"Start\" FROM batch_records t JOIN factories f ON f.id=t.\"factoryId\" LEFT JOIN skus k ON k.id=t.\"skuId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY t.\"startTime\" DESC NULLS LAST LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        },
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 9
+      }
+    }
+  ]
+}

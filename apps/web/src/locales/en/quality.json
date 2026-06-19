@@ -1,0 +1,123 @@
+{
+  "headers": {
+    "overview": { "title": "Quality Management", "subtitle": "Inspections, NCR management, CAPA, and SPC analysis" },
+    "plans": { "title": "Quality Plans", "subtitle": "Define check types, quality points, and SPC limits" },
+    "records": { "title": "Quality Records", "subtitle": "Quality management — inspections and non-conformances" },
+    "inspections": { "title": "Quality Inspections", "subtitle": "Incoming, in-process, and final inspection results · linked to Work Orders" },
+    "ncr": { "title": "Non-Conformance Reports", "subtitle": "Track and resolve non-conforming product and process issues" },
+    "capa": { "title": "CAPA Management", "subtitle": "Corrective and Preventive Actions — root cause to effectiveness" },
+    "spc": { "title": "SPC Control Charts", "subtitle": "Statistical process control" },
+    "reports": { "title": "Quality Reports and Analytics", "subtitle": "Monitor, analyse, and export quality performance data" }
+  },
+  "ncr": {
+    "register": "NCR Register",
+    "search": "Search…",
+    "allStatus": "All Status",
+    "noNcrs": "No NCRs found",
+    "selectAll": "Select all",
+    "newNcr": "New NCR", "statTotal": "Total NCRs", "statOpen": "Open", "statCritical": "Critical", "statResolved": "Resolved",
+    "severity": { "MINOR": "Minor", "MAJOR": "Major", "CRITICAL": "Critical" },
+    "status": { "OPEN": "Open", "IN_REVIEW": "In Review", "CAPA_PENDING": "CAPA Pending", "RESOLVED": "Resolved", "CLOSED": "Closed" },
+    "disposition": { "USE_AS_IS": "Use As-Is", "REWORK": "Rework", "SCRAP": "Scrap", "RETURN_TO_SUPPLIER": "Return to Supplier" },
+    "col": {
+      "ncr": "NCR #", "title": "Title", "severity": "Severity", "status": "Status",
+      "machine": "Machine", "batchProduct": "Batch / Product", "detectedBy": "Detected By",
+      "reported": "Reported", "due": "Due", "actions": "Actions"
+    }
+  },
+  "plans": {
+    "search": "Search code or name…",
+    "allTypes": "All types",
+    "noPlans": "No quality plans found",
+    "loading": "Loading quality plans...",
+    "createHint": "Create a quality plan to define inspection check points.",
+    "freq": { "EVERY_BATCH": "Every Batch", "HOURLY": "Hourly", "SHIFT": "Per Shift", "DAILY": "Daily", "WEEKLY": "Weekly" }
+  },
+  "pform": {
+    "createTitle": "New Quality Plan", "editTitle": "Edit Quality Plan",
+    "description": "Quality test specification",
+    "cancel": "Cancel", "saving": "Saving...", "createPlan": "Create Plan", "saveChanges": "Save Changes",
+    "planCode": "Plan Code", "checkType": "Check Type", "planName": "Plan Name",
+    "namePlaceholder": "Incoming RM Inspection",
+    "samplingFrequency": "Sampling Frequency", "selectPlaceholder": "Select...", "notSet": "Not set",
+    "sampleQty": "Sample Qty", "version": "Version"
+  },
+  "paramf": {
+    "createTitle": "New Check Point", "editTitle": "Edit Check Point",
+    "paramName": "Parameter Name", "paramPlaceholder": "e.g. Fill Weight, Seal Strength",
+    "unit": "Unit", "nominalValue": "Nominal Value",
+    "spcLimits": "SPC Control Limits", "ucl": "UCL (Upper Control Limit)", "lcl": "LCL (Lower Control Limit)",
+    "specLimits": "Product Spec Limits", "usl": "USL (Upper Spec Limit)", "lsl": "LSL (Lower Spec Limit)",
+    "checkMethod": "Check Method", "checkMethodPlaceholder": "e.g. Weigh on calibrated scale",
+    "kpiParam": "KPI Parameter", "cancel": "Cancel", "saving": "Saving...", "update": "Update", "addParameter": "Add Parameter"
+  },
+  "cform": {
+    "createTitle": "Create CAPA", "editTitle": "Edit CAPA",
+    "type": "Type", "title": "Title", "priority": "Priority", "dueDate": "Due Date",
+    "relatedNcr": "Related NCR", "linkNcr": "Link to NCR (optional)…", "description": "Description"
+  },
+  "nform": {
+    "createTitle": "Create Non-Conformance Report", "editTitle": "Edit Non-Conformance Report",
+    "severity": "Severity", "detectedAt": "Detected At", "title": "Title",
+    "defectCategory": "Defect Category", "defectCode": "Defect Code", "ncQty": "Non-Conforming Quantity",
+    "ncQtyPlaceholder": "Number of defective units", "disposition": "Disposition", "selectDisposition": "Select disposition…",
+    "product": "Product / SKU", "linkProduct": "Link to product…", "batch": "Batch / Lot", "linkBatch": "Link to batch…",
+    "machine": "Machine", "selectMachine": "Select machine…", "dueDate": "Resolution Due Date",
+    "description": "Description", "descMin": "min 10 characters",
+    "descPlaceholder": "Describe the non-conformance in detail — what was found, where, how many affected…",
+    "investigation": "Investigation & Actions",
+    "rootCause": "Root Cause", "rootCausePlaceholder": "Why did the non-conformance occur? (5-Why, fishbone, etc.)",
+    "correctiveAction": "Corrective Action", "correctivePlaceholder": "Immediate action taken to correct the non-conformance",
+    "preventiveAction": "Preventive Action", "preventivePlaceholder": "Action to prevent recurrence",
+    "optional": "optional"
+  },
+  "qd": {
+    "machine": "Machine", "batchLot": "Batch / Lot", "product": "Product", "dueDate": "Due Date",
+    "owner": "Owner", "inspector": "Inspector", "workOrder": "Work Order", "qualityPlan": "Quality Plan",
+    "defectCategory": "Defect Category", "defectCode": "Defect Code", "ncQty": "Non-Conforming Qty",
+    "disposition": "Disposition", "detectedBy": "Detected By", "detectedAt": "Detected At",
+    "rootCause": "Root Cause", "correctiveAction": "Corrective Action", "preventiveAction": "Preventive Action",
+    "noCapa": "No CAPA linked yet. Create one from the CAPA module and link this NCR.",
+    "relatedNcr": "Related NCR", "effectiveness": "Effectiveness",
+    "noActions": "No actions yet. Add the first corrective/preventive action below — this moves the CAPA to In Progress.",
+    "actionPlaceholder": "Describe the corrective/preventive action…",
+    "totalInspected": "Total Inspected", "pass": "Pass", "fail": "Fail", "fpy": "First-Pass Yield",
+    "inspectedAt": "Inspected At", "created": "Created", "approvedAt": "Approved At",
+    "noParams": "No parameter measurements were recorded for this inspection."
+  },
+  "records": {
+    "search": "Search…", "type": "Type", "result": "Result", "allTypes": "All Types", "allResults": "All Results",
+    "typeOpt": { "IN_PROCESS": "In-Process", "INCOMING": "Incoming", "FINAL": "Final", "AUDIT": "Audit" },
+    "resultOpt": { "PASS": "Pass", "FAIL": "Fail", "CONDITIONAL": "Conditional" }
+  },
+  "inspections": {
+    "records": "Inspection Records",
+    "search": "Search…",
+    "allTypes": "All Types",
+    "allResults": "All Results",
+    "noInspections": "No inspections found",
+    "selectAll": "Select all",
+    "result": { "PASS": "Pass", "FAIL": "Fail", "CONDITIONAL": "Conditional" },
+    "type": { "INCOMING": "Incoming", "IN_PROCESS": "In-Process", "FINAL": "Final", "PATROL": "Patrol" },
+    "col": {
+      "inspection": "Inspection #", "type": "Type", "result": "Result", "total": "Total",
+      "pass": "Pass", "fail": "Fail", "workOrder": "Work Order", "qualityPlan": "Quality Plan",
+      "inspector": "Inspector", "date": "Date"
+    }
+  },
+  "capa": {
+    "register": "CAPA Register",
+    "search": "Search CAPA…",
+    "allStatus": "All Status",
+    "noCapas": "No CAPAs found",
+    "selectAll": "Select all",
+    "newCapa": "New CAPA", "restore": "Restore", "archive": "Archive",
+    "type": { "CORRECTIVE": "Corrective", "PREVENTIVE": "Preventive" },
+    "status": { "OPEN": "Open", "IN_PROGRESS": "In Progress", "VERIFIED": "Verified", "CLOSED": "Closed" },
+    "col": {
+      "capa": "CAPA #", "title": "Title", "type": "Type", "status": "Status",
+      "relatedNcr": "Related NCR", "owner": "Owner", "dueDate": "Due Date",
+      "effectiveness": "Effectiveness", "actions": "Actions"
+    }
+  }
+}

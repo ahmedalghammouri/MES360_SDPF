@@ -1,0 +1,125 @@
+{
+  "headers": {
+    "overview": { "title": "Maintenance Management", "subtitle": "CMMS/EAM — Work orders, assets, and maintenance planning" },
+    "workOrders": { "title": "Maintenance Orders", "subtitle": "Corrective, preventive, and emergency maintenance" },
+    "preventive": { "title": "Preventive Maintenance", "subtitle": "PM schedules and maintenance planning" },
+    "scheduling": { "title": "Maintenance Scheduling", "subtitle": "Maintenance work order calendar and schedule" },
+    "log": { "title": "Maintenance Log", "subtitle": "Complete history of every maintenance order — dates, technicians, durations, costs and parts." },
+    "spareParts": { "title": "Spare Parts Inventory", "subtitle": "Manage spare parts and inventory levels" },
+    "assets": { "title": "Maintenance Assets", "subtitle": "{{count}} assets — linked to plant hierarchy" },
+    "reports": { "title": "Maintenance Reports", "subtitle": "Maintenance KPIs, work order history, and asset performance" }
+  },
+  "overdue": "Overdue",
+  "allOrders": "All Maintenance Orders",
+  "allStatus": "All Status",
+  "search": "Search…",
+  "noOrders": "No maintenance orders found",
+  "selectAll": "Select all",
+  "woStatus": {
+    "OPEN": "Open",
+    "AWAITING_PARTS": "Awaiting Parts",
+    "ASSIGNED": "Assigned",
+    "IN_PROGRESS": "In Progress",
+    "ON_HOLD": "On Hold",
+    "COMPLETED": "Completed",
+    "CANCELLED": "Cancelled"
+  },
+  "type": {
+    "CORRECTIVE": "Corrective",
+    "PREVENTIVE": "Preventive",
+    "PREDICTIVE": "Predictive",
+    "EMERGENCY": "Emergency",
+    "INSPECTION": "Inspection",
+    "LUBRICATION": "Lubrication"
+  },
+  "col": {
+    "mo": "MO #",
+    "title": "Title",
+    "type": "Type",
+    "priority": "Priority",
+    "status": "Status",
+    "machine": "Machine",
+    "assignedTo": "Assigned To",
+    "parts": "Parts",
+    "due": "Due"
+  },
+  "detail": {
+    "title": "Maintenance Order Details",
+    "type": "Type",
+    "priority": "Priority",
+    "machine": "Machine",
+    "assignedTo": "Assigned To",
+    "dueDate": "Due Date",
+    "estHours": "Est. Hours",
+    "actualHours": "Actual Hours",
+    "totalCost": "Total Cost",
+    "created": "Created",
+    "started": "Started",
+    "completed": "Completed",
+    "productionOrder": "Production Order"
+  },
+  "pm": {
+    "schedules": "PM Schedules", "search": "Search schedules…", "noSchedules": "No PM schedules found",
+    "col": { "equipment": "Equipment", "task": "Task", "frequency": "Frequency", "lastDone": "Last Done", "nextDue": "Next Due", "status": "Status", "assignedTo": "Assigned To", "actions": "Actions" }
+  },
+  "pmform": {
+    "createTitle": "Create PM Schedule", "editTitle": "Edit PM Schedule",
+    "equipment": "Equipment / Machine", "selectMachine": "Select machine...",
+    "pmType": "PM Type", "timeBased": "Time-Based", "runtimeBased": "Runtime-Based", "conditionBased": "Condition-Based", "calendarBased": "Calendar-Based",
+    "runtimeInterval": "Runtime Interval (hours)", "runtimePlaceholder": "e.g. 500",
+    "frequency": "Frequency", "daily": "Daily", "weekly": "Weekly", "monthly": "Monthly", "quarterly": "Quarterly", "yearly": "Yearly", "custom": "Custom (days)…",
+    "everyNDays": "Every N Days", "everyNPlaceholder": "e.g. 45",
+    "firstDue": "First Due Date", "firstDueHelp": "Leave blank to schedule from the interval.",
+    "taskName": "Task Name", "taskPlaceholder": "e.g. Lubrication, Filter replacement...",
+    "estimatedHours": "Estimated Hours", "description": "Description", "descPlaceholder": "Short summary of the maintenance plan",
+    "instructions": "Instructions / Checklist", "instructionsPlaceholder": "Step-by-step instructions the technician should follow…",
+    "deleteTitle": "Delete PM schedule for {{task}}?", "deleteDesc": "This will permanently delete this preventive maintenance schedule.",
+    "restore": "Restore", "archive": "Archive"
+  },
+  "mlog": {
+    "search": "Search WO #, title, machine…", "allStatuses": "All Statuses", "allTypes": "All Types", "allMachines": "All machines", "noRecords": "No maintenance records found",
+    "col": { "wo": "WO #", "title": "Title", "type": "Type", "machine": "Machine", "status": "Status", "assigned": "Assigned", "created": "Created", "completed": "Completed", "hours": "Hours", "cost": "Cost" },
+    "partsCol": { "part": "Part", "req": "Req.", "issued": "Issued", "status": "Status" }
+  },
+  "spares": {
+    "title": "Spare Parts", "search": "Search parts…", "noParts": "No spare parts found",
+    "col": { "partNumber": "Part Number", "nameDesc": "Name / Description", "category": "Category", "quantity": "Quantity", "minStock": "Min Stock", "unitCost": "Unit Cost", "location": "Location", "status": "Status", "actions": "Actions" }
+  },
+  "spform": {
+    "editTitle": "Edit Spare Part", "createTitle": "Add Spare Part",
+    "partNumber": "Part Number", "category": "Category", "name": "Name", "description": "Description",
+    "manufacturer": "Manufacturer", "supplier": "Supplier", "unitCost": "Unit Cost (SAR)",
+    "minStock": "Min Stock Qty", "maxStock": "Max Stock Qty", "storageLocation": "Storage Location", "binNumber": "Bin Number",
+    "adjustTitle": "Adjust Stock — {{name}}", "current": "Current:", "add": "ADD", "remove": "REMOVE", "set": "SET",
+    "quantity": "Quantity", "cancel": "Cancel", "saving": "Saving…", "apply": "Apply",
+    "deleteTitle": "Delete {{name}}?", "deleteDesc": "This will permanently remove this spare part from inventory."
+  },
+  "assetsList": { "search": "Search assets…", "noAssets": "No assets found", "noLine": "No line" },
+  "aform": {
+    "editTitle": "Edit Asset — {{code}}", "createTitle": "Register New Asset",
+    "desc": "Assets are machines registered in the system. Link them to the plant hierarchy (Area/Line) to enable location-aware maintenance.",
+    "cancel": "Cancel", "saving": "Saving…", "creating": "Creating…", "saveChanges": "Save Changes", "registerAsset": "Register Asset",
+    "identity": "Identity", "assetCode": "Asset Code", "assetCodePlaceholder": "e.g. MCH-001",
+    "machineType": "Machine Type", "assetName": "Asset Name", "assetNamePlaceholder": "e.g. Cartomac Packing Machine #3",
+    "hierarchyLocation": "Hierarchy Location", "optional": "(optional)", "area": "Area", "selectArea": "Select area...",
+    "searchCodeName": "Search by code or name…", "productionLine": "Production Line",
+    "selectLine": "Select line...", "selectAreaFirst": "Select area first", "noLineOpt": "No line",
+    "willAppearPre": "This asset will appear in the Plant Hierarchy under", "selectedLine": "the selected line", "selectedArea": "the selected area",
+    "technicalDetails": "Technical Details", "manufacturer": "Manufacturer", "model": "Model", "serialNumber": "Serial Number",
+    "riskDates": "Risk & Dates", "criticality": "Criticality", "installDate": "Install Date", "warrantyExpiry": "Warranty Expiry",
+    "deleteTitle": "Deactivate {{name}}?", "deleteDesc": "The asset will be deactivated and hidden from the hierarchy. Its maintenance history is preserved.",
+    "restore": "Restore", "archive": "Archive"
+  },
+  "mform": {
+    "createTitle": "Create Maintenance Order", "editPrefix": "Edit", "save": "Save Changes",
+    "title": "Title", "titlePlaceholder": "Brief description of the maintenance task",
+    "type": "Type", "priority": "Priority", "machine": "Machine", "browseMachine": "Browse hierarchy to select machine…",
+    "assignTo": "Assign To Technician", "unassigned": "Unassigned", "dueDate": "Due Date", "estHours": "Estimated Hours",
+    "failureMode": "Failure Mode", "failureModeHint": "FMEA — select a machine first",
+    "description": "Description", "descPlaceholder": "Additional details…",
+    "internalNotes": "Internal Notes", "notesPlaceholder": "Internal notes for this maintenance order…",
+    "linkPO": "Link to Production Order", "optional": "optional", "notLinkedPO": "Not linked to production",
+    "linkFailureMode": "Link a known failure mode…", "selectMachineFirst": "Select a machine first",
+    "searchTechnicians": "Search technicians…", "searchFailureModes": "Search failure modes…", "searchProdOrders": "Search production orders…"
+  }
+}

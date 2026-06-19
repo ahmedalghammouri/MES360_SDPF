@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MES360° · PoC Sprint Plan · Jun 8–15 2026</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08090e;--s1:#0f1218;--s2:#141925;--s3:#1a2133;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);
+  --text:#dde4f0;--muted:#5a6480;--muted2:#8896b0;
+  --brand:#6366f1;--brand2:#818cf8;--brand3:#a78bfa;
+  --green:#22c55e;--amber:#f59e0b;--orange:#f97316;--red:#ef4444;
+  --blue:#3b82f6;--cyan:#06b6d4;--purple:#a855f7;--pink:#ec4899;
+  --teal:#14b8a6;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:13px;line-height:1.6;padding:28px 20px 60px;min-height:100vh}
+.page{max-width:1320px;margin:0 auto}
+
+/* ── Util ─────────────────────────────── */
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:99px;border:1px solid}
+.chip-green{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:var(--green)}
+.chip-red{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:var(--red)}
+.chip-amber{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:var(--amber)}
+.chip-blue{background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.3);color:var(--blue)}
+.chip-muted{background:rgba(255,255,255,.04);border-color:var(--border2);color:var(--muted2)}
+.chip-purple{background:rgba(168,85,247,.1);border-color:rgba(168,85,247,.3);color:var(--purple)}
+
+.sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── Header ───────────────────────────── */
+.header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--border2);flex-wrap:wrap}
+.header h1{font-size:24px;font-weight:800;letter-spacing:-.5px;background:linear-gradient(110deg,#818cf8,#a78bfa 40%,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2}
+.header-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);display:inline-block;animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+.ring-wrap{position:relative;width:88px;height:88px;flex-shrink:0}
+.ring-wrap svg{transform:rotate(-90deg)}
+.ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:20px;color:var(--brand2);line-height:1}
+.ring-label small{font-size:9px;color:var(--muted);font-weight:500;margin-top:2px;letter-spacing:.06em}
+.ring-sub{text-align:right;font-size:10px;color:var(--muted);margin-top:6px}
+.ring-sub strong{color:var(--text)}
+
+/* ── Scope banner ─────────────────────── */
+.scope-banner{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-radius:10px;overflow:hidden;margin-bottom:24px;border:1px solid var(--border)}
+.scope-cell{padding:12px 14px;background:var(--s1)}
+.scope-cell .sc-lbl{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.scope-cell .sc-name{font-size:12px;font-weight:700;margin-bottom:6px}
+.scope-cell .sc-items{font-size:10px;color:var(--muted2);line-height:1.6}
+.scope-cell.in .sc-name{color:var(--green)}
+.scope-cell.out .sc-name{color:var(--muted);text-decoration:line-through}
+.scope-cell.in{border-left:2px solid var(--green)}
+.scope-cell.out{border-left:2px solid var(--border2);opacity:.6}
+
+/* ── KPI ──────────────────────────────── */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:24px}
+@media(max-width:900px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
+.kpi{padding:14px 16px;position:relative;overflow:hidden;border-radius:10px;background:var(--s1);border:1px solid var(--border)}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi.g::before{background:linear-gradient(90deg,var(--green),transparent)}
+.kpi.a::before{background:linear-gradient(90deg,var(--amber),transparent)}
+.kpi.r::before{background:linear-gradient(90deg,var(--red),transparent)}
+.kpi.b::before{background:linear-gradient(90deg,var(--blue),transparent)}
+.kpi.p::before{background:linear-gradient(90deg,var(--purple),transparent)}
+.kpi-v{font-size:28px;font-weight:900;line-height:1;margin-bottom:3px}
+.kpi.g .kpi-v{color:var(--green)}.kpi.a .kpi-v{color:var(--amber)}.kpi.r .kpi-v{color:var(--red)}.kpi.b .kpi-v{color:var(--blue)}.kpi.p .kpi-v{color:var(--purple)}
+.kpi-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+
+/* ── Module Grid ──────────────────────── */
+.mod-list{display:flex;flex-direction:column;gap:5px;margin-bottom:24px}
+.mod{display:grid;grid-template-columns:26px 200px 1fr 100px 24px;align-items:center;gap:14px;padding:10px 14px;background:var(--s1);border:1px solid var(--border);border-radius:8px;transition:border-color .15s,background .15s;cursor:default}
+@media(max-width:800px){.mod{grid-template-columns:26px 1fr 80px 22px}}
+.mod:hover{border-color:var(--border2);background:var(--s2)}
+.mod.blocker{border-left:2px solid var(--red)}
+.mod.high{border-left:2px solid var(--orange)}
+.mod.medium{border-left:2px solid var(--amber)}
+.mod.nice{border-left:2px solid var(--muted)}
+.mod-num{width:22px;height:22px;border-radius:6px;background:var(--s3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--muted2);flex-shrink:0}
+.mod-info .name{font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mod-info .layer{font-size:10px;color:var(--muted);margin-top:1px}
+.mod-remain{font-size:10px;color:var(--muted2);line-height:1.5}
+.mod-pct-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.pct-num{font-size:13px;font-weight:800;text-align:right}
+.bar{width:80px;height:4px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden}
+.bar-f{height:100%;border-radius:99px}
+.mod-day{font-size:9px;color:var(--muted);text-align:right;white-space:nowrap}
+
+.p90 .pct-num{color:var(--green)}.p90 .bar-f{background:var(--green)}
+.p75 .pct-num{color:var(--cyan)}.p75 .bar-f{background:var(--cyan)}
+.p60 .pct-num{color:var(--brand2)}.p60 .bar-f{background:var(--brand2)}
+.p40 .pct-num{color:var(--amber)}.p40 .bar-f{background:var(--amber)}
+.plow .pct-num{color:var(--red)}.plow .bar-f{background:var(--red)}
+
+/* ── Two-col ──────────────────────────── */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:24px}
+@media(max-width:960px){.two{grid-template-columns:1fr}}
+
+/* ── Gantt ────────────────────────────── */
+.gantt{background:var(--s1);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.g-head,.g-row{display:grid;grid-template-columns:130px repeat(8,1fr)}
+.g-head{background:var(--s2);border-bottom:1px solid var(--border2)}
+.g-head div{padding:7px 4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:center;border-right:1px solid var(--border)}
+.g-head div:first-child{text-align:left;padding-left:12px}
+.g-head div:last-child{border-right:none}
+.g-row{border-bottom:1px solid var(--border)}
+.g-row:last-child{border-bottom:none}
+.g-lbl{padding:7px 12px;font-size:10px;font-weight:600;border-right:1px solid var(--border);display:flex;align-items:center;gap:5px;overflow:hidden;white-space:nowrap}
+.g-cell{border-right:1px solid var(--border);padding:3px 2px;display:flex;align-items:center;justify-content:center}
+.g-cell:last-child{border-right:none}
+.g-bar{border-radius:3px;height:20px;width:100%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:rgba(255,255,255,.7)}
+
+/* ── Category ─────────────────────────── */
+.cat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+@media(max-width:900px){.cat-grid{grid-template-columns:repeat(2,1fr)}}
+.cat{padding:12px;background:var(--s1);border:1px solid var(--border);border-radius:8px}
+.cat-name{font-size:10px;font-weight:700;margin-bottom:4px}
+.cat-mods{font-size:9px;color:var(--muted);margin-bottom:8px}
+.cat-bar{height:5px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden;margin-bottom:5px}
+.cat-bar-f{height:100%;border-radius:99px}
+.cat-pct{font-size:18px;font-weight:900}
+.cat-gap{font-size:9px;color:var(--muted);margin-top:1px}
+
+/* ── NCC Data ─────────────────────────── */
+.ncc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
+@media(max-width:900px){.ncc-grid{grid-template-columns:repeat(2,1fr)}}
+.ncc-card{background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:14px}
+.ncc-card-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px}
+.ncc-item{display:flex;align-items:center;gap:6px;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)}
+.ncc-item:last-child{border-bottom:none}
+.ni-code{font-family:monospace;font-size:10px;color:var(--brand2);white-space:nowrap;flex-shrink:0;min-width:72px}
+.ni-name{color:var(--muted2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ni-val{font-weight:700;color:var(--text);white-space:nowrap;padding-left:8px;font-size:10px}
+
+/* ── Flags ────────────────────────────── */
+.flag-list{display:flex;flex-direction:column;gap:6px}
+.flag-item{background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:9px 12px;display:flex;align-items:flex-start;gap:10px;font-size:11px}
+.fl-blocker{border-left:2px solid var(--red)}
+.fl-high{border-left:2px solid var(--orange)}
+.fl-medium{border-left:2px solid var(--amber)}
+.fl-nice{border-left:2px solid var(--muted)}
+.fi-icon{font-size:14px;flex-shrink:0;width:18px;text-align:center;margin-top:1px}
+.fi-mod{font-weight:700}
+.fi-desc{font-size:10px;color:var(--muted2);margin-top:2px}
+.fi-basis{font-size:9px;color:var(--muted);font-style:italic;margin-top:2px}
+
+/* ── Legend ───────────────────────────── */
+.legend-col{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px}
+.leg-item{display:flex;align-items:flex-start;gap:10px;font-size:11px;padding:8px 0;border-bottom:1px solid var(--border)}
+.leg-item:last-child{border-bottom:none}
+.leg-icon{font-size:15px;width:18px;text-align:center;flex-shrink:0;margin-top:1px}
+.leg-key{font-weight:700}
+.leg-val{color:var(--muted2);font-size:10px;margin-top:2px}
+.mid-sprint{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.ms-row{display:flex;gap:8px;align-items:flex-start;margin-top:6px;font-size:10px;color:var(--muted2)}
+.ms-date{font-weight:700;color:var(--text);white-space:nowrap;flex-shrink:0}
+
+/* ── Deferred ─────────────────────────── */
+.deferred-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px}
+@media(max-width:900px){.deferred-grid{grid-template-columns:1fr 1fr}}
+.defer-card{background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:12px;opacity:.6;transition:opacity .15s}
+.defer-card:hover{opacity:1}
+.defer-icon{font-size:18px;margin-bottom:6px}
+.defer-name{font-size:12px;font-weight:700;text-decoration:line-through;color:var(--muted2);margin-bottom:4px}
+.defer-reason{font-size:10px;color:var(--muted);line-height:1.5}
+.defer-phase{font-size:9px;font-weight:700;color:var(--brand2);margin-top:8px}
+
+/* ── DoD ──────────────────────────────── */
+.dod-row{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:24px}
+@media(max-width:900px){.dod-row{grid-template-columns:repeat(2,1fr)}}
+.dod-item{background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+.dod-icon{font-size:18px;margin-bottom:5px}
+.dod-lbl{font-size:10px;font-weight:700}
+.dod-desc{font-size:9px;color:var(--muted);margin-top:3px;line-height:1.4}
+
+/* ── Footer ───────────────────────────── */
+.footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:10px;color:var(--muted)}
+.footer-brand{font-weight:900;font-size:13px;background:linear-gradient(90deg,#818cf8,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <h1>MES360° &middot; PoC Final Sprint</h1>
+    <div class="header-meta">
+      <!-- <span class="chip chip-green"><span class="live-dot"></span>&nbsp;LIVE</span> -->
+      <span class="chip chip-muted">&#128205; NCC / SIDCO &mdash; Dammam</span>
+      <span class="chip chip-muted">&#128197; Jun 8 &rarr; Jun 15 2026</span>
+      <span class="chip chip-blue">20 PoC Modules</span>
+      <span class="chip chip-muted">Scope: PoC Proposal v2 + NCC Prerequisites</span>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+    <div class="ring-wrap">
+      <svg width="88" height="88" viewBox="0 0 88 88">
+        <circle cx="44" cy="44" r="36" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="7"/>
+        <circle cx="44" cy="44" r="36" fill="none" stroke="url(#rg)" stroke-width="7"
+          stroke-dasharray="226.2" stroke-dashoffset="67.9" stroke-linecap="round"/>
+        <defs><linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#a78bfa"/>
+        </linearGradient></defs>
+      </svg>
+      <div class="ring-label">70%<small>DONE</small></div>
+    </div>
+    <div class="ring-sub">30% gap &middot; <strong>8 days</strong></div>
+  </div>
+</div>
+
+<!-- SCOPE ALIGNMENT -->
+<div class="sec">PoC Scope Alignment &mdash; 4-Layer Architecture (PoC Proposal v2)</div>
+<div class="scope-banner">
+  <div class="scope-cell in">
+    <div class="sc-lbl">Layer 01 &mdash; In Scope &#10003;</div>
+    <div class="sc-name">DAQ / SCADA / IIoT</div>
+    <div class="sc-items">IoT Gateway &middot; MQTT Data Collection &middot; Time-Series DB &middot; Device Tags &middot; Live Streaming &middot; OEE Sensors (Module #14)</div>
+  </div>
+  <div class="scope-cell in">
+    <div class="sc-lbl">Layer 02 &mdash; In Scope &#10003;</div>
+    <div class="sc-name">MES Platform</div>
+    <div class="sc-items">Production &middot; Quality &middot; CMMS &middot; Inventory &middot; Downtime &middot; Energy &middot; Reports &middot; Dashboard &middot; Notifications &middot; Traceability (Modules #1&ndash;13, #15&ndash;20)</div>
+  </div>
+  <div class="scope-cell out">
+    <div class="sc-lbl">Layer 03 &mdash; Out of Scope &#10007;</div>
+    <div class="sc-name">Simulation &amp; Optimization</div>
+    <div class="sc-items">Process Twin &middot; Factory Twin &middot; Capacity Planning &middot; Bottleneck Analysis &rarr; Phase 2</div>
+  </div>
+  <div class="scope-cell out">
+    <div class="sc-lbl">Layer 04 &mdash; Out of Scope &#10007;</div>
+    <div class="sc-name">AI &amp; Intelligence</div>
+    <div class="sc-items">Predictive Maintenance &middot; Anomaly Detection &middot; Demand Forecasting &middot; Computer Vision &rarr; Phase 2</div>
+  </div>
+</div>
+
+<!-- KPI -->
+<div class="kpi-row">
+  <div class="kpi g"><div class="kpi-v">14</div><div class="kpi-l">Modules &ge; 70%</div></div>
+  <div class="kpi a"><div class="kpi-v">4</div><div class="kpi-l">Modules &lt; 60%</div></div>
+  <div class="kpi r"><div class="kpi-v">3</div><div class="kpi-l">&#128308; Blockers</div></div>
+  <div class="kpi b"><div class="kpi-v">20</div><div class="kpi-l">PoC Core Modules</div></div>
+  <div class="kpi p"><div class="kpi-v">6</div><div class="kpi-l">Deferred Phase 2</div></div>
+</div>
+
+<!-- MODULE STATUS -->
+<div class="sec">Module Status Board &mdash; 20 PoC-Core Modules</div>
+<div class="mod-list" id="modList"></div>
+
+<!-- DEFERRED -->
+<div class="sec">Deferred &mdash; Out of PoC Scope</div>
+<div class="deferred-grid" id="deferredGrid"></div>
+
+<!-- GANTT + CATEGORIES -->
+<div class="two">
+  <div>
+    <div class="sec">Daily Sprint Schedule</div>
+    <div class="gantt">
+      <div class="g-head">
+        <div>Focus Area</div>
+        <div>Mon<br>8</div><div>Tue<br>9</div><div>Wed<br>10</div><div>Thu<br>11</div>
+        <div>Fri<br>12</div><div>Sat<br>13</div><div>Sun<br>14</div><div>Mon<br>15</div>
+      </div>
+      <div id="ganttRows"></div>
+    </div>
+  </div>
+  <div>
+    <div class="sec">Category Completion</div>
+    <div class="cat-grid" id="catGrid"></div>
+  </div>
+</div>
+
+<!-- NCC DEMO DATA -->
+<div class="sec">NCC Real Data &mdash; Must Be Loaded Before Demo Day Jun 15 (from Prerequisites File)</div>
+<div class="ncc-grid" id="nccGrid"></div>
+
+<!-- FLAGS + LEGEND -->
+<div class="two">
+  <div>
+    <div class="sec">Priority Flags &mdash; PoC Document Basis</div>
+    <div class="flag-list" id="flagList"></div>
+  </div>
+  <div>
+    <div class="sec">Flag Legend</div>
+    <div class="legend-col">
+      <div class="leg-item"><div class="leg-icon">&#128308;</div><div><div class="leg-key">BLOCKER</div><div class="leg-val">Cannot run the PoC demo without this &mdash; explicit PoC deliverable or DAQ-layer dependency</div></div></div>
+      <div class="leg-item"><div class="leg-icon">&#128992;</div><div><div class="leg-key">HIGH</div><div class="leg-val">Major gap in a confirmed PoC scope module &mdash; complete before QA day (Jun 14)</div></div></div>
+      <div class="leg-item"><div class="leg-icon">&#128993;</div><div><div class="leg-key">MEDIUM</div><div class="leg-val">Improves demo quality &mdash; do if time allows after blockers and HIGHs</div></div></div>
+      <div class="leg-item"><div class="leg-icon">&#128994;</div><div><div class="leg-key">NICE</div><div class="leg-val">Visual / UX polish &mdash; defer to post-PoC sprint if needed</div></div></div>
+      <div class="mid-sprint">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;">Mid-Sprint Reviews</div>
+        <div class="ms-row"><span class="ms-date">Wed Jun 11</span><span>Check Modules 1&ndash;9. Re-prioritize Fri&ndash;Mon tasks if behind on NCR/CAPA or Reports.</span></div>
+        <div class="ms-row"><span class="ms-date">Sat Jun 13</span><span>Feature freeze. QA and demo-data load only from here.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DEFINITION OF DONE -->
+<div class="sec" style="margin-top:24px;">Definition of Done &mdash; All 7 Must Pass</div>
+<div class="dod-row">
+  <div class="dod-item"><div class="dod-icon">&#9881;&#65039;</div><div class="dod-lbl">Backend</div><div class="dod-desc">All CRUD endpoints, validated, correct HTTP codes</div></div>
+  <div class="dod-item"><div class="dod-icon">&#128187;</div><div class="dod-lbl">Frontend</div><div class="dod-desc">List, create/edit, delete, status actions functional</div></div>
+  <div class="dod-item"><div class="dod-icon">&#128452;&#65039;</div><div class="dod-lbl">Seed Data</div><div class="dod-desc">Covers every NCC scenario visible in UI</div></div>
+  <div class="dod-item"><div class="dod-icon">&#9888;&#65039;</div><div class="dod-lbl">Error States</div><div class="dod-desc">Empty states, skeletons, API toasts correct</div></div>
+  <div class="dod-item"><div class="dod-icon">&#128274;</div><div class="dod-lbl">Permissions</div><div class="dod-desc">RBAC &mdash; OPERATOR read, FACTORY_ADMIN manage</div></div>
+  <div class="dod-item"><div class="dod-icon">&#128241;</div><div class="dod-lbl">Responsive</div><div class="dod-desc">Layout intact at 768px &mdash; shop floor tablet</div></div>
+  <div class="dod-item"><div class="dod-icon">&#129001;</div><div class="dod-lbl">No Errors</div><div class="dod-desc">Zero console errors in DevTools during demo</div></div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div>
+    <div class="footer-brand">MES360° Platform</div>
+    <div style="margin-top:3px;">NCC / SIDCO PoC &mdash; Dammam Industrial City &middot; Scope basis: PoC Proposal v2 + NCC Prerequisites File</div>
+  </div>
+  <div style="text-align:right;">
+    <div>Updated: <strong style="color:var(--text);">2026-06-08</strong></div>
+    <div style="margin-top:2px;">Mid-sprint: <strong style="color:var(--text);">2026-06-11</strong></div>
+  </div>
+</div>
+
+</div>
+<script>
+const MODS=[
+  {id:1,  name:'Production Orders (ISA-95)', layer:'MES Layer 02', remain:'E2E tests; status-transition edge guards', pct:92, flag:'nice',   day:'Mon 8'},
+  {id:2,  name:'Work Orders',                layer:'MES Layer 02', remain:'Downtime auto-link on WO hold; WebSocket state-change event', pct:90, flag:'nice', day:'Mon 8'},
+  {id:3,  name:'Production Scheduling',      layer:'MES Layer 02', remain:'Gantt timeline bars with visual date positioning', pct:88, flag:'nice', day:'Mon 8'},
+  {id:4,  name:'Quality - Plans & Inspections', layer:'MES Layer 02', remain:'Inspection edit/delete; parameter-level pass/fail detail', pct:90, flag:'nice', day:'Tue 9'},
+  {id:5,  name:'Quality - NCR & CAPA',       layer:'MES Layer 02', remain:'CAPA effectiveness review; NCR to CAPA auto-link; close checklist', pct:78, flag:'blocker', day:'Tue 9'},
+  {id:6,  name:'Quality - SPC Charts',       layer:'MES Layer 02', remain:'Real-time update from inspection save; Western Electric rule annotations', pct:82, flag:'nice', day:'Tue 9'},
+  {id:7,  name:'Maintenance - Work Orders',  layer:'MES CMMS', remain:'Close flow: spare-parts-used + labor hours; PDF work order card', pct:72, flag:'high', day:'Wed 10'},
+  {id:8,  name:'Maintenance - PM & Assets',  layer:'MES CMMS', remain:'PM due-date alert; asset history timeline; next-service countdown', pct:70, flag:'medium', day:'Wed 10'},
+  {id:9,  name:'Inventory - SKU / BOM / Lots', layer:'MES Layer 02', remain:'Stock movement transactions (issue to WO, receive from PO); low-stock badge', pct:85, flag:'medium', day:'Wed 10'},
+  {id:10, name:'Downtime Management',        layer:'MES Layer 02', remain:'Pareto chart (NCC 30+ causes); auto-close endpoint; filter by shift; CSV export', pct:75, flag:'medium', day:'Thu 11'},
+  {id:11, name:'Reports & Analytics',        layer:'MES Layer 02', remain:'Aggregated data queries; date-range picker; PDF/Excel export (PoC Executive Report deliverable)', pct:42, flag:'blocker', day:'Thu 11'},
+  {id:12, name:'Energy Module (EMS)',        layer:'MES Layer 02', remain:'Meter readings CRUD; consumption trend chart; shift-level breakdown', pct:60, flag:'medium', day:'Thu 11'},
+  {id:13, name:'Notifications & Alerts',     layer:'MES Layer 02', remain:'Rules management UI; email alert channel config; in-app threshold alerts (PoC Alerting deliverable)', pct:70, flag:'high', day:'Fri 12'},
+  {id:14, name:'IIoT & Connectivity',        layer:'DAQ Layer 01', remain:'MQTT live subscription (simulated PLC tags); live tag polling; device heartbeat; port 1883 validation', pct:50, flag:'blocker', day:'Fri 12'},
+  {id:15, name:'Traceability',               layer:'MES Layer 02', remain:'Full lot genealogy (RM to WO to Batch to Dispatch); QR scan input; NCR cross-link', pct:30, flag:'high', day:'Fri 12'},
+  {id:16, name:'Users & Roles',              layer:'Platform', remain:'Seed NCC real users (Issa / Mohammed / Mohammed.Yousef); permission matrix; per-user audit log', pct:78, flag:'medium', day:'Sat 13'},
+  {id:17, name:'Settings & Configuration',   layer:'Platform', remain:'Factory config: 2 shifts (07:30-19:30 / 19:30-07:30), targets 3000-3500/shift, breaks, timezone', pct:32, flag:'medium', day:'Sat 13'},
+  {id:18, name:'Dashboard (OEE Live)',       layer:'MES Layer 02', remain:'WebSocket push for KPI cards; shift heatmap widget; top-5 downtime Pareto bar', pct:87, flag:'nice', day:'Sun 14'},
+  {id:19, name:'Infrastructure & DevOps',    layer:'Infra', remain:'k6 load test (50 users); pg_dump to MinIO backup cron; health-check endpoints', pct:72, flag:'medium', day:'Sun 14'},
+  {id:20, name:'QA + NCC Demo Data + Go-Live', layer:'QA', remain:'Load real NCC data (SKUs, machines, shifts, cycle times, downtime causes); full regression; demo script', pct:65, flag:'nice', day:'Mon 15'},
+];
+
+const DEFERRED=[
+  {icon:'🤖', name:'AI Intelligence', reason:'PoC Proposal v2: Layer 04 explicitly out of PoC scope. No anomaly detection or predictive maintenance in PoC.', phase:'Phase 2'},
+  {icon:'📧', name:'Email SMTP Service (standalone)', reason:'Not a PoC module. Email alerts = channel config inside Notifications (#13), not a separate EmailService build.', phase:'Part of #13'},
+  {icon:'🔒', name:'Security Hardening', reason:'Secret rotation, SSL/TLS, rate limiting are production deployment concerns — not PoC demo requirements.', phase:'Phase 2'},
+  {icon:'💬', name:'WhatsApp Business API', reason:'NCC prerequisites list WhatsApp as optional. Not required to demonstrate core PoC value.', phase:'Phase 2'},
+  {icon:'🏭', name:'ERP / SAP Integration', reason:'PoC Proposal v2: "ERP/SAP two-way integration is OUT OF SCOPE" — explicitly stated.', phase:'Phase 2'},
+  {icon:'🌐', name:'Simulation / Digital Twin', reason:'Layer 03 of the platform architecture. Requires full MES data baseline first.', phase:'Phase 3'},
+];
+
+const GANTT=[
+  {label:'Production',   color:'#6366f1', days:[1,0,0,0,0,0,0,0]},
+  {label:'Quality',      color:'#22c55e', days:[0,1,0,0,0,0,0,0]},
+  {label:'Maintenance',  color:'#06b6d4', days:[0,0,1,0,0,0,0,0]},
+  {label:'Inventory',    color:'#3b82f6', days:[0,0,1,0,0,0,0,0]},
+  {label:'Downtime',     color:'#f97316', days:[0,0,0,1,0,0,0,0]},
+  {label:'Reports 🔴',   color:'#ef4444', days:[0,0,0,1,0,0,0,0]},
+  {label:'Energy',       color:'#f59e0b', days:[0,0,0,1,0,0,0,0]},
+  {label:'IIoT 🔴',      color:'#ef4444', days:[0,0,0,0,1,0,0,0]},
+  {label:'Alerts',       color:'#ec4899', days:[0,0,0,0,1,0,0,0]},
+  {label:'Traceability', color:'#14b8a6', days:[0,0,0,0,1,0,0,0]},
+  {label:'Users',        color:'#a855f7', days:[0,0,0,0,0,1,0,0]},
+  {label:'Settings',     color:'#64748b', days:[0,0,0,0,0,1,0,0]},
+  {label:'Dashboard',    color:'#0ea5e9', days:[0,0,0,0,0,0,1,0]},
+  {label:'DevOps',       color:'#10b981', days:[0,0,0,0,0,0,1,0]},
+  {label:'QA + Demo',    color:'#fbbf24', days:[0,0,0,0,0,0,0,1]},
+];
+
+const CATS=[
+  {name:'Production',    mods:'#1 · #2 · #3',    avg:90, color:'#6366f1'},
+  {name:'Quality',       mods:'#4 · #5 · #6',    avg:83, color:'#22c55e'},
+  {name:'Maintenance',   mods:'#7 · #8',          avg:71, color:'#06b6d4'},
+  {name:'Inventory',     mods:'#9',               avg:85, color:'#3b82f6'},
+  {name:'Downtime/EMS',  mods:'#10 · #12',        avg:68, color:'#f97316'},
+  {name:'Analytics',     mods:'#11',              avg:42, color:'#ef4444'},
+  {name:'IIoT/Trace',    mods:'#14 · #15',        avg:40, color:'#14b8a6'},
+  {name:'Notifications', mods:'#13',              avg:70, color:'#ec4899'},
+  {name:'Users/Settings',mods:'#16 · #17',        avg:55, color:'#a855f7'},
+  {name:'Dash/Infra/QA', mods:'#18·#19·#20',      avg:75, color:'#0ea5e9'},
+];
+
+const NCC_DATA=[
+  {
+    title:'🏭 Machines (SIDCO)',
+    items:[
+      {code:'M1', name:'Big Betti',        val:'Filling'},
+      {code:'M2', name:'Cartomac',          val:'Cartoning'},
+      {code:'M3', name:'Checkweigher',      val:'QC Check'},
+      {code:'M4', name:'Euro-Pack Robot',   val:'Palletizing'},
+      {code:'M5', name:'Uni-tech Wrapping', val:'Stretch Wrap'},
+    ]
+  },
+  {
+    title:'⏱ Cycle Times per Machine',
+    items:[
+      {code:'Big Betti',    name:'1.5 / 2 / 2.25 kg',  val:'30 / 31 / 35 s'},
+      {code:'Cartomac',     name:'1.5 / 2 / 2.25 kg',  val:'30 / 25 / 40 s'},
+      {code:'Euro-Pack',    name:'1.5 / 2 / 2.25 kg',  val:'7m50 / 4m50 / 4m35'},
+      {code:'Uni-tech',     name:'1.5 / 2 / 2.25 kg',  val:'2m50 / 2m25 / 2m30'},
+      {code:'DT Threshold', name:'Min stop = downtime', val:'1 minute'},
+    ]
+  },
+  {
+    title:'📦 Active SKU Families',
+    items:[
+      {code:'GENTO',    name:'HF/LF · 6 size variants',  val:'10310189–236'},
+      {code:'Safe',     name:'Flower / Original HF/LF',   val:'10310213–216'},
+      {code:'Alwatani', name:'Blue / Violet HF',          val:'10310064–067'},
+      {code:'Rex',      name:'HF/LF · 6×2.5 kg',         val:'10310297–298'},
+      {code:'Miza',     name:'(Panda) HF/LF 4×2.25 kg',  val:'10310290–291'},
+    ]
+  },
+  {
+    title:'👥 NCC Users + Shifts',
+    items:[
+      {code:'Admin',   name:'Issa Masadeh',         val:'issa.masadeh@sidco.com.sa'},
+      {code:'Manager', name:'Mohammed Brakat',       val:'Alert recipient'},
+      {code:'Viewer',  name:'Mohammed Yousef',       val:'Supervisor'},
+      {code:'Shift 1', name:'07:30 → 19:30',         val:'11h planned'},
+      {code:'Shift 2', name:'19:30 → 07:30',         val:'11h planned'},
+      {code:'Target',  name:'Per shift per machine', val:'3000–3500 boxes'},
+    ]
+  },
+];
+
+const FLAGS=[
+  {icon:'🔴',cls:'blocker',mod:'NCR → CAPA Flow (#5)',       desc:'Core Quality completeness — incomplete effectiveness-review and close loop blocks the QA audit demo scenario.',basis:'PoC Layer 02 — Quality Management (in scope)'},
+  {icon:'🔴',cls:'blocker',mod:'Reports & Analytics (#11)',  desc:'"Executive Analytics Report" is an explicit PoC handover deliverable listed in PoC Proposal v2.',             basis:'PoC Proposal v2 — End of PoC Handover deliverables'},
+  {icon:'🔴',cls:'blocker',mod:'IIoT & Connectivity (#14)',  desc:'DAQ/SCADA is Layer 01 of the PoC — the hardware data pipeline the whole platform is built to prove.',          basis:'PoC Proposal v2 — Layer 01, Unlocked PoC Modules'},
+  {icon:'🟠',cls:'high',   mod:'Maintenance WO Close (#7)',  desc:'CMMS is explicit Layer 02 PoC scope. Close flow with spare-parts-used and labor hours is the core CMMS use case.', basis:'PoC Proposal v2 — CMMS (Work Orders & PM)'},
+  {icon:'🟠',cls:'high',   mod:'Notifications & Alerts (#13)',desc:'"Automated Alerting System" is an explicit PoC deliverable. NCC prerequisites confirm email alert channels needed.', basis:'PoC Proposal v2 + NCC Prerequisites Sheet 4'},
+  {icon:'🟠',cls:'high',   mod:'Traceability (#15)',         desc:'Batch/Lot tracking is marked in the Requirements Mapping Matrix across all NCC factories (critical need).',      basis:'Factory Requirements Matrix — all factories'},
+  {icon:'🟡',cls:'medium', mod:'Downtime Pareto (#10)',      desc:'NCC provided 30+ actual downtime causes per machine — Pareto is the key insight for the Executive Analytics Report.', basis:'NCC Prerequisites Sheet 2 — unplanned downtime list'},
+  {icon:'🟡',cls:'medium', mod:'Energy Readings CRUD (#12)', desc:'EMS Platform is explicit Layer 02 PoC scope.',                                                                     basis:'PoC Proposal v2 — EMS Platform (Layer 02)'},
+  {icon:'🟡',cls:'medium', mod:'Settings: Shifts & Targets (#17)',desc:'NCC provided exact shift times and production targets — these must be reflected in the system before the demo.', basis:'NCC Prerequisites Sheet 2 — production & shift data'},
+  {icon:'🟢',cls:'nice',   mod:'Gantt Timeline Bars (#3)',   desc:'Visual date positioning on the scheduling Gantt. Functional scheduling already works — this is visual polish.', basis:'UI polish'},
+  {icon:'🟢',cls:'nice',   mod:'Western Electric SPC Rules (#6)',desc:'Advanced SPC rule annotations. Basic UCL/LCL chart is already functional.',                                  basis:'Nice-to-have analytics polish'},
+];
+
+function pCls(p){
+  if(p>=90)return 'p90';if(p>=75)return 'p75';if(p>=60)return 'p60';if(p>=40)return 'p40';return 'plow';
+}
+const flagEmoji={blocker:'🔴',high:'🟠',medium:'🟡',nice:'🟢'};
+
+// render modules
+const ml=document.getElementById('modList');
+MODS.forEach(m=>{
+  const pc=pCls(m.pct);
+  ml.innerHTML+=`<div class="mod ${m.flag}">
+    <div class="mod-num">${m.id}</div>
+    <div class="mod-info"><div class="name">${m.name}</div><div class="layer">${m.layer}</div></div>
+    <div class="mod-remain">${m.remain}</div>
+    <div class="mod-pct-wrap ${pc}">
+      <div class="pct-num">${m.pct}%</div>
+      <div class="bar"><div class="bar-f" style="width:${m.pct}%"></div></div>
+      <div class="mod-day">${m.day}</div>
+    </div>
+    <div style="font-size:15px;">${flagEmoji[m.flag]}</div>
+  </div>`;
+});
+
+// render deferred
+const dg=document.getElementById('deferredGrid');
+DEFERRED.forEach(d=>{
+  dg.innerHTML+=`<div class="defer-card">
+    <div class="defer-icon">${d.icon}</div>
+    <div class="defer-name">${d.name}</div>
+    <div class="defer-reason">${d.reason}</div>
+    <div class="defer-phase">&#8594; ${d.phase}</div>
+  </div>`;
+});
+
+// render gantt
+const gr=document.getElementById('ganttRows');
+GANTT.forEach(row=>{
+  let cells=row.days.map(a=>`<div class="g-cell">${a?`<div class="g-bar" style="background:${row.color}22;border:1px solid ${row.color}55;color:${row.color};">&#9646;</div>`:''}</div>`).join('');
+  gr.innerHTML+=`<div class="g-row">
+    <div class="g-lbl" style="color:${row.color};">
+      <span style="width:7px;height:7px;border-radius:50%;background:${row.color};display:inline-block;flex-shrink:0;"></span>${row.label}
+    </div>${cells}
+  </div>`;
+});
+
+// render cats
+const cg=document.getElementById('catGrid');
+CATS.forEach(c=>{
+  cg.innerHTML+=`<div class="cat">
+    <div class="cat-name" style="color:${c.color};">${c.name}</div>
+    <div class="cat-mods">${c.mods}</div>
+    <div class="cat-bar"><div class="cat-bar-f" style="width:${c.avg}%;background:${c.color};"></div></div>
+    <div class="cat-pct" style="color:${c.color};">${c.avg}%</div>
+    <div class="cat-gap">+${100-c.avg}% to close</div>
+  </div>`;
+});
+
+// render ncc data
+const ng=document.getElementById('nccGrid');
+NCC_DATA.forEach(section=>{
+  let items=section.items.map(i=>`<div class="ncc-item">
+    <span class="ni-code">${i.code}</span>
+    <span class="ni-name">${i.name}</span>
+    <span class="ni-val">${i.val}</span>
+  </div>`).join('');
+  ng.innerHTML+=`<div class="ncc-card"><div class="ncc-card-title">${section.title}</div>${items}</div>`;
+});
+
+// render flags
+const fl=document.getElementById('flagList');
+FLAGS.forEach(f=>{
+  fl.innerHTML+=`<div class="flag-item fl-${f.cls}">
+    <div class="fi-icon">${f.icon}</div>
+    <div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span class="fi-mod">${f.mod}</span>
+        <span style="font-size:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:1px 5px;color:var(--muted2);">${f.cls.toUpperCase()}</span>
+      </div>
+      <div class="fi-desc">${f.desc}</div>
+      <div class="fi-basis">Source: ${f.basis}</div>
+    </div>
+  </div>`;
+});
+</script>
+</body>
+</html>

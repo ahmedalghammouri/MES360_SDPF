@@ -1,0 +1,74 @@
+{
+  "picker": {
+    "searchMachines": "Search machines...", "noMachines": "No machines found",
+    "searchWorkCenters": "Search work centers...", "noResults": "No results",
+    "manage": "Manage {{label}}", "noneDefined": "No {{label}} defined yet."
+  },
+  "charts": {
+    "currentShift": "Current Shift", "activeAlarms": "Active Alarms", "noActiveAlarms": "No active alarms", "allNormal": "All systems operating normally",
+    "oee": "OEE", "live": "LIVE", "machineStatusGrid": "Machine Status Grid", "realtimeOverview": "Real-time equipment overview",
+    "qualityTrend": "Quality Trend", "fpyDefects": "First Pass Yield and defect rates",
+    "productionOutput": "Production Output", "actualVsTarget": "Actual vs target with efficiency",
+    "oeeAnalysis": "OEE Analysis", "oeeFull": "Overall Equipment Effectiveness",
+    "availability": "Availability", "performance": "Performance", "quality": "Quality",
+    "mttrMtbf": "Mean Time to Repair vs Mean Time Between Failures", "downtimePareto": "Downtime Pareto", "downtimeParetoSub": "Top downtime causes (Pareto analysis)", "mttrMtbfTitle": "MTTR & MTBF Trends",
+    "gRows": "Rows", "gTimeScale": "Time scale", "gActions": "Actions", "gOrders": "Orders", "gResources": "Resources", "gSupply": "Supply", "gDemand": "Demand"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "close": "Close",
+    "search": "Search",
+    "clear": "Clear",
+    "refresh": "Refresh",
+    "export": "Export",
+    "filter": "Filter",
+    "back": "Back",
+    "next": "Next",
+    "confirm": "Confirm",
+    "view": "View",
+    "viewDetails": "View Details",
+    "saving": "Saving…",
+    "deleting": "Deleting…"
+  },
+  "pagination": {
+    "showing": "Showing",
+    "of": "of",
+    "results": "results",
+    "first": "First page",
+    "previous": "Previous page",
+    "next": "Next page",
+    "last": "Last page"
+  },
+  "status": {
+    "active": "Active",
+    "paused": "Paused",
+    "archived": "Archived",
+    "open": "Open",
+    "closed": "Closed",
+    "pending": "Pending",
+    "completed": "Completed",
+    "live": "Live"
+  },
+  "priority": {
+    "LOW": "Low",
+    "MEDIUM": "Medium",
+    "HIGH": "High",
+    "CRITICAL": "Critical"
+  },
+  "common": {
+    "loading": "Loading…",
+    "noData": "No data",
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No",
+    "language": "Language",
+    "selected": "{{count}} selected",
+    "clearSelection": "Clear selection",
+    "confirmDelete": "This action cannot be undone. Are you sure?"
+  }
+}

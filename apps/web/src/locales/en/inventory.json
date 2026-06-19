@@ -1,0 +1,152 @@
+{
+  "headers": {
+    "overview": { "title": "Inventory Management", "subtitle": "Materials, spare parts, products & lots — value, stock health and movement at a glance" },
+    "products": { "title": "Product Catalog" },
+    "rawMaterials": { "title": "Raw Materials", "subtitle": "Inventory of raw materials, packaging, chemicals, and consumables" },
+    "materials": { "title": "Material Lots" },
+    "spareParts": { "title": "Spare Parts" },
+    "spareRequests": { "title": "Spare Part Requests", "subtitle": "Pending requests from maintenance work orders — issue parts to fulfill them" },
+    "stockMovements": { "title": "Stock Movements", "subtitle": "Universal inventory ledger — every receipt, issue, adjustment, reservation and consumption." },
+    "storage": { "title": "Storage Locations", "subtitle": "Warehouse zones, bins, and storage areas — click any location to view contents" },
+    "bom": { "title": "Bill of Materials", "subtitle": "Define raw material requirements for each finished product" },
+    "reports": { "title": "Inventory Reports", "subtitle": "Overview of stock levels, materials, and storage" }
+  },
+  "productsCount": "{{count}} SKUs with Bill of Materials",
+  "materialsCount": "{{count}} lots",
+  "expired": "{{count}} expired",
+  "partsTotal": "{{count}} parts total",
+  "lowStock": "{{count}} low stock",
+  "products": {
+    "searchSku": "Search SKU, item #…",
+    "category": "Category…",
+    "brand": "Brand…",
+    "noProducts": "No products found",
+    "selectAll": "Select all",
+    "col": {
+      "item": "Item #", "nameCode": "Name / Code", "family": "Family", "brand": "Brand",
+      "category": "Category", "packaging": "Packaging", "unitsBreakdown": "Units/Inner/Carton/Pallet",
+      "weight": "Weight", "dimensions": "Dimensions (L×W×H)", "bom": "BOM", "storage": "Storage", "actions": "Actions"
+    },
+    "bomCol": { "code": "Code", "component": "Component", "qty": "Qty", "unit": "Unit", "type": "Type" }
+  },
+  "pdform": {
+    "createTitle": "Create New Product", "createDesc": "Add a new SKU to the catalog", "editTitle": "Edit Product",
+    "cancel": "Cancel", "creating": "Creating...", "createProduct": "Create Product", "saving": "Saving...", "saveChanges": "Save Changes",
+    "productCode": "Product Code", "itemNumber": "Item Number", "productName": "Product Name",
+    "nameAr": "Name (Arabic)", "shortName": "Short Name",
+    "brand": "Brand", "category": "Category", "packagingType": "Packaging Type", "baseUnit": "Base Unit", "baseWeight": "Base Weight",
+    "unitsPerInner": "Units per Inner", "innersPerCarton": "Inners per Carton", "cartonsPerPallet": "Cartons per Pallet",
+    "weightDims": "Weight & Dimensions", "netWeight": "Net Weight", "unit": "Unit", "dimUnit": "Dim. Unit",
+    "length": "Length", "width": "Width", "height": "Height",
+    "storageFg": "Storage Location (Finished Goods)", "selectLocation": "Select location…", "searchLocation": "Search by code or name…"
+  },
+  "rawMaterials": {
+    "allMaterials": "All Materials",
+    "search": "Search code, name…",
+    "allCategories": "All Categories",
+    "lowStock": "Low Stock",
+    "noMaterials": "No raw materials found",
+    "selectAll": "Select all",
+    "col": {
+      "code": "Code", "name": "Name", "category": "Category", "unit": "Unit", "onHand": "On Hand",
+      "available": "Available", "reserved": "Reserved", "minStock": "Min Stock", "unitCost": "Unit Cost",
+      "location": "Location", "status": "Status"
+    }
+  },
+  "rmform": {
+    "createTitle": "Add Raw Material", "editTitle": "Edit — {{name}}",
+    "createDesc": "Fill in the details to add a new raw material to inventory.", "editDesc": "Update material details below.",
+    "cancel": "Cancel", "saving": "Saving…", "creating": "Creating…", "saveChanges": "Save Changes", "addMaterial": "Add Material",
+    "code": "Code", "codePlaceholder": "e.g. RM-001", "category": "Category", "selectCategory": "Select category", "none": "None",
+    "name": "Name", "namePlaceholder": "Material name", "unit": "Unit", "unitPlaceholder": "KG, L, PCS…",
+    "unitCost": "Unit Cost (SAR)", "minStock": "Min Stock", "maxStock": "Max Stock", "optional": "Optional",
+    "reorderPoint": "Reorder Point", "leadTime": "Lead Time (days)",
+    "storageLocation": "Storage Location", "selectLocation": "Select location…", "searchLocation": "Search by code or name…",
+    "supplierName": "Supplier Name"
+  },
+  "adjust": {
+    "title": "Adjust Stock", "titleNamed": "Adjust Stock — {{name}}",
+    "desc": "Record a stock receipt or withdrawal. This writes a stock movement to the ledger.",
+    "cancel": "Cancel", "saving": "Saving…", "apply": "Apply Adjustment",
+    "currentOnHand": "Current on-hand", "addStock": "Add Stock", "removeStock": "Remove Stock",
+    "quantity": "Quantity ({{unit}})", "reason": "Reason", "reasonPlaceholder": "e.g. Cycle count correction, damage write-off…",
+    "newOnHand": "New on-hand after adjustment", "negativeWarn": "Adjustment would result in negative stock."
+  },
+  "history": { "title": "Stock Movements" },
+  "lots": {
+    "search": "Search material, lot #…",
+    "noLots": "No material lots found",
+    "selectAll": "Select all",
+    "col": {
+      "material": "Material", "lot": "Lot #", "supplier": "Supplier", "qty": "Qty", "remaining": "Remaining",
+      "usedPct": "Used %", "location": "Location", "received": "Received", "expiry": "Expiry",
+      "status": "Status", "actions": "Actions"
+    }
+  },
+  "stockMovements": {
+    "search": "Search item / reference…",
+    "noMovements": "No stock movements found",
+    "col": {
+      "date": "Date", "item": "Item", "type": "Type", "movement": "Movement", "qty": "Qty",
+      "beforeAfter": "Before → After", "cost": "Cost", "reference": "Reference", "by": "By"
+    }
+  },
+  "spareParts": {
+    "search": "Search parts…", "category": "Category…", "noParts": "No spare parts found", "selectAll": "Select all",
+    "col": {
+      "part": "Part #", "name": "Name", "category": "Category", "supplier": "Supplier", "stock": "Stock",
+      "min": "Min", "unitCost": "Unit Cost", "value": "Value (SAR)", "location": "Location", "lastUsed": "Last Used", "actions": "Actions"
+    }
+  },
+  "spform": {
+    "editTitle": "Edit Spare Part", "createTitle": "Create New Spare Part", "createDesc": "Add a new spare part to inventory",
+    "cancel": "Cancel", "saving": "Saving...", "saveChanges": "Save Changes", "creating": "Creating...", "createPart": "Create Part",
+    "partNumber": "Part Number", "category": "Category", "name": "Name", "description": "Description",
+    "manufacturer": "Manufacturer", "supplier": "Supplier", "unitCost": "Unit Cost (SAR)",
+    "minStock": "Min Stock Qty", "maxStock": "Max Stock Qty", "storageLocation": "Storage Location",
+    "selectLocation": "Select location…", "searchLocation": "Search by code or name…", "binNumber": "Bin Number",
+    "deleteTitle": "Delete {{name}}?", "deleteDesc": "This will permanently remove this spare part from inventory.",
+    "restore": "Restore", "archive": "Archive"
+  },
+  "spareRequests": {
+    "pending": "Pending Requests", "search": "Search WO, part…",
+    "col": {
+      "wo": "WO #", "machine": "Machine", "priority": "Priority", "part": "Part", "partNo": "Part #",
+      "req": "Req.", "availableStock": "Available Stock", "location": "Location", "dueDate": "Due Date"
+    }
+  },
+  "storage": {
+    "search": "Search code or name…", "allZones": "All zones", "noLocations": "No storage locations yet",
+    "col": { "codeName": "Code / Name", "category": "Category", "stockQty": "Stock Qty", "value": "Value (SAR)", "status": "Status" },
+    "itemsStored": "items stored", "itemsTracked": "Items Tracked", "loading": "Loading locations...",
+    "loadingShort": "Loading...", "inactive": "Inactive",
+    "tab": { "summary": "Summary", "raw": "Raw Materials", "lots": "Material Lots", "parts": "Spare Parts", "skus": "Products/SKUs" },
+    "zones": {
+      "RAW_MATERIAL": "Raw Material Warehouse", "SPARE_PARTS": "Spare Parts Room", "FINISHED_GOODS": "Finished Goods",
+      "QUARANTINE": "Quarantine / QC Hold", "PRODUCTION": "Production Floor", "DISPATCH": "Dispatch / Shipping"
+    },
+    "zonesShort": {
+      "RAW_MATERIAL": "Raw Material", "SPARE_PARTS": "Spare Parts", "FINISHED_GOODS": "Finished",
+      "QUARANTINE": "Quarantine", "PRODUCTION": "Production", "DISPATCH": "Dispatch"
+    }
+  },
+  "sform": {
+    "createTitle": "New Storage Location", "editTitle": "Edit Storage Location",
+    "cancel": "Cancel", "saving": "Saving...", "createLocation": "Create Location", "saveChanges": "Save Changes",
+    "locationCode": "Location Code", "codeHint": "e.g. RM-A01, SP-B03",
+    "zone": "Zone", "selectZone": "Select zone...", "name": "Name", "namePlaceholder": "Aisle A, Shelf 1",
+    "description": "Description", "descPlaceholder": "Optional notes",
+    "capacity": "Capacity (optional)", "capacityPlaceholder": "Max units / pallets",
+    "deactivateTitle": "Deactivate Location?",
+    "deactivateMsg": "This location will be hidden from new assignments. Existing inventory references are preserved.",
+    "deactivating": "Deactivating...", "deactivate": "Deactivate"
+  },
+  "bomView": {
+    "search": "Search by product name or code…", "noBoms": "No BOMs found. Create the first one.",
+    "col": { "material": "Material", "qtyUnit": "Qty / Unit", "unit": "Unit", "scrapPct": "Scrap %" }
+  },
+  "overview": {
+    "rawMaterials": "Raw Materials", "materialLots": "Material Lots", "products": "Products", "spareParts": "Spare Parts",
+    "viewAll": "View All", "noRecentMovements": "No recent movements"
+  }
+}

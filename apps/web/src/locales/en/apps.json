@@ -1,0 +1,22 @@
+{
+  "title": "Apps",
+  "subtitle": "{{count}} workspaces · {{groups}} categories",
+  "search": "Search apps…",
+  "eyebrow": "Workspace Launcher",
+  "heroTitle": "Every workspace, one click away",
+  "heroSubtitle": "Jump into planning, production, quality, maintenance, materials and plant insights — all your MES360° tools in one place.",
+  "all": "All",
+  "noMatch": "No apps match “{{query}}”",
+  "clearFilters": "Clear filters",
+  "shownOfTotal": "{{shown}} of {{total}} apps",
+  "categories": {
+    "Planning & Scheduling": "Planning & Scheduling",
+    "Production": "Production",
+    "Performance & KPIs": "Performance & KPIs",
+    "Quality": "Quality",
+    "Maintenance": "Maintenance",
+    "Materials & PLM": "Materials & PLM",
+    "Monitoring & IoT": "Monitoring & IoT",
+    "Insights & Admin": "Insights & Admin"
+  }
+}

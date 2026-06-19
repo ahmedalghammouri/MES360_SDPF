@@ -1,0 +1,196 @@
+{
+  "reports": {
+    "overview": { "title": "التقارير والتحليلات", "subtitle": "إنشاء وتنزيل تقارير الإنتاج" },
+    "production": { "title": "تقارير الإنتاج", "subtitle": "اتجاهات الكفاءة وتحليل الإنتاج وأداء الماكينات" },
+    "quality": { "title": "تقارير الجودة", "subtitle": "مقاييس وتحليل الجودة" },
+    "maintenance": { "title": "تقارير الصيانة", "subtitle": "أداء وتحليلات الصيانة" },
+    "builder": { "title": "منشئ التقارير", "subtitle": "تهيئة ومعاينة وتصدير تقارير MES" }
+  },
+  "scheduling": {
+    "reschedule": { "title": "طلبات إعادة الجدولة" }
+  },
+  "energy": {
+    "overview": { "title": "مراقبة الطاقة", "subtitle": "استهلاك الطاقة وتتبّع التكلفة لحظياً" },
+    "live": { "title": "الطاقة — مباشر واستعداد", "subtitle": "القدرة الفورية لكل عداد — ترصد الاستهلاك دون إنتاج فعّال" },
+    "meters": { "title": "عدادات الطاقة" },
+    "metersCount": "{{count}} عداد مُهيّأ",
+    "searchWoId": "معرّف أمر العمل…",
+    "woEnergyTitle": "تحليل طاقة أمر العمل", "efficiency": "الكفاءة", "manageMeters": "إدارة العدّادات",
+    "noDataPeriod": "لا توجد بيانات لهذه الفترة", "noData": "لا توجد بيانات", "metersTitle": "عدّادات الطاقة",
+    "colMeter": "العدّاد", "colType": "النوع", "colLocation": "الموقع", "colLastReading": "آخر قراءة", "colMtdKwh": "ك.و.س شهري", "colMtdCost": "التكلفة الشهرية (ر.س)", "noMetersConfigured": "لا توجد عدّادات مُهيّأة",
+    "consumptionTrend": "اتجاه الاستهلاك (30 يومًا)", "kwhDay": "ك.و.س / يوم", "consumptionByType": "الاستهلاك حسب النوع (الشهر)", "kwh": "ك.و.س", "consumption": "الاستهلاك",
+    "reports": { "title": "تقارير الطاقة" },
+    "consumptionAnalytics": "تحليلات الاستهلاك",
+    "noMeters": "لا توجد عدادات طاقة مُهيّأة",
+    "metersCol": { "energyType": "نوع الطاقة", "scope": "النطاق", "label": "التسمية", "rate": "التعرفة" },
+    "mform": {
+      "createTitle": "إضافة عدّاد طاقة", "editTitle": "تعديل العدّاد", "cancel": "إلغاء", "saving": "جارٍ الحفظ...", "save": "حفظ",
+      "meterNumber": "رقم العدّاد", "type": "النوع",
+      "tElectrical": "كهرباء", "tNaturalGas": "غاز طبيعي", "tCompressedAir": "هواء مضغوط", "tWater": "ماء", "tSteam": "بخار", "tChilledWater": "ماء مبرّد",
+      "name": "الاسم", "namePlaceholder": "العدّاد الكهربائي الرئيسي", "unit": "الوحدة", "location": "الموقع", "locationPlaceholder": "مبنى A",
+      "scope": "النطاق", "machine": "ماكينة", "line": "خط", "area": "منطقة", "productionLine": "خط الإنتاج", "selectDash": "— اختر —",
+      "edgeAcq": "جمع بيانات الحافة (اختياري — اتركه فارغًا للعدّادات اليدوية)",
+      "edgeGateway": "بوابة الحافة", "noneManual": "— بدون (يدوي) —", "meterTemplate": "قالب العدّاد", "noneDash": "— بدون —", "onlineSuffix": " • متصل",
+      "protocol": "البروتوكول", "pModbusTcp": "Modbus TCP", "pModbusRtuTcp": "Modbus RTU عبر TCP", "pModbusRtu": "Modbus RTU (تسلسلي)",
+      "modbusUnitId": "معرّف وحدة Modbus", "serialPort": "المنفذ التسلسلي", "baudRate": "معدل الباود", "parity": "التماثل", "pNone": "بدون", "pEven": "زوجي", "pOdd": "فردي",
+      "stopBits": "بتات التوقف", "ipAddress": "عنوان IP", "port": "المنفذ", "manufacturer": "الصانع", "model": "الموديل",
+      "deleteTitle": "حذف عدّاد الطاقة", "deleteConfirmPre": "هل أنت متأكد أنك تريد حذف", "deleteConfirmPost": "؟ سيؤدي هذا أيضًا إلى حذف كل القراءات المرتبطة.", "deleting": "جارٍ الحذف...", "delete": "حذف",
+      "addReadingTitle": "إضافة قراءة — {{name}}", "readingDesc": "أدخل قيمة العدّاد الحالية بـ {{unit}}", "valuePlaceholder": "القيمة ({{unit}})"
+    },
+    "tform": {
+      "createTitle": "إضافة تعرفة تكلفة", "editTitle": "تعديل تعرفة التكلفة",
+      "desc": "تُطبَّق التعرفة على الاستهلاك بوحدة العدّاد. النطاق الأكثر تحديدًا يفوز (ماكينة → خط → منطقة → مصنع).",
+      "cancel": "إلغاء", "saving": "جارٍ الحفظ…", "save": "حفظ",
+      "energyType": "نوع الطاقة", "rate": "التعرفة (لكل وحدة)", "scope": "النطاق",
+      "factoryDefault": "افتراضي المصنع", "area": "منطقة", "line": "خط", "machine": "ماكينة",
+      "appliesTo": "تنطبق على", "target": "الهدف", "allMeters": "كل العدّادات من هذا النوع", "selectDash": "— اختر —",
+      "label": "التسمية (اختياري)", "labelPlaceholder": "عقد 2026 / تعرفة الذروة",
+      "edit": "تعديل", "delete": "حذف"
+    }
+  },
+  "traceability": {
+    "title": "التتبع وشجرة الإنتاج",
+    "genealogy": "مستكشف شجرة الإنتاج",
+    "log": "سجل التتبع",
+    "searchEventType": "نوع الحدث…", "from": "من", "to": "إلى", "clearFilters": "مسح الفلاتر",
+    "noEvents": "لا توجد أحداث", "noEventsHintFiltered": "جرّب تعديل أو مسح الفلاتر", "noEventsHint": "ستظهر الأحداث هنا عند تنفيذ العمليات",
+    "consumption": { "title": "استهلاك المواد", "subtitle": "المواد المدخلة لكل خطوة والمستهلكة بأوامر العمل — تغذية شجرة الإنتاج (أمر ← دفعة ← لوت)" },
+    "consumptionSearch": "ابحث برمز أو اسم المادة…",
+    "noConsumption": "لا يوجد استهلاك بعد — أضف مواد الإدخال لخطوات المسار ثم أكمل أمر عمل.",
+    "consumptionCol": { "consumedAt": "وقت الاستهلاك", "material": "المادة", "planned": "المخطط", "actual": "الفعلي", "unit": "الوحدة", "workOrder": "أمر العمل", "outputBatch": "دفعة المخرجات", "rawLot": "اللوت الخام (FIFO)" }
+  },
+  "plm": {
+    "overview": { "title": "إدارة دورة حياة المنتج", "subtitle": "المنتجات وقوائم المكوّنات والوصفات وعمليات التصنيع" },
+    "changeRequests": { "title": "طلبات التغيير الهندسي", "subtitle": "إدارة المنتج — إدارة دورة حياة تغييرات المنتج والعمليات" },
+    "crSearch": "ابحث برقم الطلب أو العنوان أو المنتج أو مقدّم الطلب…",
+    "crNoResults": "لا توجد طلبات تغيير مطابقة للفلاتر الحالية.",
+    "searchProducts": "ابحث عن المنتجات…",
+    "portfolioTitle": "محفظة المنتجات", "designCompleteness": "اكتمال التصميم", "recentActivity": "النشاط الأخير",
+    "newCr": "طلب تغيير جديد",
+    "crform": {
+      "title": "تقديم طلب تغيير جديد", "desc": "PLM — اطلب تغييرًا في منتج أو عملية",
+      "cancel": "إلغاء", "submitting": "جارٍ التقديم…", "submit": "تقديم للمراجعة",
+      "titleField": "العنوان", "titlePlaceholder": "وصف موجز للتغيير",
+      "type": "النوع", "tBom": "تغيير قائمة المكوّنات", "tRecipe": "تغيير الوصفة", "tProcess": "تغيير العملية", "tDesign": "تغيير التصميم",
+      "priority": "الأولوية", "pLow": "منخفضة", "pMedium": "متوسطة", "pHigh": "عالية", "pCritical": "حرجة",
+      "affectedProduct": "المنتج المتأثر", "selectProduct": "— اختر منتجًا (اختياري) —", "searchProduct": "ابحث برقم الصنف أو الاسم…",
+      "targetDate": "التاريخ المستهدف", "reason": "السبب / المبرر", "reasonPlaceholder": "صِف سبب هذا التغيير..."
+    },
+    "crkpi": { "open": "طلبات مفتوحة", "underReview": "قيد المراجعة", "approvedMonth": "معتمدة هذا الشهر", "rejected": "مرفوضة" },
+    "design": { "title": "تصميم التصنيع", "subtitle": "مصفوفة إدارة المنتج — تغطية المكوّنات والوصفة والعملية لكل منتج" },
+    "reports": { "title": "تقارير إدارة المنتج", "subtitle": "إدارة دورة حياة المنتج — الكتالوج والمكوّنات والوصفات وسجل التغييرات" }
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "preferences": "تفضيلات الإشعارات",
+    "rules": "قواعد الإشعارات",
+    "subtitle": "تنبيهات النظام والإنذارات والأحداث التشغيلية",
+    "btnPreferences": "التفضيلات", "btnRules": "القواعد", "sendTest": "إرسال اختبار", "refresh": "تحديث", "markAllRead": "تحديد الكل كمقروء",
+    "severity": "الخطورة", "category": "الفئة", "unreadOnly": "غير المقروء فقط", "clearFilters": "مسح الفلاتر",
+    "loading": "جارٍ تحميل الإشعارات…", "noMatch": "لا توجد إشعارات مطابقة للفلاتر", "noYet": "لا توجد إشعارات بعد",
+    "noMatchHint": "جرّب مسح الفلاتر لعرض كل الإشعارات.", "noYetHint": "ستظهر أحداث النظام والإنذارات والتنبيهات هنا عند تشغيلها.",
+    "sev": { "all": "الكل", "error": "خطأ", "warning": "تحذير", "info": "معلومة" },
+    "cat": { "all": "الكل", "alarm": "إنذار", "production": "إنتاج", "quality": "جودة", "maintenance": "صيانة", "downtime": "توقف", "energy": "طاقة" }
+  },
+  "alarms": {
+    "title": "إدارة الإنذارات",
+    "noAlarms": "لا توجد إنذارات — كل شيء على ما يرام",
+    "noMatch": "لا توجد إنذارات مطابقة للفلاتر",
+    "col": { "severity": "الخطورة", "alarm": "الإنذار", "machine": "الماكينة", "triggered": "وقت التفعيل", "status": "الحالة", "duration": "المدة", "actions": "إجراءات" }
+  },
+  "users": {
+    "title": "إدارة المستخدمين", "subtitle": "إدارة مستخدمي المنصة والأدوار والصلاحيات",
+    "search": "ابحث عن المستخدمين…", "noUsers": "لا يوجد مستخدمون",
+    "addUser": "إضافة مستخدم", "allRoles": "كل الأدوار", "active": "نشط", "inactive": "غير نشط", "never": "أبداً",
+    "editUser": "تعديل المستخدم", "deleteUser": "حذف المستخدم",
+    "stat": { "totalUsers": "إجمالي المستخدمين", "active": "نشط", "inactive": "غير نشط", "departments": "الأقسام" },
+    "col": { "user": "المستخدم", "role": "الدور", "department": "القسم", "factory": "المصنع", "status": "الحالة", "lastLogin": "آخر دخول", "actions": "إجراءات" },
+    "form": {
+      "createTitle": "إنشاء مستخدم", "editTitle": "تعديل المستخدم",
+      "name": "الاسم", "email": "البريد الإلكتروني", "role": "الدور", "department": "القسم", "jobTitle": "المسمى الوظيفي", "phone": "الهاتف",
+      "password": "كلمة المرور", "passwordHint": "6 أحرف على الأقل",
+      "deleteTitle": "حذف {{name}}؟", "deleteDesc": "سيؤدي هذا إلى حذف هذا المستخدم وكل البيانات المرتبطة به نهائيًا."
+    }
+  },
+  "hierarchy": {
+    "title": "هيكل المصنع", "subtitle": "هيكل المؤسسة",
+    "hform": {
+      "createTitle": "إضافة عقدة هيكل", "editTitle": "تعديل {{type}}",
+      "createDesc": "أضف منطقة أو خط إنتاج أو ماكينة إلى هيكل مصنعك.", "editDesc": "حدّث تفاصيل \"{{name}}\".",
+      "cancel": "إلغاء", "saving": "جارٍ الحفظ...", "creating": "جارٍ الإنشاء...", "saveChanges": "حفظ التغييرات", "createNode": "إنشاء العقدة",
+      "nodeTypeField": "نوع العقدة", "name": "الاسم", "code": "الرمز", "codeRO": "لا يمكن تغيير الرمز",
+      "nodeType": { "AREA": "منطقة", "PRODUCTION_LINE": "خط إنتاج", "MACHINE": "ماكينة" },
+      "areaType": "نوع المنطقة", "area": "المنطقة", "selectArea": "اختر المنطقة...", "searchAreas": "ابحث في المناطق…", "noAreas": "لا توجد مناطق متاحة",
+      "lineType": "نوع الخط", "machineType": "نوع الماكينة", "criticality": "الأهمية",
+      "productionLine": "خط الإنتاج", "selectLine": "اختر الخط...", "selectAreaFirst": "اختر المنطقة أولاً", "searchLines": "ابحث في الخطوط…",
+      "manufacturer": "الصانع", "designCapacity": "السعة التصميمية (وحدة/ساعة)",
+      "removeTitle": "إزالة العقدة", "removeConfirmPre": "هل أنت متأكد أنك تريد إزالة", "removeConfirmPost": "من الهيكل؟ سيؤدي هذا إلى إلغاء تنشيط العقدة وإخفائها من جميع العروض.", "removing": "جارٍ الإزالة...", "removeNode": "إزالة العقدة"
+    }
+  },
+  "dashboardCenter": {
+    "title": "مركز اللوحات",
+    "searchDashboards": "ابحث في اللوحات والوسوم…", "noDashboards": "لا توجد لوحات", "source": "المصدر", "clear": "مسح",
+    "src": { "ALL": "كل المصادر", "MES360_NATIVE": "MES360°", "GRAFANA": "Grafana", "REPORT": "التقارير", "EXTERNAL": "خارجي" }
+  },
+  "ai": {
+    "title": "الذكاء الاصطناعي",
+    "tabInsights": "الرؤى النشطة", "tabHealth": "صحة المعدات", "tabDetectors": "الكواشف",
+    "analysis": "التحليل", "dismiss": "تجاهل", "viewDetails": "عرض التفاصيل",
+    "recommendation": "التوصية", "expectedImpact": "الأثر المتوقع", "acceptSchedule": "قبول وجدولة",
+    "cfg": { "anomaly": "شذوذ", "optimization": "تحسين", "prediction": "تنبؤ", "energy": "طاقة" }
+  },
+  "analytics": { "title": "تحليلات المصنع", "subtitlePre": "تحليل عميق للكفاءة والخسائر والموثوقية" },
+  "archive": { "title": "الأرشيف", "subtitle": "السجلات المؤرشفة مخفية من القوائم النشطة لكنها محفوظة — استعدها من هنا في أي وقت." },
+  "mfgKpi": {
+    "title": "تحليلات مؤشرات التصنيع", "summary": "ملخص المؤشرات",
+    "colMetric": "المؤشر", "colActual": "الفعلي", "colTarget": "المستهدف", "colStatus": "الحالة",
+    "totalOutput": "إجمالي الإنتاج", "activeAlarms": "الإنذارات النشطة",
+    "leaderboard": "ترتيب كفاءة الماكينات", "colMachine": "الماكينة",
+    "bmWorldClass": "عالمي", "bmGood": "جيد", "bmAcceptable": "مقبول", "bmPoor": "ضعيف",
+    "metric": { "oee": "الكفاءة", "availability": "الجاهزية", "performance": "الأداء", "quality": "الجودة" }
+  },
+  "mfgOee": {
+    "availability": "الجاهزية", "performance": "الأداء", "quality": "الجودة", "oee": "الكفاءة",
+    "dashboardTitle": "لوحة الكفاءة الكلية", "oeeFull": "الفعالية الكلية للمعدات",
+    "componentComparison": "مقارنة مكوّنات الكفاءة", "equipmentBreakdown": "تفصيل كفاءة المعدات",
+    "colMachine": "الماكينة", "colArea": "المنطقة", "colState": "الحالة", "colOeePct": "الكفاءة %",
+    "historyTitle": "سجل الكفاءة (آخر 50 سجلاً)", "historySub": "حسب الجدول (متصل) مقابل الزمني / AT-OEE (متقطع)",
+    "benchmarkTitle": "موقع المعيار العالمي",
+    "bmPoor": "ضعيف (<45%)", "bmAcceptable": "مقبول (45%)", "bmGood": "جيد (65%)", "bmWorldClass": "عالمي (85%)",
+    "worldClassPerf": "أداء عالمي المستوى", "goodBelow": "جيد — {{gap}}% دون المستوى العالمي",
+    "acceptableImprove": "مقبول — يحتاج تحسينًا", "belowThreshold": "دون الحد المقبول"
+  },
+  "mfgOverview": {
+    "title": "تنفيذ التصنيع", "live": "مباشر", "controlPanel": "لوحة التحكم", "viewOee": "عرض الكفاءة",
+    "machineStatusGrid": "شبكة حالة الماكينات", "activeOperations": "العمليات النشطة", "noExecutingJo": "لا توجد أوامر عمل تفصيلية قيد التنفيذ",
+    "productionTrend": "اتجاه الإنتاج", "noTrendData": "لا توجد بيانات اتجاه",
+    "state": { "RUNNING": "تعمل", "IDLE": "خاملة", "DOWN": "متوقفة", "MAINTENANCE": "صيانة" },
+    "kpi": { "activeWo": "أوامر العمل النشطة", "activeJo": "الأوامر التفصيلية النشطة", "oee": "الكفاءة", "availability": "الجاهزية", "unitsToday": "وحدات اليوم", "activeAlarms": "الإنذارات النشطة" }
+  },
+  "mfgReports": {
+    "title": "تقارير التصنيع", "subtitle": "رؤية تشغيلية عبر الإنتاج والجودة والمعدات", "viewReport": "عرض التقرير",
+    "pills": { "oee": "الكفاءة", "oeeTb": "الكفاءة (زمنية)", "availability": "الجاهزية", "availabilityTb": "الجاهزية (زمنية)", "unitsToday": "وحدات اليوم", "activeAlarms": "الإنذارات النشطة" },
+    "cards": {
+      "production": { "title": "أداء الإنتاج", "description": "معدلات إكمال أوامر العمل واتجاهات الإنتاج" },
+      "oeeAnalysis": { "title": "تحليل الكفاءة", "description": "تفصيل فعالية المعدات" },
+      "downtime": { "title": "تحليل التوقفات", "description": "أحداث التوقف حسب السبب والمدة" },
+      "scrap": { "title": "الهالك والفاقد", "description": "أحداث الهالك حسب الفئة والمشغّل" },
+      "jobOrders": { "title": "سجل أوامر العمل", "description": "سجل قائمة التوزيع والإكمال" },
+      "shift": { "title": "أداء الورديات", "description": "إنتاج وجودة وكفاءة كل وردية" }
+    }
+  },
+  "factorySel": {
+    "avgOee": "متوسط الكفاءة", "factories": "المصانع", "employees": "الموظفون", "activeAlarms": "الإنذارات النشطة",
+    "sites": "موقع", "total": "إجمالي",
+    "mfgExecution": "تنفيذ التصنيع", "allOperational": "جميع الأنظمة تعمل", "ksaNetwork": "الشبكة الصناعية السعودية",
+    "mfgNetwork": "شبكة التصنيع —", "ksa": "المملكة العربية السعودية",
+    "oee": "الكفاءة", "quality": "الجودة", "noAlarms": "لا إنذارات",
+    "availability": "الجاهزية", "performance": "الأداء",
+    "selectFacility": "اختر منشأة", "ksaRegion": "منطقة السعودية",
+    "selectFacilityDesc": "اختر منشأة للوصول إلى نظام تنفيذ التصنيع الخاص بها",
+    "facilities": "المنشآت", "mapTitle": "المملكة العربية السعودية — الشبكة الصناعية",
+    "alarmsCount": "{{count}} إنذار", "production": "الإنتاج", "uptime": "زمن التشغيل", "shiftsToday": "ورديات اليوم",
+    "today": "اليوم", "enter": "دخول", "selectDesc": "انقر على دبوس مصنع على الخريطة أو اختر من القائمة لعرض مؤشراته",
+    "confidential": "منصة MES360° الإصدار 1.0 — سرّي", "footerFacilities": "5 منشآت", "footerCities": "3 مدن"
+  }
+}

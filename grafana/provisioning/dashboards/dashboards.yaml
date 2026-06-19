@@ -1,0 +1,110 @@
+# ════════════════════════════════════════════════════════════════
+# MES360° — Grafana dashboard provisioning
+# One provider per category so the Grafana folder gets a clean
+# Title-case name while the source tree stays lowercase.
+# Dashboards are reloaded from disk every 10s and survive container
+# recreation (they live in source control, mounted read-only).
+# ════════════════════════════════════════════════════════════════
+apiVersion: 1
+
+providers:
+  - name: Production
+    orgId: 1
+    folder: Production
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/production
+      foldersFromFilesStructure: false
+
+  - name: Manufacturing
+    orgId: 1
+    folder: Manufacturing
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/manufacturing
+
+  - name: Maintenance
+    orgId: 1
+    folder: Maintenance
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/maintenance
+
+  - name: Quality
+    orgId: 1
+    folder: Quality
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/quality
+
+  - name: Inventory
+    orgId: 1
+    folder: Inventory
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/inventory
+
+  - name: Energy
+    orgId: 1
+    folder: Energy
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/energy
+
+  - name: Traceability
+    orgId: 1
+    folder: Traceability
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/traceability
+
+  - name: IIoT
+    orgId: 1
+    folder: IIoT
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/iiot
+
+  - name: Executive
+    orgId: 1
+    folder: Executive
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/executive
+
+  - name: Templates
+    orgId: 1
+    folder: Templates
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/templates

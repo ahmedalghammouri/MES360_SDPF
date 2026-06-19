@@ -1,0 +1,378 @@
+{
+  "uid": "mes-dt-rca",
+  "title": "Root Cause Analysis",
+  "description": "Downtime cause attribution.",
+  "tags": [
+    "mes360",
+    "downtime"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "",
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "factory",
+        "label": "Factory",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT name AS \"__text\", code AS \"__value\" FROM factories WHERE \"isActive\" = true ORDER BY name",
+        "query": "SELECT name AS \"__text\", code AS \"__value\" FROM factories WHERE \"isActive\" = true ORDER BY name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "Saudi Industrial Detergent Company",
+          "value": "SIDCO"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "Saudi Industrial Detergent Company",
+            "value": "SIDCO"
+          }
+        ],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT a.name AS \"__text\", a.id AS \"__value\" FROM areas a JOIN factories f ON f.id = a.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY a.name",
+        "query": "SELECT a.name AS \"__text\", a.id AS \"__value\" FROM areas a JOIN factories f ON f.id = a.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY a.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "line",
+        "label": "Production Line",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT l.name AS \"__text\", l.id AS \"__value\" FROM production_lines l JOIN factories f ON f.id = l.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY l.name",
+        "query": "SELECT l.name AS \"__text\", l.id AS \"__value\" FROM production_lines l JOIN factories f ON f.id = l.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY l.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "machine",
+        "label": "Machine",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT m.name AS \"__text\", m.id AS \"__value\" FROM machines m JOIN factories f ON f.id = m.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY m.name",
+        "query": "SELECT m.name AS \"__text\", m.id AS \"__value\" FROM machines m JOIN factories f ON f.id = m.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY m.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "shift",
+        "label": "Shift",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT s.name AS \"__text\", s.id AS \"__value\" FROM shift_templates s JOIN factories f ON f.id = s.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY s.name",
+        "query": "SELECT s.name AS \"__text\", s.id AS \"__value\" FROM shift_templates s JOIN factories f ON f.id = s.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY s.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "product",
+        "label": "Product",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT k.name AS \"__text\", k.id AS \"__value\" FROM skus k JOIN factories f ON f.id = k.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY k.name",
+        "query": "SELECT k.name AS \"__text\", k.id AS \"__value\" FROM skus k JOIN factories f ON f.id = k.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY k.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "batch",
+        "label": "Batch",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT b.\"batchNumber\" AS \"__text\", b.id AS \"__value\" FROM batch_records b JOIN factories f ON f.id = b.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY b.\"startTime\" DESC NULLS LAST LIMIT 500",
+        "query": "SELECT b.\"batchNumber\" AS \"__text\", b.id AS \"__value\" FROM batch_records b JOIN factories f ON f.id = b.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY b.\"startTime\" DESC NULLS LAST LIMIT 500",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "By Category",
+      "type": "piechart",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.category AS metric, SUM(t.\"durationMinutes\") AS value FROM downtime_events t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"startTime\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') GROUP BY t.category"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "id": 2,
+      "title": "By Reason Code",
+      "type": "piechart",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.\"reasonCode\" AS metric, SUM(t.\"durationMinutes\") AS value FROM downtime_events t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"startTime\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') GROUP BY t.\"reasonCode\""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "id": 3,
+      "title": "Top Causes",
+      "type": "barchart",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COALESCE(c.name, t.\"reasonCode\"::text) AS metric, SUM(t.\"durationMinutes\") AS value FROM downtime_events t LEFT JOIN downtime_causes c ON c.id=t.\"causeId\" JOIN factories f ON f.id=t.\"factoryId\" WHERE $__timeFilter(t.\"startTime\") AND ('$factory' = '' OR f.code = '$factory') GROUP BY 1 ORDER BY value DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "hue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        },
+        "xTickLabelRotation": 0
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "id": 4,
+      "title": "Downtime Events",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT m.name AS \"Machine\", t.category AS \"Category\", t.\"reasonCode\" AS \"Reason\", t.\"durationMinutes\" AS \"Minutes\", t.\"startTime\" AS \"Start\" FROM downtime_events t JOIN machines m ON m.id=t.\"machineId\" JOIN factories f ON f.id=t.\"factoryId\" WHERE $__timeFilter(t.\"startTime\") AND ('$factory' = '' OR f.code = '$factory') ORDER BY t.\"startTime\" DESC LIMIT 60"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        },
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 9
+      }
+    }
+  ]
+}

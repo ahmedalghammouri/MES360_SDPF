@@ -1,0 +1,83 @@
+import type { Metadata, Viewport } from 'next';
+import { cookies } from 'next/headers';
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
+import { IBM_Plex_Sans_Arabic } from 'next/font/google';
+
+import { Providers } from '@/components/providers';
+import './globals.css';
+
+// Arabic-capable font (Geist has weak Arabic coverage). Applied via --font-arabic
+// when <html dir="rtl"> (see globals.css).
+const arabicFont = IBM_Plex_Sans_Arabic({
+  weight: ['400', '500', '600', '700'],
+  subsets: ['arabic'],
+  variable: '--font-arabic',
+  display: 'swap',
+});
+
+const dirOf = (l?: string): 'rtl' | 'ltr' => (l === 'ar' ? 'rtl' : 'ltr');
+
+export const metadata: Metadata = {
+  title: {
+    default: 'MES360° Platform',
+    template: '%s | MES360°',
+  },
+  description:
+    'Enterprise Manufacturing Execution System — Real-time production monitoring, quality management, maintenance, and industrial IoT integration.',
+  keywords: ['MES', 'Manufacturing', 'OEE', 'Production', 'Quality', 'Maintenance', 'IIoT', 'SCADA'],
+  authors: [{ name: 'MES360°', url: 'https://mes360.sa' }],
+  creator: 'MES360°',
+  publisher: 'MES360°',
+  manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://mes.mes360.sa',
+    title: 'MES360° Platform',
+    description: 'Enterprise Manufacturing Execution System',
+    siteName: 'MES360°',
+  },
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f5f7ff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0c0e17' },
+  ],
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
+
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const locale = (await cookies()).get('locale')?.value ?? 'en';
+  return (
+    <html
+      lang={locale}
+      dir={dirOf(locale)}
+      suppressHydrationWarning
+      className={`${GeistSans.variable} ${GeistMono.variable} ${arabicFont.variable}`}
+    >
+      <head />
+      <body className="min-h-screen bg-background font-sans antialiased">
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}

@@ -1,0 +1,57 @@
+{
+  "headers": {
+    "overview": { "title": "IIoT Device Management", "subtitle": "Industrial device connectivity — MQTT, OPC-UA, Modbus" },
+    "devices": { "title": "IoT Devices", "subtitle": "Manage connected devices and sensors" },
+    "tags": { "title": "IoT Tags", "subtitle": "Monitor and manage data tags" },
+    "gateways": { "title": "Edge Gateways", "subtitle": "On-prem Modbus acquisition gateways — live status & heartbeat" },
+    "drivers": { "title": "Protocol Drivers", "subtitle": "Manage communication protocol drivers" },
+    "streams": { "title": "Data Streams", "subtitle": "Real-time data streaming and monitoring" },
+    "historian": { "title": "Historian Trends", "subtitle": "Browse historized tags, OEE & KPIs and chart their real-time trend" },
+    "mqtt": { "title": "MQTT Client", "subtitle": "Live monitor of broker traffic — every topic the edge gateways publish under mes360/#." }
+  },
+  "dform": {
+    "createTitle": "Create Device", "editTitle": "Edit Device",
+    "deviceCode": "Device Code", "name": "Name", "type": "Type", "protocol": "Protocol",
+    "tGateway": "Gateway", "tSensor": "Sensor", "tMeter": "Meter", "tDrive": "Drive",
+    "pModbusTcp": "Modbus TCP", "pModbusRtuTcp": "Modbus RTU over TCP", "pModbusRtu": "Modbus RTU (serial)", "pOpcua": "OPC UA", "pHttp": "HTTP/REST",
+    "serialPort": "Serial Port", "baudRate": "Baud Rate", "parity": "Parity", "pNone": "None", "pEven": "Even", "pOdd": "Odd", "stopBits": "Stop Bits",
+    "ipAddress": "IP Address", "port": "Port",
+    "edgeAcq": "Edge gateway acquisition", "assignedGateway": "Assigned Gateway", "selectGateway": "Select gateway", "noneDash": "— none —", "onlineSuffix": " • online",
+    "scope": "Scope", "machine": "Machine", "line": "Line", "area": "Area",
+    "productionLine": "Production Line", "boundMachine": "Bound Machine", "selectMachine": "Select machine…",
+    "selectLine": "Select line", "selectArea": "Select area", "selectDash": "— select —",
+    "modbusUnitId": "Modbus Unit ID", "pollInterval": "Poll Interval (ms)", "pollPlaceholder": "1000 (default)",
+    "deleteTitle": "Delete {{name}}?", "deleteDesc": "This will permanently delete this device and all related data."
+  },
+  "tform": {
+    "createTitle": "Create Tag", "editTitle": "Edit Tag",
+    "tagCode": "Tag Code", "tagName": "Tag Name", "tagType": "Tag Type",
+    "measurement": "Measurement", "counter": "Counter", "status": "Status", "setpoint": "Setpoint", "alarm": "Alarm", "event": "Event", "energy": "Energy",
+    "dataType": "Data Type", "integer": "Integer", "float": "Float", "boolean": "Boolean", "string": "String", "timestamp": "Timestamp",
+    "sourceDevice": "Source Device", "selectDevice": "Select device", "noneDash": "— none —",
+    "unit": "Unit", "scope": "Scope", "scopeCounterHint": " (Machine required for counters)",
+    "machine": "Machine", "line": "Line", "area": "Area", "productionLine": "Production Line",
+    "select": "Select", "selectDash": "— select —",
+    "modbusBinding": "Modbus binding", "registerAddress": "Register Address", "registerType": "Register Type",
+    "holding": "Holding Register", "input": "Input Register", "coil": "Coil", "discrete": "Discrete Input",
+    "wordCount": "Word Count", "word1": "1 (16-bit)", "word2": "2 (32-bit)",
+    "wordOrder": "Word Order (32-bit)", "bigEndian": "Big-endian", "littleEndian": "Little-endian",
+    "scaleFactor": "Scale Factor", "offset": "Offset",
+    "counterMapping": "Counter mapping — +1 per edge, applied to the machine's running Job Order",
+    "counterRole": "Counter Role", "crNone": "None", "crTotal": "Total (Bad = Total − Good)", "crGood": "Good", "crBad": "Bad",
+    "edgeTrigger": "Edge Trigger", "etRising": "Rising (0→1)", "etFalling": "Falling (1→0)", "etChange": "Any change",
+    "description": "Description",
+    "historize": "Historize (store time-series in InfluxDB)", "machineStatusDriver": "Machine status driver (drives RUNNING / IDLE / stop)",
+    "boolHelp": "BOOL: true → RUNNING; false → BREAKDOWN (unplanned stop) when a job order is in progress, else IDLE.",
+    "intHelp": "INT: value → state. Leave the map empty to use the standard 0-based default (0 IDLE · 1 RUNNING · 2 BREAKDOWN · 3 PLANNED_STOP · 4 SETUP · 5 CHANGEOVER · 6 STARVED · 7 BLOCKED · 8 OFFLINE · 9 MAINTENANCE).",
+    "countersRunningOnly": "Counters only accumulate while RUNNING.",
+    "statusMap": "Status map (optional JSON)",
+    "deleteTitle": "Delete tag {{name}}?", "deleteDesc": "This will permanently delete this tag and all historical data."
+  },
+  "drvform": {
+    "createTitle": "Add IoT Driver", "editTitle": "Edit Driver",
+    "cancel": "Cancel", "saving": "Saving...", "save": "Save",
+    "protocol": "Protocol", "version": "Version", "description": "Description",
+    "deleteTitle": "Delete Driver", "deleteConfirmPre": "Are you sure you want to delete", "deleting": "Deleting...", "delete": "Delete"
+  }
+}

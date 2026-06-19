@@ -1,0 +1,66 @@
+# ════════════════════════════════════════════════════════════════
+# MES360° — Grafana datasource provisioning
+# Auto-loaded on Grafana boot. Stable UIDs are referenced by every
+# provisioned dashboard panel, so they MUST NOT change.
+#
+# NOTE: values are literal (matching docker-compose service names).
+# Grafana provisioning does NOT support shell-style ${VAR:-default}.
+# For per-environment overrides, edit these values or use Grafana's
+# own env syntax ($VAR / ${VAR}) with the variable guaranteed to be set.
+# ════════════════════════════════════════════════════════════════
+apiVersion: 1
+
+# Allow re-provisioning to delete datasources that were removed here.
+deleteDatasources:
+  - name: MES360° PostgreSQL
+    orgId: 1
+
+datasources:
+  # ── System of record (MES relational data) ─────────────────────
+  - name: MES360° PostgreSQL
+    uid: mes_postgres
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    # Root-level `database` was deprecated in Grafana 11+; the Postgres plugin now
+    # reads jsonData.database. Both are set for backward/forward compatibility.
+    database: mes360
+    user: mes_user
+    isDefault: true
+    jsonData:
+      database: mes360
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: mes_password
+    editable: false
+
+  # ── Time-series telemetry (IIoT / energy / process) ────────────
+  - name: MES360° InfluxDB
+    uid: mes_influxdb
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    jsonData:
+      version: Flux
+      organization: mes360
+      defaultBucket: mes_timeseries
+      tlsSkipVerify: true
+    secureJsonData:
+      token: mes-influx-super-secret-token
+    editable: false
+
+  # ── Infrastructure / service metrics ───────────────────────────
+  - name: MES360° Prometheus
+    uid: mes_prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+    editable: false

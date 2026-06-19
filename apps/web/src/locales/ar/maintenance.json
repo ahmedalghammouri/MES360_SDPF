@@ -1,0 +1,125 @@
+{
+  "headers": {
+    "overview": { "title": "إدارة الصيانة", "subtitle": "أنظمة CMMS/EAM — أوامر العمل والأصول وتخطيط الصيانة" },
+    "workOrders": { "title": "أوامر الصيانة", "subtitle": "صيانة تصحيحية ووقائية وطارئة" },
+    "preventive": { "title": "الصيانة الوقائية", "subtitle": "جداول الصيانة الوقائية وتخطيطها" },
+    "scheduling": { "title": "جدولة الصيانة", "subtitle": "تقويم وجدول أوامر الصيانة" },
+    "log": { "title": "سجل الصيانة", "subtitle": "سجل كامل لكل أمر صيانة — التواريخ والفنيون والمدد والتكاليف والقطع." },
+    "spareParts": { "title": "مخزون قطع الغيار", "subtitle": "إدارة قطع الغيار ومستويات المخزون" },
+    "assets": { "title": "أصول الصيانة", "subtitle": "{{count}} أصل — مرتبطة بهيكل المصنع" },
+    "reports": { "title": "تقارير الصيانة", "subtitle": "مؤشرات الصيانة وسجل أوامر العمل وأداء الأصول" }
+  },
+  "overdue": "متأخر",
+  "allOrders": "كل أوامر الصيانة",
+  "allStatus": "كل الحالات",
+  "search": "بحث…",
+  "noOrders": "لا توجد أوامر صيانة",
+  "selectAll": "تحديد الكل",
+  "woStatus": {
+    "OPEN": "مفتوح",
+    "AWAITING_PARTS": "بانتظار القطع",
+    "ASSIGNED": "مُسند",
+    "IN_PROGRESS": "قيد التنفيذ",
+    "ON_HOLD": "معلّق",
+    "COMPLETED": "مكتمل",
+    "CANCELLED": "ملغى"
+  },
+  "type": {
+    "CORRECTIVE": "تصحيحية",
+    "PREVENTIVE": "وقائية",
+    "PREDICTIVE": "تنبؤية",
+    "EMERGENCY": "طارئة",
+    "INSPECTION": "فحص",
+    "LUBRICATION": "تزييت"
+  },
+  "col": {
+    "mo": "رقم الأمر",
+    "title": "العنوان",
+    "type": "النوع",
+    "priority": "الأولوية",
+    "status": "الحالة",
+    "machine": "الماكينة",
+    "assignedTo": "مُسند إلى",
+    "parts": "القطع",
+    "due": "الاستحقاق"
+  },
+  "detail": {
+    "title": "تفاصيل أمر الصيانة",
+    "type": "النوع",
+    "priority": "الأولوية",
+    "machine": "الماكينة",
+    "assignedTo": "مُسند إلى",
+    "dueDate": "تاريخ الاستحقاق",
+    "estHours": "الساعات المقدّرة",
+    "actualHours": "الساعات الفعلية",
+    "totalCost": "التكلفة الإجمالية",
+    "created": "أُنشئ",
+    "started": "بدأ",
+    "completed": "اكتمل",
+    "productionOrder": "أمر الإنتاج"
+  },
+  "pm": {
+    "schedules": "جداول الصيانة الوقائية", "search": "ابحث في الجداول…", "noSchedules": "لا توجد جداول صيانة وقائية",
+    "col": { "equipment": "المعدة", "task": "المهمة", "frequency": "التكرار", "lastDone": "آخر تنفيذ", "nextDue": "الاستحقاق التالي", "status": "الحالة", "assignedTo": "مُسند إلى", "actions": "إجراءات" }
+  },
+  "pmform": {
+    "createTitle": "إنشاء جدول صيانة وقائية", "editTitle": "تعديل جدول الصيانة الوقائية",
+    "equipment": "المعدة / الماكينة", "selectMachine": "اختر الماكينة...",
+    "pmType": "نوع الصيانة الوقائية", "timeBased": "حسب الوقت", "runtimeBased": "حسب وقت التشغيل", "conditionBased": "حسب الحالة", "calendarBased": "حسب التقويم",
+    "runtimeInterval": "فاصل التشغيل (ساعات)", "runtimePlaceholder": "مثال: 500",
+    "frequency": "التكرار", "daily": "يومياً", "weekly": "أسبوعياً", "monthly": "شهرياً", "quarterly": "ربع سنوي", "yearly": "سنوياً", "custom": "مخصص (أيام)…",
+    "everyNDays": "كل N أيام", "everyNPlaceholder": "مثال: 45",
+    "firstDue": "تاريخ أول استحقاق", "firstDueHelp": "اتركه فارغًا للجدولة من الفاصل الزمني.",
+    "taskName": "اسم المهمة", "taskPlaceholder": "مثال: تشحيم، استبدال فلتر...",
+    "estimatedHours": "الساعات المقدّرة", "description": "الوصف", "descPlaceholder": "ملخص موجز لخطة الصيانة",
+    "instructions": "التعليمات / قائمة التحقق", "instructionsPlaceholder": "تعليمات خطوة بخطوة يتبعها الفني…",
+    "deleteTitle": "حذف جدول الصيانة الوقائية لـ {{task}}؟", "deleteDesc": "سيؤدي هذا إلى حذف جدول الصيانة الوقائية نهائيًا.",
+    "restore": "استعادة", "archive": "أرشفة"
+  },
+  "mlog": {
+    "search": "ابحث برقم الأمر أو العنوان أو الماكينة…", "allStatuses": "كل الحالات", "allTypes": "كل الأنواع", "allMachines": "كل الماكينات", "noRecords": "لا توجد سجلات صيانة",
+    "col": { "wo": "رقم الأمر", "title": "العنوان", "type": "النوع", "machine": "الماكينة", "status": "الحالة", "assigned": "مُسند", "created": "أُنشئ", "completed": "اكتمل", "hours": "الساعات", "cost": "التكلفة" },
+    "partsCol": { "part": "القطعة", "req": "المطلوب", "issued": "المصروف", "status": "الحالة" }
+  },
+  "spform": {
+    "editTitle": "تعديل قطعة الغيار", "createTitle": "إضافة قطعة غيار",
+    "partNumber": "رقم القطعة", "category": "الفئة", "name": "الاسم", "description": "الوصف",
+    "manufacturer": "الصانع", "supplier": "المورّد", "unitCost": "تكلفة الوحدة (ر.س)",
+    "minStock": "الحد الأدنى للمخزون", "maxStock": "الحد الأقصى للمخزون", "storageLocation": "موقع التخزين", "binNumber": "رقم الصندوق",
+    "adjustTitle": "تعديل المخزون — {{name}}", "current": "الحالي:", "add": "إضافة", "remove": "سحب", "set": "تعيين",
+    "quantity": "الكمية", "cancel": "إلغاء", "saving": "جارٍ الحفظ…", "apply": "تطبيق",
+    "deleteTitle": "حذف {{name}}؟", "deleteDesc": "سيؤدي هذا إلى إزالة قطعة الغيار نهائيًا من المخزون."
+  },
+  "spares": {
+    "title": "قطع الغيار", "search": "ابحث عن القطع…", "noParts": "لا توجد قطع غيار",
+    "col": { "partNumber": "رقم القطعة", "nameDesc": "الاسم / الوصف", "category": "الفئة", "quantity": "الكمية", "minStock": "الحد الأدنى", "unitCost": "تكلفة الوحدة", "location": "الموقع", "status": "الحالة", "actions": "إجراءات" }
+  },
+  "assetsList": { "search": "ابحث عن الأصول…", "noAssets": "لا توجد أصول", "noLine": "بدون خط" },
+  "aform": {
+    "editTitle": "تعديل الأصل — {{code}}", "createTitle": "تسجيل أصل جديد",
+    "desc": "الأصول هي ماكينات مسجّلة في النظام. اربطها بهيكل المصنع (المنطقة/الخط) لتمكين الصيانة الواعية بالموقع.",
+    "cancel": "إلغاء", "saving": "جارٍ الحفظ…", "creating": "جارٍ الإنشاء…", "saveChanges": "حفظ التغييرات", "registerAsset": "تسجيل الأصل",
+    "identity": "الهوية", "assetCode": "رمز الأصل", "assetCodePlaceholder": "مثال: MCH-001",
+    "machineType": "نوع الماكينة", "assetName": "اسم الأصل", "assetNamePlaceholder": "مثال: ماكينة تعبئة كارتوماك #3",
+    "hierarchyLocation": "الموقع في الهيكل", "optional": "(اختياري)", "area": "المنطقة", "selectArea": "اختر المنطقة...",
+    "searchCodeName": "ابحث بالرمز أو الاسم…", "productionLine": "خط الإنتاج",
+    "selectLine": "اختر الخط...", "selectAreaFirst": "اختر المنطقة أولاً", "noLineOpt": "بدون خط",
+    "willAppearPre": "سيظهر هذا الأصل في هيكل المصنع تحت", "selectedLine": "الخط المحدد", "selectedArea": "المنطقة المحددة",
+    "technicalDetails": "التفاصيل الفنية", "manufacturer": "الصانع", "model": "الموديل", "serialNumber": "الرقم التسلسلي",
+    "riskDates": "المخاطر والتواريخ", "criticality": "الأهمية", "installDate": "تاريخ التركيب", "warrantyExpiry": "انتهاء الضمان",
+    "deleteTitle": "إلغاء تنشيط {{name}}؟", "deleteDesc": "سيُلغى تنشيط الأصل ويُخفى من الهيكل. يُحفظ سجل صيانته.",
+    "restore": "استعادة", "archive": "أرشفة"
+  },
+  "mform": {
+    "createTitle": "إنشاء أمر صيانة", "editPrefix": "تعديل", "save": "حفظ التغييرات",
+    "title": "العنوان", "titlePlaceholder": "وصف موجز لمهمة الصيانة",
+    "type": "النوع", "priority": "الأولوية", "machine": "الماكينة", "browseMachine": "تصفّح الهيكل لاختيار الماكينة…",
+    "assignTo": "إسناد إلى فني", "unassigned": "غير مُسند", "dueDate": "تاريخ الاستحقاق", "estHours": "الساعات المقدّرة",
+    "failureMode": "نمط العطل", "failureModeHint": "FMEA — اختر ماكينة أولاً",
+    "description": "الوصف", "descPlaceholder": "تفاصيل إضافية…",
+    "internalNotes": "ملاحظات داخلية", "notesPlaceholder": "ملاحظات داخلية لأمر الصيانة…",
+    "linkPO": "الربط بأمر إنتاج", "optional": "اختياري", "notLinkedPO": "غير مرتبط بالإنتاج",
+    "linkFailureMode": "اربط نمط عطل معروف…", "selectMachineFirst": "اختر ماكينة أولاً",
+    "searchTechnicians": "ابحث عن الفنيين…", "searchFailureModes": "ابحث عن أنماط الأعطال…", "searchProdOrders": "ابحث عن أوامر الإنتاج…"
+  }
+}

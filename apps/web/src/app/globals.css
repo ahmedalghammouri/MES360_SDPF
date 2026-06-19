@@ -1,0 +1,418 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════════
+   MES360° Loader & Navigation Keyframes
+   ══════════════════════════════════════════════ */
+
+/* 3D spinning disc rings */
+@keyframes mes-disc-spin {
+  0%   { transform: rotateX(70deg) rotateZ(0deg); }
+  100% { transform: rotateX(70deg) rotateZ(360deg); }
+}
+@keyframes mes-disc-spin-rev {
+  0%   { transform: rotateX(70deg) rotateZ(360deg); }
+  100% { transform: rotateX(70deg) rotateZ(0deg); }
+}
+
+/* Logo float */
+@keyframes mes-float {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50%       { transform: translateY(-7px) scale(1.02); }
+}
+
+/* Glow pulse */
+@keyframes mes-glow-blur {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%       { opacity: 0.7;  transform: scale(1.15); }
+}
+
+/* Expanding pulse rings */
+@keyframes mes-pulse-ring {
+  0%   { transform: scale(0.82); opacity: 0.5; }
+  100% { transform: scale(1.6);  opacity: 0; }
+}
+
+/* Scan line sweeping down */
+@keyframes mes-scan {
+  0%    { top: -2px;  opacity: 0; }
+  4%    { opacity: 0.8; }
+  96%   { opacity: 0.6; }
+  100%  { top: 100%; opacity: 0; }
+}
+
+/* Auto-fill progress bar (stalls near end for realism) */
+@keyframes mes-progress-fill {
+  0%   { width: 0%;  }
+  12%  { width: 22%; }
+  28%  { width: 45%; }
+  48%  { width: 64%; }
+  65%  { width: 76%; }
+  80%  { width: 85%; }
+  92%  { width: 91%; }
+  100% { width: 96%; }
+}
+
+/* Bouncing dots */
+@keyframes mes-dot-bounce {
+  0%, 60%, 100% { transform: translateY(0);    opacity: 0.3; }
+  30%            { transform: translateY(-5px); opacity: 1;   }
+}
+
+/* Rising particles */
+@keyframes mes-particle-rise {
+  0%   { transform: translateY(0)     scale(1);    opacity: 0.6; }
+  100% { transform: translateY(-90px) scale(0.1);  opacity: 0;   }
+}
+
+/* Brand shimmer sweep */
+@keyframes mes-shimmer-sweep {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* Fade + rise in */
+@keyframes mes-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* Animated grid drift */
+@keyframes mes-grid-drift {
+  0%   { background-position: 0px 0px;   }
+  100% { background-position: 40px 40px; }
+}
+
+/* Hex orbit decoration */
+@keyframes mes-orbit {
+  0%   { transform: rotate(0deg)   translateX(80px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(80px) rotate(-360deg); }
+}
+@keyframes mes-orbit-rev {
+  0%   { transform: rotate(360deg) translateX(56px) rotate(-360deg); }
+  100% { transform: rotate(0deg)   translateX(56px) rotate(0deg); }
+}
+
+/* Nav progress bar shimmer */
+@keyframes nav-bar-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(700%);  }
+}
+
+/* Simple spin (used by RouteLoader rings) */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   MES360° - Design System CSS Variables
+   ============================================ */
+
+@layer base {
+  :root {
+    /* Light theme - Industrial Professional */
+    --background: 220 20% 97%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 236 72% 64%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 220 14% 91%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 91%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 280 100% 60%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 13% 88%;
+    --input: 220 13% 88%;
+    --ring: 236 72% 64%;
+
+    --radius: 0.625rem;
+
+    /* Chart colors */
+    --chart-1: 236 72% 64%;
+    --chart-2: 160 84% 39%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 0 84% 60%;
+    --chart-5: 280 100% 60%;
+
+    /* Sidebar — light mode: a clean light surface so embedded badges/labels
+       (which derive from the light palette) keep proper contrast. */
+    --sidebar-background: 220 24% 98%;
+    --sidebar-foreground: 222 47% 13%;
+    --sidebar-primary: 236 64% 56%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 220 16% 92%;
+    --sidebar-accent-foreground: 222 47% 13%;
+    --sidebar-border: 220 13% 88%;
+    --sidebar-ring: 236 72% 64%;
+  }
+
+  .dark {
+    /* Dark theme - Industrial Control Room */
+    --background: 222 47% 7%;
+    --foreground: 213 31% 91%;
+
+    --card: 215 28% 10%;
+    --card-foreground: 213 31% 91%;
+
+    --popover: 215 28% 10%;
+    --popover-foreground: 213 31% 91%;
+
+    --primary: 236 72% 64%;
+    --primary-foreground: 222 47% 7%;
+
+    --secondary: 215 28% 15%;
+    --secondary-foreground: 213 31% 91%;
+
+    --muted: 215 28% 13%;
+    --muted-foreground: 215 20% 55%;
+
+    --accent: 280 100% 65%;
+    --accent-foreground: 222 47% 7%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 213 31% 91%;
+
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 236 72% 64%;
+
+    /* Chart colors (vivid for dark) */
+    --chart-1: 236 72% 64%;
+    --chart-2: 142 71% 45%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 0 72% 51%;
+    --chart-5: 280 100% 65%;
+
+    /* Sidebar */
+    --sidebar-background: 220 35% 6%;
+    --sidebar-foreground: 213 31% 85%;
+    --sidebar-primary: 236 72% 64%;
+    --sidebar-primary-foreground: 213 31% 91%;
+    --sidebar-accent: 215 28% 12%;
+    --sidebar-accent-foreground: 213 31% 85%;
+    --sidebar-border: 215 28% 14%;
+    --sidebar-ring: 236 72% 64%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* RTL Support */
+  [dir="rtl"] {
+    font-family: var(--font-arabic), 'Tajawal', 'Cairo', sans-serif;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground;
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+}
+
+@layer components {
+  /* Glass morphism card — light by default, richer in dark */
+  .glass-card {
+    @apply bg-card/70 backdrop-blur-xl border border-border shadow-sm;
+  }
+  .dark .glass-card {
+    @apply bg-card/50 border-white/10 shadow-glass;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:shadow-card-hover hover:border-primary/30;
+  }
+
+  /* Industrial card — clean flat surface in light, gradient depth in dark */
+  .industrial-card {
+    background: hsl(var(--card));
+    @apply border border-border shadow-sm rounded-lg;
+  }
+  .dark .industrial-card {
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(215 28% 8%) 100%);
+    @apply border-border/50 shadow-industrial;
+  }
+
+  /* KPI Card */
+  .kpi-card {
+    @apply industrial-card p-5 relative overflow-hidden;
+  }
+
+  .kpi-card::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none;
+  }
+
+  /* Status indicator */
+  .status-dot {
+    @apply inline-block w-2 h-2 rounded-full relative;
+  }
+
+  .status-dot.running {
+    @apply bg-machine-running shadow-glow-success;
+    animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .status-dot.fault {
+    @apply bg-machine-fault shadow-glow-danger animate-pulse;
+  }
+
+  .status-dot.idle {
+    @apply bg-machine-idle shadow-glow-warning;
+  }
+
+  .status-dot.offline {
+    @apply bg-machine-offline;
+  }
+
+  /* Real-time indicator */
+  .realtime-badge {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium;
+    @apply bg-success-500/10 text-success-400 border border-success-500/20;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-accent-500 bg-clip-text text-transparent;
+  }
+
+  /* Page header */
+  .page-header {
+    @apply flex items-center justify-between py-4 border-b border-border/50;
+  }
+
+  /* Data table */
+  .data-table-row {
+    @apply border-b border-border/30 transition-colors hover:bg-muted/30;
+  }
+
+  /* Alarm severity */
+  .alarm-critical {
+    @apply bg-danger-500/10 border-l-2 border-danger-500 text-danger-400;
+  }
+
+  .alarm-warning {
+    @apply bg-warning-500/10 border-l-2 border-warning-500 text-warning-400;
+  }
+
+  .alarm-info {
+    @apply bg-brand-500/10 border-l-2 border-brand-500 text-brand-400;
+  }
+
+  /* OEE color coding */
+  .oee-world-class {
+    @apply text-success-400;
+  }
+
+  .oee-good {
+    @apply text-brand-400;
+  }
+
+  .oee-acceptable {
+    @apply text-warning-400;
+  }
+
+  .oee-poor {
+    @apply text-danger-400;
+  }
+
+  /* Shimmer loading */
+  .shimmer {
+    @apply relative overflow-hidden bg-muted/50;
+  }
+
+  .shimmer::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(0, 0, 0, 0.05) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  .dark .shimmer::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  /* Industrial badge */
+  .badge-running { @apply bg-machine-running/15 text-machine-running border-machine-running/30; }
+  .badge-idle { @apply bg-machine-idle/15 text-machine-idle border-machine-idle/30; }
+  .badge-fault { @apply bg-machine-fault/15 text-machine-fault border-machine-fault/30; }
+  .badge-maintenance { @apply bg-machine-maintenance/15 text-machine-maintenance border-machine-maintenance/30; }
+  .badge-offline { @apply bg-machine-offline/15 text-gray-400 border-machine-offline/30; }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .industrial-grid {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+}

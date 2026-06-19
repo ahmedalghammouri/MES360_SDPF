@@ -1,0 +1,500 @@
+'use client';
+import { useTranslation } from 'react-i18next';
+
+import { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Zap, Gauge, DollarSign, Activity, Thermometer, AlertTriangle, Factory, TrendingDown } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Legend,
+} from 'recharts';
+import { api } from '@/services/api.client';
+import { useScope } from '@/hooks/use-scope';
+import { cn } from '@/lib/utils';
+
+interface EnergyOverview {
+  meterCount: number;
+  totalConsumptionMtd: number;
+  totalCostMtd: number;
+  totalConsumptionToday: number;
+  byType: Record<string, number>;
+  trend: { date: string; value: number }[];
+}
+
+interface EnergyMeter {
+  id: string;
+  meterNumber: string;
+  name: string;
+  type: string;
+  unit: string;
+  location: string | null;
+  machine: { name: string; code: string } | null;
+  area: { name: string } | null;
+  lastReading: { value: number; unit: string; timestamp: string } | null;
+  mtdConsumption: number;
+  mtdCost: number;
+}
+
+const TYPE_COLORS: Record<string, string> = {
+  ELECTRICAL: '#6366f1',
+  NATURAL_GAS: '#f59e0b',
+  COMPRESSED_AIR: '#06b6d4',
+  WATER: '#3b82f6',
+  STEAM: '#8b5cf6',
+  CHILLED_WATER: '#10b981',
+};
+
+const TYPE_ICONS: Record<string, React.FC<{ className?: string; style?: React.CSSProperties }>> = {
+  ELECTRICAL: Zap,
+  NATURAL_GAS: Thermometer,
+  COMPRESSED_AIR: Gauge,
+  WATER: Activity,
+  STEAM: Thermometer,
+  CHILLED_WATER: Activity,
+};
+
+interface WOEnergySummary {
+  workOrderId: string;
+  totalKwh: number;
+  runningKwh: number;
+  idleKwh: number;
+  downtimeKwh: number;
+  kwhPerUnit: number | null;
+  kwhPerKgBatch: number | null;
+  peakPowerKw: number | null;
+  avgPowerKw: number | null;
+  anomalyCount: number;
+  wasteKwh: number;
+  wastePct: number;
+  efficiencyPct: number;
+}
+
+interface WorkCenterEnergy {
+  workCenterId: string;
+  workCenter: { id: string; code: string; name: string; level: string } | null;
+  totalKwh: number;
+  avgPowerKw: number | null;
+  readingCount: number;
+}
+
+function dateRange(days: number) {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+// ── MES Contextualization Panel ─────────────────────────────────────────────
+
+function EnergyContextPanel() {
+  const { t } = useTranslation('modules');
+  const [woId, setWoId] = useState('');
+  const [submittedWoId, setSubmittedWoId] = useState('');
+  const { from, to } = dateRange(7);
+
+  const { data: woSummary, isLoading: woLoading } = useQuery({
+    queryKey: ['energy', 'wo', submittedWoId],
+    queryFn: () => api.get<WOEnergySummary>(`/iot/energy/wo/${submittedWoId}`),
+    enabled: !!submittedWoId,
+  });
+
+  const { data: wcData } = useQuery({
+    queryKey: ['energy', 'by-workcenter', from, to],
+    queryFn: () => api.get<WorkCenterEnergy[]>('/iot/energy/by-workcenter', { params: { from, to } }),
+    staleTime: 60_000,
+  });
+
+  const summary = woSummary as WOEnergySummary | null | undefined;
+  const wcEnergy: WorkCenterEnergy[] = Array.isArray(wcData) ? wcData : [];
+
+  const wasteBreakdown = summary ? [
+    { name: 'Running', value: parseFloat((summary.runningKwh ?? 0).toFixed(2)), fill: '#22c55e' },
+    { name: 'Idle Waste', value: parseFloat((summary.idleKwh ?? 0).toFixed(2)), fill: '#f59e0b' },
+    { name: 'Downtime Waste', value: parseFloat((summary.downtimeKwh ?? 0).toFixed(2)), fill: '#ef4444' },
+  ].filter(d => d.value > 0) : [];
+
+  return (
+    <div className="space-y-5">
+      {/* WO Energy lookup */}
+      <div className="glass-card rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Factory size={16} className="text-primary" />
+          <h2 className="font-semibold">{t('energy.woEnergyTitle')}</h2>
+        </div>
+        <div className="flex gap-2 mb-4">
+          <Input
+            placeholder={t('energy.searchWoId')}
+            value={woId}
+            onChange={e => setWoId(e.target.value)}
+            className="h-8 text-xs font-mono"
+            onKeyDown={e => { if (e.key === 'Enter' && woId.trim()) setSubmittedWoId(woId.trim()); }}
+          />
+          <Button size="sm" className="h-8 text-xs shrink-0" onClick={() => setSubmittedWoId(woId.trim())} disabled={!woId.trim()}>
+            Analyse
+          </Button>
+        </div>
+
+        {woLoading && <div className="shimmer h-32 rounded" />}
+
+        {summary && !woLoading && (
+          <div className="space-y-4">
+            {/* Key metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: 'Total kWh', value: summary.totalKwh?.toFixed(2) ?? '—', color: 'text-yellow-400', icon: Zap },
+                { label: 'kWh / Unit', value: summary.kwhPerUnit != null ? summary.kwhPerUnit.toFixed(3) : '—', color: 'text-blue-400', icon: Gauge },
+                { label: 'Idle Waste %', value: `${summary.wastePct?.toFixed(1) ?? '—'}%`, color: 'text-red-400', icon: TrendingDown },
+                { label: 'Anomalies', value: String(summary.anomalyCount ?? 0), color: summary.anomalyCount > 0 ? 'text-orange-400' : 'text-muted-foreground', icon: AlertTriangle },
+              ].map(({ label, value, color, icon: Icon }) => (
+                <div key={label} className="bg-background/40 rounded-lg border border-border/30 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-muted-foreground">{label}</span>
+                    <Icon size={12} className={color} />
+                  </div>
+                  <p className={cn('text-lg font-bold', color)}>{value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Waste breakdown pie */}
+            {wasteBreakdown.length > 0 && (
+              <div className="flex items-center gap-6">
+                <ResponsiveContainer width={120} height={120}>
+                  <PieChart>
+                    <Pie data={wasteBreakdown} dataKey="value" innerRadius={35} outerRadius={55} paddingAngle={2}>
+                      {wasteBreakdown.map((entry, i) => (
+                        <Cell key={i} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 11 }}
+                      formatter={(v: number) => [`${v} kWh`]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-1.5">
+                  {wasteBreakdown.map(d => (
+                    <div key={d.name} className="flex items-center gap-2 text-xs">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.fill }} />
+                      <span className="text-muted-foreground">{d.name}</span>
+                      <span className="font-semibold ml-auto">{d.value} kWh</span>
+                    </div>
+                  ))}
+                  <div className="pt-1 border-t border-border/30 flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">{t('energy.efficiency')}</span>
+                    <span className="font-bold text-green-400 ms-auto">{summary.efficiencyPct?.toFixed(1)}%</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Anomaly warning */}
+            {summary.anomalyCount > 0 && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-orange-500/10 border border-orange-500/30 text-xs text-orange-400">
+                <AlertTriangle size={13} />
+                <span>{summary.anomalyCount} anomaly reading{summary.anomalyCount > 1 ? 's' : ''} detected — high power draw during idle/downtime state.</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!summary && !woLoading && submittedWoId && (
+          <div className="text-center text-muted-foreground text-sm py-4">No energy data found for this WO.</div>
+        )}
+      </div>
+
+      {/* Plant energy map by WorkCenter */}
+      {wcEnergy.length > 0 && (
+        <div className="glass-card rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-sm">Energy by WorkCenter (Last 7 days)</h2>
+            <Badge variant="outline" className="text-xs">kWh</Badge>
+          </div>
+          <div className="space-y-2">
+            {wcEnergy
+              .sort((a, b) => b.totalKwh - a.totalKwh)
+              .map(wc => {
+                const maxKwh = wcEnergy[0]?.totalKwh ?? 1;
+                const pct = (wc.totalKwh / maxKwh) * 100;
+                return (
+                  <div key={wc.workCenterId} className="space-y-0.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">{wc.workCenter?.name ?? wc.workCenterId.slice(0, 8)}</span>
+                      <div className="flex items-center gap-3">
+                        {wc.avgPowerKw != null && (
+                          <span className="text-[10px] text-muted-foreground">{wc.avgPowerKw.toFixed(1)} kW avg</span>
+                        )}
+                        <span className="font-semibold">{wc.totalKwh.toFixed(1)} kWh</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted/30">
+                      <div
+                        className="h-full rounded-full bg-yellow-500/70"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function EnergyOverview() {
+  const { t } = useTranslation('modules');
+  const { filter: scopeFilter, key: scopeKey } = useScope();
+  const [activeTab, setActiveTab] = useState<'overview' | 'mes'>('overview');
+  const { data: overview, isLoading: ovLoading } = useQuery({
+    queryKey: ['energy', 'overview', scopeKey],
+    queryFn: () => api.get<EnergyOverview>('/energy/overview', { params: scopeFilter }),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const { data: metersData, isLoading: metersLoading } = useQuery({
+    queryKey: ['energy', 'meters', scopeKey],
+    queryFn: () => api.get<EnergyMeter[]>('/energy/meters', { params: scopeFilter }),
+    staleTime: 30_000,
+  });
+
+  const { from, to } = dateRange(30);
+  const { data: consumptionData } = useQuery({
+    queryKey: ['energy', 'consumption', '30d', scopeKey],
+    queryFn: () => api.get<{ chart: any[] }>('/energy/consumption', { params: { from, to, ...scopeFilter } }),
+    staleTime: 60_000,
+  });
+
+  const ov: EnergyOverview = (overview as any) ?? {
+    meterCount: 0, totalConsumptionMtd: 0, totalCostMtd: 0, totalConsumptionToday: 0, byType: {}, trend: [],
+  };
+  const meters: EnergyMeter[] = Array.isArray(metersData) ? metersData : [];
+  const chartData: any[] = (consumptionData as any)?.chart ?? ov.trend.map(t => ({ date: t.date, ELECTRICAL: t.value }));
+
+  // Derive the series keys from the CHART ROWS themselves (every numeric, non-date
+  // field) — NOT from ov.byType. Sourcing from a different query caused a load-order
+  // race where the <Area dataKey> didn't match the data, so the line flashed then
+  // vanished. This keeps the plotted series and the data perfectly in sync.
+  const energyTypes = useMemo(() => {
+    const keys = new Set<string>();
+    for (const row of chartData) {
+      for (const k of Object.keys(row)) {
+        if (k !== 'date' && typeof row[k] === 'number') keys.add(k);
+      }
+    }
+    return [...keys];
+  }, [chartData]);
+
+  const byTypeChart = useMemo(() =>
+    Object.entries(ov.byType).map(([type, value]) => ({ type: type.replace(/_/g, ' '), value })),
+    [ov.byType],
+  );
+
+  const kpis = [
+    { label: 'Active Meters', value: ov.meterCount, icon: Gauge, color: 'text-brand-400', bg: 'bg-brand-500/20' },
+    { label: 'Consumption MTD (kWh)', value: ov.totalConsumptionMtd.toLocaleString(), icon: Zap, color: 'text-yellow-400', bg: 'bg-yellow-500/20' },
+    { label: 'Cost MTD (SAR)', value: ov.totalCostMtd.toLocaleString(), icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/20' },
+    { label: "Today's Consumption", value: ov.totalConsumptionToday.toLocaleString(), icon: Activity, color: 'text-cyan-400', bg: 'bg-cyan-500/20' },
+  ];
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{t('energy.overview.title')}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t('energy.overview.subtitle')}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+            <button
+              className={cn('px-4 py-1.5 transition-colors', activeTab === 'overview' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-muted/20')}
+              onClick={() => setActiveTab('overview')}
+            >
+              Overview
+            </button>
+            <button
+              className={cn('px-4 py-1.5 flex items-center gap-1.5 transition-colors', activeTab === 'mes' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-muted/20')}
+              onClick={() => setActiveTab('mes')}
+            >
+              <Factory size={11} />
+              MES Context
+            </button>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/energy/meters">{t('energy.manageMeters')}</Link>
+          </Button>
+        </div>
+      </div>
+
+      {activeTab === 'mes' && <EnergyContextPanel />}
+
+      {activeTab === 'overview' && (<>
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        {kpis.map((kpi, i) => {
+          const Icon = kpi.icon;
+          return (
+            <motion.div
+              key={kpi.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className="glass-card rounded-xl p-4 flex items-center gap-4"
+            >
+              {ovLoading ? (
+                <div className="shimmer h-12 w-full rounded" />
+              ) : (
+                <>
+                  <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', kpi.bg)}>
+                    <Icon className={cn('w-5 h-5', kpi.color)} />
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-muted-foreground">{kpi.label}</div>
+                    <div className="text-xl font-bold mt-0.5">{kpi.value}</div>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Charts row */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="glass-card rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold">{t('energy.consumptionTrend')}</h2>
+            <Badge variant="outline" className="text-xs">{t('energy.kwhDay')}</Badge>
+          </div>
+          {chartData.length === 0 ? (
+            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">{t('energy.noDataPeriod')}</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="energyGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <Tooltip
+                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                />
+                {energyTypes.length > 0 ? energyTypes.map(type => (
+                  <Area
+                    key={type}
+                    type="monotone"
+                    dataKey={type}
+                    stroke={TYPE_COLORS[type] ?? '#6366f1'}
+                    fill="url(#energyGrad)"
+                    strokeWidth={2}
+                    /* show dots when sparse — a single point with dot={false} renders nothing */
+                    dot={chartData.length <= 3 ? { r: 3 } : false}
+                    connectNulls
+                    name={type.replace(/_/g, ' ')}
+                  />
+                )) : (
+                  <Area type="monotone" dataKey="value" stroke="#6366f1" fill="url(#energyGrad)" strokeWidth={2} dot={chartData.length <= 3 ? { r: 3 } : false} connectNulls />
+                )}
+                {energyTypes.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="glass-card rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold">{t('energy.consumptionByType')}</h2>
+            <Badge variant="outline" className="text-xs">{t('energy.kwh')}</Badge>
+          </div>
+          {byTypeChart.length === 0 ? (
+            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">{t('energy.noData')}</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={byTypeChart} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <YAxis dataKey="type" type="category" tick={{ fontSize: 10, fill: '#94a3b8' }} width={100} />
+                <Tooltip
+                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                />
+                <Bar dataKey="value" fill="#6366f1" name={t('energy.consumption')} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {/* Meters table */}
+      <div className="glass-card rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-border/50">
+          <h2 className="font-semibold text-sm">{t('energy.metersTitle')}</h2>
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-background/60">
+              <tr className="border-b border-border">
+                <th className="text-start p-3 text-muted-foreground font-medium text-xs">{t('energy.colMeter')}</th>
+                <th className="text-start p-3 text-muted-foreground font-medium text-xs">{t('energy.colType')}</th>
+                <th className="text-start p-3 text-muted-foreground font-medium text-xs">{t('energy.colLocation')}</th>
+                <th className="text-end p-3 text-muted-foreground font-medium text-xs">{t('energy.colLastReading')}</th>
+                <th className="text-end p-3 text-muted-foreground font-medium text-xs">{t('energy.colMtdKwh')}</th>
+                <th className="text-end p-3 text-muted-foreground font-medium text-xs">{t('energy.colMtdCost')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {metersLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i}><td colSpan={6} className="p-3"><div className="shimmer h-5 rounded" /></td></tr>
+                ))
+              ) : meters.length === 0 ? (
+                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground text-sm">{t('energy.noMetersConfigured')}</td></tr>
+              ) : (
+                meters.map(m => {
+                  const color = TYPE_COLORS[m.type] ?? '#94a3b8';
+                  const Icon = TYPE_ICONS[m.type] ?? Zap;
+                  return (
+                    <tr key={m.id} className="border-b border-border/30 hover:bg-foreground/5">
+                      <td className="p-3 text-xs">
+                        <div className="font-medium">{m.name}</div>
+                        <div className="text-muted-foreground font-mono">{m.meterNumber}</div>
+                      </td>
+                      <td className="p-3 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <Icon className="w-3 h-3" style={{ color }} />
+                          <span style={{ color }}>{m.type.replace(/_/g, ' ')}</span>
+                        </div>
+                      </td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {m.machine?.name ?? m.area?.name ?? m.location ?? '—'}
+                      </td>
+                      <td className="p-3 text-xs text-right">
+                        {m.lastReading
+                          ? <span className="font-semibold">{m.lastReading.value} {m.lastReading.unit}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="p-3 text-xs text-right font-semibold">{m.mtdConsumption.toLocaleString()}</td>
+                      <td className="p-3 text-xs text-right text-muted-foreground">{m.mtdCost.toLocaleString()}</td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      </>)}
+    </div>
+  );
+}

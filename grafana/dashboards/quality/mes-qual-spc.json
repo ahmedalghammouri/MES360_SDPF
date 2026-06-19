@@ -1,0 +1,574 @@
+{
+  "uid": "mes-qual-spc",
+  "title": "SPC Dashboard",
+  "description": "Statistical process control — X-bar / R / control limits / Cpk.",
+  "tags": [
+    "mes360",
+    "quality",
+    "spc"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "",
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "factory",
+        "label": "Factory",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT name AS \"__text\", code AS \"__value\" FROM factories WHERE \"isActive\" = true ORDER BY name",
+        "query": "SELECT name AS \"__text\", code AS \"__value\" FROM factories WHERE \"isActive\" = true ORDER BY name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "Saudi Industrial Detergent Company",
+          "value": "SIDCO"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "Saudi Industrial Detergent Company",
+            "value": "SIDCO"
+          }
+        ],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT a.name AS \"__text\", a.id AS \"__value\" FROM areas a JOIN factories f ON f.id = a.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY a.name",
+        "query": "SELECT a.name AS \"__text\", a.id AS \"__value\" FROM areas a JOIN factories f ON f.id = a.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY a.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "line",
+        "label": "Production Line",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT l.name AS \"__text\", l.id AS \"__value\" FROM production_lines l JOIN factories f ON f.id = l.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY l.name",
+        "query": "SELECT l.name AS \"__text\", l.id AS \"__value\" FROM production_lines l JOIN factories f ON f.id = l.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY l.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "machine",
+        "label": "Machine",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT m.name AS \"__text\", m.id AS \"__value\" FROM machines m JOIN factories f ON f.id = m.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY m.name",
+        "query": "SELECT m.name AS \"__text\", m.id AS \"__value\" FROM machines m JOIN factories f ON f.id = m.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY m.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "shift",
+        "label": "Shift",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT s.name AS \"__text\", s.id AS \"__value\" FROM shift_templates s JOIN factories f ON f.id = s.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY s.name",
+        "query": "SELECT s.name AS \"__text\", s.id AS \"__value\" FROM shift_templates s JOIN factories f ON f.id = s.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY s.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "product",
+        "label": "Product",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT k.name AS \"__text\", k.id AS \"__value\" FROM skus k JOIN factories f ON f.id = k.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY k.name",
+        "query": "SELECT k.name AS \"__text\", k.id AS \"__value\" FROM skus k JOIN factories f ON f.id = k.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY k.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "batch",
+        "label": "Batch",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT b.\"batchNumber\" AS \"__text\", b.id AS \"__value\" FROM batch_records b JOIN factories f ON f.id = b.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY b.\"startTime\" DESC NULLS LAST LIMIT 500",
+        "query": "SELECT b.\"batchNumber\" AS \"__text\", b.id AS \"__value\" FROM batch_records b JOIN factories f ON f.id = b.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY b.\"startTime\" DESC NULLS LAST LIMIT 500",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Measurements",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COUNT(*) AS value FROM spc_measurements t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"measuredAt\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 2,
+      "title": "Out of Control",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COUNT(*) AS value FROM spc_measurements t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"measuredAt\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') AND t.\"isOutOfControl\"=true"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 3,
+      "title": "Cp",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT CASE WHEN STDDEV_SAMP(t.value)>0 THEN ROUND(((MAX(t.usl)-MIN(t.lsl))/(6*STDDEV_SAMP(t.value)))::numeric,2) ELSE NULL END AS value FROM spc_measurements t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"measuredAt\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') AND t.usl IS NOT NULL"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 1.33
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 4,
+      "title": "Cpk",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT CASE WHEN STDDEV_SAMP(t.value)>0 THEN ROUND((LEAST((MAX(t.usl)-AVG(t.value)),(AVG(t.value)-MIN(t.lsl)))/(3*STDDEV_SAMP(t.value)))::numeric,2) ELSE NULL END AS value FROM spc_measurements t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"measuredAt\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') AND t.usl IS NOT NULL"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 1.33
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 5,
+      "title": "X-Bar Chart (value vs control limits)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.\"measuredAt\" AS time, t.value AS \"Value\" FROM spc_measurements t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"measuredAt\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') ORDER BY t.\"measuredAt\""
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.\"measuredAt\" AS time, t.ucl AS \"UCL\" FROM spc_measurements t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"measuredAt\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') ORDER BY t.\"measuredAt\""
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.\"measuredAt\" AS time, t.cl AS \"Center\" FROM spc_measurements t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"measuredAt\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') ORDER BY t.\"measuredAt\""
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.\"measuredAt\" AS time, t.lcl AS \"LCL\" FROM spc_measurements t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"measuredAt\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') ORDER BY t.\"measuredAt\""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisLabel": "",
+            "gradientMode": "opacity"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 8
+      }
+    },
+    {
+      "id": 6,
+      "title": "Rule Violations",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.\"parameterName\" AS \"Parameter\", t.value AS \"Value\", t.\"controlViolation\" AS \"Rule\", t.\"measuredAt\" AS \"When\" FROM spc_measurements t JOIN factories f ON f.id=t.\"factoryId\" WHERE $__timeFilter(t.\"measuredAt\") AND ('$factory' = '' OR f.code = '$factory') AND t.\"isOutOfControl\"=true ORDER BY t.\"measuredAt\" DESC LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        },
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 9
+      }
+    }
+  ]
+}

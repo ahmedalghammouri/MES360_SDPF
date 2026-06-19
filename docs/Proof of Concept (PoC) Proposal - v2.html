@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCC Smart Factory POC Proposal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Source+Serif+4:wght@600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        corporate: {
+                            50: '#eef4fb', 100: '#d7e4f4', 200: '#b7cee8', 300: '#89afd6',
+                            400: '#5488bd', 500: '#2a6297', 600: '#1f4d78', 700: '#173a5d',
+                            800: '#102a43', 900: '#091b31', accent: '#18a4c6', electric: '#4cc9f0',
+                            slate: '#5f7288', ink: '#182433'
+                        }
+                    },
+                    fontFamily: { sans: ['Manrope', 'system-ui', 'sans-serif'], display: ['Source Serif 4', 'Georgia', 'serif'] },
+                    boxShadow: { soft: '0 18px 45px rgba(16, 42, 67, 0.08)', panel: '0 24px 60px rgba(9, 27, 49, 0.12)', glow: '0 0 0 1px rgba(255,255,255,0.08), 0 22px 55px rgba(13, 110, 150, 0.18)' },
+                    backgroundImage: {
+                        'hero-radial': 'radial-gradient(circle at top left, rgba(76, 201, 240, 0.22), transparent 34%), radial-gradient(circle at 88% 14%, rgba(24, 164, 198, 0.18), transparent 20%), linear-gradient(135deg, #091b31 0%, #102a43 52%, #173a5d 100%)',
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        :root {
+            --panel-border: rgba(138, 166, 197, 0.18);
+            --glass-bg: rgba(255, 255, 255, 0.72);
+            --glass-dark: rgba(9, 27, 49, 0.6);
+            --hero-border: rgba(255, 255, 255, 0.12);
+            --bar-phase-1: linear-gradient(90deg, #dbe7f4 0%, #bfd0e5 100%);
+            --bar-phase-2: linear-gradient(90deg, #bcd0e6 0%, #8fb1d9 100%);
+            --bar-phase-3: linear-gradient(90deg, #7ca7d7 0%, #5488bd 100%);
+            --bar-phase-4: linear-gradient(90deg, #4e84bc 0%, #2d679f 100%);
+            --bar-phase-5: linear-gradient(90deg, #215784 0%, #173a5d 100%);
+            --bar-phase-6: linear-gradient(90deg, #1d8ea9 0%, #18a4c6 100%);
+            --bar-phase-7: linear-gradient(90deg, #0f2c46 0%, #173a5d 100%);
+        }
+
+        html { scroll-padding-top: 7rem; }
+        body { font-family: 'Manrope', sans-serif; color: #182433; background: radial-gradient(circle at 0% 0%, rgba(24, 164, 198, 0.08), transparent 28%), linear-gradient(180deg, #f3f7fb 0%, #edf2f8 42%, #f7fafc 100%); }
+        .display-font { font-family: 'Source Serif 4', serif; }
+        .section-kicker { font-size: 0.75rem; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 700; color: #5488bd; }
+        .section-heading { position: relative; padding-bottom: 1rem; margin-bottom: 1.5rem; color: #091b31; letter-spacing: -0.03em; }
+        .section-heading::after { content: ''; position: absolute; left: 0; bottom: 0; width: 82px; height: 3px; border-radius: 999px; background: linear-gradient(90deg, #18a4c6 0%, rgba(24, 164, 198, 0.16) 100%); }
+        
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid var(--panel-border); box-shadow: 0 18px 55px rgba(12, 32, 52, 0.08); }
+        .glass-panel-dark { background: var(--glass-dark); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid var(--hero-border); }
+        .success-ring { --progress: 0.8; --ring-color: #4cc9f0; position: relative; display: inline-flex; align-items: center; justify-content: center; width: 4.9rem; height: 4.9rem; border-radius: 999px; background: conic-gradient(var(--ring-color) calc(var(--progress) * 1turn), rgba(255, 255, 255, 0.1) 0); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 16px 34px rgba(3, 12, 24, 0.28); }
+        .success-ring::before { content: ''; position: absolute; inset: 8px; border-radius: inherit; background: rgba(9, 27, 49, 0.92); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .success-ring > * { position: relative; z-index: 1; }
+
+        .section-shell { position: relative; overflow: hidden; border-radius: 2rem; border: 1px solid rgba(131, 153, 176, 0.14); background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: 0 22px 60px rgba(9, 27, 49, 0.08); }
+        .section-shell::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0.05) 100%); pointer-events: none; }
+        
+        .hover-lift { transition: transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease, background-color 260ms ease; }
+        .hover-lift:hover { transform: translateY(-6px); box-shadow: 0 26px 60px rgba(9, 27, 49, 0.12); }
+        .hover-line { position: relative; overflow: hidden; }
+        .hover-line::after { content: ''; position: absolute; left: 1.5rem; right: 1.5rem; bottom: 0; height: 2px; transform: scaleX(0); transform-origin: left; transition: transform 260ms ease; background: linear-gradient(90deg, #18a4c6 0%, rgba(76, 201, 240, 0.2) 100%); }
+        .hover-line:hover::after { transform: scaleX(1); }
+
+        .sidebar-link { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; border-radius: 1rem; padding: 0.875rem 1rem; color: #445468; font-size: 0.95rem; font-weight: 600; transition: transform 220ms ease, background-color 220ms ease, color 220ms ease, box-shadow 220ms ease; }
+        .sidebar-link:hover { background: rgba(16, 42, 67, 0.05); color: #091b31; transform: translateX(4px); }
+        .sidebar-link.active { background: linear-gradient(135deg, rgba(24, 164, 198, 0.16) 0%, rgba(16, 42, 67, 0.08) 100%); color: #091b31; box-shadow: inset 0 0 0 1px rgba(24, 164, 198, 0.18); }
+        .sidebar-link.active .sidebar-bullet { background: linear-gradient(180deg, #18a4c6 0%, #4cc9f0 100%); box-shadow: 0 0 0 4px rgba(24, 164, 198, 0.12); }
+        .sidebar-bullet { height: 0.55rem; width: 0.55rem; border-radius: 999px; background: rgba(95, 114, 136, 0.25); flex-shrink: 0; transition: background 220ms ease, box-shadow 220ms ease; }
+
+        .metric-pill { border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+
+        .top-nav-link { position: relative; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; border-radius: 999px; padding: 0.72rem 1rem; color: rgba(255, 255, 255, 0.78); font-size: 0.88rem; font-weight: 700; letter-spacing: 0.01em; transition: color 220ms ease, background-color 220ms ease, transform 220ms ease, box-shadow 220ms ease; }
+        .top-nav-link:hover { color: #ffffff; background: rgba(255, 255, 255, 0.08); transform: translateY(-1px); }
+        .top-nav-link.active { color: #ffffff; background: linear-gradient(135deg, rgba(24, 164, 198, 0.24) 0%, rgba(76, 201, 240, 0.14) 100%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
+
+        .page-shell, .page-shell-wide { width: 100%; max-width: 1800px; margin-left: auto; margin-right: auto; padding-left: 24px; padding-right: 24px; }
+
+        /* Integrated Ecosystem Cards */
+        .layer-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .layer-card:hover { transform: translateY(-4px); box-shadow: 0 22px 60px rgba(9, 27, 49, 0.08); }
+        .component-card { transition: all 0.2s ease; }
+
+        .architecture-board { position: relative; overflow: hidden; border-radius: 2.15rem; border: 1px solid rgba(131, 153, 176, 0.16); background: radial-gradient(circle at 88% 14%, rgba(76, 201, 240, 0.10), transparent 18%), radial-gradient(circle at 12% 100%, rgba(24, 164, 198, 0.07), transparent 22%), linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(245,249,253,0.98) 100%); box-shadow: 0 28px 68px rgba(9, 27, 49, 0.09); }
+        .architecture-board::before { content: ''; position: absolute; inset: 0; background: linear-gradient(rgba(16,42,67,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(16,42,67,0.035) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 32%); background-size: 48px 48px, 48px 48px, auto; pointer-events: none; }
+        .architecture-flow-shell { position: relative; }
+        .architecture-flow-shell::before { content: ''; position: absolute; left: 9%; right: 9%; top: calc(50% - 2px); height: 4px; border-radius: 999px; background: linear-gradient(90deg, rgba(84,136,189,0.08) 0%, rgba(24,164,198,0.9) 40%, rgba(99,102,241,0.85) 70%, rgba(84,136,189,0.08) 100%); background-size: 220% 100%; pointer-events: none; display: none; animation: architectureFlow 5.5s linear infinite; }
+        .architecture-stage-card { position: relative; overflow: hidden; height: 100%; border-radius: 1.8rem; border: 1px solid rgba(137, 175, 214, 0.18); background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(247,250,253,0.94) 100%); box-shadow: 0 22px 48px rgba(12, 32, 52, 0.08); }
+        .architecture-stage-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, #18a4c6 0%, #4cc9f0 100%); pointer-events: none; }
+        .architecture-stage-card > * { position: relative; z-index: 1; }
+
+        .architecture-badge { display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid rgba(24, 164, 198, 0.18); background: rgba(24, 164, 198, 0.08); padding: 0.42rem 0.78rem; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: #1f4d78; }
+        .architecture-chip { display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid rgba(137, 175, 214, 0.2); background: rgba(239, 246, 255, 0.92); padding: 0.55rem 0.85rem; font-size: 0.72rem; font-weight: 700; color: #173a5d; }
+        .architecture-node-arrow { display: flex; align-items: center; justify-content: center; color: #2a6297; }
+        .architecture-arrow-shell { display: flex; height: 3.8rem; width: 3.8rem; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid rgba(137, 175, 214, 0.24); background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(239,246,255,0.92) 100%); box-shadow: 0 12px 28px rgba(12, 32, 52, 0.08); }
+        .layer-capture::before { background: linear-gradient(90deg, #14b8a6 0%, #2dd4bf 100%); }
+        .layer-edge::before { background: linear-gradient(90deg, #0ea5e9 0%, #3b82f6 100%); }
+        .layer-cloud::before { background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%); }
+
+        .layer-capture .architecture-badge { border-color: rgba(20, 184, 166, 0.2); background: rgba(20, 184, 166, 0.08); color: #0f766e; }
+        .layer-edge .architecture-badge { border-color: rgba(59, 130, 246, 0.2); background: rgba(59, 130, 246, 0.08); color: #1d4ed8; }
+        .layer-cloud .architecture-badge { border-color: rgba(99, 102, 241, 0.22); background: rgba(99, 102, 241, 0.08); color: #4338ca; }
+        .layer-icon-shell { display: flex; height: 3.25rem; width: 3.25rem; align-items: center; justify-content: center; border-radius: 1rem; border: 1px solid rgba(137, 175, 214, 0.18); }
+        .layer-capture .layer-icon-shell { background: linear-gradient(180deg, rgba(204,251,241,0.92) 0%, rgba(240,253,250,0.96) 100%); color: #0f766e; }
+        .layer-edge .layer-icon-shell { background: linear-gradient(180deg, rgba(219,234,254,0.92) 0%, rgba(239,246,255,0.96) 100%); color: #1d4ed8; }
+        .layer-cloud .layer-icon-shell { background: linear-gradient(180deg, rgba(224,231,255,0.92) 0%, rgba(245,243,255,0.96) 100%); color: #5b21b6; }
+
+        .architecture-bullet-list { display: grid; gap: 0.75rem; }
+        .architecture-bullet { display: flex; align-items: flex-start; gap: 0.75rem; border-radius: 1rem; border: 1px solid rgba(137, 175, 214, 0.16); background: rgba(255,255,255,0.82); padding: 0.95rem 1rem; box-shadow: 0 8px 18px rgba(12, 32, 52, 0.04); }
+        .architecture-bullet-icon { display: flex; height: 2rem; width: 2rem; align-items: center; justify-content: center; border-radius: 999px; flex-shrink: 0; }
+        .layer-capture .architecture-bullet-icon { background: rgba(20, 184, 166, 0.12); color: #0f766e; }
+        .layer-edge .architecture-bullet-icon { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; }
+        .layer-cloud .architecture-bullet-icon { background: rgba(99, 102, 241, 0.12); color: #5b21b6; }
+        .architecture-protocols { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+        .protocol-badge { display: inline-flex; align-items: center; gap: 0.45rem; border-radius: 999px; border: 1px solid rgba(137, 175, 214, 0.2); background: rgba(255,255,255,0.88); padding: 0.52rem 0.85rem; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.04em; color: #173a5d; }
+
+        .architecture-consumption-section { display: grid; gap: 1rem; margin-top: 1.5rem; }
+        .architecture-output-panel { border-radius: 1.7rem; border: 1px solid rgba(137, 175, 214, 0.18); background: linear-gradient(180deg, rgba(246, 250, 255, 0.92) 0%, rgba(236, 244, 252, 0.84) 100%); padding: 1.15rem; box-shadow: inset 0 1px 0 rgba(255,255,255,0.78), 0 18px 34px rgba(12, 32, 52, 0.05); }
+        .architecture-output-panel-header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; padding: 0 0.15rem 0.95rem; border-bottom: 1px solid rgba(137, 175, 214, 0.18); }
+        .architecture-output-panel-kicker { font-size: 0.72rem; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; color: #5f7288; }
+        .architecture-output-panel-subtitle { margin-top: 0.38rem; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: #2a6297; }
+        .architecture-output-panel-title { margin-top: 0.45rem; font-size: 1.25rem; font-weight: 900; letter-spacing: -0.03em; color: #102a43; }
+        .architecture-output-link { position: relative; display: grid; justify-items: center; gap: 0.7rem; text-align: center; }
+        .architecture-output-link::before { content: ''; position: absolute; top: -0.95rem; height: 1rem; width: 2px; border-radius: 999px; background: linear-gradient(180deg, rgba(59, 130, 246, 0.18) 0%, rgba(59, 130, 246, 0.82) 100%); }
+        .architecture-output-link-arrow { display: flex; height: 3.15rem; width: 3.15rem; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid rgba(59, 130, 246, 0.24); background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(224, 236, 255, 0.92) 100%); color: #1d4ed8; box-shadow: 0 14px 28px rgba(12, 32, 52, 0.1); }
+        
+        .architecture-output-grid { display: grid; gap: 1.25rem; }
+        .architecture-output-tile { position: relative; overflow: hidden; display: grid; gap: 1.15rem; min-height: 16.25rem; border-radius: 1.55rem; border: 1px solid rgba(255, 255, 255, 0.14); background: linear-gradient(135deg, #183654 0%, #365b7b 100%); padding: 1.45rem 1.45rem 1.5rem; box-shadow: 0 20px 40px rgba(12, 32, 52, 0.16); transition: transform 220ms ease, box-shadow 220ms ease; }
+        .architecture-output-tile:hover { transform: translateY(-5px) scale(1.012); box-shadow: 0 26px 50px rgba(12, 32, 52, 0.22); }
+        .architecture-output-tile::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.2) 100%); }
+        .architecture-output-tile.operator { background: linear-gradient(135deg, #4338ca 0%, #6c5df6 100%); }
+        .architecture-output-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+        .architecture-output-icon { display: flex; height: 3.45rem; width: 3.45rem; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 1.1rem; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.12); color: #ffffff; }
+        .architecture-output-role { display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.14); padding: 0.48rem 0.88rem; font-size: 0.72rem; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.96); }
+        .architecture-output-title { font-size: 1.22rem; font-weight: 900; line-height: 1.2; color: #ffffff; }
+        .architecture-output-copy { margin-top: 0.42rem; max-width: 26ch; font-size: 0.92rem; font-weight: 700; line-height: 1.58; color: rgba(255, 255, 255, 0.9); }
+        .architecture-output-list { display: grid; gap: 0.65rem; margin-top: auto; }
+        .architecture-output-list li { display: flex; align-items: flex-start; gap: 0.65rem; font-size: 0.84rem; font-weight: 700; line-height: 1.55; color: rgba(255, 255, 255, 0.84); }
+        .architecture-output-list li::before { content: ''; display: block; height: 0.44rem; width: 0.44rem; flex-shrink: 0; margin-top: 0.4rem; border-radius: 999px; background: rgba(255, 255, 255, 0.94); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.08); }
+
+        .architecture-value-card { position: relative; overflow: hidden; border-radius: 1.2rem; border: 1px solid rgba(137, 175, 214, 0.18); background: linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(243,248,253,0.94) 100%); box-shadow: 0 12px 30px rgba(12, 32, 52, 0.05); }
+        .architecture-value-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, #18a4c6 0%, #4cc9f0 100%); }
+        .architecture-highlight-badge { display: inline-flex; align-items: center; gap: 0.6rem; border-radius: 999px; border: 1px solid rgba(239, 68, 68, 0.14); background: linear-gradient(135deg, rgba(254, 242, 242, 0.98) 0%, rgba(255, 255, 255, 0.96) 100%); padding: 0.82rem 1.2rem; font-size: 0.84rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #b91c1c; box-shadow: 0 12px 24px rgba(12, 32, 52, 0.05); }
+        .architecture-subtitle { font-size: 1.15rem; line-height: 1.75; font-weight: 700; color: #173a5d; }
+        .architecture-storybar { position: relative; display: grid; gap: 1.15rem; align-items: center; }
+        .story-node { position: relative; overflow: hidden; border-radius: 1.3rem; border: 1px solid rgba(137, 175, 214, 0.18); background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(246,250,253,0.94) 100%); padding: 1.3rem 1.35rem; box-shadow: 0 14px 32px rgba(12, 32, 52, 0.06); }
+        .story-node::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, #18a4c6 0%, #4cc9f0 100%); }
+        .story-node.layer-capture::before { background: linear-gradient(90deg, #14b8a6 0%, #2dd4bf 100%); }
+        .story-node.layer-edge::before { background: linear-gradient(90deg, #0ea5e9 0%, #3b82f6 100%); }
+        .story-node.layer-cloud::before { background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%); }
+        .story-node-step { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: #5488bd; }
+        .story-node-title { margin-top: 0.6rem; font-size: 1.52rem; font-weight: 900; letter-spacing: -0.03em; color: #091b31; }
+        .story-node-copy { margin-top: 0.35rem; font-size: 1rem; line-height: 1.65; color: #5f7288; }
+        .story-link { display: grid; gap: 0.55rem; justify-items: center; }
+        .story-link-track { position: relative; width: 100%; height: 3px; overflow: hidden; border-radius: 999px; background: rgba(84, 136, 189, 0.14); }
+        .story-link-dot { position: absolute; top: 50%; left: -14px; height: 10px; width: 10px; border-radius: 999px; background: linear-gradient(135deg, #18a4c6 0%, #4cc9f0 100%); transform: translateY(-50%); box-shadow: 0 0 0 6px rgba(24, 164, 198, 0.12); animation: storyPulse 3s linear infinite; }
+        .story-link-label { font-size: 0.82rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: #2a6297; }
+        .story-link-arrow { display: flex; align-items: center; justify-content: center; height: 3.1rem; width: 3.1rem; border-radius: 999px; border: 1px solid rgba(137, 175, 214, 0.2); background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(239,246,255,0.94) 100%); color: #2a6297; box-shadow: 0 12px 24px rgba(12, 32, 52, 0.05); }
+
+        .architecture-stage-card, .story-node, .story-link, .architecture-node-arrow, .architecture-value-card { opacity: 0; transform: translateY(18px); transition: opacity 620ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 620ms cubic-bezier(0.2, 0.8, 0.2, 1); transition-delay: var(--layer-delay, 0ms); }
+        .reveal.is-visible .architecture-stage-card, .reveal.is-visible .story-node, .reveal.is-visible .story-link, .reveal.is-visible .architecture-node-arrow, .reveal.is-visible .architecture-value-card { opacity: 1; transform: translateY(0); }
+
+        @keyframes architectureFlow { 0% { background-position: 0% 50%; } 100% { background-position: 220% 50%; } }
+        @keyframes storyPulse { 0% { left: -14px; } 100% { left: calc(100% + 14px); } }
+
+        .timeline-board { display: grid; gap: 1rem; }
+        .timeline-head { display: none; }
+        .timeline-row { position: relative; display: grid; gap: 1rem; padding: 1.2rem; border-radius: 1.5rem; background: rgba(255, 255, 255, 0.88); border: 1px solid rgba(131, 153, 176, 0.12); box-shadow: 0 18px 40px rgba(9, 27, 49, 0.06); }
+        .timeline-track { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.45rem; align-items: center; min-height: 3.75rem; }
+        .timeline-cell { grid-row: 1; min-height: 3rem; border-radius: 1rem; border: 1px solid rgba(137, 175, 214, 0.18); background: linear-gradient(180deg, rgba(238, 244, 251, 0.88) 0%, rgba(226, 236, 247, 0.52) 100%); }
+        .timeline-bar { grid-row: 1; position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; min-height: 2.35rem; border-radius: 999px; border: 1px solid rgba(16, 42, 67, 0.08); font-size: 0.875rem; font-weight: 800; color: #1f2937; text-align: center; letter-spacing: 0.01em; padding: 0 0.75rem; box-shadow: 0 12px 30px rgba(16, 42, 67, 0.18); white-space: nowrap; }
+
+        .phase-1 { background: var(--bar-phase-1); color: #1f2937; }
+        .phase-2 { background: var(--bar-phase-2); color: #1f2937; }
+        .phase-3 { background: var(--bar-phase-3); color: #1f2937; }
+        .phase-4, .phase-5, .phase-6, .phase-7 { color: #ffffff; border-color: rgba(255, 255, 255, 0.14); text-shadow: 0 1px 1px rgba(9, 27, 49, 0.18); }
+        .phase-4 { background: var(--bar-phase-4); }
+        .phase-5 { background: var(--bar-phase-5); }
+        .phase-6 { background: var(--bar-phase-6); }
+        .phase-7 { background: var(--bar-phase-7); }
+
+        .timeline-phase-badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 0.25rem 0.7rem; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+        .timeline-week-labels { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.45rem; margin-top: 0.5rem; color: #5f7288; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+
+        .reveal { opacity: 0; transform: translateY(34px); transition: opacity 680ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 680ms cubic-bezier(0.2, 0.8, 0.2, 1); transition-delay: var(--reveal-delay, 0ms); }
+        .reveal.is-visible { opacity: 1; transform: translateY(0); }
+
+        .hero-gridline { background-image: linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px); background-size: 56px 56px; }
+
+        @media (min-width: 1024px) {
+            .architecture-flow-shell::before { display: block; }
+            .architecture-flow-shell { gap: 1.5rem; }
+            .architecture-storybar { grid-template-columns: minmax(0, 1fr) 180px minmax(0, 1fr) 180px minmax(0, 1fr); }
+            .architecture-consumption-section { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.15rem; }
+            .architecture-output-link { grid-column: 3; }
+            .architecture-output-panel { grid-column: 1 / -1; padding: 1.35rem; }
+            .architecture-output-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .timeline-head { display: grid; grid-template-columns: minmax(220px, 1.2fr) minmax(0, 1.8fr) minmax(170px, 0.9fr); gap: 1rem; align-items: center; padding: 0 1rem; color: #5f7288; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+            .timeline-row { grid-template-columns: minmax(220px, 1.2fr) minmax(0, 1.8fr) minmax(170px, 0.9fr); align-items: center; }
+            .page-shell, .page-shell-wide { padding-left: 40px; padding-right: 40px; }
+        }
+        @media (max-width: 1023px) { html { scroll-padding-top: 5.5rem; } .timeline-bar { font-size: 0.78rem; padding: 0 0.45rem; } }
+        @media (min-width: 1440px) {
+            .architecture-storybar { grid-template-columns: minmax(0, 1fr) 220px minmax(0, 1fr) 220px minmax(0, 1fr); }
+            .architecture-flow-shell { gap: 2rem; }
+            .architecture-output-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .page-shell, .page-shell-wide { padding-left: 64px; padding-right: 64px; }
+        }
+
+        /* Essential Print Overrides */
+        @media print {
+            html { scroll-padding-top: 0 !important; background: #ffffff !important; }
+            body { background: #ffffff !important; color: #102a43 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            *, *::before, *::after { animation: none !important; transition: none !important; }
+            .fixed.inset-x-0.top-0.z-50, #mobile-menu-overlay, footer { display: none !important; }
+            .page-shell, .page-shell-wide { max-width: none !important; width: 100% !important; padding: 0 !important; }
+            .reveal, .architecture-stage-card, .story-node, .story-link, .architecture-node-arrow, .architecture-value-card { opacity: 1 !important; transform: none !important; }
+            .hover-lift, .hover-line, .glass-panel, .glass-panel-dark, .architecture-board, .architecture-stage-card, .story-node, .architecture-output-panel, .architecture-output-tile, .architecture-value-card, .timeline-row, .metric-pill { box-shadow: none !important; }
+            header { padding-top: 0 !important; break-after: page; page-break-after: always; }
+            header .hero-gridline, header > .absolute, #success > div > .absolute { display: none !important; }
+            header .page-shell-wide { padding-top: 12mm !important; }
+            header .page-shell-wide > .grid { display: grid !important; grid-template-columns: minmax(0, 1.15fr) 58mm !important; gap: 6mm !important; }
+            main > section { margin: 0 !important; break-inside: avoid-page; }
+            .layer-card, .component-card { border: 1px solid #d8e2ec !important; box-shadow: none !important; break-inside: avoid-page; margin-bottom: 5mm !important; }
+            #ecosystem .grid-cols-1.md\:grid-cols-2.lg\:grid-cols-4 { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+        }
+    </style>
+</head>
+<body class="antialiased text-corporate-ink">
+
+    <div class="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-corporate-900/90 backdrop-blur-xl">
+        <div class="page-shell flex h-16 items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/95 p-1.5 shadow-glow">
+                    <i data-lucide="hexagon" class="h-full w-full text-corporate-700 object-contain"></i>
+                </div>
+                <div>
+                    <p class="text-xs uppercase tracking-[0.28em] text-blue-200/70">Smart Factory</p>
+                    <p class="text-sm font-bold text-white">IPIC | NCC Proposal</p>
+                </div>
+            </div>
+
+            <nav class="hidden min-w-0 flex-1 overflow-x-auto px-8 lg:block">
+                <div class="flex min-w-max items-center justify-center gap-1">
+                    <a href="#summary" data-spy-link class="top-nav-link">Summary</a>
+                    <a href="#architecture" data-spy-link class="top-nav-link">Architecture</a>
+                    <a href="#ecosystem" data-spy-link class="top-nav-link font-extrabold text-corporate-electric">Ecosystem Vision</a>
+                    <a href="#approach" data-spy-link class="top-nav-link">Technical</a>
+                    <a href="#modules" data-spy-link class="top-nav-link">Data Scope</a>
+                    <a href="#scope" data-spy-link class="top-nav-link">PoC Scope</a>
+                    <a href="#timeline" data-spy-link class="top-nav-link">Timeline</a>
+                    <a href="#delivery" data-spy-link class="top-nav-link">Delivery</a>
+                    <a href="#success" data-spy-link class="top-nav-link">Success</a>
+                    <a href="#upgrades" data-spy-link class="top-nav-link">Integration</a>
+                </div>
+            </nav>
+
+            <button id="mobile-menu-btn" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white transition hover:bg-white/15 lg:hidden" aria-label="Open navigation">
+                <i data-lucide="menu" class="h-5 w-5"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Mobile Menu Overlay -->
+    <div id="mobile-menu-overlay" class="pointer-events-none fixed inset-0 z-[60] opacity-0 transition duration-300 lg:hidden">
+        <div id="mobile-menu-backdrop" class="absolute inset-0 bg-corporate-900/55 backdrop-blur-sm"></div>
+        <div id="mobile-menu-panel" class="absolute right-0 top-0 h-full w-[min(88vw,360px)] translate-x-full bg-white/92 p-6 shadow-2xl backdrop-blur-2xl transition duration-300 overflow-y-auto">
+            <div class="mb-8 flex items-center justify-between">
+                <div>
+                    <p class="section-kicker">Navigation</p>
+                    <p class="mt-1 text-lg font-extrabold text-corporate-900">Proposal Sections</p>
+                </div>
+                <button id="mobile-menu-close" class="flex h-10 w-10 items-center justify-center rounded-2xl border border-corporate-100 bg-corporate-50 text-corporate-800 transition hover:bg-corporate-100">
+                    <i data-lucide="x" class="h-5 w-5"></i>
+                </button>
+            </div>
+            <nav class="space-y-2">
+                <a href="#summary" data-spy-link class="sidebar-link mobile-spy-link"><span class="flex items-center gap-3"><span class="sidebar-bullet"></span>Summary & Constraints</span></a>
+                <a href="#architecture" data-spy-link class="sidebar-link mobile-spy-link"><span class="flex items-center gap-3"><span class="sidebar-bullet"></span>PoC Architecture</span></a>
+                <a href="#ecosystem" data-spy-link class="sidebar-link mobile-spy-link bg-corporate-50"><span class="flex items-center gap-3"><span class="sidebar-bullet !bg-corporate-electric"></span>App Suite Vision</span></a>
+                <a href="#approach" data-spy-link class="sidebar-link mobile-spy-link"><span class="flex items-center gap-3"><span class="sidebar-bullet"></span>Technical Approach</span></a>
+                <a href="#modules" data-spy-link class="sidebar-link mobile-spy-link"><span class="flex items-center gap-3"><span class="sidebar-bullet"></span>Data & Activation</span></a>
+                <a href="#scope" data-spy-link class="sidebar-link mobile-spy-link"><span class="flex items-center gap-3"><span class="sidebar-bullet"></span>PoC Scope</span></a>
+                <a href="#timeline" data-spy-link class="sidebar-link mobile-spy-link"><span class="flex items-center gap-3"><span class="sidebar-bullet"></span>Timeline</span></a>
+                <a href="#delivery" data-spy-link class="sidebar-link mobile-spy-link"><span class="flex items-center gap-3"><span class="sidebar-bullet"></span>Deliverables & Risks</span></a>
+                <a href="#success" data-spy-link class="sidebar-link mobile-spy-link"><span class="flex items-center gap-3"><span class="sidebar-bullet"></span>Success Criteria</span></a>
+                <a href="#upgrades" data-spy-link class="sidebar-link mobile-spy-link"><span class="flex items-center gap-3"><span class="sidebar-bullet"></span>Integration Reqs</span></a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Header Section -->
+    <header class="relative overflow-hidden bg-hero-radial pt-24 text-white lg:pt-14">
+        <div class="hero-gridline absolute inset-0 opacity-40"></div>
+        <div class="absolute left-0 top-24 h-72 w-72 rounded-full bg-corporate-electric/10 blur-3xl"></div>
+        <div class="absolute right-0 top-8 h-80 w-80 rounded-full bg-corporate-accent/10 blur-3xl"></div>
+        <div class="page-shell-wide relative pb-16 pt-10 lg:pb-20 lg:pt-20">
+            <div class="grid gap-10 lg:grid-cols-[minmax(0,1.25fr)_320px] lg:items-end">
+                <div class="max-w-4xl reveal" data-reveal style="--reveal-delay: 40ms;">
+                    <p class="mt-8 section-kicker text-blue-200/80">Enterprise Industrial Transformation</p>
+                    <h1 class="mt-4 max-w-4xl text-4xl font-extrabold tracking-[-0.045em] text-white sm:text-5xl xl:text-6xl">
+                        Proof of Concept (PoC) Proposal
+                    </h1>
+                    <p class="mt-5 max-w-3xl text-lg font-medium leading-8 text-blue-100 sm:text-xl">
+                        Industry 4.0 Smart Factory Implementation & OEE Analytics
+                    </p>
+                    <div class="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        <div class="metric-pill rounded-[1.5rem] p-5">
+                            <p class="text-xs uppercase tracking-[0.24em] text-blue-200/75">Client</p>
+                            <p class="mt-3 text-lg font-bold">NCC Company</p>
+                        </div>
+                        <div class="metric-pill rounded-[1.5rem] p-5">
+                            <p class="text-xs uppercase tracking-[0.24em] text-blue-200/75">Facility Target</p>
+                            <p class="mt-3 text-lg font-bold">Detergent Powder Mfg. - Betti Line</p>
+                        </div>
+                        <div class="metric-pill rounded-[1.5rem] p-5">
+                            <p class="text-xs uppercase tracking-[0.24em] text-blue-200/75">Operating Model</p>
+                            <p class="mt-3 text-lg font-bold">Non-Intrusive IoT Overlay</p>
+                        </div>
+                        <div class="metric-pill rounded-[1.5rem] p-5">
+                            <p class="text-xs uppercase tracking-[0.24em] text-blue-200/75">Execution Window</p>
+                            <p class="mt-3 text-lg font-bold">1W Workshop + 1W Impl. + 30D Eval.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="reveal" data-reveal style="--reveal-delay: 120ms;">
+                    <div class="glass-panel-dark rounded-[2rem] p-6 shadow-panel">
+                        <p class="section-kicker text-blue-200/80">Executive Lens</p>
+                        <h2 class="display-font mt-3 text-3xl font-semibold leading-tight text-white">Zero-risk visibility for a legacy-constrained production line.</h2>
+                        <div class="mt-8 space-y-4">
+                            <div class="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">
+                                <p class="text-xs uppercase tracking-[0.22em] text-blue-200/65">Readout</p>
+                                <p class="mt-2 text-sm leading-6 text-blue-50">Air-gapped sensing, edge processing, and cloud analytics unlock OEE without modifying Siemens or Omron PLC environments.</p>
+                            </div>
+                            <div class="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">
+                                <p class="text-xs uppercase tracking-[0.22em] text-blue-200/65">Priority</p>
+                                <p class="mt-2 text-sm leading-6 text-blue-50">Immediate operational insight with zero tolerance for unplanned cycle-time impact, or machine downtime.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="page-shell-wide pb-20">
+        <main class="space-y-8 py-8 lg:space-y-10 lg:py-10">
+
+            <!-- 1 & 2: Summary and Constraints -->
+            <section id="summary" class="grid grid-cols-1 gap-8 xl:grid-cols-2">
+                <div class="section-shell reveal" data-reveal style="--reveal-delay: 20ms;">
+                    <div class="relative p-8 md:p-10">
+                        <p class="section-kicker">Executive Narrative</p>
+                        <h2 class="text-3xl font-extrabold section-heading">1. Executive Summary</h2>
+                        <p class="mb-5 text-[1.02rem] leading-8 text-corporate-slate">
+                            In today’s high-volume manufacturing environment, unlocking capacity and improving Overall Equipment Effectiveness (OEE) requires real-time visibility. However, achieving this visibility in legacy environments often presents severe technical bottlenecks.
+                        </p>
+                        <p class="mb-5 text-[1.02rem] leading-8 text-corporate-slate">
+                            This Proof of Concept (POC) proposal outlines a rapid implementation strategy to deploy an Industry 4.0 Smart Factory solution on NCC’s Betti Line. Acknowledging the strict constraints of the existing Siemens and Omron PLCs, we propose a <strong>100% Non-Intrusive IoT Overlay Architecture</strong>.
+                        </p>
+                        <p class="mb-5 text-[1.02rem] leading-8 text-corporate-slate">
+                            Instead of traditional, highly intrusive integration, our solution relies on an independent, air-gapped sensor network, edge computing, and cloud analytics. This approach entirely eliminates operational risk, requires zero machine downtime for integration, and delivers immediate actionable insights.
+                        </p>
+                        <p class="text-[1.02rem] leading-8 text-corporate-slate font-semibold text-corporate-900">
+                            Strategically, this PoC is designed as Phase 1 of a broader application suite in which the connectivity and core MES layers are activated first, while simulation, AI intelligence, and enterprise integrations are unlocked in later deployment phases.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="section-shell reveal" data-reveal style="--reveal-delay: 90ms;">
+                    <div class="relative p-8 md:p-10">
+                        <p class="section-kicker">Constraint Landscape</p>
+                        <h2 class="text-3xl font-extrabold section-heading">2. Current State Constraints</h2>
+                        <p class="mb-6 text-sm italic text-corporate-slate">An initial assessment of the Betti Line reveals constraints that render traditional MES integration highly risky:</p>
+
+                        <ul class="space-y-4">
+                            <li class="hover-lift rounded-[1.35rem] border border-red-100 bg-gradient-to-br from-red-50/90 to-white p-5">
+                                <div class="flex items-start gap-4">
+                                    <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+                                        <i data-lucide="cpu" class="h-5 w-5"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-base font-extrabold text-corporate-900">Siemens S7-300 Environment</h4>
+                                        <p class="mt-2 text-sm leading-7 text-corporate-slate">Closed system architecture. Modifications are strictly prohibited, and communication availability is unguaranteed, blocking standard S7/OPC UA polling.</p>
+                                    </div>
+                                </div>
+                            </li>
+                            <li class="hover-lift rounded-[1.35rem] border border-red-100 bg-gradient-to-br from-red-50/90 to-white p-5">
+                                <div class="flex items-start gap-4">
+                                    <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+                                        <i data-lucide="network" class="h-5 w-5"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-base font-extrabold text-corporate-900">Omron Environment</h4>
+                                        <p class="mt-2 text-sm leading-7 text-corporate-slate">No free communication ports available on existing modules. Modifying the PLC program to add parallel communication logic is not permitted initially.</p>
+                                    </div>
+                                </div>
+                            </li>
+                            <li class="hover-lift rounded-[1.35rem] border border-orange-100 bg-gradient-to-br from-orange-50/90 to-white p-5">
+                                <div class="flex items-start gap-4">
+                                    <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-600">
+                                        <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-base font-extrabold text-corporate-900">Business Constraint</h4>
+                                        <p class="mt-2 text-sm leading-7 text-corporate-slate">Zero tolerance for operational disruption or impact on current machine cycle times during the PoC phase.</p>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Architecture -->
+            <section id="architecture" class="section-shell reveal" data-reveal style="--reveal-delay: 30ms;">
+                <div class="relative p-8 md:p-10 xl:p-12">
+                    <div class="max-w-5xl">
+                        <p class="section-kicker">Infographic Architecture</p>
+                        <h2 class="text-4xl font-extrabold section-heading tracking-[-0.04em]">3. Proposed System Architecture</h2>
+                        <p class="architecture-subtitle max-w-4xl">
+                            Non-intrusive Parallel IoT architecture enabling real-time machine data capture without PLC integration.
+                        </p>
+                        <p class="mt-4 mb-8 max-w-4xl text-[1.02rem] leading-8 text-corporate-slate">
+                            To deliver enterprise-grade analytics without violating the constraints, we deploy a <strong>Parallel IoT Sensing Network</strong> that captures physical and electrical state changes independently of the PLC environment and converts them into actionable OEE visibility.
+                        </p>
+                    </div>
+
+                    <div class="architecture-board p-6 text-corporate-900 shadow-panel md:p-8 xl:p-10">
+                        <div class="relative z-10">
+                            <div class="mb-5">
+                                <span class="architecture-highlight-badge"><i data-lucide="ban" class="h-4 w-4"></i> No PLC Integration Required</span>
+                            </div>
+
+                            <div class="architecture-storybar">
+                                <div class="story-node layer-capture" style="--layer-delay: 20ms;">
+                                    <p class="story-node-step">Step 1</p>
+                                    <div class="mt-4 flex items-center gap-3">
+                                        <div class="layer-icon-shell h-12 w-12"><i data-lucide="cog" class="h-6 w-6"></i></div>
+                                        <div><p class="story-node-title mt-0">Machine</p><p class="story-node-copy">External sensing layer</p></div>
+                                    </div>
+                                </div>
+                                <div class="story-link" style="--layer-delay: 110ms;">
+                                    <div class="story-link-arrow"><i data-lucide="arrow-down" class="h-5 w-5 lg:hidden"></i><i data-lucide="arrow-right" class="hidden h-5 w-5 lg:block"></i></div>
+                                    <div class="story-link-track"><span class="story-link-dot"></span></div>
+                                    <div class="story-link-label">Raw Signals</div>
+                                </div>
+                                <div class="story-node layer-edge" style="--layer-delay: 200ms;">
+                                    <p class="story-node-step">Step 2</p>
+                                    <div class="mt-4 flex items-center gap-3">
+                                        <div class="layer-icon-shell h-12 w-12"><i data-lucide="server" class="h-6 w-6"></i></div>
+                                        <div><p class="story-node-title mt-0">Edge Gateway</p><p class="story-node-copy">Processing + conversion</p></div>
+                                    </div>
+                                </div>
+                                <div class="story-link" style="--layer-delay: 290ms;">
+                                    <div class="story-link-arrow"><i data-lucide="arrow-down" class="h-5 w-5 lg:hidden"></i><i data-lucide="arrow-right" class="hidden h-5 w-5 lg:block"></i></div>
+                                    <div class="story-link-track"><span class="story-link-dot"></span></div>
+                                    <div class="story-link-label">Clean Telemetry</div>
+                                </div>
+                                <div class="story-node layer-cloud" style="--layer-delay: 380ms;">
+                                    <p class="story-node-step">Step 3</p>
+                                    <div class="mt-4 flex items-center gap-3">
+                                        <div class="layer-icon-shell h-12 w-12"><i data-lucide="cloud" class="h-6 w-6"></i></div>
+                                        <div><p class="story-node-title mt-0">Cloud Analytics</p><p class="story-node-copy">Time-series and dashboard</p></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="architecture-flow-shell mt-7 grid gap-5 lg:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)_88px_minmax(0,1fr)] lg:items-stretch xl:grid-cols-[minmax(0,1fr)_104px_minmax(0,1fr)_104px_minmax(0,1fr)]">
+                                <article class="architecture-stage-card layer-capture hover-lift p-7 md:p-8 xl:p-9" style="--layer-delay: 80ms;">
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div>
+                                            <span class="architecture-badge">Machine Layer</span>
+                                            <h3 class="mt-4 text-[2.15rem] font-extrabold leading-tight text-corporate-900 xl:text-[2.45rem]">Physical Machine</h3>
+                                            <p class="mt-2 text-base font-medium text-corporate-slate">Betti Line (No PLC Conn.)</p>
+                                        </div>
+                                        <div class="layer-icon-shell"><i data-lucide="cog" class="h-7 w-7"></i></div>
+                                    </div>
+                                    <div class="mt-6 architecture-bullet-list">
+                                        <div class="architecture-bullet"><div class="architecture-bullet-icon"><i data-lucide="scan-search" class="h-4 w-4"></i></div><div><p class="text-sm font-extrabold text-corporate-900">Sensors</p><p class="mt-1 text-sm leading-6 text-corporate-slate">Photoelectric detection, inductive monitoring overlays.</p></div></div>
+                                        <div class="architecture-bullet"><div class="architecture-bullet-icon"><i data-lucide="ban" class="h-4 w-4"></i></div><div><p class="text-sm font-extrabold text-corporate-900">No PLC Access</p><p class="mt-1 text-sm leading-6 text-corporate-slate">Machine data is captured without PLC program changes.</p></div></div>
+                                    </div>
+                                    <div class="mt-5 flex flex-wrap gap-2.5"><span class="architecture-chip">Raw Signals</span><span class="architecture-chip">Non-Intrusive</span></div>
+                                </article>
+
+                                <div class="architecture-node-arrow" style="--layer-delay: 220ms;">
+                                    <div class="text-center">
+                                        <div class="architecture-arrow-shell"><i data-lucide="arrow-down" class="h-5 w-5 lg:hidden"></i><i data-lucide="arrow-right" class="hidden h-5 w-5 lg:block"></i></div>
+                                        <p class="mt-3 text-[0.78rem] font-extrabold uppercase tracking-[0.16em] text-corporate-500">Raw Signals</p>
+                                    </div>
+                                </div>
+
+                                <article class="architecture-stage-card layer-edge hover-lift p-7 md:p-8 xl:p-9" style="--layer-delay: 300ms;">
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div>
+                                            <span class="architecture-badge">Edge Layer</span>
+                                            <h3 class="mt-4 text-[2.15rem] font-extrabold leading-tight text-corporate-900 xl:text-[2.45rem]">Edge Gateway</h3>
+                                            <p class="mt-2 text-base font-medium text-corporate-slate">Industrial Mini PC (IP67)</p>
+                                        </div>
+                                        <div class="layer-icon-shell"><i data-lucide="server" class="h-7 w-7"></i></div>
+                                    </div>
+                                    <div class="mt-6 architecture-bullet-list">
+                                        <div class="architecture-bullet"><div class="architecture-bullet-icon"><i data-lucide="filter" class="h-4 w-4"></i></div><div><p class="text-sm font-extrabold text-corporate-900">Data Processing</p><p class="mt-1 text-sm leading-6 text-corporate-slate">Debounces signals and stabilizes machine events.</p></div></div>
+                                        <div class="architecture-bullet"><div class="architecture-bullet-icon"><i data-lucide="workflow" class="h-4 w-4"></i></div><div><p class="text-sm font-extrabold text-corporate-900">Protocol Conversion</p><p class="mt-1 text-sm leading-6 text-corporate-slate">Converts events into clean telemetry for transport.</p></div></div>
+                                    </div>
+                                    <div class="mt-5 architecture-protocols"><span class="protocol-badge">Modbus</span><span class="protocol-badge">TCP</span></div>
+                                </article>
+
+                                <div class="architecture-node-arrow" style="--layer-delay: 440ms;">
+                                    <div class="text-center">
+                                        <div class="architecture-arrow-shell"><i data-lucide="arrow-down" class="h-5 w-5 lg:hidden"></i><i data-lucide="arrow-right" class="hidden h-5 w-5 lg:block"></i></div>
+                                        <p class="mt-3 text-[0.78rem] font-extrabold uppercase tracking-[0.16em] text-corporate-500">Clean Telemetry</p>
+                                    </div>
+                                </div>
+
+                                <article class="architecture-stage-card layer-cloud hover-lift p-7 md:p-8 xl:p-9" style="--layer-delay: 520ms;">
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div>
+                                            <span class="architecture-badge">Cloud Layer</span>
+                                            <h3 class="mt-4 text-[2.15rem] font-extrabold leading-tight text-corporate-900 xl:text-[2.45rem]">Cloud Analytics</h3>
+                                            <p class="mt-2 text-base font-medium text-corporate-slate">Time-Series &amp; Analytics</p>
+                                        </div>
+                                        <div class="layer-icon-shell"><i data-lucide="cloud" class="h-7 w-7"></i></div>
+                                    </div>
+                                    <div class="mt-6 architecture-bullet-list">
+                                        <div class="architecture-bullet"><div class="architecture-bullet-icon"><i data-lucide="shield-check" class="h-4 w-4"></i></div><div><p class="text-sm font-extrabold text-corporate-900">Storage</p><p class="mt-1 text-sm leading-6 text-corporate-slate">Time-series data securely stored for OEE.</p></div></div>
+                                        <div class="architecture-bullet"><div class="architecture-bullet-icon"><i data-lucide="layout-dashboard" class="h-4 w-4"></i></div><div><p class="text-sm font-extrabold text-corporate-900">Dashboards</p><p class="mt-1 text-sm leading-6 text-corporate-slate">Management interfaces surface real-time visibility.</p></div></div>
+                                    </div>
+                                    <div class="mt-5 architecture-protocols"><span class="protocol-badge">MQTT</span><span class="protocol-badge">TSDB</span></div>
+                                </article>
+                            </div>
+
+                            <div class="architecture-consumption-section">
+                                <div class="architecture-output-link">
+                                    <div class="architecture-output-link-arrow"><i data-lucide="arrow-down" class="h-5 w-5"></i></div>
+                                </div>
+                                <div class="architecture-output-panel">
+                                    <div class="architecture-output-panel-header">
+                                        <div><p class="architecture-output-panel-subtitle">Cloud to Consumption Layer</p><h4 class="architecture-output-panel-title">Consumption Interfaces</h4></div>
+                                    </div>
+                                    <div class="architecture-output-grid">
+                                        <div class="architecture-output-tile">
+                                            <div class="architecture-output-meta"><div class="architecture-output-icon"><i data-lucide="layout-dashboard" class="h-6 w-6"></i></div><span class="architecture-output-role">Leadership</span></div>
+                                            <div><p class="architecture-output-title">Management Dashboard</p><p class="architecture-output-copy">Leadership dashboard for faster operational decisions.</p></div>
+                                            <ul class="architecture-output-list"><li>OEE and throughput visibility</li><li>Downtime and efficiency tracking</li></ul>
+                                        </div>
+                                        <div class="architecture-output-tile operator">
+                                            <div class="architecture-output-meta"><div class="architecture-output-icon"><i data-lucide="tablet-smartphone" class="h-6 w-6"></i></div><span class="architecture-output-role">Shopfloor</span></div>
+                                            <div><p class="architecture-output-title">Operator Tablet</p><p class="architecture-output-copy">Interactive line-side interface for live shopfloor execution.</p></div>
+                                            <ul class="architecture-output-list"><li>Line-side status interaction</li><li>Execution progress tracking</li></ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. Application Suite Vision (Ecosystem) -->
+            <div id="ecosystem" class="space-y-8 lg:space-y-10">
+                <section class="section-shell reveal" data-reveal style="--reveal-delay: 35ms;">
+                    <div class="relative p-8 md:p-10 xl:p-12">
+                        <div class="absolute inset-0 bg-gradient-to-br from-corporate-50/85 via-white to-cyan-50/45"></div>
+                        <div class="relative max-w-5xl">
+                            <p class="section-kicker">Strategic Platform Vision</p>
+                            <h2 class="text-3xl font-extrabold section-heading">4. Application Suite Vision Beyond the PoC</h2>
+                            <p class="text-[1.02rem] leading-8 text-corporate-slate">
+                                The Application Suite represents the full Industry 4.0 target state for NCC: a connected data foundation, an operational MES layer, a simulation layer for optimization, and an AI layer for predictive decision support. The current PoC activates the first building blocks of that ecosystem while preserving a clear expansion path to the full digital manufacturing vision.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LAYER 01 -->
+                <section class="bg-white rounded-[2rem] shadow-panel border border-corporate-100 overflow-hidden layer-card reveal" data-reveal style="--reveal-delay: 50ms;">
+                    <div class="bg-gradient-to-r from-blue-700 to-blue-600 p-6 md:p-8 text-white flex items-start md:items-center flex-col md:flex-row gap-6 relative overflow-hidden">
+                        <i data-lucide="network" class="absolute -right-10 -bottom-10 w-64 h-64 text-blue-500 opacity-20 pointer-events-none"></i>
+                        <div class="p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 relative z-10"><i data-lucide="wifi" class="w-10 h-10"></i></div>
+                        <div class="relative z-10">
+                            <div class="text-blue-200 font-bold tracking-widest text-xs mb-1 uppercase flex items-center"><span class="w-2 h-2 rounded-full bg-blue-300 mr-2 animate-pulse"></span>Layer 01</div>
+                            <h2 class="text-3xl font-bold mb-2 text-white">Connectivity & Data Foundation Layer</h2>
+                            <p class="text-blue-100 text-lg leading-relaxed max-w-4xl"><strong>Role:</strong> Collect, connect, secure, and transport industrial data.</p>
+                        </div>
+                    </div>
+                    <div class="p-6 md:p-8 xl:p-10">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <div class="bg-corporate-50 rounded-2xl p-5 border border-corporate-100">
+                                <h4 class="font-extrabold text-blue-800 mb-4 flex items-center border-b border-blue-200/50 pb-2"><i data-lucide="server" class="w-5 h-5 mr-2"></i> Applications</h4>
+                                <div class="space-y-3">
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-blue-50 text-blue-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-blue-600 group-hover:text-white"><i data-lucide="activity" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">DAQ System</strong><span class="text-xs text-corporate-slate block">High-speed collection</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-blue-50 text-blue-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-blue-600 group-hover:text-white"><i data-lucide="monitor-dot" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">SCADA System</strong><span class="text-xs text-corporate-slate block">Supervisory control</span></div></div>
+                                </div>
+                            </div>
+                            <div class="bg-corporate-50 rounded-2xl p-5 border border-corporate-100">
+                                <h4 class="font-extrabold text-blue-800 mb-4 flex items-center border-b border-blue-200/50 pb-2"><i data-lucide="shield-alert" class="w-5 h-5 mr-2"></i> Cybersecurity</h4>
+                                <div class="space-y-3">
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-blue-50 text-blue-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-blue-600 group-hover:text-white"><i data-lucide="shield" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Industrial Firewall</strong><span class="text-xs text-corporate-slate block">OT network segmentation</span></div></div>
+                                </div>
+                            </div>
+                            <div class="bg-corporate-50 rounded-2xl p-5 border border-corporate-100">
+                                <h4 class="font-extrabold text-blue-800 mb-4 flex items-center border-b border-blue-200/50 pb-2"><i data-lucide="git-merge" class="w-5 h-5 mr-2"></i> Integration</h4>
+                                <div class="space-y-3">
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-blue-50 text-blue-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-blue-600 group-hover:text-white"><i data-lucide="cloud-cog" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">iPaaS Platform</strong><span class="text-xs text-corporate-slate block">Links OT, IT, and enterprise</span></div></div>
+                                </div>
+                            </div>
+                            <div class="bg-corporate-50 rounded-2xl p-5 border border-corporate-100">
+                                <h4 class="font-extrabold text-blue-800 mb-4 flex items-center border-b border-blue-200/50 pb-2"><i data-lucide="hard-drive" class="w-5 h-5 mr-2"></i> Data Platforms</h4>
+                                <div class="space-y-3">
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-blue-50 text-blue-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-blue-600 group-hover:text-white"><i data-lucide="clock" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Time-Series DB</strong><span class="text-xs text-corporate-slate block">High-frequency storage</span></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LAYER 02 -->
+                <section class="bg-white rounded-[2rem] shadow-panel border border-corporate-100 overflow-hidden layer-card reveal" data-reveal style="--reveal-delay: 50ms;">
+                    <div class="bg-gradient-to-r from-emerald-700 to-emerald-600 p-6 md:p-8 text-white flex items-start md:items-center flex-col md:flex-row gap-6 relative overflow-hidden">
+                        <i data-lucide="factory" class="absolute -right-10 -bottom-10 w-64 h-64 text-emerald-500 opacity-20 pointer-events-none"></i>
+                        <div class="p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 relative z-10"><i data-lucide="settings-2" class="w-10 h-10"></i></div>
+                        <div class="relative z-10">
+                            <div class="text-emerald-200 font-bold tracking-widest text-xs mb-1 uppercase flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-300 mr-2 animate-pulse"></span>Layer 02</div>
+                            <h2 class="text-3xl font-bold mb-2 text-white">MES Layer</h2>
+                            <p class="text-emerald-100 text-lg leading-relaxed max-w-4xl"><strong>Role:</strong> Execute, control, and optimize manufacturing operations.</p>
+                        </div>
+                    </div>
+                    <div class="p-6 md:p-8 xl:p-10">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div class="bg-corporate-50 rounded-2xl p-5 border border-corporate-100">
+                                <h4 class="font-extrabold text-emerald-800 mb-4 flex items-center border-b border-emerald-200/50 pb-2"><i data-lucide="layout-dashboard" class="w-5 h-5 mr-2"></i> MES Core Ecosystem</h4>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-emerald-50 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-emerald-600 group-hover:text-white"><i data-lucide="calendar-days" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Production Sched.</strong><span class="text-xs text-corporate-slate block">Digital scheduling</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-emerald-50 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-emerald-600 group-hover:text-white"><i data-lucide="clipboard-list" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Work Order Mgmt</strong><span class="text-xs text-corporate-slate block">End-to-end lifecycle</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-emerald-50 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-emerald-600 group-hover:text-white"><i data-lucide="timer-off" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Downtime Mgmt</strong><span class="text-xs text-corporate-slate block">Automated capture</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-emerald-50 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-emerald-600 group-hover:text-white"><i data-lucide="check-square" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Quality Mgmt</strong><span class="text-xs text-corporate-slate block">Inline checks & SPC</span></div></div>
+                                </div>
+                            </div>
+                            <div class="bg-corporate-50 rounded-2xl p-5 border border-corporate-100">
+                                <h4 class="font-extrabold text-emerald-800 mb-4 flex items-center border-b border-emerald-200/50 pb-2"><i data-lucide="cpu" class="w-5 h-5 mr-2"></i> Smart Manufacturing</h4>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-emerald-50 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-emerald-600 group-hover:text-white"><i data-lucide="activity-square" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">OEE Monitoring</strong><span class="text-xs text-corporate-slate block">Real-time effectiveness</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-emerald-50 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-emerald-600 group-hover:text-white"><i data-lucide="gauge" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Live Dashboards</strong><span class="text-xs text-corporate-slate block">Line status displays</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-emerald-50 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-emerald-600 group-hover:text-white"><i data-lucide="zap" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">EMS Platform</strong><span class="text-xs text-corporate-slate block">Energy consumption</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-emerald-50 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-emerald-600 group-hover:text-white"><i data-lucide="wrench" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">CMMS</strong><span class="text-xs text-corporate-slate block">Work orders & PM</span></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LAYER 03 -->
+                <section class="bg-white rounded-[2rem] shadow-panel border border-corporate-100 overflow-hidden layer-card reveal" data-reveal style="--reveal-delay: 50ms;">
+                    <div class="bg-gradient-to-r from-purple-700 to-purple-600 p-6 md:p-8 text-white flex items-start md:items-center flex-col md:flex-row gap-6 relative overflow-hidden">
+                        <i data-lucide="cuboid" class="absolute -right-10 -bottom-10 w-64 h-64 text-purple-500 opacity-20 pointer-events-none"></i>
+                        <div class="p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 relative z-10"><i data-lucide="copy" class="w-10 h-10"></i></div>
+                        <div class="relative z-10">
+                            <div class="text-purple-200 font-bold tracking-widest text-xs mb-1 uppercase flex items-center"><span class="w-2 h-2 rounded-full bg-purple-300 mr-2 animate-pulse"></span>Layer 03</div>
+                            <h2 class="text-3xl font-bold mb-2 text-white">Simulation & Optimization Layer</h2>
+                            <p class="text-purple-100 text-lg leading-relaxed max-w-4xl"><strong>Role:</strong> Simulate and optimize processes before execution.</p>
+                        </div>
+                    </div>
+                    <div class="p-6 md:p-8 xl:p-10">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div class="bg-corporate-50 rounded-2xl p-5 border border-corporate-100">
+                                <h4 class="font-extrabold text-purple-800 mb-4 flex items-center border-b border-purple-200/50 pb-2"><i data-lucide="monitor" class="w-5 h-5 mr-2"></i> Digital Twin Systems</h4>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-purple-50 text-purple-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-purple-600 group-hover:text-white"><i data-lucide="refresh-cw" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Process Twin</strong><span class="text-xs text-corporate-slate block">Live parameter mirror</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-purple-50 text-purple-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-purple-600 group-hover:text-white"><i data-lucide="building-2" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Factory Twin</strong><span class="text-xs text-corporate-slate block">Full 3D replica</span></div></div>
+                                </div>
+                            </div>
+                            <div class="bg-corporate-50 rounded-2xl p-5 border border-corporate-100">
+                                <h4 class="font-extrabold text-purple-800 mb-4 flex items-center border-b border-purple-200/50 pb-2"><i data-lucide="sliders" class="w-5 h-5 mr-2"></i> Optimization Tools</h4>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-purple-50 text-purple-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-purple-600 group-hover:text-white"><i data-lucide="maximize" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Capacity Planning</strong><span class="text-xs text-corporate-slate block">Cross-shift optimization</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-purple-50 text-purple-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-purple-600 group-hover:text-white"><i data-lucide="filter" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Bottleneck Analysis</strong><span class="text-xs text-corporate-slate block">Identify constraints</span></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LAYER 04 -->
+                <section class="bg-white rounded-[2rem] shadow-panel border border-corporate-100 overflow-hidden layer-card reveal" data-reveal style="--reveal-delay: 50ms;">
+                    <div class="bg-gradient-to-r from-amber-600 to-orange-500 p-6 md:p-8 text-white flex items-start md:items-center flex-col md:flex-row gap-6 relative overflow-hidden">
+                        <i data-lucide="brain-circuit" class="absolute -right-10 -bottom-10 w-64 h-64 text-amber-500 opacity-20 pointer-events-none"></i>
+                        <div class="p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 relative z-10"><i data-lucide="lightbulb" class="w-10 h-10"></i></div>
+                        <div class="relative z-10">
+                            <div class="text-amber-100 font-bold tracking-widest text-xs mb-1 uppercase flex items-center"><span class="w-2 h-2 rounded-full bg-amber-200 mr-2 animate-pulse"></span>Layer 04</div>
+                            <h2 class="text-3xl font-bold mb-2 text-white">AI & Intelligence Layer</h2>
+                            <p class="text-amber-50 text-lg leading-relaxed max-w-4xl"><strong>Role:</strong> Analyze, predict, and automate decisions.</p>
+                        </div>
+                    </div>
+                    <div class="p-6 md:p-8 xl:p-10">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                            <div class="lg:col-span-2 bg-corporate-50 rounded-2xl p-5 border border-corporate-100">
+                                <h4 class="font-extrabold text-amber-800 mb-4 flex items-center border-b border-amber-200/50 pb-2"><i data-lucide="sparkles" class="w-5 h-5 mr-2"></i> Core AI Applications</h4>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-amber-50 text-amber-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-amber-500 group-hover:text-white"><i data-lucide="wrench" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Predictive Maint.</strong><span class="text-xs text-corporate-slate block">7-14 day failure prediction</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-amber-50 text-amber-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-amber-500 group-hover:text-white"><i data-lucide="eye" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Computer Vision</strong><span class="text-xs text-corporate-slate block">Visual inspection</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-amber-50 text-amber-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-amber-500 group-hover:text-white"><i data-lucide="trending-up" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Demand Forecasting</strong><span class="text-xs text-corporate-slate block">Procurement logic</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-amber-50 text-amber-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-amber-500 group-hover:text-white"><i data-lucide="scan" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Anomaly Detection</strong><span class="text-xs text-corporate-slate block">Scan 100s of variables live</span></div></div>
+                                </div>
+                            </div>
+                            <div class="bg-corporate-50 rounded-2xl p-5 border border-corporate-100">
+                                <h4 class="font-extrabold text-amber-800 mb-4 flex items-center border-b border-amber-200/50 pb-2"><i data-lucide="satellite-dish" class="w-5 h-5 mr-2"></i> AIoT & Analytics</h4>
+                                <div class="space-y-3">
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-amber-50 text-amber-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-amber-500 group-hover:text-white"><i data-lucide="bell-ring" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Smart Monitoring</strong><span class="text-xs text-corporate-slate block">Intelligent alert filtering</span></div></div>
+                                    <div class="flex items-start group component-card bg-white p-3 rounded-xl border border-corporate-100 shadow-sm"><div class="bg-amber-50 text-amber-600 p-2 rounded-lg mr-3 shrink-0 group-hover:bg-amber-500 group-hover:text-white"><i data-lucide="activity" class="w-4 h-4"></i></div><div><strong class="text-corporate-900 block text-sm">Streaming Analytics</strong><span class="text-xs text-corporate-slate block">Inference on live data</span></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- DX & Emerging Tech -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 reveal" data-reveal style="--reveal-delay: 50ms;">
+                    <section class="bg-white rounded-[2rem] shadow-panel border border-corporate-100 overflow-hidden layer-card flex flex-col">
+                        <div class="p-6 md:p-8 flex-1">
+                            <div class="flex items-center mb-6 border-b border-corporate-100 pb-4">
+                                <div class="w-12 h-12 bg-corporate-800 rounded-xl flex items-center justify-center mr-4 shadow-md"><i data-lucide="layers" class="w-6 h-6 text-white"></i></div>
+                                <div><h2 class="text-2xl font-extrabold text-corporate-900">Digital Transformation (DX)</h2><p class="text-sm text-corporate-slate">Business management & decision layer.</p></div>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="flex items-start group component-card p-3 rounded-xl border border-corporate-100 bg-corporate-50 hover:bg-corporate-100"><div class="bg-white text-corporate-700 p-2 rounded-lg mr-4 shrink-0 shadow-sm"><i data-lucide="database" class="w-5 h-5"></i></div><div><strong class="text-corporate-900 block text-base">ERP Systems</strong><span class="text-sm text-corporate-slate">Bi-directional integration with SAP/Oracle.</span></div></div>
+                                <div class="flex items-start group component-card p-3 rounded-xl border border-corporate-100 bg-corporate-50 hover:bg-corporate-100"><div class="bg-white text-corporate-700 p-2 rounded-lg mr-4 shrink-0 shadow-sm"><i data-lucide="pie-chart" class="w-5 h-5"></i></div><div><strong class="text-corporate-900 block text-base">BI Ecosystem</strong><span class="text-sm text-corporate-slate">Executive dashboards and advanced reporting.</span></div></div>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="bg-white rounded-[2rem] shadow-panel border border-corporate-100 overflow-hidden layer-card flex flex-col">
+                        <div class="p-6 md:p-8 flex-1">
+                            <div class="flex items-center mb-6 border-b border-corporate-100 pb-4">
+                                <div class="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center mr-4 shadow-md"><i data-lucide="rocket" class="w-6 h-6 text-white"></i></div>
+                                <div><h2 class="text-2xl font-extrabold text-corporate-900">Emerging Technologies</h2><p class="text-sm text-corporate-slate">Future-proof innovation ready for deployment.</p></div>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="flex items-start group component-card p-3 rounded-xl border border-indigo-100 bg-indigo-50/50 hover:bg-indigo-50"><div class="bg-white text-indigo-700 p-2 rounded-lg mr-4 shrink-0 shadow-sm"><i data-lucide="bot" class="w-5 h-5"></i></div><div><strong class="text-corporate-900 block text-base">Autonomous Factory</strong><span class="text-sm text-corporate-slate">Self-regulating material flow.</span></div></div>
+                                <div class="flex items-start group component-card p-3 rounded-xl border border-indigo-100 bg-indigo-50/50 hover:bg-indigo-50"><div class="bg-white text-indigo-700 p-2 rounded-lg mr-4 shrink-0 shadow-sm"><i data-lucide="leaf" class="w-5 h-5"></i></div><div><strong class="text-corporate-900 block text-base">Green Manufacturing</strong><span class="text-sm text-corporate-slate">Carbon footprint tracking & sustainability logic.</span></div></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 5. Technical Approach -->
+            <section id="approach" class="section-shell reveal mt-12" data-reveal style="--reveal-delay: 40ms;">
+                <div class="relative p-8 md:p-10">
+                    <p class="section-kicker">Delivery Logic</p>
+                    <h2 class="text-3xl font-extrabold section-heading">5. Technical Approach & Sensors</h2>
+                    <div class="grid gap-6 md:grid-cols-2">
+                        <div class="hover-lift hover-line rounded-[1.6rem] border border-corporate-100 bg-gradient-to-br from-white to-corporate-50 p-6">
+                            <h4 class="flex items-center border-b border-corporate-100 pb-3 text-lg font-extrabold text-corporate-900"><i data-lucide="radio" class="mr-3 h-5 w-5 text-corporate-accent"></i> Signal-Based Strategy</h4>
+                            <p class="mb-4 mt-4 text-sm leading-7 text-corporate-slate">Because we cannot use a Tag-Based strategy initially, we employ a strictly Signal-Based approach.</p>
+                            <ul class="space-y-3 text-sm text-corporate-slate">
+                                <li class="flex items-start gap-2"><i data-lucide="check-circle" class="mt-1 h-4 w-4 flex-shrink-0 text-emerald-500"></i> <div><strong>Availability:</strong> Derived purely from Stack Light overlay.</div></li>
+                                <li class="flex items-start gap-2"><i data-lucide="check-circle" class="mt-1 h-4 w-4 flex-shrink-0 text-emerald-500"></i> <div><strong>Performance:</strong> Photoelectric sensor counts units against Ideal Cycle Time.</div></li>
+                            </ul>
+                        </div>
+
+                        <div class="hover-lift hover-line rounded-[1.6rem] border border-corporate-100 bg-gradient-to-br from-white to-corporate-50 p-6">
+                            <h4 class="flex items-center border-b border-corporate-100 pb-3 text-lg font-extrabold text-corporate-900"><i data-lucide="target" class="mr-3 h-5 w-5 text-corporate-accent"></i> Accuracy Calibration</h4>
+                            <ul class="mt-4 space-y-3 text-sm text-corporate-slate">
+                                <li class="flex items-start gap-2"><i data-lucide="filter" class="mt-1 h-4 w-4 flex-shrink-0 text-blue-500"></i> <div><strong>Debouncing:</strong> Edge layer software ignores pulses &lt; 200ms apart to prevent double counts.</div></li>
+                                <li class="flex items-start gap-2"><i data-lucide="clock" class="mt-1 h-4 w-4 flex-shrink-0 text-blue-500"></i> <div><strong>Micro-stops:</strong> Stoppages &lt; 3 mins categorized as Performance loss. &gt; 3 mins categorized as Availability loss.</div></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel mt-8 rounded-[1.8rem] border border-corporate-100 p-6 md:p-7">
+                        <div class="flex items-start gap-4 mb-6">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-corporate-100 text-corporate-700"><i data-lucide="scan-line" class="h-6 w-6"></i></div>
+                            <div>
+                                <p class="section-kicker">Field Instrumentation</p>
+                                <h3 class="mt-2 text-2xl font-extrabold text-corporate-900">Wrapping Machine Sensor Data Sheet</h3>
+                                <p class="mt-2 max-w-4xl text-sm leading-7 text-corporate-slate">Sensing package is based on two non-intrusive digital inputs: photoelectric pallet detection and inductive proximity monitoring for turntable rotation.</p>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-5 xl:grid-cols-2">
+                            <div class="rounded-[1.55rem] border border-blue-100 bg-gradient-to-br from-blue-50/90 to-white p-6 shadow-soft">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div><p class="text-xs font-extrabold uppercase tracking-[0.18em] text-blue-600">Sensor 01</p><h4 class="mt-2 text-xl font-extrabold text-corporate-900">Photoelectric Sensor</h4><p class="mt-1 text-sm font-semibold text-corporate-slate">Pallet Detection</p></div>
+                                    <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-700"><i data-lucide="scan-search" class="h-5 w-5"></i></div>
+                                </div>
+                                <div class="mt-5 grid gap-3 text-sm text-corporate-slate">
+                                    <div class="grid grid-cols-[140px_minmax(0,1fr)] gap-3 border-b border-blue-100 pb-3"><span class="font-bold text-corporate-900">Type</span><span>Photoelectric Diffuse Sensor</span></div>
+                                    <div class="grid grid-cols-[140px_minmax(0,1fr)] gap-3 border-b border-blue-100 pb-3"><span class="font-bold text-corporate-900">Output Type</span><span>PNP / NPN Digital Output</span></div>
+                                </div>
+                                <div class="mt-5 rounded-[1.2rem] border border-blue-100 bg-white/80 p-4">
+                                    <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-700">Locations</p>
+                                    <ul class="mt-3 space-y-2 text-sm leading-7 text-corporate-slate">
+                                        <li class="flex items-start gap-2"><i data-lucide="map-pin" class="mt-1 h-4 w-4 text-blue-600"></i><span>Pallet infeed conveyor</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="rounded-[1.55rem] border border-indigo-100 bg-gradient-to-br from-indigo-50/90 to-white p-6 shadow-soft">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div><p class="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">Sensor 02</p><h4 class="mt-2 text-xl font-extrabold text-corporate-900">Inductive Proximity</h4><p class="mt-1 text-sm font-semibold text-corporate-slate">Turntable Rotation</p></div>
+                                    <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700"><i data-lucide="rotate-cw" class="h-5 w-5"></i></div>
+                                </div>
+                                <div class="mt-5 grid gap-3 text-sm text-corporate-slate">
+                                    <div class="grid grid-cols-[140px_minmax(0,1fr)] gap-3 border-b border-indigo-100 pb-3"><span class="font-bold text-corporate-900">Type</span><span>Inductive Proximity Sensor</span></div>
+                                    <div class="grid grid-cols-[140px_minmax(0,1fr)] gap-3 border-b border-indigo-100 pb-3"><span class="font-bold text-corporate-900">Output Type</span><span>PNP Digital Output</span></div>
+                                </div>
+                                <div class="mt-5 rounded-[1.2rem] border border-indigo-100 bg-white/80 p-4">
+                                    <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-indigo-700">Locations</p>
+                                    <ul class="mt-3 space-y-2 text-sm leading-7 text-corporate-slate">
+                                        <li class="flex items-start gap-2"><i data-lucide="map-pin" class="mt-1 h-4 w-4 text-indigo-600"></i><span>Turntable rotation detection</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 6. Modules, Data & Ecosystem Scope (WITH UNLOCKED MODULES RESTORED) -->
+            <section id="modules" class="section-shell reveal" data-reveal style="--reveal-delay: 30ms;">
+                <div class="relative overflow-hidden p-8 md:p-10">
+                    <div class="absolute inset-0 bg-gradient-to-br from-corporate-50 via-white to-cyan-50/60"></div>
+                    <div class="relative">
+                        <div class="mb-8 flex items-center gap-4">
+                            <div class="flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-gradient-to-br from-corporate-800 to-corporate-600 text-corporate-electric shadow-glow">
+                                <i data-lucide="database" class="h-7 w-7"></i>
+                            </div>
+                            <div>
+                                <p class="section-kicker">Data Acquisition Scope</p>
+                                <h2 class="text-3xl font-extrabold section-heading mb-0 pb-4">6. Suggested Data Points to be Collected</h2>
+                            </div>
+                        </div>
+                        <p class="mb-6 max-w-5xl text-[1.02rem] leading-8 text-corporate-slate">Based on available PLC tags, edge tags, or equivalent machine signals, the PoC should prioritize the following data categories to maximize production visibility, operational diagnostics, and future analytics readiness.</p>
+
+                        <div class="mb-6 flex flex-wrap gap-3">
+                            <span class="architecture-chip"><i data-lucide="database" class="mr-2 h-4 w-4 text-corporate-accent"></i>Tag-based collection where available</span>
+                            <span class="architecture-chip"><i data-lucide="shield-check" class="mr-2 h-4 w-4 text-emerald-600"></i>Supports phased PLC integration strategy</span>
+                            <span class="architecture-chip"><i data-lucide="trending-up" class="mr-2 h-4 w-4 text-blue-600"></i>Designed for OEE, quality, energy, and maintenance analytics</span>
+                        </div>
+
+                        <!-- Data Points List -->
+                        <div class="overflow-hidden rounded-[1.8rem] border border-corporate-100 bg-white/88 shadow-soft mb-12">
+                            <div class="hidden items-center gap-4 border-b border-corporate-100 bg-gradient-to-r from-corporate-900 to-corporate-700 px-6 py-4 text-white lg:grid lg:grid-cols-[260px_minmax(0,1fr)]">
+                                <p class="text-xs font-extrabold uppercase tracking-[0.2em] text-blue-100/80">Category</p>
+                                <p class="text-xs font-extrabold uppercase tracking-[0.2em] text-blue-100/80">Suggested Parameters</p>
+                            </div>
+
+                            <div class="divide-y divide-corporate-100/90">
+                                <div class="modules-data-row grid gap-4 px-6 py-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+                                    <div class="flex items-start gap-4"><div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-700"><i data-lucide="gauge" class="h-6 w-6"></i></div><div><p class="text-xs font-extrabold uppercase tracking-[0.18em] text-blue-600">Category 01</p><h4 class="mt-2 text-lg font-extrabold text-corporate-900">Production Metrics</h4></div></div>
+                                    <div class="modules-data-params flex flex-wrap gap-2.5"><span class="protocol-badge">Cycle time</span><span class="protocol-badge">Throughput</span><span class="protocol-badge">Batch count</span><span class="protocol-badge">Production rate</span></div>
+                                </div>
+                                <div class="modules-data-row grid gap-4 px-6 py-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+                                    <div class="flex items-start gap-4"><div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-teal-100 text-teal-700"><i data-lucide="activity" class="h-6 w-6"></i></div><div><p class="text-xs font-extrabold uppercase tracking-[0.18em] text-teal-600">Category 02</p><h4 class="mt-2 text-lg font-extrabold text-corporate-900">Machine Status</h4></div></div>
+                                    <div class="modules-data-params flex flex-wrap gap-2.5"><span class="protocol-badge">Running state</span><span class="protocol-badge">Idle state</span><span class="protocol-badge">Alarm state</span><span class="protocol-badge">Utilization %</span></div>
+                                </div>
+                                <div class="modules-data-row grid gap-4 px-6 py-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+                                    <div class="flex items-start gap-4"><div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700"><i data-lucide="badge-check" class="h-6 w-6"></i></div><div><p class="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">Category 03</p><h4 class="mt-2 text-lg font-extrabold text-corporate-900">Quality Params</h4></div></div>
+                                    <div class="modules-data-params flex flex-wrap gap-2.5"><span class="protocol-badge">Temperature</span><span class="protocol-badge">Pressure</span><span class="protocol-badge">Weight</span><span class="protocol-badge">Reject counts</span></div>
+                                </div>
+                                <div class="modules-data-row grid gap-4 px-6 py-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+                                    <div class="flex items-start gap-4"><div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><i data-lucide="zap" class="h-6 w-6"></i></div><div><p class="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-600">Category 04</p><h4 class="mt-2 text-lg font-extrabold text-corporate-900">Energy Consumption</h4></div></div>
+                                    <div class="modules-data-params flex flex-wrap gap-2.5"><span class="protocol-badge">Power usage per machine</span><span class="protocol-badge">Energy efficiency</span></div>
+                                </div>
+                                <div class="modules-data-row grid gap-4 px-6 py-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+                                    <div class="flex items-start gap-4"><div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700"><i data-lucide="wrench" class="h-6 w-6"></i></div><div><p class="text-xs font-extrabold uppercase tracking-[0.18em] text-red-600">Category 05</p><h4 class="mt-2 text-lg font-extrabold text-corporate-900">Maintenance</h4></div></div>
+                                    <div class="modules-data-params flex flex-wrap gap-2.5"><span class="protocol-badge">Vibration</span><span class="protocol-badge">Runtime hours</span><span class="protocol-badge">Error codes</span><span class="protocol-badge">Downtime events</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Ecosystem Activation Scope -->
+                        <h3 class="text-2xl font-extrabold text-corporate-900 mb-6 flex items-center border-t border-corporate-200 pt-10">
+                            <i data-lucide="toggle-right" class="w-7 h-7 mr-3 text-corporate-500"></i>
+                            Ecosystem Activation Scope
+                        </h3>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 activation-grid">
+                            <!-- Unlocked Modules -->
+                            <div class="bg-emerald-50 rounded-3xl p-6 md:p-8 border border-emerald-200 relative overflow-hidden shadow-sm hover-lift">
+                                <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><i data-lucide="unlock" class="w-32 h-32 text-emerald-600"></i></div>
+                                <h4 class="font-extrabold text-emerald-800 mb-3 flex items-center text-xl"><i data-lucide="unlock" class="w-6 h-6 mr-2"></i> Unlocked Modules (Active)</h4>
+                                <p class="text-sm text-emerald-700 mb-6 font-medium">The following specific modules from the Application Suite will be provisioned to capture, store, and visualize the requested POC data points:</p>
+                                
+                                <div class="space-y-4 relative z-10">
+                                    <div class="flex items-center bg-white p-4 rounded-2xl border border-emerald-100 shadow-[0_4px_12px_rgba(16,185,129,0.06)]">
+                                        <div class="bg-blue-100 text-blue-600 p-2.5 rounded-xl mr-4"><i data-lucide="activity" class="w-5 h-5"></i></div>
+                                        <span class="font-bold text-corporate-900 text-[0.95rem] flex-1">DAQ & SCADA System</span>
+                                        <span class="text-[0.7rem] text-emerald-700 font-extrabold uppercase tracking-widest bg-emerald-100 px-3 py-1.5 rounded-full">Layer 01</span>
+                                    </div>
+                                    <div class="flex items-center bg-white p-4 rounded-2xl border border-emerald-100 shadow-[0_4px_12px_rgba(16,185,129,0.06)]">
+                                        <div class="bg-blue-100 text-blue-600 p-2.5 rounded-xl mr-4"><i data-lucide="clock" class="w-5 h-5"></i></div>
+                                        <span class="font-bold text-corporate-900 text-[0.95rem] flex-1">Time-Series DB</span>
+                                        <span class="text-[0.7rem] text-emerald-700 font-extrabold uppercase tracking-widest bg-emerald-100 px-3 py-1.5 rounded-full">Layer 01</span>
+                                    </div>
+                                    <div class="flex items-center bg-white p-4 rounded-2xl border border-emerald-100 shadow-[0_4px_12px_rgba(16,185,129,0.06)]">
+                                        <div class="bg-emerald-100 text-emerald-600 p-2.5 rounded-xl mr-4"><i data-lucide="gauge" class="w-5 h-5"></i></div>
+                                        <span class="font-bold text-corporate-900 text-[0.95rem] flex-1">Real-Time Dashboards & OEE</span>
+                                        <span class="text-[0.7rem] text-emerald-700 font-extrabold uppercase tracking-widest bg-emerald-100 px-3 py-1.5 rounded-full">Layer 02</span>
+                                    </div>
+                                    <div class="flex items-center bg-white p-4 rounded-2xl border border-emerald-100 shadow-[0_4px_12px_rgba(16,185,129,0.06)]">
+                                        <div class="bg-emerald-100 text-emerald-600 p-2.5 rounded-xl mr-4"><i data-lucide="timer-off" class="w-5 h-5"></i></div>
+                                        <span class="font-bold text-corporate-900 text-[0.95rem] flex-1">Downtime Management</span>
+                                        <span class="text-[0.7rem] text-emerald-700 font-extrabold uppercase tracking-widest bg-emerald-100 px-3 py-1.5 rounded-full">Layer 02</span>
+                                    </div>
+                                    <div class="flex items-center bg-white p-4 rounded-2xl border border-emerald-100 shadow-[0_4px_12px_rgba(16,185,129,0.06)]">
+                                        <div class="bg-emerald-100 text-emerald-600 p-2.5 rounded-xl mr-4"><i data-lucide="check-square" class="w-5 h-5"></i></div>
+                                        <span class="font-bold text-corporate-900 text-[0.95rem] flex-1">Quality Data Collection</span>
+                                        <span class="text-[0.7rem] text-emerald-700 font-extrabold uppercase tracking-widest bg-emerald-100 px-3 py-1.5 rounded-full">Layer 02</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Locked Modules -->
+                            <div class="bg-slate-100 rounded-3xl p-6 md:p-8 border border-slate-200 relative overflow-hidden shadow-sm hover-lift">
+                                <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><i data-lucide="lock" class="w-32 h-32 text-slate-600"></i></div>
+                                <h4 class="font-extrabold text-corporate-700 mb-3 flex items-center text-xl"><i data-lucide="lock" class="w-6 h-6 mr-2"></i> Locked Modules (Out of Scope)</h4>
+                                <p class="text-sm text-corporate-500 mb-6 font-medium">To ensure a rapid, focused, and successful POC, all other ecosystem applications will remain locked until subsequent deployment phases.</p>
+                                
+                                <div class="space-y-4 relative z-10">
+                                    <div class="flex items-center opacity-60 bg-white/50 p-4 rounded-2xl border border-slate-200">
+                                        <i data-lucide="x-circle" class="w-5 h-5 text-slate-400 mr-4"></i><span class="text-[0.95rem] text-slate-600 font-bold">Layer 03: Simulation & Optimization Layer</span>
+                                    </div>
+                                    <div class="flex items-center opacity-60 bg-white/50 p-4 rounded-2xl border border-slate-200">
+                                        <i data-lucide="x-circle" class="w-5 h-5 text-slate-400 mr-4"></i><span class="text-[0.95rem] text-slate-600 font-bold">Layer 04: AI & Intelligence Layer</span>
+                                    </div>
+                                    <div class="flex items-center opacity-60 bg-white/50 p-4 rounded-2xl border border-slate-200">
+                                        <i data-lucide="x-circle" class="w-5 h-5 text-slate-400 mr-4"></i><span class="text-[0.95rem] text-slate-600 font-bold">Advanced MES (APS, Recipes, Labor)</span>
+                                    </div>
+                                    <div class="flex items-center opacity-60 bg-white/50 p-4 rounded-2xl border border-slate-200">
+                                        <i data-lucide="x-circle" class="w-5 h-5 text-slate-400 mr-4"></i><span class="text-[0.95rem] text-slate-600 font-bold">DX Enterprise Integrations (ERP, CRM)</span>
+                                    </div>
+                                    <div class="flex items-center opacity-60 bg-white/50 p-4 rounded-2xl border border-slate-200">
+                                        <i data-lucide="x-circle" class="w-5 h-5 text-slate-400 mr-4"></i><span class="text-[0.95rem] text-slate-600 font-bold">Emerging Technologies (Blockchain, AR/VR)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- 7. Scope of PoC -->
+            <section id="scope" class="section-shell reveal" data-reveal style="--reveal-delay: 35ms;">
+                <div class="relative p-8 md:p-10">
+                    <p class="section-kicker">Bounded Scope</p>
+                    <h2 class="text-3xl font-extrabold section-heading">7. Scope of PoC</h2>
+                    <div class="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        <div class="rounded-[1.4rem] border border-corporate-100 bg-gradient-to-br from-white to-corporate-50 p-5">
+                            <p class="text-xs uppercase tracking-[0.22em] text-corporate-slate">Duration</p>
+                            <p class="mt-3 text-base font-bold text-corporate-900">1 Week (Workshop) + 1 Week (Implementation) + 30 Days (Evaluation)</p>
+                        </div>
+                        <div class="rounded-[1.4rem] border border-corporate-100 bg-gradient-to-br from-white to-corporate-50 p-5 sm:col-span-2 xl:col-span-2">
+                            <p class="text-xs uppercase tracking-[0.22em] text-corporate-slate">Facility</p>
+                            <p class="mt-3 text-base font-bold text-corporate-900">Detergent Powder Mfg. - Packaging - Betti Line</p>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-6 lg:grid-cols-2">
+                        <div class="hover-lift rounded-[1.7rem] border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-6 shadow-soft">
+                            <h4 class="mb-4 flex items-center border-b border-emerald-100 pb-3 text-lg font-extrabold text-emerald-700"><i data-lucide="plus-circle" class="mr-3 h-5 w-5"></i> In-Scope</h4>
+                            <ul class="space-y-3 text-sm leading-7 text-corporate-slate">
+                                <li>&bull; 1-Week Stakeholder Alignment Workshop</li>
+                                <li>&bull; 1-Week implementation sprint (setup, dashboards, user testing)</li>
+                                <li>&bull; 30-day live evaluation and reporting cycle</li>
+                                <li>&bull; Deployment of non-intrusive sensors (photoelectric/inductive)</li>
+                                <li>&bull; 1 Edge IoT Gateway installation</li>
+                                <li>&bull; 30-day Cloud TSDB environment</li>
+                                <li>&bull; Live OEE, Energy &amp; Downtime Dashboards</li>
+                                <li>&bull; Line-side operator interface setup</li>
+                            </ul>
+                        </div>
+                        <div class="hover-lift rounded-[1.7rem] border border-red-100 bg-gradient-to-br from-red-50/80 to-white p-6 shadow-soft">
+                            <h4 class="mb-4 flex items-center border-b border-red-100 pb-3 text-lg font-extrabold text-red-700"><i data-lucide="minus-circle" class="mr-3 h-5 w-5"></i> Out-of-Scope</h4>
+                            <ul class="space-y-3 text-sm leading-7 text-corporate-slate">
+                                <li>&bull; Omron/Siemens PLC logic modifications</li>
+                                <li>&bull; ERP/SAP two-way Integration</li>
+                                <li>&bull; Direct hardware or machine control</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 8. Timeline -->
+            <section id="timeline" class="section-shell reveal" data-reveal style="--reveal-delay: 40ms;">
+                    <div class="relative p-8 md:p-10">
+                        <p class="section-kicker">Execution Cadence</p>
+                        <h2 class="text-3xl font-extrabold section-heading">8. Implementation Plan & Timeline</h2>
+                        <p class="mb-8 max-w-4xl text-[1.02rem] leading-8 text-corporate-slate">
+                            A highly agile, structured approach to deliver value within weeks, minimizing disruption. The engagement begins with a mandatory 1-week workshop, followed by a 1-week implementation sprint, then a 30-day evaluation and reporting cycle with the final performance report generated during Days 26-30.
+                        </p>
+
+                        <div class="mb-6 grid gap-4 md:grid-cols-3">
+                            <div class="glass-panel rounded-[1.4rem] p-5">
+                                <p class="text-xs uppercase tracking-[0.22em] text-corporate-slate">Workshop Window</p>
+                                <p class="mt-2 text-base font-extrabold text-corporate-900">Week 1</p>
+                                <p class="mt-2 text-sm leading-6 text-corporate-slate">Strategic alignment, KPI definition, security clearance, and site readiness.</p>
+                            </div>
+                            <div class="glass-panel rounded-[1.4rem] p-5">
+                                <p class="text-xs uppercase tracking-[0.22em] text-corporate-slate">Implementation Sprint</p>
+                                <p class="mt-2 text-base font-extrabold text-corporate-900">Week 2</p>
+                                <p class="mt-2 text-sm leading-6 text-corporate-slate">Mini PC setup, data integration, dashboard deployment, testing, and user training across Days 1-5.</p>
+                            </div>
+                            <div class="glass-panel rounded-[1.4rem] p-5">
+                                <p class="text-xs uppercase tracking-[0.22em] text-corporate-slate">Evaluation &amp; Reporting</p>
+                                <p class="mt-2 text-base font-extrabold text-corporate-900">Days 1-30</p>
+                                <p class="mt-2 text-sm leading-6 text-corporate-slate">Post-go-live monitoring, performance validation, and final reporting issued during Days 26-30.</p>
+                            </div>
+                        </div>
+
+                        <div class="timeline-board">
+                            <div class="timeline-head">
+                                <div>Project Phase</div>
+                                <div class="timeline-week-labels mt-0">
+                                    <span class="text-center">W1</span>
+                                    <span class="text-center">W2</span>
+                                    <span class="text-center">W3</span>
+                                    <span class="text-center">W4</span>
+                                    <span class="text-center">W5</span>
+                                    <span class="text-center">W6</span>
+                                    <span class="text-center">W7</span>
+                                </div>
+                                <div>Primary Owner</div>
+                            </div>
+
+                            <div class="timeline-row hover-lift">
+                                <div>
+                                    <span class="timeline-phase-badge bg-blue-100 text-blue-700">Workshop</span>
+                                    <h3 class="mt-3 text-lg font-extrabold text-corporate-900">1. Stakeholder Alignment Workshop</h3>
+                                    <p class="mt-2 text-sm leading-6 text-corporate-slate">Week 1: align stakeholders, confirm KPIs, validate access constraints, and finalize site readiness.</p>
+                                </div>
+                                <div>
+                                    <div class="timeline-track">
+                                        <span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span>
+                                        <div class="timeline-bar phase-1" style="grid-column: 1 / span 1;">Week 1</div>
+                                    </div>
+                                    <div class="timeline-week-labels lg:hidden">
+                                        <span class="text-center">W1</span><span class="text-center">W2</span><span class="text-center">W3</span><span class="text-center">W4</span><span class="text-center">W5</span><span class="text-center">W6</span><span class="text-center">W7</span>
+                                    </div>
+                                </div>
+                                <div class="text-sm font-semibold text-corporate-slate">Lead Consultant / NCC Execs</div>
+                            </div>
+
+                            <div class="timeline-row hover-lift">
+                                <div>
+                                    <span class="timeline-phase-badge bg-corporate-100 text-corporate-700">Implementation</span>
+                                    <h3 class="mt-3 text-lg font-extrabold text-corporate-900">2. Preparation &amp; Setup</h3>
+                                    <p class="mt-2 text-sm leading-6 text-corporate-slate">Days 1-2: Mini PC installation, network configuration, and PLC protocol testing.</p>
+                                </div>
+                                <div>
+                                    <div class="timeline-track">
+                                        <span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span>
+                                        <div class="timeline-bar phase-3" style="grid-column: 2 / span 1;">Days 1-2</div>
+                                    </div>
+                                    <div class="timeline-week-labels lg:hidden">
+                                        <span class="text-center">W1</span><span class="text-center">W2</span><span class="text-center">W3</span><span class="text-center">W4</span><span class="text-center">W5</span><span class="text-center">W6</span><span class="text-center">W7</span>
+                                    </div>
+                                </div>
+                                <div class="text-sm font-semibold text-corporate-slate">Consultant Tech / NCC IT</div>
+                            </div>
+
+                            <div class="timeline-row hover-lift">
+                                <div>
+                                    <span class="timeline-phase-badge bg-corporate-100 text-corporate-700">Implementation</span>
+                                    <h3 class="mt-3 text-lg font-extrabold text-corporate-900">3. Data Integration</h3>
+                                    <p class="mt-2 text-sm leading-6 text-corporate-slate">Days 2-3: configure data extraction, establish cloud connectivity, validate data accuracy, and setup streaming.</p>
+                                </div>
+                                <div>
+                                    <div class="timeline-track">
+                                        <span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span>
+                                        <div class="timeline-bar phase-4" style="grid-column: 2 / span 1;">Days 2-3</div>
+                                    </div>
+                                    <div class="timeline-week-labels lg:hidden">
+                                        <span class="text-center">W1</span><span class="text-center">W2</span><span class="text-center">W3</span><span class="text-center">W4</span><span class="text-center">W5</span><span class="text-center">W6</span><span class="text-center">W7</span>
+                                    </div>
+                                </div>
+                                <div class="text-sm font-semibold text-corporate-slate">Consultant Tech / Cloud Team</div>
+                            </div>
+
+                            <div class="timeline-row hover-lift">
+                                <div>
+                                    <span class="timeline-phase-badge bg-corporate-100 text-corporate-700">Implementation</span>
+                                    <h3 class="mt-3 text-lg font-extrabold text-corporate-900">4. Dashboard Deployment</h3>
+                                    <p class="mt-2 text-sm leading-6 text-corporate-slate">Days 3-4: deploy dashboards and configure alerts for the agreed operating roles.</p>
+                                </div>
+                                <div>
+                                    <div class="timeline-track">
+                                        <span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span>
+                                        <div class="timeline-bar phase-5" style="grid-column: 2 / span 1;">Days 3-4</div>
+                                    </div>
+                                    <div class="timeline-week-labels lg:hidden">
+                                        <span class="text-center">W1</span><span class="text-center">W2</span><span class="text-center">W3</span><span class="text-center">W4</span><span class="text-center">W5</span><span class="text-center">W6</span><span class="text-center">W7</span>
+                                    </div>
+                                </div>
+                                <div class="text-sm font-semibold text-corporate-slate">Consultant Analysts</div>
+                            </div>
+
+                            <div class="timeline-row hover-lift">
+                                <div>
+                                    <span class="timeline-phase-badge bg-corporate-100 text-corporate-700">Implementation</span>
+                                    <h3 class="mt-3 text-lg font-extrabold text-corporate-900">5. Testing &amp; Optimization</h3>
+                                    <p class="mt-2 text-sm leading-6 text-corporate-slate">Days 4-5: user acceptance testing, user training, and final go-live optimization.</p>
+                                </div>
+                                <div>
+                                    <div class="timeline-track">
+                                        <span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span>
+                                        <div class="timeline-bar phase-6" style="grid-column: 2 / span 1;">Days 4-5</div>
+                                    </div>
+                                    <div class="timeline-week-labels lg:hidden">
+                                        <span class="text-center">W1</span><span class="text-center">W2</span><span class="text-center">W3</span><span class="text-center">W4</span><span class="text-center">W5</span><span class="text-center">W6</span><span class="text-center">W7</span>
+                                    </div>
+                                </div>
+                                <div class="text-sm font-semibold text-corporate-slate">Consultant / NCC Users</div>
+                            </div>
+
+                            <div class="timeline-row hover-lift">
+                                <div>
+                                    <span class="timeline-phase-badge bg-emerald-100 text-emerald-700">Evaluation</span>
+                                    <h3 class="mt-3 text-lg font-extrabold text-corporate-900">6. Evaluation &amp; Reporting</h3>
+                                    <p class="mt-2 text-sm leading-6 text-corporate-slate">Days 1-30: monitor production performance and issue the final performance report during Days 26-30.</p>
+                                </div>
+                                <div>
+                                    <div class="timeline-track">
+                                        <span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span><span class="timeline-cell"></span>
+                                        <div class="timeline-bar phase-7" style="grid-column: 3 / span 5;">Days 1-30 | Report 26-30</div>
+                                    </div>
+                                    <div class="timeline-week-labels lg:hidden">
+                                        <span class="text-center">W1</span><span class="text-center">W2</span><span class="text-center">W3</span><span class="text-center">W4</span><span class="text-center">W5</span><span class="text-center">W6</span><span class="text-center">W7</span>
+                                    </div>
+                                </div>
+                                <div class="text-sm font-semibold text-corporate-slate">Lead Consultant / NCC Ops</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            <!-- 9. Delivery & Risks -->
+            <section id="delivery" class="grid grid-cols-1 gap-8 xl:grid-cols-[0.9fr_1.1fr]">
+                <div class="section-shell reveal" data-reveal style="--reveal-delay: 35ms;">
+                    <div class="relative p-8 md:p-10">
+                        <p class="section-kicker">Outcome Package</p>
+                        <h2 class="text-3xl font-extrabold section-heading">9. Key Deliverables</h2>
+                        <div class="space-y-5">
+                            <div class="hover-lift rounded-[1.6rem] border border-corporate-100 bg-white/85 p-6 shadow-soft">
+                                <div class="flex items-start gap-4">
+                                    <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-corporate-50 text-corporate-accent"><i data-lucide="file-signature" class="h-6 w-6"></i></div>
+                                    <div>
+                                        <h4 class="text-lg font-extrabold text-corporate-900">Pre-PoC / Execution</h4>
+                                        <ul class="mt-3 space-y-2 text-sm leading-7 text-corporate-slate list-disc list-inside"><li>Signed PoC Charter &amp; KPIs</li><li>Live Production Dashboard</li><li>Automated Alerting System</li></ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="hover-lift rounded-[1.6rem] border border-corporate-100 bg-white/85 p-6 shadow-soft">
+                                <div class="flex items-start gap-4">
+                                    <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-corporate-50 text-corporate-accent"><i data-lucide="presentation" class="h-6 w-6"></i></div>
+                                    <div>
+                                        <h4 class="text-lg font-extrabold text-corporate-900">End of PoC Handover</h4>
+                                        <ul class="mt-3 space-y-2 text-sm leading-7 text-corporate-slate list-disc list-inside"><li>Executive Analytics Report</li><li>Architecture Validation Document</li><li>Scale-up Roadmap</li></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="section-shell reveal" data-reveal style="--reveal-delay: 70ms;">
+                    <div class="relative p-8 md:p-10">
+                        <p class="section-kicker">Risk Control</p>
+                        <h2 class="text-3xl font-extrabold section-heading">10. Risks &amp; Mitigation</h2>
+                        <div class="space-y-4">
+                            <div class="hover-lift rounded-[1.45rem] border border-corporate-100 bg-gradient-to-r from-white to-corporate-50 p-5 shadow-soft">
+                                <div class="flex items-start justify-between gap-4"><div><p class="text-base font-extrabold text-corporate-900">Strict PLC Lockdown</p><p class="mt-2 text-sm leading-7 text-corporate-slate">Circumvented by utilizing IoT Overlay architecture. No PLC access required.</p></div><span class="mt-1 inline-flex h-4 w-4 flex-shrink-0 rounded-full bg-red-500 shadow-[0_0_0_6px_rgba(239,68,68,0.12)]"></span></div>
+                            </div>
+                            <div class="hover-lift rounded-[1.45rem] border border-corporate-100 bg-gradient-to-r from-white to-corporate-50 p-5 shadow-soft">
+                                <div class="flex items-start justify-between gap-4"><div><p class="text-base font-extrabold text-corporate-900">Sensor False Triggers</p><p class="mt-2 text-sm leading-7 text-corporate-slate">Algorithmic debouncing. Strict manual calibration phase.</p></div><span class="mt-1 inline-flex h-4 w-4 flex-shrink-0 rounded-full bg-yellow-400 shadow-[0_0_0_6px_rgba(250,204,21,0.16)]"></span></div>
+                            </div>
+                            <div class="hover-lift rounded-[1.45rem] border border-corporate-100 bg-gradient-to-r from-white to-corporate-50 p-5 shadow-soft">
+                                <div class="flex items-start justify-between gap-4"><div><p class="text-base font-extrabold text-corporate-900">IT Firewall Limits</p><p class="mt-2 text-sm leading-7 text-corporate-slate">Utilize independent 4G gateway to bypass corporate IT delays.</p></div><span class="mt-1 inline-flex h-4 w-4 flex-shrink-0 rounded-full bg-red-500 shadow-[0_0_0_6px_rgba(239,68,68,0.12)]"></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 10. Success Criteria -->
+            <section id="success" class="reveal" data-reveal style="--reveal-delay: 50ms;">
+                <div class="relative overflow-hidden rounded-[2rem] border border-corporate-700 bg-corporate-900 p-8 text-white shadow-panel md:p-10">
+                    <div class="absolute -right-12 -top-10 h-64 w-64 rounded-full bg-corporate-electric/10 blur-3xl"></div>
+                    <div class="absolute -left-8 bottom-0 h-48 w-48 rounded-full bg-corporate-accent/10 blur-3xl"></div>
+                    <div class="relative z-10">
+                        <p class="section-kicker text-blue-200/80">Decision Thresholds</p>
+                        <h2 class="mb-8 text-3xl font-extrabold tracking-[-0.03em] text-blue-50">11. Success Criteria</h2>
+                        <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                            <div class="glass-panel-dark hover-lift rounded-[1.6rem] p-5">
+                                <div class="flex items-start justify-between gap-4"><div class="success-ring" style="--progress: 0.78; --ring-color: #4cc9f0;"><i data-lucide="zap" class="h-7 w-7 text-corporate-electric"></i></div><span class="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[0.68rem] font-extrabold uppercase tracking-[0.18em] text-blue-200/70">Activation</span></div>
+                                <h4 class="mt-4 text-lg font-extrabold text-blue-50">Deployment Speed</h4><p class="mt-2 text-sm leading-7 text-blue-100/80">Hardware installed and data flowing with zero unscheduled downtime.</p>
+                            </div>
+                            <div class="glass-panel-dark hover-lift rounded-[1.6rem] p-5">
+                                <div class="flex items-start justify-between gap-4"><div class="success-ring" style="--progress: 0.92; --ring-color: #67e8f9;"><i data-lucide="percent" class="h-7 w-7 text-corporate-electric"></i></div><span class="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[0.68rem] font-extrabold uppercase tracking-[0.18em] text-blue-200/70">Validation</span></div>
+                                <h4 class="mt-4 text-lg font-extrabold text-blue-50">Data Accuracy</h4><p class="mt-2 text-sm leading-7 text-blue-100/80">Dashboard production count aligns with physical pallet count.</p>
+                            </div>
+                            <div class="glass-panel-dark hover-lift rounded-[1.6rem] p-5">
+                                <div class="flex items-start justify-between gap-4"><div class="success-ring" style="--progress: 0.96; --ring-color: #7dd3fc;"><i data-lucide="activity" class="h-7 w-7 text-corporate-electric"></i></div><span class="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[0.68rem] font-extrabold uppercase tracking-[0.18em] text-blue-200/70">Reliability</span></div>
+                                <h4 class="mt-4 text-lg font-extrabold text-blue-50">System Uptime</h4><p class="mt-2 text-sm leading-7 text-blue-100/80">Edge-to-cloud data pipeline remains stable throughout live phase.</p>
+                            </div>
+                            <div class="glass-panel-dark hover-lift rounded-[1.6rem] p-5">
+                                <div class="flex items-start justify-between gap-4"><div class="success-ring" style="--progress: 0.7; --ring-color: #818cf8;"><i data-lucide="lightbulb" class="h-7 w-7 text-corporate-electric"></i></div><span class="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[0.68rem] font-extrabold uppercase tracking-[0.18em] text-blue-200/70">Outcome</span></div>
+                                <h4 class="mt-4 text-lg font-extrabold text-blue-50">Actionable Insights</h4><p class="mt-2 text-sm leading-7 text-blue-100/80">Final report surfaces previously undocumented recurring micro-stops.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 11. Upgrades -->
+            <section id="upgrades" class="section-shell reveal" data-reveal style="--reveal-delay: 50ms;">
+                <div class="relative p-8 md:p-10">
+                    <div class="absolute right-0 top-0 rounded-bl-2xl rounded-tr-[1.9rem] border border-corporate-100 bg-corporate-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.22em] text-corporate-600">Post-PoC Phase</div>
+                    <p class="section-kicker">Integration Requirements</p>
+                    <h2 class="text-3xl font-extrabold section-heading">12. Requirements for Direct PLC Integration</h2>
+                    <p class="mb-8 max-w-5xl text-[1.02rem] leading-8 text-corporate-slate">
+                        To unlock Layers 03 & 04 of the Application Suite (Simulation and AI), deeper machine integration is required. NCC will need to prepare the Omron PLCs for direct tag-based communication during a scheduled maintenance window.
+                    </p>
+
+                    <div class="grid gap-6 lg:grid-cols-2">
+                        <div class="hover-lift rounded-[1.7rem] border border-corporate-100 bg-gradient-to-br from-white to-corporate-50 p-6 shadow-soft">
+                            <h3 class="mb-4 flex items-center text-xl font-extrabold text-corporate-900"><i data-lucide="lock" class="mr-3 h-5 w-5 text-corporate-slate"></i> Current State Limitations</h3>
+                            <ul class="space-y-3 rounded-[1.25rem] border border-corporate-100 bg-white/80 p-5 text-sm leading-7 text-corporate-slate">
+                                <li>• Existing Omron PLC communication ports are fully occupied.</li>
+                                <li>• Overlay sensors cannot tell the system <em>why</em> the machine is down (specific fault codes).</li>
+                                <li>• Process variables (temperature, exact motor speed) are locked inside the PLC.</li>
+                            </ul>
+                        </div>
+                        <div class="hover-lift rounded-[1.7rem] border border-corporate-100 bg-gradient-to-br from-white to-corporate-50 p-6 shadow-soft">
+                            <h3 class="mb-5 flex items-center text-xl font-extrabold text-corporate-900"><i data-lucide="unlock" class="mr-3 h-5 w-5 text-emerald-600"></i> Proposed Upgrade Approach</h3>
+                            <div class="space-y-4">
+                                <div class="flex gap-4 rounded-[1.25rem] border border-corporate-100 bg-white/80 p-4"><div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-corporate-100 text-xs font-extrabold text-corporate-700">1</div><div><h4 class="text-sm font-extrabold text-corporate-900">Hardware Expansion</h4><p class="mt-1 text-sm leading-7 text-corporate-slate">Install an Omron Ethernet/IP or standard Ethernet expansion module.</p></div></div>
+                                <div class="flex gap-4 rounded-[1.25rem] border border-corporate-100 bg-white/80 p-4"><div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-corporate-100 text-xs font-extrabold text-corporate-700">2</div><div><h4 class="text-sm font-extrabold text-corporate-900">Logic Modification</h4><p class="mt-1 text-sm leading-7 text-corporate-slate">Map critical internal memory areas to network-accessible variables without altering core logic.</p></div></div>
+                                <div class="flex gap-4 rounded-[1.25rem] border border-corporate-100 bg-white/80 p-4"><div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-corporate-100 text-xs font-extrabold text-corporate-700">3</div><div><h4 class="text-sm font-extrabold text-corporate-900">Direct Protocol Polling</h4><p class="mt-1 text-sm leading-7 text-corporate-slate">Transition the Edge Gateway to natively polling the new Omron port.</p></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <footer class="border-t border-corporate-100 bg-white/90 py-8 backdrop-blur-xl">
+        <div class="page-shell text-center text-sm text-corporate-slate">
+            <p>&copy; 2026 Intelligent Performance for Industrial Consultation (IPIC). All rights reserved.</p>
+            <p class="mt-1">Prepared for NCC Company - Strictly Confidential</p>
+        </div>
+    </footer>
+
+    <script>
+        lucide.createIcons();
+
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenuClose = document.getElementById('mobile-menu-close');
+        const mobileMenuOverlay = document.getElementById('mobile-menu-overlay');
+        const mobileMenuPanel = document.getElementById('mobile-menu-panel');
+        const mobileMenuBackdrop = document.getElementById('mobile-menu-backdrop');
+        const mobileSpyLinks = document.querySelectorAll('.mobile-spy-link');
+
+        const openMobileMenu = () => { mobileMenuOverlay.classList.remove('pointer-events-none', 'opacity-0'); mobileMenuPanel.classList.remove('translate-x-full'); document.body.classList.add('overflow-hidden'); };
+        const closeMobileMenu = () => { mobileMenuOverlay.classList.add('opacity-0'); mobileMenuPanel.classList.add('translate-x-full'); mobileMenuOverlay.classList.add('pointer-events-none'); document.body.classList.remove('overflow-hidden'); };
+
+        mobileMenuBtn?.addEventListener('click', openMobileMenu);
+        mobileMenuClose?.addEventListener('click', closeMobileMenu);
+        mobileMenuBackdrop?.addEventListener('click', closeMobileMenu);
+        mobileSpyLinks.forEach((link) => link.addEventListener('click', closeMobileMenu));
+
+        const revealItems = document.querySelectorAll('[data-reveal]');
+        const revealObserver = new IntersectionObserver((entries) => { entries.forEach((entry) => { if (entry.isIntersecting) { entry.target.classList.add('is-visible'); revealObserver.unobserve(entry.target); } }); }, { threshold: 0.12, rootMargin: '0px 0px -10% 0px' });
+        revealItems.forEach((item) => revealObserver.observe(item));
+
+        const spySections = Array.from(document.querySelectorAll('section[id]')).filter((section) => section.id);
+        const spyLinks = document.querySelectorAll('[data-spy-link]');
+
+        const setActiveLink = (id) => { spyLinks.forEach((link) => { const isActive = link.getAttribute('href') === `#${id}`; link.classList.toggle('active', isActive); if (isActive) { link.setAttribute('aria-current', 'true'); } else { link.removeAttribute('aria-current'); } }); };
+        const spyObserver = new IntersectionObserver((entries) => { const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio); if (visible.length) { setActiveLink(visible[0].target.id); } }, { rootMargin: '-20% 0px -55% 0px', threshold: [0.1, 0.25, 0.4, 0.6] });
+        spySections.forEach((section) => spyObserver.observe(section));
+        if (spySections.length) { setActiveLink(spySections[0].id); }
+    </script>
+</body>
+</html>

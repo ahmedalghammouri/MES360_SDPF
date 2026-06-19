@@ -1,0 +1,196 @@
+{
+  "reports": {
+    "overview": { "title": "Reports & Analytics", "subtitle": "Generate and download production reports" },
+    "production": { "title": "Production Reports", "subtitle": "OEE trends, output analysis, and machine performance" },
+    "quality": { "title": "Quality Reports", "subtitle": "Quality metrics and analysis" },
+    "maintenance": { "title": "Maintenance Reports", "subtitle": "Maintenance performance and analytics" },
+    "builder": { "title": "Report Builder", "subtitle": "Configure, preview, and export MES reports" }
+  },
+  "scheduling": {
+    "reschedule": { "title": "Reschedule Requests" }
+  },
+  "energy": {
+    "overview": { "title": "Energy Monitoring", "subtitle": "Real-time energy consumption and cost tracking" },
+    "live": { "title": "Energy — Live & Standby", "subtitle": "Real-time power per meter — flags consumption with no active production" },
+    "meters": { "title": "Energy Meters" },
+    "metersCount": "{{count}} meters configured",
+    "searchWoId": "Work Order ID…",
+    "woEnergyTitle": "Work Order Energy Analysis", "efficiency": "Efficiency", "manageMeters": "Manage Meters",
+    "noDataPeriod": "No data for this period", "noData": "No data", "metersTitle": "Energy Meters",
+    "colMeter": "Meter", "colType": "Type", "colLocation": "Location", "colLastReading": "Last Reading", "colMtdKwh": "MTD kWh", "colMtdCost": "MTD Cost (SAR)", "noMetersConfigured": "No meters configured",
+    "consumptionTrend": "Consumption Trend (30d)", "kwhDay": "kWh / day", "consumptionByType": "Consumption by Type (MTD)", "kwh": "kWh", "consumption": "Consumption",
+    "reports": { "title": "Energy Reports" },
+    "consumptionAnalytics": "Consumption analytics",
+    "noMeters": "No energy meters configured",
+    "metersCol": { "energyType": "Energy Type", "scope": "Scope", "label": "Label", "rate": "Rate" },
+    "mform": {
+      "createTitle": "Add Energy Meter", "editTitle": "Edit Meter", "cancel": "Cancel", "saving": "Saving...", "save": "Save",
+      "meterNumber": "Meter Number", "type": "Type",
+      "tElectrical": "Electrical", "tNaturalGas": "Natural Gas", "tCompressedAir": "Compressed Air", "tWater": "Water", "tSteam": "Steam", "tChilledWater": "Chilled Water",
+      "name": "Name", "namePlaceholder": "Main electrical meter", "unit": "Unit", "location": "Location", "locationPlaceholder": "Building A",
+      "scope": "Scope", "machine": "Machine", "line": "Line", "area": "Area", "productionLine": "Production Line", "selectDash": "— select —",
+      "edgeAcq": "Edge acquisition (optional — leave blank for manual meters)",
+      "edgeGateway": "Edge Gateway", "noneManual": "— none (manual) —", "meterTemplate": "Meter Template", "noneDash": "— none —", "onlineSuffix": " • online",
+      "protocol": "Protocol", "pModbusTcp": "Modbus TCP", "pModbusRtuTcp": "Modbus RTU over TCP", "pModbusRtu": "Modbus RTU (serial)",
+      "modbusUnitId": "Modbus Unit ID", "serialPort": "Serial Port", "baudRate": "Baud Rate", "parity": "Parity", "pNone": "None", "pEven": "Even", "pOdd": "Odd",
+      "stopBits": "Stop Bits", "ipAddress": "IP Address", "port": "Port", "manufacturer": "Manufacturer", "model": "Model",
+      "deleteTitle": "Delete Energy Meter", "deleteConfirmPre": "Are you sure you want to delete", "deleteConfirmPost": "? This will also delete all associated readings.", "deleting": "Deleting...", "delete": "Delete",
+      "addReadingTitle": "Add Reading — {{name}}", "readingDesc": "Enter current meter value in {{unit}}", "valuePlaceholder": "Value ({{unit}})"
+    },
+    "tform": {
+      "createTitle": "Add Cost Tariff", "editTitle": "Edit Cost Tariff",
+      "desc": "Rate is applied to consumption in the meter's unit. Most specific scope wins (machine → line → area → factory).",
+      "cancel": "Cancel", "saving": "Saving…", "save": "Save",
+      "energyType": "Energy Type", "rate": "Rate (per unit)", "scope": "Scope",
+      "factoryDefault": "Factory default", "area": "Area", "line": "Line", "machine": "Machine",
+      "appliesTo": "Applies to", "target": "Target", "allMeters": "All meters of this type", "selectDash": "— select —",
+      "label": "Label (optional)", "labelPlaceholder": "2026 contract / peak tariff",
+      "edit": "Edit", "delete": "Delete"
+    }
+  },
+  "traceability": {
+    "title": "Traceability & Genealogy",
+    "genealogy": "Genealogy Explorer",
+    "log": "Trace Log",
+    "searchEventType": "Event type…", "from": "From", "to": "To", "clearFilters": "Clear filters",
+    "noEvents": "No events found", "noEventsHintFiltered": "Try adjusting or clearing your filters", "noEventsHint": "Events will appear here as operations are performed",
+    "consumption": { "title": "Material Consumption", "subtitle": "Per-step input materials consumed by work orders — the genealogy feed (WO → batch → lot)" },
+    "consumptionSearch": "Search material code or name…",
+    "noConsumption": "No consumption yet — add input materials to routing steps, then complete a work order.",
+    "consumptionCol": { "consumedAt": "Consumed At", "material": "Material", "planned": "Planned", "actual": "Actual", "unit": "Unit", "workOrder": "Work Order", "outputBatch": "Output Batch", "rawLot": "Raw Lot (FIFO)" }
+  },
+  "plm": {
+    "overview": { "title": "Product Lifecycle Management", "subtitle": "Products, BOMs, recipes, and manufacturing processes" },
+    "changeRequests": { "title": "Engineering Change Requests", "subtitle": "PLM — Manage product & process change lifecycle" },
+    "crSearch": "Search CR#, title, product, requester…",
+    "crNoResults": "No change requests match the current filters.",
+    "searchProducts": "Search products…",
+    "portfolioTitle": "Product Portfolio", "designCompleteness": "Design Completeness", "recentActivity": "Recent Activity",
+    "newCr": "New Change Request",
+    "crform": {
+      "title": "Submit New Change Request", "desc": "PLM — request a product or process change",
+      "cancel": "Cancel", "submitting": "Submitting…", "submit": "Submit for Review",
+      "titleField": "Title", "titlePlaceholder": "Brief description of the change",
+      "type": "Type", "tBom": "BOM Change", "tRecipe": "Recipe Change", "tProcess": "Process Change", "tDesign": "Design Change",
+      "priority": "Priority", "pLow": "Low", "pMedium": "Medium", "pHigh": "High", "pCritical": "Critical",
+      "affectedProduct": "Affected Product", "selectProduct": "— Select product (optional) —", "searchProduct": "Search by item number or name…",
+      "targetDate": "Target Date", "reason": "Reason / Justification", "reasonPlaceholder": "Describe the reason for this change..."
+    },
+    "crkpi": { "open": "Open CRs", "underReview": "Under Review", "approvedMonth": "Approved This Month", "rejected": "Rejected" },
+    "design": { "title": "Manufacturing Design", "subtitle": "PLM matrix — BOM, Recipe and Process coverage per product" },
+    "reports": { "title": "PLM Reports", "subtitle": "Product lifecycle management — catalog, BOM, recipes and change history" }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "preferences": "Notification Preferences",
+    "rules": "Notification Rules",
+    "subtitle": "System alerts, alarms, and operational events",
+    "btnPreferences": "Preferences", "btnRules": "Rules", "sendTest": "Send test", "refresh": "Refresh", "markAllRead": "Mark all read",
+    "severity": "Severity", "category": "Category", "unreadOnly": "Unread only", "clearFilters": "Clear filters",
+    "loading": "Loading notifications…", "noMatch": "No notifications match your filters", "noYet": "No notifications yet",
+    "noMatchHint": "Try clearing your filters to see all notifications.", "noYetHint": "System events, alarms, and alerts will appear here when triggered.",
+    "sev": { "all": "All", "error": "Error", "warning": "Warning", "info": "Info" },
+    "cat": { "all": "All", "alarm": "Alarm", "production": "Production", "quality": "Quality", "maintenance": "Maintenance", "downtime": "Downtime", "energy": "Energy" }
+  },
+  "alarms": {
+    "title": "Alarm Management",
+    "noAlarms": "No alarms — all clear",
+    "noMatch": "No alarms match your filters",
+    "col": { "severity": "Severity", "alarm": "Alarm", "machine": "Machine", "triggered": "Triggered", "status": "Status", "duration": "Duration", "actions": "Actions" }
+  },
+  "users": {
+    "title": "User Management", "subtitle": "Manage platform users, roles, and permissions",
+    "search": "Search users…", "noUsers": "No users found",
+    "addUser": "Add User", "allRoles": "All Roles", "active": "Active", "inactive": "Inactive", "never": "Never",
+    "editUser": "Edit User", "deleteUser": "Delete User",
+    "stat": { "totalUsers": "Total Users", "active": "Active", "inactive": "Inactive", "departments": "Departments" },
+    "col": { "user": "User", "role": "Role", "department": "Department", "factory": "Factory", "status": "Status", "lastLogin": "Last Login", "actions": "Actions" },
+    "form": {
+      "createTitle": "Create User", "editTitle": "Edit User",
+      "name": "Name", "email": "Email", "role": "Role", "department": "Department", "jobTitle": "Job Title", "phone": "Phone",
+      "password": "Password", "passwordHint": "Minimum 6 characters",
+      "deleteTitle": "Delete {{name}}?", "deleteDesc": "This will permanently delete this user and all associated data."
+    }
+  },
+  "hierarchy": {
+    "title": "Plant Hierarchy", "subtitle": "Enterprise hierarchy structure",
+    "hform": {
+      "createTitle": "Add Hierarchy Node", "editTitle": "Edit {{type}}",
+      "createDesc": "Add an Area, Production Line, or Machine to your plant hierarchy.", "editDesc": "Update the details for \"{{name}}\".",
+      "cancel": "Cancel", "saving": "Saving...", "creating": "Creating...", "saveChanges": "Save Changes", "createNode": "Create Node",
+      "nodeTypeField": "Node Type", "name": "Name", "code": "Code", "codeRO": "Code cannot be changed",
+      "nodeType": { "AREA": "Area", "PRODUCTION_LINE": "Production Line", "MACHINE": "Machine" },
+      "areaType": "Area Type", "area": "Area", "selectArea": "Select area...", "searchAreas": "Search areas…", "noAreas": "No areas available",
+      "lineType": "Line Type", "machineType": "Machine Type", "criticality": "Criticality",
+      "productionLine": "Production Line", "selectLine": "Select line...", "selectAreaFirst": "Select area first", "searchLines": "Search lines…",
+      "manufacturer": "Manufacturer", "designCapacity": "Design Capacity (units/hr)",
+      "removeTitle": "Remove Node", "removeConfirmPre": "Are you sure you want to remove", "removeConfirmPost": "from the hierarchy? This will deactivate the node and hide it from all views.", "removing": "Removing...", "removeNode": "Remove Node"
+    }
+  },
+  "dashboardCenter": {
+    "title": "Dashboard Center",
+    "searchDashboards": "Search dashboards, tags…", "noDashboards": "No dashboards found", "source": "Source", "clear": "Clear",
+    "src": { "ALL": "All Sources", "MES360_NATIVE": "MES360°", "GRAFANA": "Grafana", "REPORT": "Reports", "EXTERNAL": "External" }
+  },
+  "ai": {
+    "title": "AI Intelligence",
+    "tabInsights": "Active Insights", "tabHealth": "Equipment Health", "tabDetectors": "Detectors",
+    "analysis": "Analysis", "dismiss": "Dismiss", "viewDetails": "View Details",
+    "recommendation": "Recommendation", "expectedImpact": "Expected Impact", "acceptSchedule": "Accept & Schedule",
+    "cfg": { "anomaly": "Anomaly", "optimization": "Optimization", "prediction": "Prediction", "energy": "Energy" }
+  },
+  "analytics": { "title": "Factory Analytics", "subtitlePre": "Deep OEE / loss / reliability analysis" },
+  "archive": { "title": "Archive", "subtitle": "Archived records are hidden from active lists but kept — restore them here anytime." },
+  "mfgKpi": {
+    "title": "Manufacturing KPI Analytics", "summary": "KPI Summary",
+    "colMetric": "Metric", "colActual": "Actual", "colTarget": "Target", "colStatus": "Status",
+    "totalOutput": "Total Output", "activeAlarms": "Active Alarms",
+    "leaderboard": "Machine OEE Leaderboard", "colMachine": "Machine",
+    "bmWorldClass": "World Class", "bmGood": "Good", "bmAcceptable": "Acceptable", "bmPoor": "Poor",
+    "metric": { "oee": "OEE", "availability": "Availability", "performance": "Performance", "quality": "Quality" }
+  },
+  "mfgOee": {
+    "availability": "Availability", "performance": "Performance", "quality": "Quality", "oee": "OEE",
+    "dashboardTitle": "OEE Dashboard", "oeeFull": "Overall Equipment Effectiveness",
+    "componentComparison": "OEE Component Comparison", "equipmentBreakdown": "Equipment OEE Breakdown",
+    "colMachine": "Machine", "colArea": "Area", "colState": "State", "colOeePct": "OEE %",
+    "historyTitle": "OEE History (Last 50 Records)", "historySub": "Schedule-based (solid) vs Time-based / AT-OEE (dashed)",
+    "benchmarkTitle": "World-Class Benchmark Position",
+    "bmPoor": "Poor (<45%)", "bmAcceptable": "Acceptable (45%)", "bmGood": "Good (65%)", "bmWorldClass": "World Class (85%)",
+    "worldClassPerf": "World-Class Performance", "goodBelow": "Good — {{gap}}% below World Class",
+    "acceptableImprove": "Acceptable — improvement needed", "belowThreshold": "Below acceptable threshold"
+  },
+  "mfgOverview": {
+    "title": "Manufacturing Execution", "live": "Live", "controlPanel": "Control Panel", "viewOee": "View OEE",
+    "machineStatusGrid": "Machine Status Grid", "activeOperations": "Active Operations", "noExecutingJo": "No executing job orders",
+    "productionTrend": "Production Trend", "noTrendData": "No trend data available",
+    "state": { "RUNNING": "Running", "IDLE": "Idle", "DOWN": "Down", "MAINTENANCE": "Maintenance" },
+    "kpi": { "activeWo": "Active Work Orders", "activeJo": "Active Job Orders", "oee": "OEE", "availability": "Availability", "unitsToday": "Units Today", "activeAlarms": "Active Alarms" }
+  },
+  "mfgReports": {
+    "title": "Manufacturing Reports", "subtitle": "Operational insight across production, quality, and equipment", "viewReport": "View Report",
+    "pills": { "oee": "OEE", "oeeTb": "OEE (Time-Based)", "availability": "Availability", "availabilityTb": "Availability (Time-Based)", "unitsToday": "Units Today", "activeAlarms": "Active Alarms" },
+    "cards": {
+      "production": { "title": "Production Performance", "description": "WO completion rates and output trends" },
+      "oeeAnalysis": { "title": "OEE Analysis", "description": "Equipment effectiveness breakdown" },
+      "downtime": { "title": "Downtime Analysis", "description": "Downtime events by cause and duration" },
+      "scrap": { "title": "Scrap and Waste", "description": "Scrap events by category and operator" },
+      "jobOrders": { "title": "Job Order History", "description": "Dispatch list history and completion" },
+      "shift": { "title": "Shift Performance", "description": "Per-shift output, quality, efficiency" }
+    }
+  },
+  "factorySel": {
+    "avgOee": "Avg OEE", "factories": "Factories", "employees": "Employees", "activeAlarms": "Active Alarms",
+    "sites": "sites", "total": "total",
+    "mfgExecution": "MANUFACTURING EXECUTION", "allOperational": "ALL SYSTEMS OPERATIONAL", "ksaNetwork": "KSA INDUSTRIAL NETWORK",
+    "mfgNetwork": "Manufacturing Network —", "ksa": "Kingdom of Saudi Arabia",
+    "oee": "OEE", "quality": "Quality", "noAlarms": "NO ALARMS",
+    "availability": "Availability", "performance": "Performance",
+    "selectFacility": "Select a Facility", "ksaRegion": "KSA REGION",
+    "selectFacilityDesc": "Select a facility to access its Manufacturing Execution System",
+    "facilities": "Facilities", "mapTitle": "Kingdom of Saudi Arabia — Industrial Network",
+    "alarmsCount": "{{count}} ALARMS", "production": "Production", "uptime": "Uptime", "shiftsToday": "Shifts Today",
+    "today": "today", "enter": "ENTER", "selectDesc": "Click on a factory pin on the map or choose from the list to view its KPIs",
+    "confidential": "MES360° PLATFORM v1.0 — CONFIDENTIAL", "footerFacilities": "5 FACILITIES", "footerCities": "3 CITIES"
+  }
+}

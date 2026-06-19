@@ -1,0 +1,17 @@
+{
+  "home": "Home",
+  "realtimeOverview": "Real-time overview",
+  "dashboardCenter": "Dashboard Center",
+  "kpi": {
+    "oee": "Overall OEE",
+    "availability": "Availability",
+    "performance": "Performance",
+    "quality": "Quality Rate",
+    "output": "Total Output",
+    "alarms": "Active Alarms"
+  },
+  "units": "units",
+  "atOee": "Time-Based OEE (AT-OEE)",
+  "availabilityTb": "Availability (Time-Based)",
+  "atNote": "Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)"
+}

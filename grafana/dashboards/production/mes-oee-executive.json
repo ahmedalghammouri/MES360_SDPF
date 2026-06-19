@@ -1,0 +1,569 @@
+{
+  "uid": "mes-oee-executive",
+  "title": "OEE Executive",
+  "description": "OEE breakdown by Factory.",
+  "tags": [
+    "mes360",
+    "oee",
+    "production"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "",
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "factory",
+        "label": "Factory",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT name AS \"__text\", code AS \"__value\" FROM factories WHERE \"isActive\" = true ORDER BY name",
+        "query": "SELECT name AS \"__text\", code AS \"__value\" FROM factories WHERE \"isActive\" = true ORDER BY name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "Saudi Industrial Detergent Company",
+          "value": "SIDCO"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "Saudi Industrial Detergent Company",
+            "value": "SIDCO"
+          }
+        ],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT a.name AS \"__text\", a.id AS \"__value\" FROM areas a JOIN factories f ON f.id = a.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY a.name",
+        "query": "SELECT a.name AS \"__text\", a.id AS \"__value\" FROM areas a JOIN factories f ON f.id = a.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY a.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "line",
+        "label": "Production Line",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT l.name AS \"__text\", l.id AS \"__value\" FROM production_lines l JOIN factories f ON f.id = l.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY l.name",
+        "query": "SELECT l.name AS \"__text\", l.id AS \"__value\" FROM production_lines l JOIN factories f ON f.id = l.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY l.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "machine",
+        "label": "Machine",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT m.name AS \"__text\", m.id AS \"__value\" FROM machines m JOIN factories f ON f.id = m.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY m.name",
+        "query": "SELECT m.name AS \"__text\", m.id AS \"__value\" FROM machines m JOIN factories f ON f.id = m.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY m.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "shift",
+        "label": "Shift",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT s.name AS \"__text\", s.id AS \"__value\" FROM shift_templates s JOIN factories f ON f.id = s.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY s.name",
+        "query": "SELECT s.name AS \"__text\", s.id AS \"__value\" FROM shift_templates s JOIN factories f ON f.id = s.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY s.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "product",
+        "label": "Product",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT k.name AS \"__text\", k.id AS \"__value\" FROM skus k JOIN factories f ON f.id = k.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY k.name",
+        "query": "SELECT k.name AS \"__text\", k.id AS \"__value\" FROM skus k JOIN factories f ON f.id = k.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY k.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "batch",
+        "label": "Batch",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT b.\"batchNumber\" AS \"__text\", b.id AS \"__value\" FROM batch_records b JOIN factories f ON f.id = b.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY b.\"startTime\" DESC NULLS LAST LIMIT 500",
+        "query": "SELECT b.\"batchNumber\" AS \"__text\", b.id AS \"__value\" FROM batch_records b JOIN factories f ON f.id = b.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY b.\"startTime\" DESC NULLS LAST LIMIT 500",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "OEE",
+      "type": "gauge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COALESCE(AVG(oee),0) AS value FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 60
+              },
+              {
+                "color": "yellow",
+                "value": 75
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 7
+      }
+    },
+    {
+      "id": 2,
+      "title": "Availability",
+      "type": "gauge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COALESCE(AVG(availability),0) AS value FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 60
+              },
+              {
+                "color": "yellow",
+                "value": 75
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 7
+      }
+    },
+    {
+      "id": 3,
+      "title": "Performance",
+      "type": "gauge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COALESCE(AVG(performance),0) AS value FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 60
+              },
+              {
+                "color": "yellow",
+                "value": 75
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 7
+      }
+    },
+    {
+      "id": 4,
+      "title": "Quality",
+      "type": "gauge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COALESCE(AVG(quality),0) AS value FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 60
+              },
+              {
+                "color": "yellow",
+                "value": 75
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 7
+      }
+    },
+    {
+      "id": 5,
+      "title": "OEE by Factory",
+      "type": "barchart",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT f.name AS metric, ROUND(AVG(t.oee)::numeric,1) AS value FROM oee_records t  JOIN factories f ON f.id=t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') GROUP BY 1 ORDER BY value DESC LIMIT 15"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "hue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        },
+        "xTickLabelRotation": 0
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 8
+      }
+    },
+    {
+      "id": 6,
+      "title": "OEE Trend",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT $__timeGroupAlias(t.\"recordDate\",$__interval), AVG(oee) AS \"OEE\" FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisLabel": "",
+            "gradientMode": "opacity"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 8
+      }
+    }
+  ]
+}

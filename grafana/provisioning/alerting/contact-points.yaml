@@ -1,0 +1,31 @@
+# ════════════════════════════════════════════════════════════════
+# MES360° — Grafana contact points
+# A webhook back into the MES360° notifications API is the primary
+# channel so MES alerts surface inside the platform notification feed.
+#
+# NOTE: values are literal — Grafana alerting provisioning validates the
+# webhook URL at boot and does NOT support shell-style ${VAR:-default}.
+# Edit these for a different environment.
+# ════════════════════════════════════════════════════════════════
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: MES360° Notifications
+    receivers:
+      - uid: mes360_webhook
+        type: webhook
+        settings:
+          url: http://api:4001/api/v1/notifications/grafana-webhook
+          httpMethod: POST
+        disableResolveMessage: false
+
+  - orgId: 1
+    name: Plant Email
+    receivers:
+      - uid: plant_email
+        type: email
+        settings:
+          addresses: ops@mes360.sa
+          singleEmail: false
+        disableResolveMessage: false

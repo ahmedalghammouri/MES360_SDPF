@@ -1,0 +1,123 @@
+{
+  "headers": {
+    "overview": { "title": "إدارة الجودة", "subtitle": "الفحوصات وإدارة عدم المطابقة والإجراءات التصحيحية وتحليل SPC" },
+    "plans": { "title": "خطط الجودة", "subtitle": "تعريف أنواع الفحص ونقاط الجودة وحدود SPC" },
+    "records": { "title": "سجلات الجودة", "subtitle": "إدارة الجودة — الفحوصات وحالات عدم المطابقة" },
+    "inspections": { "title": "فحوصات الجودة", "subtitle": "نتائج الفحص الوارد وأثناء العملية والنهائي · مرتبطة بأوامر العمل" },
+    "ncr": { "title": "تقارير عدم المطابقة", "subtitle": "تتبّع ومعالجة مشكلات المنتجات والعمليات غير المطابقة" },
+    "capa": { "title": "إدارة الإجراءات التصحيحية CAPA", "subtitle": "الإجراءات التصحيحية والوقائية — من السبب الجذري إلى الفعالية" },
+    "spc": { "title": "مخططات ضبط العمليات SPC", "subtitle": "الضبط الإحصائي للعمليات" },
+    "reports": { "title": "تقارير وتحليلات الجودة", "subtitle": "مراقبة وتحليل وتصدير بيانات أداء الجودة" }
+  },
+  "ncr": {
+    "register": "سجل حالات عدم المطابقة",
+    "search": "بحث…",
+    "allStatus": "كل الحالات",
+    "noNcrs": "لا توجد حالات عدم مطابقة",
+    "selectAll": "تحديد الكل",
+    "newNcr": "بلاغ جديد", "statTotal": "إجمالي البلاغات", "statOpen": "مفتوح", "statCritical": "حرج", "statResolved": "تم الحل",
+    "severity": { "MINOR": "بسيط", "MAJOR": "كبير", "CRITICAL": "حرج" },
+    "status": { "OPEN": "مفتوح", "IN_REVIEW": "قيد المراجعة", "CAPA_PENDING": "بانتظار إجراء تصحيحي", "RESOLVED": "تم الحل", "CLOSED": "مغلق" },
+    "disposition": { "USE_AS_IS": "استخدام كما هو", "REWORK": "إعادة تشغيل", "SCRAP": "إتلاف", "RETURN_TO_SUPPLIER": "إرجاع للمورّد" },
+    "col": {
+      "ncr": "رقم البلاغ", "title": "العنوان", "severity": "الخطورة", "status": "الحالة",
+      "machine": "الماكينة", "batchProduct": "الدفعة / المنتج", "detectedBy": "اكتشفه",
+      "reported": "تاريخ الإبلاغ", "due": "الاستحقاق", "actions": "إجراءات"
+    }
+  },
+  "plans": {
+    "search": "ابحث بالرمز أو الاسم…",
+    "allTypes": "كل الأنواع",
+    "noPlans": "لا توجد خطط جودة",
+    "loading": "جارٍ تحميل خطط الجودة...",
+    "createHint": "أنشئ خطة جودة لتحديد نقاط الفحص.",
+    "freq": { "EVERY_BATCH": "كل دفعة", "HOURLY": "كل ساعة", "SHIFT": "كل وردية", "DAILY": "يومياً", "WEEKLY": "أسبوعياً" }
+  },
+  "pform": {
+    "createTitle": "خطة جودة جديدة", "editTitle": "تعديل خطة الجودة",
+    "description": "مواصفات اختبار الجودة",
+    "cancel": "إلغاء", "saving": "جارٍ الحفظ...", "createPlan": "إنشاء الخطة", "saveChanges": "حفظ التغييرات",
+    "planCode": "رمز الخطة", "checkType": "نوع الفحص", "planName": "اسم الخطة",
+    "namePlaceholder": "فحص المواد الخام الواردة",
+    "samplingFrequency": "تكرار أخذ العينات", "selectPlaceholder": "اختر...", "notSet": "غير محدد",
+    "sampleQty": "كمية العينة", "version": "الإصدار"
+  },
+  "paramf": {
+    "createTitle": "نقطة فحص جديدة", "editTitle": "تعديل نقطة الفحص",
+    "paramName": "اسم المعيار", "paramPlaceholder": "مثال: وزن التعبئة، قوة اللحام",
+    "unit": "الوحدة", "nominalValue": "القيمة الاسمية",
+    "spcLimits": "حدود ضبط العمليات SPC", "ucl": "الحد الأعلى للضبط UCL", "lcl": "الحد الأدنى للضبط LCL",
+    "specLimits": "حدود مواصفات المنتج", "usl": "الحد الأعلى للمواصفة USL", "lsl": "الحد الأدنى للمواصفة LSL",
+    "checkMethod": "طريقة الفحص", "checkMethodPlaceholder": "مثال: الوزن على ميزان معاير",
+    "kpiParam": "معيار مؤشر أداء", "cancel": "إلغاء", "saving": "جارٍ الحفظ...", "update": "تحديث", "addParameter": "إضافة معيار"
+  },
+  "cform": {
+    "createTitle": "إنشاء إجراء تصحيحي", "editTitle": "تعديل الإجراء التصحيحي",
+    "type": "النوع", "title": "العنوان", "priority": "الأولوية", "dueDate": "تاريخ الاستحقاق",
+    "relatedNcr": "البلاغ المرتبط", "linkNcr": "ربط ببلاغ (اختياري)…", "description": "الوصف"
+  },
+  "nform": {
+    "createTitle": "إنشاء بلاغ عدم مطابقة", "editTitle": "تعديل بلاغ عدم المطابقة",
+    "severity": "الخطورة", "detectedAt": "وقت الاكتشاف", "title": "العنوان",
+    "defectCategory": "فئة العيب", "defectCode": "رمز العيب", "ncQty": "كمية غير المطابق",
+    "ncQtyPlaceholder": "عدد الوحدات المعيبة", "disposition": "التصرّف", "selectDisposition": "اختر التصرّف…",
+    "product": "المنتج / SKU", "linkProduct": "ربط بمنتج…", "batch": "الدفعة / اللوت", "linkBatch": "ربط بدفعة…",
+    "machine": "الماكينة", "selectMachine": "اختر الماكينة…", "dueDate": "تاريخ استحقاق الحل",
+    "description": "الوصف", "descMin": "10 أحرف على الأقل",
+    "descPlaceholder": "صِف عدم المطابقة بالتفصيل — ما الذي وُجد وأين وكم العدد المتأثر…",
+    "investigation": "التحقيق والإجراءات",
+    "rootCause": "السبب الجذري", "rootCausePlaceholder": "لماذا حدثت عدم المطابقة؟ (5-Why، عظم السمكة، إلخ)",
+    "correctiveAction": "الإجراء التصحيحي", "correctivePlaceholder": "الإجراء الفوري المتخذ لتصحيح عدم المطابقة",
+    "preventiveAction": "الإجراء الوقائي", "preventivePlaceholder": "إجراء لمنع التكرار",
+    "optional": "اختياري"
+  },
+  "qd": {
+    "machine": "الماكينة", "batchLot": "الدفعة / اللوت", "product": "المنتج", "dueDate": "تاريخ الاستحقاق",
+    "owner": "المسؤول", "inspector": "الفاحص", "workOrder": "أمر العمل", "qualityPlan": "خطة الجودة",
+    "defectCategory": "فئة العيب", "defectCode": "رمز العيب", "ncQty": "كمية غير المطابق",
+    "disposition": "التصرّف", "detectedBy": "اكتشفه", "detectedAt": "وقت الاكتشاف",
+    "rootCause": "السبب الجذري", "correctiveAction": "الإجراء التصحيحي", "preventiveAction": "الإجراء الوقائي",
+    "noCapa": "لا يوجد إجراء تصحيحي مرتبط بعد. أنشئ واحدًا من وحدة CAPA واربط هذا البلاغ.",
+    "relatedNcr": "البلاغ المرتبط", "effectiveness": "الفعالية",
+    "noActions": "لا توجد إجراءات بعد. أضف أول إجراء تصحيحي/وقائي أدناه — سينقل الإجراء إلى قيد التنفيذ.",
+    "actionPlaceholder": "صِف الإجراء التصحيحي/الوقائي…",
+    "totalInspected": "إجمالي المفحوص", "pass": "ناجح", "fail": "راسب", "fpy": "عائد أول تمرير",
+    "inspectedAt": "وقت الفحص", "created": "أُنشئ", "approvedAt": "وقت الاعتماد",
+    "noParams": "لم تُسجَّل قياسات معايير لهذا الفحص."
+  },
+  "records": {
+    "search": "بحث…", "type": "النوع", "result": "النتيجة", "allTypes": "كل الأنواع", "allResults": "كل النتائج",
+    "typeOpt": { "IN_PROCESS": "أثناء العملية", "INCOMING": "وارد", "FINAL": "نهائي", "AUDIT": "تدقيق" },
+    "resultOpt": { "PASS": "ناجح", "FAIL": "راسب", "CONDITIONAL": "مشروط" }
+  },
+  "inspections": {
+    "records": "سجلات الفحص",
+    "search": "بحث…",
+    "allTypes": "كل الأنواع",
+    "allResults": "كل النتائج",
+    "noInspections": "لا توجد فحوصات",
+    "selectAll": "تحديد الكل",
+    "result": { "PASS": "ناجح", "FAIL": "راسب", "CONDITIONAL": "مشروط" },
+    "type": { "INCOMING": "وارد", "IN_PROCESS": "أثناء العملية", "FINAL": "نهائي", "PATROL": "دورية" },
+    "col": {
+      "inspection": "رقم الفحص", "type": "النوع", "result": "النتيجة", "total": "الإجمالي",
+      "pass": "ناجح", "fail": "راسب", "workOrder": "أمر العمل", "qualityPlan": "خطة الجودة",
+      "inspector": "الفاحص", "date": "التاريخ"
+    }
+  },
+  "capa": {
+    "register": "سجل الإجراءات التصحيحية",
+    "search": "ابحث في الإجراءات…",
+    "allStatus": "كل الحالات",
+    "noCapas": "لا توجد إجراءات تصحيحية",
+    "selectAll": "تحديد الكل",
+    "newCapa": "إجراء تصحيحي جديد", "restore": "استعادة", "archive": "أرشفة",
+    "type": { "CORRECTIVE": "تصحيحي", "PREVENTIVE": "وقائي" },
+    "status": { "OPEN": "مفتوح", "IN_PROGRESS": "قيد التنفيذ", "VERIFIED": "تم التحقق", "CLOSED": "مغلق" },
+    "col": {
+      "capa": "رقم الإجراء", "title": "العنوان", "type": "النوع", "status": "الحالة",
+      "relatedNcr": "البلاغ المرتبط", "owner": "المسؤول", "dueDate": "تاريخ الاستحقاق",
+      "effectiveness": "الفعالية", "actions": "إجراءات"
+    }
+  }
+}

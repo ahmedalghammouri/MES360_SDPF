@@ -1,0 +1,4160 @@
+import {
+  Injectable, NotFoundException, BadRequestException, Logger,
+  ConflictException,
+} from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { PrismaService } from '../../database/prisma.service';
+import { archivedWhere } from '../../common/archive.util';
+import { findProcessForSku } from '../../common/process-scope.util';
+import { scheduleOps, makeWorkCalendar, type SchedOp } from '../scheduling/op-scheduler';
+import { OEEService } from './oee.service';
+import { KpiService } from './kpi.service';
+import { ApsService } from '../aps/aps.service';
+import { HistorianService } from '../historian/historian.service';
+import type { WorkOrderStatus, Prisma } from '@prisma/client';
+import type {
+  CreateWorkOrderDto, UpdateWorkOrderDto, CompleteWorkOrderDto,
+  HoldWorkOrderDto, RecordCountDto,
+  CreateProductionOrderDto, UpdateProductionOrderDto,
+  CreateWOFromPODto, ProductionOrderFiltersDto,
+} from './dto/work-order.dto';
+
+const VALID_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
+  PLANNED: ['RELEASED', 'IN_PROGRESS', 'CANCELLED'],
+  RELEASED: ['IN_PROGRESS', 'CANCELLED', 'ON_HOLD'],
+  IN_PROGRESS: ['COMPLETED', 'ON_HOLD', 'CANCELLED'],
+  ON_HOLD: ['IN_PROGRESS', 'CANCELLED'],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
+@Injectable()
+export class ProductionService {
+  private readonly logger = new Logger(ProductionService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly oeeService: OEEService,
+    private readonly kpiService: KpiService,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly apsService: ApsService,
+    private readonly historian: HistorianService,
+  ) {}
+
+  // ────────────────────────────────────────────────────────────
+  // WORK ORDER CRUD
+  // ────────────────────────────────────────────────────────────
+
+  async createWorkOrder(factoryId: string | null, userId: string, dto: CreateWorkOrderDto) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+
+    const sku = await this.prisma.sKU.findFirst({ where: { id: dto.skuId, ...factoryFilter } });
+    if (!sku) throw new NotFoundException('SKU not found or not in your factory');
+
+    if (dto.productionOrderId) {
+      const po = await this.prisma.productionOrder.findFirst({
+        where: { id: dto.productionOrderId, ...factoryFilter },
+      });
+      if (!po) throw new NotFoundException('Production order not found');
+    }
+
+    const resolvedFactoryId = factoryId ?? sku.factoryId;
+    const orderNumber = await this.generateOrderNumber(resolvedFactoryId);
+
+    const workOrder = await this.prisma.workOrder.create({
+      data: {
+        factoryId: resolvedFactoryId,
+        orderNumber,
+        skuId: dto.skuId,
+        lineId: dto.lineId ?? null,
+        productionOrderId: dto.productionOrderId,
+        status: 'PLANNED',
+        priority: dto.priority,
+        autoStart: dto.autoStart ?? false,
+        plannedQty: dto.plannedQty,
+        plannedStart: new Date(dto.plannedStart),
+        plannedEnd: new Date(dto.plannedEnd),
+        operatorId: dto.operatorId,
+        supervisorId: dto.supervisorId,
+        notes: dto.notes,
+        createdById: userId,
+      },
+    });
+
+    // A work order spans the product's whole routing. Generate the job-order
+    // dispatch list (one per routing step → machine). generateJobOrders blocks
+    // when the product has no approved process; roll the WO back so we never
+    // leave an orphan, machineless work order behind.
+    try {
+      await this.generateJobOrders(resolvedFactoryId, workOrder.id, {
+        plannedStart: dto.plannedStart,
+        plannedEnd: dto.plannedEnd,
+        clearExisting: false,
+      });
+    } catch (err) {
+      await this.prisma.workOrder.delete({ where: { id: workOrder.id } }).catch(() => undefined);
+      throw err;
+    }
+
+    const full = await this.getWorkOrderById(resolvedFactoryId, workOrder.id);
+    this.eventEmitter.emit('production.work-order.created', { workOrder: full, factoryId: resolvedFactoryId });
+    this.logger.log(`Work order ${orderNumber} created with ${full.totalSteps} routed job orders`);
+
+    return full;
+  }
+
+  async findWorkOrders(factoryId: string | null, filters: {
+    search?: string;
+    status?: string;
+    priority?: string;
+    machineId?: string;
+    lineId?: string;
+    areaId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    archived?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const { search, status, priority, machineId, lineId, areaId, dateFrom, dateTo, archived, page = 1, limit = 20 } = filters;
+    const factoryFilter = factoryId ? { factoryId } : {};
+
+    const statusFilter = status
+      ? status.includes(',')
+        ? { status: { in: status.split(',').map(s => s.trim()) as WorkOrderStatus[] } }
+        : { status: status as WorkOrderStatus }
+      : {};
+
+    // A WO "belongs to" a machine via its job orders — routed WOs span multiple
+    // machines through their JO steps (there is no single header machine).
+    const scopeOr: Prisma.WorkOrderWhereInput[] | null = machineId
+      ? [{ jobOrders: { some: { machineId } } }]
+      : lineId
+        ? [{ lineId }, { jobOrders: { some: { machine: { lineId } } } }]
+        : areaId
+          ? [{ line: { areaId } }, { jobOrders: { some: { machine: { line: { areaId } } } } }]
+          : null;
+
+    const where: Prisma.WorkOrderWhereInput = {
+      ...factoryFilter,
+      deletedAt: null,
+      ...archivedWhere(archived),
+      ...statusFilter,
+      ...(priority && { priority: priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' }),
+      ...(scopeOr && { OR: scopeOr }),
+      ...(dateFrom && { plannedStart: { gte: new Date(dateFrom) } }),
+      ...(dateTo && { plannedEnd: { lte: new Date(dateTo) } }),
+      ...(search && {
+        OR: [
+          { orderNumber: { contains: search, mode: 'insensitive' as const } },
+          { sku: { name: { contains: search, mode: 'insensitive' as const } } },
+          { jobOrders: { some: { machine: { name: { contains: search, mode: 'insensitive' as const } } } } },
+        ],
+      }),
+    };
+
+    const [total, data] = await Promise.all([
+      this.prisma.workOrder.count({ where }),
+      this.prisma.workOrder.findMany({
+        where,
+        include: {
+          sku: { select: { name: true, code: true, itemNumber: true } },
+          line: { select: { name: true, code: true } },
+          operator: { select: { name: true } },
+          supervisor: { select: { name: true } },
+          productionOrder: { select: { orderNumber: true } },
+          _count: { select: { jobOrders: true } },
+          jobOrders: {
+            orderBy: { sequenceOrder: 'asc' },
+            select: {
+              id: true,
+              operationName: true,
+              sequenceOrder: true,
+              status: true,
+              actualQtyGood: true,
+              actualQtyRejected: true,
+              actualStart: true,
+              actualEnd: true,
+              idealCycleTimeSec: true,
+              machine: { select: { name: true, code: true } },
+              operator: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: [{ priority: 'desc' }, { plannedStart: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      data: data.map((wo) => {
+        const mapped = this.mapWorkOrder(wo);
+        const totalSteps = wo.jobOrders.length;
+        const completedSteps = wo.jobOrders.filter(j => j.status === 'COMPLETE').length;
+        const lastJO = wo.jobOrders[totalSteps - 1];
+        return {
+          ...mapped,
+          archivedAt: (wo as any).archivedAt ?? null,
+          completedSteps,
+          totalSteps,
+          // Step-based progress — unit-safe
+          progress: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : mapped.progress,
+          // Final output qty from last JO
+          goodQty:  lastJO?.actualQtyGood     ?? mapped.goodQty,
+          scrapQty: wo.jobOrders.reduce((s, j) => s + j.actualQtyRejected, 0),
+          jobOrders: wo.jobOrders.map((jo) => ({
+            id: jo.id,
+            operationName: jo.operationName,
+            sequenceOrder: jo.sequenceOrder,
+            status: jo.status,
+            machine: jo.machine,
+            operator: jo.operator,
+            joOEE: this.calcJobOrderOEE(jo).joOEE,
+          })),
+        };
+      }),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getWorkOrderById(factoryId: string | null, id: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id, ...factoryFilter, deletedAt: null },
+      include: {
+        sku: true,
+        line: true,
+        operator: { select: { id: true, name: true, email: true } },
+        supervisor: { select: { id: true, name: true, email: true } },
+        createdBy: { select: { id: true, name: true } },
+        startedBy: { select: { id: true, name: true } },
+        completedBy: { select: { id: true, name: true } },
+        productionOrder: { select: { orderNumber: true, sapOrderNumber: true } },
+        batchRecords: { select: { id: true, batchNumber: true, status: true } },
+        downtimeEvents: {
+          where: { endTime: null },
+          select: { id: true, startTime: true, category: true, reason: true },
+        },
+        jobOrders: {
+          orderBy: { sequenceOrder: 'asc' },
+          include: {
+            machine:  { select: { id: true, name: true, code: true } },
+            operator: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+    if (!wo) throw new NotFoundException('Work order not found');
+
+    // ISA-95: each JO can have a different outputUnit (PIECE → CARTON → PALLET).
+    // Summing across all JOs is meaningless. Correct approach:
+    //   • liveGoodQty / liveActualQty  = last JO output (the WO's final product unit)
+    //   • liveScrapQty                 = total scrap events across ALL steps (quality KPI)
+    //   • liveProgress (qty-based)     = last JO good qty vs WO plannedQty
+    //   • liveStepProgress             = % of JO steps completed (always meaningful)
+    const lastJO  = wo.jobOrders[wo.jobOrders.length - 1] ?? null;
+    const liveGood  = lastJO?.actualQtyGood     ?? 0;
+    const liveScrap = wo.jobOrders.reduce((s, j) => s + j.actualQtyRejected, 0);
+    const liveActual = liveGood + (lastJO?.actualQtyRejected ?? 0);
+    const completedSteps = wo.jobOrders.filter(j => j.status === 'COMPLETE').length;
+    const totalSteps     = wo.jobOrders.length;
+
+    // A WO spans every machine in its routing — derive the distinct machine list
+    // from the job-order steps (there is no single header machine).
+    const machines = dedupeMachines(wo.jobOrders.map((jo) => jo.machine));
+
+    return {
+      ...wo,
+      machines,
+      liveGoodQty:    liveGood,
+      liveScrapQty:   liveScrap,
+      liveActualQty:  liveActual,
+      // Step-based progress: how many routing steps are done (always unit-safe)
+      liveProgress:   totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
+      completedSteps,
+      totalSteps,
+      jobOrders: wo.jobOrders.map((jo) => ({
+        ...jo,
+        ...this.calcJobOrderOEE(jo),
+      })),
+    };
+  }
+
+  async updateWorkOrder(factoryId: string | null, id: string, dto: UpdateWorkOrderDto) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id, ...factoryFilter, deletedAt: null },
+    });
+    if (!wo) throw new NotFoundException('Work order not found');
+    if (['COMPLETED', 'CANCELLED'].includes(wo.status)) {
+      throw new BadRequestException(`Cannot update a ${wo.status} work order`);
+    }
+
+    return this.prisma.workOrder.update({
+      where: { id },
+      data: {
+        ...(dto.plannedQty !== undefined && { plannedQty: dto.plannedQty }),
+        ...(dto.plannedStart && { plannedStart: new Date(dto.plannedStart) }),
+        ...(dto.plannedEnd && { plannedEnd: new Date(dto.plannedEnd) }),
+        ...(dto.priority && { priority: dto.priority }),
+        ...(dto.operatorId !== undefined && { operatorId: dto.operatorId }),
+        ...(dto.supervisorId !== undefined && { supervisorId: dto.supervisorId }),
+        ...(dto.notes !== undefined && { notes: dto.notes }),
+      },
+    });
+  }
+
+  async deleteWorkOrder(factoryId: string | null, id: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id, ...factoryFilter, deletedAt: null },
+    });
+    if (!wo) throw new NotFoundException('Work order not found');
+    if (wo.status === 'IN_PROGRESS') {
+      throw new ConflictException('Cannot delete an in-progress work order. Hold or cancel it first.');
+    }
+
+    await this.prisma.workOrder.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // PRODUCTION ORDERS (ISA-95 Level 4 — ERP/Scheduling)
+  // ────────────────────────────────────────────────────────────
+
+  async createProductionOrder(factoryId: string | null, userId: string, dto: CreateProductionOrderDto) {
+    if (!factoryId) throw new BadRequestException('Factory context required');
+
+    const sku = await this.prisma.sKU.findFirst({ where: { id: dto.skuId, factoryId } });
+    if (!sku) throw new NotFoundException('SKU not found');
+
+    const existing = await this.prisma.productionOrder.findFirst({ where: { orderNumber: dto.orderNumber } });
+    if (existing) throw new ConflictException(`Order number ${dto.orderNumber} already exists`);
+
+    return this.prisma.productionOrder.create({
+      data: {
+        factoryId,
+        orderNumber: dto.orderNumber,
+        sapOrderNumber: dto.sapOrderNumber,
+        skuId: dto.skuId,
+        targetQty: dto.targetQty,
+        unit: dto.unit ?? 'CARTON',
+        priority: dto.priority as any,
+        plannedStart: new Date(dto.plannedStart),
+        plannedEnd: new Date(dto.plannedEnd),
+        customer: dto.customer,
+        notes: dto.notes,
+        createdById: userId,
+        status: 'PLANNED',
+      },
+      include: { sku: { select: { name: true, code: true, itemNumber: true } } },
+    });
+  }
+
+  async findProductionOrders(factoryId: string | null, filters: ProductionOrderFiltersDto) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+
+    const where: Prisma.ProductionOrderWhereInput = {
+      ...factoryFilter,
+      deletedAt: null,
+      ...archivedWhere(filters.archived),
+      ...(filters.status && { status: filters.status as any }),
+      // Scope: PO is in-scope when it has a WO that — by its header machine OR any
+      // of its job-order steps — runs on the selected area/line/machine.
+      ...((filters.machineId || filters.lineId || filters.areaId) && {
+        workOrders: {
+          some: {
+            deletedAt: null,
+            OR: filters.machineId
+              ? [{ jobOrders: { some: { machineId: filters.machineId } } }]
+              : filters.lineId
+                ? [{ lineId: filters.lineId }, { jobOrders: { some: { machine: { lineId: filters.lineId } } } }]
+                : [{ line: { areaId: filters.areaId } }, { jobOrders: { some: { machine: { line: { areaId: filters.areaId } } } } }],
+          },
+        },
+      }),
+      ...(filters.search && {
+        OR: [
+          { orderNumber: { contains: filters.search, mode: 'insensitive' } },
+          { sapOrderNumber: { contains: filters.search, mode: 'insensitive' } },
+          { customer: { contains: filters.search, mode: 'insensitive' } },
+          { sku: { name: { contains: filters.search, mode: 'insensitive' } } },
+        ],
+      }),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.productionOrder.findMany({
+        where,
+        orderBy: { plannedStart: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          sku: { select: { name: true, code: true, itemNumber: true, brand: true, weight: true, weightUnit: true } },
+          workOrders: {
+            where: { deletedAt: null },
+            select: {
+              id: true, orderNumber: true, status: true, plannedQty: true, actualQty: true, goodQty: true,
+              jobOrders: { select: { machine: { select: { name: true, code: true } } } },
+            },
+          },
+        },
+      }),
+      this.prisma.productionOrder.count({ where }),
+    ]);
+
+    return { data, total, page, limit };
+  }
+
+  async findOneProductionOrder(factoryId: string | null, id: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const po = await this.prisma.productionOrder.findFirst({
+      where: { id, ...factoryFilter, deletedAt: null },
+      include: {
+        sku: { select: { name: true, code: true, itemNumber: true, brand: true, weight: true, weightUnit: true, packagingType: true } },
+        workOrders: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+          include: {
+            jobOrders: { select: { machine: { select: { id: true, name: true, code: true } } } },
+            operator: { select: { id: true, name: true } },
+            inspectionResults: {
+              select: { id: true, inspectionNumber: true, type: true, result: true, totalQty: true, passQty: true, failQty: true, inspectedAt: true },
+              orderBy: { inspectedAt: 'desc' },
+              take: 5,
+            },
+          },
+        },
+      },
+    });
+    if (!po) throw new NotFoundException('Production order not found');
+    return po;
+  }
+
+  async updateProductionOrder(factoryId: string | null, id: string, dto: UpdateProductionOrderDto) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const po = await this.prisma.productionOrder.findFirst({ where: { id, ...factoryFilter, deletedAt: null } });
+    if (!po) throw new NotFoundException('Production order not found');
+    if (['COMPLETED', 'CANCELLED'].includes(po.status)) {
+      throw new BadRequestException(`Cannot modify a ${po.status} production order`);
+    }
+
+    return this.prisma.productionOrder.update({
+      where: { id },
+      data: {
+        ...(dto.targetQty && { targetQty: dto.targetQty }),
+        ...(dto.priority && { priority: dto.priority as any }),
+        ...(dto.plannedStart && { plannedStart: new Date(dto.plannedStart) }),
+        ...(dto.plannedEnd && { plannedEnd: new Date(dto.plannedEnd) }),
+        ...(dto.customer !== undefined && { customer: dto.customer }),
+        ...(dto.notes !== undefined && { notes: dto.notes }),
+      },
+      include: { sku: { select: { name: true, code: true } } },
+    });
+  }
+
+  async releaseProductionOrder(factoryId: string | null, id: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const po = await this.prisma.productionOrder.findFirst({ where: { id, ...factoryFilter, deletedAt: null } });
+    if (!po) throw new NotFoundException('Production order not found');
+    if (po.status !== 'PLANNED') throw new BadRequestException(`Only PLANNED orders can be released (current: ${po.status})`);
+
+    return this.prisma.productionOrder.update({ where: { id }, data: { status: 'RELEASED' } });
+  }
+
+  async createWorkOrderFromPO(factoryId: string | null, userId: string, poId: string, dto: CreateWOFromPODto) {
+    if (!factoryId) throw new BadRequestException('Factory context required');
+    const factoryFilter = { factoryId };
+
+    const po = await this.prisma.productionOrder.findFirst({
+      where: { id: poId, ...factoryFilter, deletedAt: null }, include: { sku: true },
+    });
+
+    if (!po) throw new NotFoundException('Production order not found');
+    if (po.status === 'CANCELLED') throw new BadRequestException('Cannot create WO for a cancelled production order');
+    if (!po.skuId) throw new BadRequestException('Production order has no SKU assigned');
+
+    // Generate WO number: WO-{YYYY}-{seq}
+    const year = new Date().getFullYear();
+    const count = await this.prisma.workOrder.count({ where: { factoryId } });
+    const orderNumber = `WO-${year}-${String(count + 1).padStart(4, '0')}`;
+
+    const wo = await this.prisma.workOrder.create({
+      data: {
+        factoryId,
+        productionOrderId: poId,
+        skuId: po.skuId,
+        orderNumber,
+        status: 'PLANNED',
+        priority: (dto.priority ?? po.priority) as any,
+        plannedQty: dto.plannedQty,
+        plannedStart: new Date(dto.plannedStart),
+        plannedEnd: new Date(dto.plannedEnd),
+        operatorId: dto.operatorId,
+        notes: dto.notes,
+        createdById: userId,
+      },
+    });
+
+    // Routed dispatch list across every machine in the product's process. Blocks
+    // when the product has no approved process; roll back to avoid an orphan WO.
+    try {
+      await this.generateJobOrders(factoryId, wo.id, {
+        plannedStart: dto.plannedStart,
+        plannedEnd: dto.plannedEnd,
+        clearExisting: false,
+      });
+    } catch (err) {
+      await this.prisma.workOrder.delete({ where: { id: wo.id } }).catch(() => undefined);
+      throw err;
+    }
+
+    // Update PO status to IN_PROGRESS if RELEASED
+    if (po.status === 'RELEASED') {
+      await this.prisma.productionOrder.update({ where: { id: poId }, data: { status: 'IN_PROGRESS', actualStart: new Date() } });
+    }
+
+    this.logger.log(`WO ${orderNumber} created from PO ${po.orderNumber}`);
+    return this.getWorkOrderById(factoryId, wo.id);
+  }
+
+  async cancelProductionOrder(factoryId: string | null, id: string, reason: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const po = await this.prisma.productionOrder.findFirst({
+      where: { id, ...factoryFilter, deletedAt: null },
+      include: { workOrders: { where: { status: 'IN_PROGRESS', deletedAt: null } } },
+    });
+    if (!po) throw new NotFoundException('Production order not found');
+    if (po.status === 'COMPLETED') throw new BadRequestException('Cannot cancel a completed production order');
+    if (po.workOrders.length > 0) throw new BadRequestException('Cannot cancel PO with in-progress work orders');
+
+    return this.prisma.productionOrder.update({
+      where: { id },
+      data: { status: 'CANCELLED', notes: po.notes ? `${po.notes}\n[Cancelled: ${reason}]` : `[Cancelled: ${reason}]` },
+    });
+  }
+
+  async holdProductionOrder(factoryId: string | null, id: string, reason: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const po = await this.prisma.productionOrder.findFirst({ where: { id, ...factoryFilter, deletedAt: null } });
+    if (!po) throw new NotFoundException('Production order not found');
+    if (!['RELEASED', 'IN_PROGRESS'].includes(po.status)) {
+      throw new BadRequestException(`Cannot hold a ${po.status} production order`);
+    }
+    return this.prisma.productionOrder.update({
+      where: { id },
+      data: { status: 'ON_HOLD', notes: po.notes ? `${po.notes}\n[Hold: ${reason}]` : `[Hold: ${reason}]` },
+    });
+  }
+
+  async resumeProductionOrder(factoryId: string | null, id: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const po = await this.prisma.productionOrder.findFirst({ where: { id, ...factoryFilter, deletedAt: null } });
+    if (!po) throw new NotFoundException('Production order not found');
+    if (po.status !== 'ON_HOLD') throw new BadRequestException('Only ON_HOLD orders can be resumed');
+    // Resume: if actual start exists → IN_PROGRESS, otherwise → RELEASED
+    const resumeStatus = po.actualStart ? 'IN_PROGRESS' : 'RELEASED';
+    return this.prisma.productionOrder.update({ where: { id }, data: { status: resumeStatus } });
+  }
+
+  async completeProductionOrder(factoryId: string | null, id: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const po = await this.prisma.productionOrder.findFirst({
+      where: { id, ...factoryFilter, deletedAt: null },
+      include: { workOrders: { where: { deletedAt: null } } },
+    });
+    if (!po) throw new NotFoundException('Production order not found');
+    if (po.status !== 'IN_PROGRESS') throw new BadRequestException(`Only IN_PROGRESS orders can be completed (current: ${po.status})`);
+
+    const completedQty = po.workOrders.reduce((s, w) => s + (w.goodQty || 0), 0);
+    return this.prisma.productionOrder.update({
+      where: { id },
+      data: { status: 'COMPLETED', actualEnd: new Date(), completedQty },
+    });
+  }
+
+  async deleteProductionOrder(factoryId: string | null, id: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const po = await this.prisma.productionOrder.findFirst({
+      where: { id, ...factoryFilter, deletedAt: null },
+      include: { workOrders: { where: { deletedAt: null, status: { notIn: ['CANCELLED'] } } } },
+    });
+    if (!po) throw new NotFoundException('Production order not found');
+    if (!['PLANNED', 'CANCELLED'].includes(po.status)) {
+      throw new BadRequestException(`Only PLANNED or CANCELLED orders can be deleted (current: ${po.status})`);
+    }
+    if (po.workOrders.length > 0) {
+      throw new BadRequestException('Cannot delete PO with active work orders. Cancel them first.');
+    }
+    await this.prisma.productionOrder.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // AUTO-GENERATE WORK ORDERS (ISA-95 — Recipe + Routing driven)
+  // ─────────────────────────────────────────────────────────────
+
+  /** Look up the StepDependency type between two routing steps.
+   *  Returns 'FINISH_TO_START' (default) when no explicit record exists. */
+  private async lookupDepType(
+    fromStepId: string | null | undefined,
+    toStepId: string | null | undefined,
+  ): Promise<string> {
+    if (!fromStepId || !toStepId) return 'FINISH_TO_START';
+    const dep = await this.prisma.stepDependency.findFirst({
+      where: { fromStepId, toStepId },
+      select: { type: true },
+    });
+    return dep?.type ?? 'FINISH_TO_START';
+  }
+
+  /** Resolve the best machine for a routing step when machineId is null.
+   *  Three attempts: name-prefix match → machine-name-in-WC-name → code-suffix match */
+  private async resolveStepMachine(
+    step: { machineId?: string | null; machine?: any; workCenterId?: string | null; workCenterRef?: any },
+    factoryId: string | null,
+  ): Promise<{ id: string; name: string; code: string; machineType: string } | null> {
+    if (step.machine) return step.machine;
+
+    const wc = step.workCenterRef;
+    if (!wc) return null;
+
+    const baseWhere = factoryId ? { factoryId, isActive: true } : { isActive: true };
+    const sel = { id: true, name: true, code: true, machineType: true } as const;
+
+    // Attempt 1: stripped WorkCenter name contained in machine name
+    const stripped = wc.name
+      .replace(/\s+cell$/i, '')
+      .replace(/\s+work\s*center$/i, '')
+      .trim();
+
+    const m1 = await this.prisma.machine.findFirst({
+      where: { ...baseWhere, name: { contains: stripped, mode: 'insensitive' } },
+      select: sel,
+    });
+    if (m1) return m1;
+
+    // Attempt 2: machine name contained within WorkCenter name
+    const all = await this.prisma.machine.findMany({ where: baseWhere, select: sel });
+    const m2 = all.find((m) => wc.name.toLowerCase().includes(m.name.toLowerCase())) ?? null;
+    if (m2) return m2;
+
+    // Attempt 3: WorkCenter code suffix (after "WC-") matches machine code
+    const wcSuffix = (wc.code as string).replace(/^WC-/i, '');
+    if (wcSuffix) {
+      const m3 = all.find(
+        (m) =>
+          m.code.toLowerCase().includes(wcSuffix.toLowerCase()) ||
+          wcSuffix.toLowerCase().includes(m.code.replace(/^SDPF-M\d+-/i, '').toLowerCase()),
+      ) ?? null;
+      if (m3) return m3;
+    }
+
+    return null;
+  }
+
+  /**
+   * Latest moment the machine is occupied within/over [from, to]:
+   * max planned end of active job orders overlapping the window and
+   * end of overlapping planned downtime. null = machine is idle.
+   */
+  private async machineBusyUntil(machineId: string, from: Date, to: Date): Promise<Date | null> {
+    const [busyJo, plannedDt] = await Promise.all([
+      this.prisma.jobOrder.findFirst({
+        where: {
+          machineId,
+          status: { in: ['SCHEDULED', 'READY', 'EXECUTING', 'PAUSED'] },
+          plannedStart: { lt: to },
+          plannedEnd: { gt: from },
+        },
+        orderBy: { plannedEnd: 'desc' },
+        select: { plannedEnd: true },
+      }),
+      this.prisma.downtimeEvent.findFirst({
+        where: {
+          machineId,
+          isPlanned: true,
+          startTime: { lt: to },
+          OR: [{ endTime: null }, { endTime: { gt: from } }],
+        },
+        orderBy: { endTime: 'desc' },
+        select: { endTime: true },
+      }),
+    ]);
+    const ends = [busyJo?.plannedEnd, plannedDt?.endTime].filter(Boolean) as Date[];
+    if (ends.length === 0) return null;
+    return new Date(Math.max(...ends.map((d) => d.getTime())));
+  }
+
+  /**
+   * Intelligent workcenter allocation.
+   * Candidates = the step's machine options (priority 0 = primary/default).
+   * The default wins when idle in the planned window; otherwise every candidate
+   * is scored earliest-finish (wait + setup + run) and the best ready machine wins.
+   * Steps without options fall back to the legacy machine/WorkCenter resolution.
+   */
+  private async pickStepMachine(
+    step: {
+      machineId?: string | null;
+      machine?: { id: string; name: string; code: string } | null;
+      workCenterId?: string | null;
+      workCenterRef?: unknown;
+      cycleTimeSec?: number | null;
+      machineOptions?: Array<{
+        machineId: string;
+        priority: number;
+        isDefault: boolean;
+        cycleTimeSec: number | null;
+        setupTimeMins: number | null;
+        machine: { id: string; name: string; code: string };
+      }>;
+    },
+    factoryId: string | null,
+    plannedStart: Date,
+    plannedEnd: Date,
+    qtyOut: number,
+  ): Promise<{ machineId: string | null; cycleOverrideSec: number | null; reason: string }> {
+    const options = (step.machineOptions ?? []).slice().sort((a, b) => a.priority - b.priority);
+
+    if (options.length === 0) {
+      // Legacy path: explicit machine or WorkCenter name-matching heuristic
+      if (step.machineId) return { machineId: step.machineId, cycleOverrideSec: null, reason: 'MANUAL' };
+      const resolved = await this.resolveStepMachine(step as any, factoryId);
+      return { machineId: resolved?.id ?? null, cycleOverrideSec: null, reason: resolved ? 'HEURISTIC' : 'UNASSIGNED' };
+    }
+
+    const def = options.find((o) => o.isDefault) ?? options[0];
+
+    // Score every candidate: wait (busy window) + setup (changeover) + run
+    const scored = await Promise.all(options.map(async (o) => {
+      const cycleSec = o.cycleTimeSec ?? step.cycleTimeSec ?? 60;
+      const runMs = Math.max(0, qtyOut) * cycleSec * 1000;
+      const busyUntil = await this.machineBusyUntil(o.machineId, plannedStart, plannedEnd);
+      const waitMs = busyUntil ? Math.max(0, busyUntil.getTime() - plannedStart.getTime()) : 0;
+      const setupMs = (o.setupTimeMins ?? 0) * 60_000;
+      return { option: o, busyUntil, waitMs, score: waitMs + setupMs + runMs };
+    }));
+
+    const defScored = scored.find((s) => s.option.machineId === def.machineId)!;
+    if (defScored.waitMs === 0) {
+      return {
+        machineId: def.machineId,
+        cycleOverrideSec: def.cycleTimeSec,
+        reason: 'DEFAULT_IDLE',
+      };
+    }
+
+    const best = scored.reduce((a, b) => (b.score < a.score ? b : a));
+    if (best.option.machineId === def.machineId) {
+      return {
+        machineId: def.machineId,
+        cycleOverrideSec: def.cycleTimeSec,
+        reason: `DEFAULT_BUSY_KEPT (busy until ${defScored.busyUntil?.toISOString() ?? '?'}, still earliest finish)`,
+      };
+    }
+    return {
+      machineId: best.option.machineId,
+      cycleOverrideSec: best.option.cycleTimeSec,
+      reason: `DEFAULT_BUSY_ALT_SELECTED (${best.option.machine.code}; default busy until ${defScored.busyUntil?.toISOString() ?? '?'})`,
+    };
+  }
+
+  /** Map an operation name to its output unit (PIECE → CARTON → PALLET). */
+  private resolveStepOutputUnit(operationName: string, prevUnit: string): string {
+    const op = operationName.toLowerCase();
+    if (/carton(?:ing)?|cartomac|boxing|carto\b/.test(op)) return 'CARTON';
+    if (/palletiz(?:ing|er)?|palletis(?:ing|er)?|robot|stacking/.test(op)) return 'PALLET';
+    // wrapping keeps the same unit (pallet stays pallet after shrink-wrap)
+    return prevUnit;
+  }
+
+  /**
+   * Convert a quantity between packaging-hierarchy units using the SKU spec:
+   * PCS/PIECE → INNER (÷unitsPerInner) → CARTON (÷innersPerCarton) → PALLET (÷cartonsPerPallet).
+   * This powers per-step qty flow AND duration = qtyOut × cycleTimeSec in scheduling.
+   */
+  private convertUnits(
+    qty: number,
+    fromUnit: string,
+    toUnit: string,
+    pkg: { unitsPerInner: number; innersPerCarton: number; cartonsPerPallet: number },
+  ): number {
+    const norm = (u: string) => {
+      const x = (u || 'PIECE').toUpperCase();
+      if (x === 'PCS' || x === 'EA' || x === 'UNIT') return 'PIECE';
+      return x;
+    };
+    const LADDER = ['PIECE', 'INNER', 'CARTON', 'PALLET'];
+    const factor = [
+      Math.max(1, pkg.unitsPerInner),    // pieces per inner
+      Math.max(1, pkg.innersPerCarton),  // inners per carton
+      Math.max(1, pkg.cartonsPerPallet), // cartons per pallet
+    ];
+    const fi = LADDER.indexOf(norm(fromUnit));
+    const ti = LADDER.indexOf(norm(toUnit));
+    if (fi < 0 || ti < 0 || fi === ti) return qty;
+    let q = qty;
+    if (ti > fi) { for (let i = fi; i < ti; i++) q = q / factor[i]; return Math.ceil(q); }
+    for (let i = fi - 1; i >= ti; i--) q = q * factor[i];
+    return Math.round(q);
+  }
+
+  /** Calculate the expected output quantity when the unit changes between steps. */
+  private calcOutputQty(
+    outputUnit: string,
+    prevUnit: string,
+    prevQty: number,
+    pkg: { unitsPerInner: number; innersPerCarton: number; cartonsPerPallet: number },
+  ): number {
+    return this.convertUnits(prevQty, prevUnit, outputUnit, pkg);
+  }
+
+  async previewAutoGenerateWOs(factoryId: string | null, poId: string, fromIso?: string): Promise<any> {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const po = await this.prisma.productionOrder.findFirst({
+      where: { id: poId, ...factoryFilter, deletedAt: null },
+      include: { sku: true },
+    });
+    if (!po) throw new NotFoundException('Production order not found');
+    if (!po.skuId) throw new BadRequestException('Production order has no SKU assigned');
+    if (!['RELEASED', 'IN_PROGRESS'].includes(po.status)) {
+      throw new BadRequestException(
+        `Release the PO first before auto-generating (current: ${po.status})`,
+      );
+    }
+
+    const stepIncludes = {
+      where: { isOptional: false },
+      orderBy: { stepNumber: 'asc' } as const,
+      include: {
+        machine: { select: { id: true, name: true, code: true, machineType: true } },
+        workCenterRef: { select: { id: true, name: true, code: true, level: true } },
+        // Typed precedence (FS/SS/SF/FF + lag) — drives overlap-aware scheduling
+        predecessors: { select: { fromStepId: true, type: true, lagMins: true } },
+      },
+    };
+
+    // APPROVED recipe first, then REVIEW as fallback
+    const recipe: any = await this.prisma.recipe.findFirst({
+      where: { skuId: po.skuId, status: { in: ['APPROVED', 'REVIEW'] as any }, ...factoryFilter },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      include: { process: { include: { routingSteps: stepIncludes } } },
+    });
+
+    // Canonical scope-chain resolution (PRODUCT → LIST → CATEGORY → BASE_WEIGHT):
+    // scoped routings (e.g. "2.25 Kg Standard Process") apply to this product
+    // through their covered product ids, not a direct skuId column match.
+    const process: any = recipe?.process ?? await findProcessForSku<any>(
+      this.prisma, factoryId, po.skuId, { routingSteps: stepIncludes as any },
+    );
+
+    const rawSteps: any[] = (process?.routingSteps ?? []).filter((s: any) => !s.isOptional);
+
+    // Packaging specs for unit-flow calculation
+    const skuPkg = {
+      unitsPerInner: (po.sku as any)?.unitsPerInner ?? 1,
+      innersPerCarton: (po.sku as any)?.innersPerCarton ?? 1,
+      cartonsPerPallet: (po.sku as any)?.cartonsPerPallet ?? 1,
+    };
+    const ppc = Math.max(1, skuPkg.unitsPerInner * skuPkg.innersPerCarton);
+    // Normalise PO qty to PIECE base for step-by-step calculations
+    let prevQty = (po as any).unit === 'CARTON' ? po.targetQty * ppc
+      : (po as any).unit === 'PALLET' ? po.targetQty * ppc * skuPkg.cartonsPerPallet
+      : po.targetQty;
+    let prevUnit = 'PIECE';
+
+    // Sequential loop — prevQty/prevUnit must flow step-to-step.
+    // Explicit step In/Out units win; the operation-name heuristic is the
+    // legacy fallback. Duration = qtyOut × cycleTimeSec (+ setup).
+    const jobOrdersToCreate: any[] = [];
+    for (const step of rawSteps) {
+      const resolvedMachine = await this.resolveStepMachine(step as any, factoryId);
+      const inputUnit  = (step as any).inUnit ?? prevUnit;
+      const outputUnit = (step as any).outUnit ?? this.resolveStepOutputUnit((step as any).operationName, inputUnit);
+      const inputQty   = this.convertUnits(prevQty, prevUnit, inputUnit, skuPkg);
+      const outputQty  = this.convertUnits(inputQty, inputUnit, outputUnit, skuPkg);
+      prevUnit = outputUnit;
+      prevQty  = outputQty;
+
+      const cycleSec: number | null = (step as any).cycleTimeSec
+        ?? ((step as any).cycleTimeMins != null ? (step as any).cycleTimeMins * 60 : null);
+
+      jobOrdersToCreate.push({
+        stepId: (step as any).id,
+        stepNumber: (step as any).stepNumber,
+        operationName: (step as any).operationName,
+        machine: resolvedMachine
+          ? { id: resolvedMachine.id, name: resolvedMachine.name, code: resolvedMachine.code }
+          : null,
+        workCenter: (step as any).workCenterRef
+          ? { name: (step as any).workCenterRef.name, code: (step as any).workCenterRef.code }
+          : null,
+        plannedQtyIn: inputQty,
+        inputUnit,
+        plannedQtyOut: outputQty,
+        outputUnit,
+        cycleTimeSec: cycleSec,
+        estimatedDurationMins: cycleSec != null
+          ? Math.round((outputQty * cycleSec) / 60 + ((step as any).setupTimeMins ?? 0))
+          : (process?.totalCycleTimeMins && rawSteps.length
+            ? process.totalCycleTimeMins / rawSteps.length
+            : null),
+        setupTimeMins: (step as any).setupTimeMins ?? 0,
+        // precedence for the overlap-aware finish-time estimate
+        predecessors: (step as any).predecessors ?? [],
+      });
+    }
+
+    // ── Smart finish-time: schedule the steps respecting their relationships
+    // (overlap where SS/FF allow), seed each machine with its existing plan,
+    // then add the planned stoppage (breaks/cleaning/planned downtime) that
+    // intersects the run window. Surfaces a realistic completion time. ──
+    const horizon = fromIso ? new Date(fromIso).getTime() : (po.plannedStart ? +po.plannedStart : Date.now());
+    let smart: {
+      computedFinish: string | null;
+      workContentMins: number;
+      plannedStoppageMins: number;
+      totalDurationMins: number;
+      exceedsDue: boolean;
+      dueDate: string | null;
+    } | null = null;
+    if (jobOrdersToCreate.length > 0) {
+      const machineIds = [...new Set(jobOrdersToCreate.map((s) => s.machine?.id).filter(Boolean) as string[])];
+      const machineFree = await this.seedMachineFree(factoryId, machineIds, horizon);
+      const calendar = await this.buildWorkCalendar(factoryId);
+      const ops: SchedOp[] = jobOrdersToCreate.map((s) => {
+        const dep = (s.predecessors ?? []).find((d: any) => jobOrdersToCreate.some((x) => x.stepId === d.fromStepId));
+        return {
+          id: s.stepId,
+          machineId: s.machine?.id ?? null,
+          durationMs: Math.max((s.estimatedDurationMins ?? 5) * 60_000, 60_000),
+          predecessorId: dep?.fromStepId ?? null,
+          predecessorType: (dep?.type ?? 'FINISH_TO_START') as any,
+          predecessorLagMins: dep?.lagMins ?? 0,
+          sequenceOrder: s.stepNumber,
+        };
+      });
+      // No routed deps → fall back to a sequential FS chain by step order
+      if (ops.every((o) => !o.predecessorId)) {
+        const bySeq = [...ops].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+        for (let i = 1; i < bySeq.length; i++) {
+          bySeq[i].predecessorId = bySeq[i - 1].id;
+          bySeq[i].predecessorType = 'FINISH_TO_START' as any;
+        }
+      }
+      const sched = scheduleOps(ops, horizon, machineFree, calendar);
+      const workContentMins = Math.round((sched.finish - horizon) / 60_000);
+      const stoppage = await this.plannedStoppageMins(factoryId, horizon, sched.finish, machineIds);
+      const totalDurationMins = workContentMins + stoppage;
+      const computedFinishMs = horizon + totalDurationMins * 60_000;
+      // Attach the computed window onto each step for the preview table
+      for (const s of jobOrdersToCreate) {
+        const st = sched.start.get(s.stepId);
+        const en = sched.end.get(s.stepId);
+        s.plannedStart = st != null ? new Date(st).toISOString() : null;
+        s.plannedEnd = en != null ? new Date(en).toISOString() : null;
+      }
+      const dueMs = po.plannedEnd ? +po.plannedEnd : null;
+      smart = {
+        computedFinish: new Date(computedFinishMs).toISOString(),
+        workContentMins,
+        plannedStoppageMins: stoppage,
+        totalDurationMins,
+        exceedsDue: dueMs != null && computedFinishMs > dueMs,
+        dueDate: dueMs != null ? new Date(dueMs).toISOString() : null,
+      };
+    }
+
+    const existingWOCount = await this.prisma.workOrder.count({
+      where: { productionOrderId: poId, deletedAt: null },
+    });
+
+    if (jobOrdersToCreate.length === 0) {
+      const fallback = await this.prisma.machine.findFirst({
+        where: { ...(factoryId ? { factoryId } : {}), isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      return {
+        recipe: recipe ? { id: recipe.id, code: recipe.code, version: recipe.version, name: recipe.name, status: recipe.status } : null,
+        process: null,
+        jobOrdersToCreate: fallback
+          ? [{ stepNumber: 1, operationName: 'Production Run', machine: { id: fallback.id, name: fallback.name }, plannedQty: po.targetQty, estimatedDurationMins: null }]
+          : [],
+        workOrdersToCreate: fallback
+          ? [{ stepNumber: 1, operationName: 'Production Run', machine: { id: fallback.id, name: fallback.name }, plannedQty: po.targetQty, estimatedDurationMins: null }]
+          : [],
+        existingWOCount,
+        canGenerate: !!fallback,
+        warning: 'No routing steps found — will create a single work order on the primary machine.',
+        mode: 'fallback',
+      };
+    }
+
+    const warnings: string[] = [];
+    if (recipe?.status && recipe.status !== 'APPROVED') {
+      warnings.push(`Recipe ${recipe.code} is in "${recipe.status}" status — not yet approved for production.`);
+    }
+    if (!recipe) {
+      warnings.push('No recipe found — using manufacturing process routing only.');
+    }
+    if (existingWOCount > 0) {
+      warnings.push(`This PO already has ${existingWOCount} work order(s).`);
+    }
+    const noMachine = jobOrdersToCreate.filter((s) => !s.machine);
+    if (noMachine.length > 0) {
+      warnings.push(
+        `${noMachine.length} step(s) have no machine resolved (${noMachine.map((s) => s.operationName).join(', ')}). Assign machines after generation.`,
+      );
+    }
+
+    return {
+      recipe: recipe ? { id: recipe.id, code: recipe.code, version: recipe.version, name: recipe.name, status: recipe.status } : null,
+      process: process ? { id: process.id, name: process.name, version: process.version, scopeType: process.scopeType, totalCycleTimeMins: process.totalCycleTimeMins } : null,
+      // ISA-95: 1 Work Order + N Job Orders (dispatch list)
+      jobOrdersToCreate,
+      workOrdersToCreate: jobOrdersToCreate, // kept for backward compat
+      existingWOCount,
+      canGenerate: true,
+      warning: warnings.length > 0 ? warnings.join(' | ') : null,
+      mode: 'dispatch', // signals the UI that we create 1 WO + N JOs
+      smart, // computed finish time + planned-stoppage breakdown + exceedsDue
+    };
+  }
+
+  /** Working-time calendar from shift templates — skips the rest day(s) / holidays. */
+  private async buildWorkCalendar(factoryId: string | null) {
+    const shifts = await this.prisma.shiftTemplate.findMany({
+      where: { ...(factoryId ? { factoryId } : {}), isActive: true },
+      select: { days: true },
+    });
+    const workingDays = [...new Set(
+      shifts.flatMap((s) => (Array.isArray(s.days) ? (s.days as number[]) : [])),
+    )];
+    return makeWorkCalendar(workingDays);
+  }
+
+  /** Seed next-free instant per machine from its existing open plan (finite capacity). */
+  private async seedMachineFree(
+    factoryId: string | null, machineIds: string[], horizon: number,
+  ): Promise<Map<string, number>> {
+    const free = new Map<string, number>();
+    if (machineIds.length === 0) return free;
+    const open = await this.prisma.jobOrder.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        machineId: { in: machineIds },
+        status: { in: ['SCHEDULED', 'READY', 'EXECUTING', 'PAUSED'] as any },
+        plannedEnd: { not: null },
+      },
+      select: { machineId: true, plannedEnd: true },
+    });
+    for (const j of open) {
+      if (!j.machineId || !j.plannedEnd) continue;
+      const e = +j.plannedEnd;
+      if (e > horizon) free.set(j.machineId, Math.max(free.get(j.machineId) ?? horizon, e));
+    }
+    return free;
+  }
+
+  /**
+   * Planned stoppage (minutes) intersecting [fromMs, toMs]: shift breaks +
+   * cleaning across the shifts the window spans, plus any planned downtime
+   * events that overlap. This is added on top of the work content so the
+   * displayed finish time reflects real planned non-productive time.
+   */
+  private async plannedStoppageMins(
+    factoryId: string | null, fromMs: number, toMs: number, machineIds?: string[],
+  ): Promise<number> {
+    if (toMs <= fromMs) return 0;
+    const windowHours = (toMs - fromMs) / 3_600_000;
+
+    let shiftMins = 0;
+    const shifts = await this.prisma.shiftTemplate.findMany({
+      where: { ...(factoryId ? { factoryId } : {}), isActive: true },
+      select: { shiftDurationHours: true, breakMinutes: true, cleaningMinutes: true },
+    });
+    if (shifts.length > 0) {
+      const avgDur = shifts.reduce((s, x) => s + (x.shiftDurationHours || 12), 0) / shifts.length || 12;
+      const avgStop = shifts.reduce((s, x) => s + (x.breakMinutes || 0) + (x.cleaningMinutes || 0), 0) / shifts.length;
+      const shiftsSpanned = Math.max(1, Math.ceil(windowHours / avgDur));
+      shiftMins = shiftsSpanned * avgStop;
+    }
+
+    let eventMins = 0;
+    const events = await this.prisma.downtimeEvent.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        isPlanned: true,
+        startTime: { lt: new Date(toMs) },
+        OR: [{ endTime: null }, { endTime: { gt: new Date(fromMs) } }],
+        ...(machineIds && machineIds.length ? { machineId: { in: machineIds } } : {}),
+      },
+      select: { startTime: true, endTime: true, durationMinutes: true },
+    });
+    for (const e of events) {
+      const s = Math.max(+e.startTime, fromMs);
+      const en = Math.min(e.endTime ? +e.endTime : toMs, toMs);
+      if (en > s) eventMins += (en - s) / 60_000;
+    }
+
+    return Math.round(shiftMins + eventMins);
+  }
+
+  async autoGenerateWorkOrders(
+    factoryId: string | null, userId: string, poId: string,
+    dto: { plannedStart: string; plannedEnd: string; rescheduleRequestId?: string; autoStart?: boolean; assignments?: Array<{ stepId: string; operatorId: string }> },
+  ): Promise<any> {
+    if (!factoryId) throw new BadRequestException('Factory context required');
+
+    // Smart finish using the chosen start. If it overruns the PO due date, an
+    // APPROVED reschedule request is required and its dates win.
+    const preview = await this.previewAutoGenerateWOs(factoryId, poId, dto.plannedStart);
+    if (!preview.canGenerate) throw new BadRequestException('Cannot auto-generate: no machines available');
+
+    const po = await this.prisma.productionOrder.findFirst({
+      where: { id: poId, factoryId, deletedAt: null },
+    });
+    if (!po) throw new NotFoundException('Production order not found');
+
+    let start = new Date(dto.plannedStart);
+    let end   = new Date(dto.plannedEnd);
+
+    if (preview.smart?.exceedsDue) {
+      if (!dto.rescheduleRequestId) {
+        throw new BadRequestException(
+          `Computed finish (${preview.smart.computedFinish}) exceeds the order due date. ` +
+          'A reschedule request must be approved first.',
+        );
+      }
+      const rr = await this.prisma.rescheduleRequest.findFirst({
+        where: { id: dto.rescheduleRequestId, factoryId, productionOrderId: poId },
+      });
+      if (!rr) throw new NotFoundException('Reschedule request not found');
+      if (rr.status !== 'APPROVED') {
+        throw new BadRequestException(`Reschedule request is ${rr.status} — it must be APPROVED before generating.`);
+      }
+      // Approved proposal dates are authoritative
+      start = rr.proposedStart;
+      end = rr.proposedEnd;
+    } else if (preview.smart?.computedFinish) {
+      // Within due date — extend the WO end to the realistic computed finish
+      const cf = new Date(preview.smart.computedFinish);
+      if (cf > end) end = cf;
+    }
+    const year  = new Date().getFullYear();
+    const existing = await this.prisma.workOrder.count({ where: { factoryId } });
+
+    // ISA-95: 1 Work Order per Production Order (the production run)
+    // N Job Orders are the dispatch list (one per routing step)
+    // Derive the WO's line from the first routing step's machine (the WO itself
+    // spans every step's machine via its job orders — no single header machine).
+    const firstStep: any = preview.jobOrdersToCreate?.[0];
+    const primaryMachineId: string | null = firstStep?.machine?.id ?? null;
+
+    let lineId: string | null = null;
+    if (primaryMachineId) {
+      const m = await this.prisma.machine.findFirst({ where: { id: primaryMachineId }, select: { lineId: true } });
+      lineId = m?.lineId ?? null;
+    }
+
+    const orderNumber = `WO-${year}-${String(existing + 1).padStart(4, '0')}`;
+
+    const wo = await this.prisma.workOrder.create({
+      data: {
+        factoryId,
+        productionOrderId: poId,
+        skuId: po.skuId!,
+        lineId,
+        orderNumber,
+        status: 'PLANNED',
+        priority: po.priority as any,
+        autoStart: dto.autoStart ?? false,
+        plannedQty: po.targetQty,
+        plannedStart: start,
+        plannedEnd: end,
+        notes: `Auto-generated from PO ${po.orderNumber}${preview.process ? ` — Process: ${preview.process.name}` : ''}`,
+        createdById: userId,
+      },
+      include: {
+        sku: { select: { name: true, code: true } },
+      },
+    });
+
+    // Generate dispatch list (Job Orders) for each routing step
+    const joResult = await this.generateJobOrders(factoryId, wo.id, {
+      plannedStart: start.toISOString(),
+      plannedEnd: end.toISOString(),
+      clearExisting: false,
+      assignments: dto.assignments,
+    });
+
+    // Advance PO to IN_PROGRESS
+    if (po.status === 'RELEASED') {
+      await this.prisma.productionOrder.update({
+        where: { id: poId },
+        data: { status: 'IN_PROGRESS', actualStart: new Date() },
+      });
+    }
+
+    this.logger.log(
+      `Auto-generated WO ${wo.orderNumber} + ${joResult.created} job orders for PO ${po.orderNumber}`,
+    );
+    return {
+      workOrder: wo,
+      jobOrdersCreated: joResult.created,
+      jobOrders: joResult.jobOrders,
+      process: preview.process,
+      warning: preview.warning,
+    };
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // RESCHEDULE REQUESTS (governance when smart finish overruns the due date)
+  // ────────────────────────────────────────────────────────────
+
+  async createRescheduleRequest(
+    factoryId: string | null, userId: string, poId: string,
+    dto: { proposedStart: string; proposedEnd: string; reason?: string; workContentMins?: number; plannedStoppageMins?: number; dueDate?: string },
+  ) {
+    if (!factoryId) throw new BadRequestException('Factory context required');
+    const po = await this.prisma.productionOrder.findFirst({
+      where: { id: poId, factoryId, deletedAt: null },
+      select: { id: true, plannedEnd: true },
+    });
+    if (!po) throw new NotFoundException('Production order not found');
+
+    // Reuse any still-pending request for this PO rather than piling up duplicates
+    const existing = await this.prisma.rescheduleRequest.findFirst({
+      where: { factoryId, productionOrderId: poId, status: 'PENDING' },
+    });
+    const data = {
+      proposedStart: new Date(dto.proposedStart),
+      proposedEnd: new Date(dto.proposedEnd),
+      dueDate: dto.dueDate ? new Date(dto.dueDate) : po.plannedEnd,
+      reason: dto.reason ?? null,
+      workContentMins: dto.workContentMins ?? null,
+      plannedStoppageMins: dto.plannedStoppageMins ?? null,
+      // Auto-generate origin — store the smart-finish breakdown for display.
+      source: 'AUTO_GENERATE',
+      details: {
+        origin: 'Auto-Generate Work Order',
+        workContentMins: dto.workContentMins ?? null,
+        plannedStoppageMins: dto.plannedStoppageMins ?? null,
+      } as any,
+    };
+    if (existing) {
+      return this.prisma.rescheduleRequest.update({ where: { id: existing.id }, data });
+    }
+    return this.prisma.rescheduleRequest.create({
+      data: { factoryId, productionOrderId: poId, requestedById: userId, status: 'PENDING', ...data },
+    });
+  }
+
+  async listRescheduleRequests(factoryId: string | null, filters: { status?: string; productionOrderId?: string } = {}) {
+    return this.prisma.rescheduleRequest.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        ...(filters.status ? { status: filters.status as any } : {}),
+        ...(filters.productionOrderId ? { productionOrderId: filters.productionOrderId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        productionOrder: { select: { orderNumber: true, plannedEnd: true } },
+        workOrder: { select: { orderNumber: true } },
+        requestedBy: { select: { id: true, name: true } },
+        reviewedBy: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  async reviewRescheduleRequest(
+    factoryId: string | null, userId: string, id: string, approve: boolean, reason?: string,
+  ) {
+    const rr = await this.prisma.rescheduleRequest.findFirst({
+      where: { id, ...(factoryId ? { factoryId } : {}) },
+    });
+    if (!rr) throw new NotFoundException('Reschedule request not found');
+    if (rr.status !== 'PENDING') throw new BadRequestException(`Request already ${rr.status}.`);
+
+    const updated = await this.prisma.rescheduleRequest.update({
+      where: { id },
+      data: {
+        status: approve ? 'APPROVED' : 'REJECTED',
+        reviewedById: userId,
+        reviewedAt: new Date(),
+        ...(reason ? { reason } : {}),
+      },
+      include: {
+        productionOrder: { select: { orderNumber: true } },
+        requestedBy: { select: { id: true, name: true } },
+        reviewedBy: { select: { id: true, name: true } },
+      },
+    });
+
+    // On approval the proposal becomes authoritative. APS_RECALC carries an exact
+    // job-order plan in `details.updates` — apply it verbatim. AUTO_GENERATE shifts
+    // the whole PO window (+ its WOs/JOs) to the proposed Start/End.
+    if (approve) {
+      const details = rr.details as any;
+      const planUpdates: Array<{ id: string; start: string; end: string }> | undefined = details?.updates;
+      if (rr.source === 'APS_RECALC' && Array.isArray(planUpdates) && planUpdates.length > 0) {
+        await this.applyReschedulePlan(rr.factoryId, rr.workOrderId, planUpdates, rr.proposedStart, rr.proposedEnd, rr.productionOrderId);
+      } else {
+        await this.applyRescheduleWindow(rr.factoryId, rr.productionOrderId, rr.proposedStart, rr.proposedEnd);
+      }
+    }
+
+    return updated;
+  }
+
+  /** Apply an APS_RECALC plan: write each job-order window, then sync WO + PO ends. */
+  private async applyReschedulePlan(
+    factoryId: string, workOrderId: string | null,
+    updates: Array<{ id: string; start: string; end: string }>,
+    proposedStart: Date, proposedEnd: Date, poId: string,
+  ) {
+    const ids = updates.map((u) => u.id);
+    const owned = await this.prisma.jobOrder.findMany({
+      where: { id: { in: ids }, factoryId, status: { in: ['SCHEDULED', 'READY', 'EXECUTING', 'PAUSED'] as any } },
+      select: { id: true },
+    });
+    const ownedIds = new Set(owned.map((o) => o.id));
+    const valid = updates.filter((u) => ownedIds.has(u.id));
+
+    await this.prisma.$transaction([
+      ...valid.map((u) =>
+        this.prisma.jobOrder.update({
+          where: { id: u.id },
+          data: { plannedStart: new Date(u.start), plannedEnd: new Date(u.end) },
+        }),
+      ),
+      ...(workOrderId ? [this.prisma.workOrder.update({
+        where: { id: workOrderId },
+        data: { plannedStart: proposedStart, plannedEnd: proposedEnd },
+      })] : []),
+      this.prisma.productionOrder.update({
+        where: { id: poId },
+        data: { plannedEnd: proposedEnd },
+      }),
+    ]);
+  }
+
+  /** Propagate an approved reschedule window to the PO + its open WOs + their JOs. */
+  private async applyRescheduleWindow(
+    factoryId: string, poId: string, start: Date, end: Date,
+  ) {
+    await this.prisma.productionOrder.update({
+      where: { id: poId },
+      data: { plannedStart: start, plannedEnd: end },
+    });
+
+    const wos = await this.prisma.workOrder.findMany({
+      where: { productionOrderId: poId, deletedAt: null, status: { in: ['PLANNED', 'RELEASED', 'IN_PROGRESS'] } },
+      select: { id: true },
+    });
+    for (const wo of wos) {
+      await this.rescheduleWorkOrderToWindow(factoryId, wo.id, start.getTime(), end);
+    }
+  }
+
+  /**
+   * Shift a work order to a new window and re-lay its job orders from `startMs`
+   * using the same overlap-aware engine (durations from ideal cycle × qty).
+   * COMPLETE/CANCELLED job orders keep their actual times.
+   */
+  private async rescheduleWorkOrderToWindow(
+    factoryId: string | null, woId: string, startMs: number, fallbackEnd: Date,
+  ) {
+    const jos = await this.prisma.jobOrder.findMany({
+      where: { workOrderId: woId },
+      select: {
+        id: true, machineId: true, sequenceOrder: true,
+        predecessorId: true, predecessorType: true, predecessorLagMins: true,
+        idealCycleTimeSec: true, plannedQtyOut: true, plannedQtyIn: true, status: true,
+      },
+      orderBy: { sequenceOrder: 'asc' },
+    });
+    const open = jos.filter((j) => !['COMPLETE', 'CANCELLED'].includes(j.status));
+
+    if (open.length === 0) {
+      await this.prisma.workOrder.update({
+        where: { id: woId },
+        data: { plannedStart: new Date(startMs), plannedEnd: fallbackEnd },
+      });
+      return;
+    }
+
+    const ops: SchedOp[] = open.map((j) => {
+      const qty = j.plannedQtyOut ?? j.plannedQtyIn ?? 1;
+      const durMs = j.idealCycleTimeSec && j.idealCycleTimeSec > 0
+        ? Math.max(qty * j.idealCycleTimeSec * 1000, 60_000)
+        : 3_600_000;
+      const predInSet = j.predecessorId && open.some((x) => x.id === j.predecessorId);
+      return {
+        id: j.id,
+        machineId: j.machineId,
+        durationMs: durMs,
+        predecessorId: predInSet ? j.predecessorId : null,
+        predecessorType: (j.predecessorType ?? 'FINISH_TO_START') as any,
+        predecessorLagMins: j.predecessorLagMins ?? 0,
+        sequenceOrder: j.sequenceOrder,
+      };
+    });
+    const calendar = await this.buildWorkCalendar(factoryId);
+    const sched = scheduleOps(ops, startMs, new Map(), calendar);
+
+    await this.prisma.$transaction([
+      ...open.map((j) =>
+        this.prisma.jobOrder.update({
+          where: { id: j.id },
+          data: {
+            plannedStart: new Date(sched.start.get(j.id) ?? startMs),
+            plannedEnd: new Date(sched.end.get(j.id) ?? sched.finish),
+          },
+        }),
+      ),
+      this.prisma.workOrder.update({
+        where: { id: woId },
+        data: { plannedStart: new Date(startMs), plannedEnd: new Date(sched.finish) },
+      }),
+    ]);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // STATE MACHINE
+  // ────────────────────────────────────────────────────────────
+
+  async startWorkOrder(factoryId: string | null, userId: string | null, workOrderId: string, operatorId?: string) {
+    const wo = await this.assertTransition(factoryId, workOrderId, 'IN_PROGRESS');
+
+    const updated = await this.prisma.workOrder.update({
+      where: { id: workOrderId },
+      data: {
+        status: 'IN_PROGRESS',
+        actualStart: new Date(),
+        ...(userId && { startedById: userId }),
+        ...(operatorId && { operatorId }),
+      },
+      include: {
+        sku: { select: { name: true, code: true } },
+      },
+    });
+
+    // Record production event (WO-level; machine state is owned per job order
+    // via syncMachineStateWithJobOrder as each step starts below).
+    await this.recordProductionEvent(updated.factoryId, workOrderId, null, 'WO_STARTED');
+
+    // Starting a WO dispatches its first executable operations: every job order
+    // that is READY starts, and any START_TO_START-linked step starts in parallel.
+    await this.autoStartReadyJobOrders(updated.factoryId, workOrderId);
+
+    this.eventEmitter.emit('production.work-order.started', {
+      workOrder: updated,
+      factoryId: updated.factoryId,
+    });
+
+    this.logger.log(`WO ${wo.orderNumber} started`);
+    return updated;
+  }
+
+  /**
+   * Cascade-start every READY job order of a work order. Starting an op promotes
+   * its START_TO_START successors to READY (via updateJobOrderStatus), so the next
+   * pass starts them too — parallel-capable steps begin simultaneously. FS
+   * successors stay SCHEDULED until their predecessor completes. Each op is
+   * attempted once; dependency failures are skipped (not fatal).
+   */
+  private async autoStartReadyJobOrders(factoryId: string | null, workOrderId: string) {
+    const attempted = new Set<string>();
+    for (let guard = 0; guard < 50; guard++) {
+      const ready = await this.prisma.jobOrder.findMany({
+        where: { workOrderId, status: 'READY', id: { notIn: [...attempted] } },
+        select: { id: true },
+        orderBy: { sequenceOrder: 'asc' },
+      });
+      if (ready.length === 0) break;
+      for (const r of ready) {
+        attempted.add(r.id);
+        try {
+          await this.updateJobOrderStatus(factoryId, r.id, 'EXECUTING', {});
+        } catch {
+          /* start criteria not yet met — leave it READY for the operator */
+        }
+      }
+    }
+  }
+
+  /**
+   * Pause every EXECUTING job order of a work order. Each PAUSED transition runs
+   * syncMachineStateWithJobOrder, which returns its machine to IDLE — so holding
+   * or cancelling a routed WO stops all of its machines, not just one header machine.
+   */
+  private async pauseExecutingJobOrders(factoryId: string | null, workOrderId: string) {
+    const running = await this.prisma.jobOrder.findMany({
+      where: { workOrderId, status: 'EXECUTING' },
+      select: { id: true },
+    });
+    for (const jo of running) {
+      try {
+        await this.updateJobOrderStatus(factoryId, jo.id, 'PAUSED', {});
+      } catch {
+        /* best-effort — leave the JO as-is if the transition is rejected */
+      }
+    }
+  }
+
+  async holdWorkOrder(factoryId: string | null, userId: string, workOrderId: string, dto: HoldWorkOrderDto) {
+    const wo = await this.assertTransition(factoryId, workOrderId, 'ON_HOLD');
+
+    const updated = await this.prisma.workOrder.update({
+      where: { id: workOrderId },
+      data: { status: 'ON_HOLD' },
+    });
+
+    // Machine state follows the job orders; pause any that are executing.
+    await this.pauseExecutingJobOrders(wo.factoryId, workOrderId);
+
+    await this.recordProductionEvent(
+      wo.factoryId, workOrderId, null, 'WO_PAUSED', undefined, { reason: dto.reason, heldById: userId },
+    );
+
+    this.eventEmitter.emit('production.work-order.held', {
+      workOrder: { id: workOrderId, orderNumber: wo.orderNumber, reason: dto.reason },
+      factoryId: wo.factoryId,
+    });
+
+    this.logger.log(`WO ${wo.orderNumber} put on hold: ${dto.reason}`);
+    return updated;
+  }
+
+  async releaseWorkOrder(factoryId: string | null, userId: string, workOrderId: string) {
+    const wo = await this.assertTransition(factoryId, workOrderId, 'IN_PROGRESS');
+
+    const updated = await this.prisma.workOrder.update({
+      where: { id: workOrderId },
+      data: { status: 'IN_PROGRESS' },
+    });
+
+    await this.recordProductionEvent(wo.factoryId, workOrderId, null, 'WO_STARTED', undefined, { releasedById: userId });
+
+    // Soft-reserve step-material demand (CTP/MRP read availableStock = current − reserved)
+    await this.adjustMaterialReservation(workOrderId, 1, userId);
+
+    this.eventEmitter.emit('production.work-order.released', {
+      workOrder: { id: workOrderId, orderNumber: wo.orderNumber },
+      factoryId: wo.factoryId,
+    });
+
+    return updated;
+  }
+
+  async cancelWorkOrder(factoryId: string | null, userId: string, workOrderId: string, reason: string) {
+    const wo = await this.assertTransition(factoryId, workOrderId, 'CANCELLED');
+
+    const updated = await this.prisma.workOrder.update({
+      where: { id: workOrderId },
+      data: { status: 'CANCELLED', notes: reason },
+    });
+
+    // Stop all machines running this WO's steps (per-JO sync → IDLE).
+    await this.pauseExecutingJobOrders(wo.factoryId, workOrderId);
+
+    // Reservation only exists once the WO was released
+    if (['IN_PROGRESS', 'ON_HOLD'].includes(wo.status)) {
+      await this.adjustMaterialReservation(workOrderId, -1, userId);
+    }
+
+    await this.recordProductionEvent(wo.factoryId, workOrderId, null, 'WO_PAUSED', undefined, { reason, cancelledById: userId });
+
+    this.eventEmitter.emit('production.work-order.cancelled', {
+      workOrder: { id: workOrderId, orderNumber: wo.orderNumber, reason },
+      factoryId: wo.factoryId,
+    });
+
+    return updated;
+  }
+
+  async completeWorkOrder(
+    factoryId: string | null,
+    userId: string,
+    workOrderId: string,
+    dto: CompleteWorkOrderDto,
+  ) {
+    const wo = await this.assertTransition(factoryId, workOrderId, 'COMPLETED');
+
+    const goodQty = dto.goodQty ?? dto.actualQty;
+    const scrapQty = dto.scrapQty ?? Math.max(0, dto.actualQty - goodQty);
+
+    const actualEnd = new Date();
+    const updated = await this.prisma.workOrder.update({
+      where: { id: workOrderId },
+      data: {
+        status: 'COMPLETED',
+        actualQty: dto.actualQty,
+        goodQty,
+        scrapQty,
+        actualEnd,
+        completedById: userId,
+        ...(dto.notes && { notes: dto.notes }),
+      },
+    });
+
+    // Auto-calculate OEE — calculateAndStoreOEE persists the machine-grain OEERecord
+    // (history/hierarchy), then the engine rolls JO→WO→PO and owns the WO/PO OEE.
+    const oeeResult = await this.calculateAndStoreOEE(wo, dto.actualQty, goodQty, actualEnd);
+    await this.kpiService.recomputeWorkOrderAndPO(workOrderId);
+
+    // Traceability & genealogy: output batch + per-step trace events +
+    // per-step material consumptions (linked to lots when available)
+    await this.recordTraceability(wo, userId, dto.actualQty, goodQty, scrapQty, actualEnd);
+
+    await this.recordProductionEvent(wo.factoryId, workOrderId, null, 'WO_COMPLETED', dto.actualQty);
+
+    this.eventEmitter.emit('production.work-order.completed', {
+      workOrder: { ...updated, oee: oeeResult?.oee },
+      factoryId: wo.factoryId,
+    });
+
+    this.logger.log(`WO ${wo.orderNumber} completed — OEE: ${oeeResult?.oee?.toFixed(1) ?? 'N/A'}%`);
+    return { ...updated, oeeResult };
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // PRODUCTION COUNT UPDATES
+  // ────────────────────────────────────────────────────────────
+
+  async recordCount(factoryId: string | null, workOrderId: string, dto: RecordCountDto) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id: workOrderId, ...factoryFilter, status: 'IN_PROGRESS', deletedAt: null },
+    });
+    if (!wo) throw new NotFoundException('Active work order not found');
+
+    const totalGood = wo.goodQty + dto.goodCount;
+    const totalReject = wo.reworkQty + (dto.rejectCount ?? 0);
+    const totalActual = totalGood + totalReject;
+
+    const updated = await this.prisma.workOrder.update({
+      where: { id: workOrderId },
+      data: {
+        actualQty: totalActual,
+        goodQty: totalGood,
+        reworkQty: totalReject,
+      },
+    });
+
+    // Per-machine counters are maintained per job order; this WO-level count only
+    // updates WO totals (machine attribution happens via the job-order counts).
+    await this.recordProductionEvent(
+      wo.factoryId, workOrderId, null, 'COUNT_UPDATE', totalActual,
+      { goodCount: dto.goodCount, rejectCount: dto.rejectCount ?? 0 },
+    );
+
+    this.eventEmitter.emit('production.count.updated', {
+      workOrderId,
+      factoryId: wo.factoryId,
+      actualQty: totalActual,
+      goodQty: totalGood,
+      progress: Math.min(Math.round((totalActual / wo.plannedQty) * 100), 100),
+    });
+
+    return updated;
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // KPIs
+  // ────────────────────────────────────────────────────────────
+
+  async getKPIs(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const machineIds = await this.kpiService.resolveScopeMachineIds(factoryId, scope);
+    // WO "belongs to" a machine via any of its job-order steps (routed WOs).
+    const woScope: Prisma.WorkOrderWhereInput = scope?.machineId
+      ? { jobOrders: { some: { machineId: scope.machineId } } }
+      : scope?.lineId
+        ? { OR: [{ lineId: scope.lineId }, { jobOrders: { some: { machine: { lineId: scope.lineId } } } }] }
+        : scope?.areaId
+          ? { OR: [{ line: { areaId: scope.areaId } }, { jobOrders: { some: { machine: { line: { areaId: scope.areaId } } } } }] }
+          : {};
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+
+    const [oee, totalOrders, inProgressOrders, completedOrders, plannedOrders, heldOrders] =
+      await Promise.all([
+        this.kpiService.oeeAnalytics(factoryId, dayStart, new Date(), machineIds, 'hour'),
+        this.prisma.workOrder.count({ where: { ...factoryFilter, ...woScope, deletedAt: null } }),
+        this.prisma.workOrder.count({ where: { ...factoryFilter, ...woScope, status: 'IN_PROGRESS' } }),
+        this.prisma.workOrder.count({ where: { ...factoryFilter, ...woScope, status: 'COMPLETED' } }),
+        this.prisma.workOrder.count({ where: { ...factoryFilter, ...woScope, status: { in: ['PLANNED', 'RELEASED'] } } }),
+        this.prisma.workOrder.count({ where: { ...factoryFilter, ...woScope, status: 'ON_HOLD' } }),
+      ]);
+
+    return {
+      oee: oee.current.oee,
+      availability: oee.current.availability,
+      performance: oee.current.performance,
+      quality: oee.current.quality,
+      // Time-based (AT-OEE) variant — surfaced alongside schedule-based OEE.
+      oeeTb: oee.current.oeeTb,
+      availabilityTb: oee.current.availabilityTb,
+      totalOrders,
+      inProgressOrders,
+      completedOrders,
+      plannedOrders,
+      heldOrders,
+    };
+  }
+
+  async getOEESummary(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+    timeframe: string = 'day',
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
+    // Per-machine OEE comes from JOB ORDERS (a routed WO spans many machines), so
+    // every machine that ran a step is counted — not just the WO header machine.
+    const machineIds = await this.kpiService.resolveScopeMachineIds(factoryId, scope);
+    // Normalise the timeframe (accepts Day/Week/Month/Shift, any case) or an explicit range.
+    const tf = String(timeframe || 'day').toLowerCase();
+    const now = new Date();
+    // A date-only `dateTo` (YYYY-MM-DD) parses to midnight UTC; bump it to end-of-day
+    // so single-day / "today" ranges are inclusive instead of zero-width.
+    const to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : now;
+    let from: Date;
+    if (dateFrom) from = new Date(dateFrom);
+    else {
+      from = new Date(to);
+      if (tf === 'week') from.setDate(to.getDate() - 7);
+      else if (tf === 'month') from.setDate(to.getDate() - 30);
+      else from.setHours(0, 0, 0, 0); // day / shift → today
+    }
+    const bucket: 'hour' | 'day' = tf === 'day' || tf === 'shift' ? 'hour' : 'day';
+
+    const a = await this.kpiService.oeeAnalytics(factoryId, from, to, machineIds, bucket);
+    return {
+      current: a.current, // includes oee/availability/performance/quality + oeeTb/availabilityTb
+      // flat aliases for the Machine OEE view + legacy consumers
+      oee: a.current.oee, availability: a.current.availability, performance: a.current.performance, quality: a.current.quality,
+      oeeTb: a.current.oeeTb, availabilityTb: a.current.availabilityTb,
+      totalCount: a.totalOutput, goodCount: a.goodOutput, downtime: a.downtimeMin,
+      trend: a.trend, // [{ period, oee, oeeTb }]
+      byEquipment: a.byEquipment.map((e) => ({
+        machineId: e.machineId, name: e.name, code: e.code, output: e.output,
+        oee: e.oee, availability: e.availability, performance: e.performance, quality: e.quality,
+        oeeTb: e.oeeTb, availabilityTb: e.availabilityTb,
+      })),
+      equipmentBreakdown: a.byEquipment.map((e) => ({
+        machineId: e.machineId, machineName: e.name, output: e.output,
+        oee: e.oee, availability: e.availability, performance: e.performance, quality: e.quality,
+        oeeTb: e.oeeTb, availabilityTb: e.availabilityTb,
+      })),
+    };
+  }
+
+  async getOEERecords(factoryId: string | null, filters: {
+    machineId?: string;
+    areaId?: string;
+    lineId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const { machineId, areaId, lineId, dateFrom, dateTo, page = 1, limit = 20 } = filters;
+    // Per-machine OEE rows are derived from JOB ORDERS so routed WOs contribute on
+    // every machine they ran a step on (not just the WO header machine).
+    const machineIds = await this.kpiService.resolveScopeMachineIds(factoryId, { machineId, areaId, lineId });
+    // Inclusive end-of-day for a date-only `dateTo` so today/single-day ranges aren't empty.
+    const to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : new Date();
+    const from = dateFrom ? new Date(dateFrom) : new Date(to.getTime() - 90 * 86_400_000);
+
+    const data = await this.kpiService.oeeRecordsFromJobOrders(factoryId, from, to, machineIds, limit);
+    return { data, total: data.length, page, limit, totalPages: 1 };
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // BATCH RECORDS CRUD
+  // ────────────────────────────────────────────────────────────
+
+  async findBatches(factoryId: string | null, filters: {
+    search?: string;
+    status?: string;
+    workOrderId?: string;
+    skuId?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const { search, status, workOrderId, skuId, page = 1, limit = 20 } = filters;
+    const factoryFilter = factoryId ? { factoryId } : {};
+
+    const where: Prisma.BatchRecordWhereInput = {
+      ...factoryFilter,
+      ...(status && { status: status as any }),
+      ...(workOrderId && { workOrderId }),
+      ...(skuId && { skuId }),
+      ...(search && {
+        OR: [
+          { batchNumber: { contains: search, mode: 'insensitive' as const } },
+          { lotNumber: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }),
+    };
+
+    const [total, data] = await Promise.all([
+      this.prisma.batchRecord.count({ where }),
+      this.prisma.batchRecord.findMany({
+        where,
+        include: {
+          workOrder: { select: { orderNumber: true, jobOrders: { select: { machine: { select: { name: true } } } } } },
+          sku: { select: { name: true, code: true, itemNumber: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    // Resolve every linked WO once (for display + live AUTO quantity roll-up).
+    const allWoIds = [...new Set(data.flatMap((b) => ((b.workOrderIds as string[] | null) ?? [])))];
+    const wos = allWoIds.length
+      ? await this.prisma.workOrder.findMany({
+          where: { id: { in: allWoIds } },
+          select: { id: true, orderNumber: true, plannedQty: true },
+        })
+      : [];
+    const woById = new Map(wos.map((w) => [w.id, w]));
+
+    return {
+      data: data.map(b => {
+        const woIds = (b.workOrderIds as string[] | null) ?? (b.workOrderId ? [b.workOrderId] : []);
+        const linkedWorkOrders = woIds.map((id) => woById.get(id)).filter(Boolean).map((w) => ({ id: w!.id, orderNumber: w!.orderNumber }));
+        // AUTO batches show the LIVE sum of linked WO planned quantities.
+        const quantity = b.quantitySource === 'AUTO'
+          ? linkedWorkOrders.reduce((s, w) => s + (woById.get(w.id)?.plannedQty ?? 0), 0)
+          : b.quantity;
+        return {
+          ...b,
+          quantity,
+          linkedWorkOrders,
+          workOrderIds: woIds,
+          yieldPct: quantity > 0 ? parseFloat(((b.goodQuantity / quantity) * 100).toFixed(1)) : 0,
+          scrapPct: quantity > 0 ? parseFloat(((b.scrapQuantity / quantity) * 100).toFixed(1)) : 0,
+        };
+      }),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  /** Sum of planned quantities of the given work orders (for AUTO batch quantity). */
+  private async sumWorkOrderPlannedQty(factoryId: string | null, woIds: string[]): Promise<number> {
+    if (!woIds.length) return 0;
+    const r = await this.prisma.workOrder.aggregate({
+      where: { id: { in: woIds }, ...(factoryId ? { factoryId } : {}) },
+      _sum: { plannedQty: true },
+    });
+    return Math.round(r._sum.plannedQty ?? 0);
+  }
+
+  async createBatch(factoryId: string, dto: {
+    workOrderId?: string;
+    workOrderIds?: string[];
+    quantitySource?: 'AUTO' | 'MANUAL';
+    skuId?: string;
+    batchNumber: string;
+    lotNumber?: string;
+    quantity?: number;
+    unit?: string;
+    notes?: string;
+  }) {
+    // One-or-more linked WOs (accept the new array, fall back to the legacy single id).
+    const woIds = (dto.workOrderIds?.length ? dto.workOrderIds : (dto.workOrderId ? [dto.workOrderId] : []))
+      .filter(Boolean);
+    const source: 'AUTO' | 'MANUAL' = dto.quantitySource === 'AUTO' ? 'AUTO' : 'MANUAL';
+    // AUTO → quantity is the live sum of the linked WOs' planned quantities.
+    const quantity = source === 'AUTO'
+      ? await this.sumWorkOrderPlannedQty(factoryId, woIds)
+      : (dto.quantity ?? 0);
+
+    return this.prisma.batchRecord.create({
+      data: {
+        factoryId,
+        batchNumber: dto.batchNumber,
+        lotNumber: dto.lotNumber,
+        workOrderId: woIds[0] ?? null,
+        workOrderIds: woIds,
+        quantitySource: source,
+        skuId: dto.skuId,
+        quantity,
+        unit: dto.unit ?? 'CARTON',
+        notes: dto.notes,
+        status: 'ACTIVE',
+      },
+      include: {
+        workOrder: { select: { orderNumber: true } },
+        sku: { select: { name: true, code: true } },
+      },
+    });
+  }
+
+  async updateBatch(factoryId: string | null, id: string, dto: {
+    status?: string;
+    quantity?: number;
+    quantitySource?: 'AUTO' | 'MANUAL';
+    workOrderIds?: string[];
+    goodQuantity?: number;
+    scrapQuantity?: number;
+    notes?: string;
+    lotNumber?: string;
+  }) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const batch = await this.prisma.batchRecord.findFirst({ where: { id, ...factoryFilter } });
+    if (!batch) throw new NotFoundException('Batch record not found');
+
+    // Effective linked WOs + source (use the incoming values, else keep existing).
+    const woIds = dto.workOrderIds !== undefined
+      ? dto.workOrderIds.filter(Boolean)
+      : ((batch.workOrderIds as string[] | null) ?? (batch.workOrderId ? [batch.workOrderId] : []));
+    const source: 'AUTO' | 'MANUAL' = (dto.quantitySource ?? (batch.quantitySource as 'AUTO' | 'MANUAL')) === 'AUTO' ? 'AUTO' : 'MANUAL';
+    // AUTO → recompute live from linked WOs; MANUAL → use the entered value if provided.
+    const quantity = source === 'AUTO'
+      ? await this.sumWorkOrderPlannedQty(factoryId, woIds)
+      : dto.quantity;
+
+    return this.prisma.batchRecord.update({
+      where: { id },
+      data: {
+        ...(dto.status && { status: dto.status as any }),
+        ...(dto.workOrderIds !== undefined && { workOrderIds: woIds, workOrderId: woIds[0] ?? null }),
+        ...(dto.quantitySource !== undefined && { quantitySource: source }),
+        ...(quantity !== undefined && { quantity }),
+        ...(dto.goodQuantity !== undefined && { goodQuantity: dto.goodQuantity }),
+        ...(dto.scrapQuantity !== undefined && { scrapQuantity: dto.scrapQuantity }),
+        ...(dto.notes !== undefined && { notes: dto.notes }),
+        ...(dto.lotNumber !== undefined && { lotNumber: dto.lotNumber }),
+      },
+    });
+  }
+
+  async deleteBatch(factoryId: string | null, id: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const batch = await this.prisma.batchRecord.findFirst({ where: { id, ...factoryFilter } });
+    if (!batch) throw new NotFoundException('Batch record not found');
+    if (batch.status === 'ACTIVE') {
+      throw new BadRequestException('Cannot delete an active batch. Complete or reject it first.');
+    }
+    await this.prisma.batchRecord.delete({ where: { id } });
+  }
+
+  /**
+   * Traceability & genealogy backbone, written at WO completion:
+   *  1. Output BatchRecord (idempotent per WO) with real quantities.
+   *  2. Per job-order step: STEP_COMPLETED TraceEvent carrying the unit flow
+   *     (qtyIn/inUnit → qtyOut/outUnit, machine, cycle time).
+   *  3. Per routing-step input material: MaterialConsumption
+   *     (planned = qtyPerOutputUnit × step planned output; actual scaled by
+   *     the WO's actual/planned ratio), FIFO-linked to the oldest ACTIVE
+   *     MaterialLot of that material code, plus a CONSUMED TraceEvent —
+   *     this is what the Genealogy explorer walks.
+   */
+  private async recordTraceability(
+    wo: { id: string; factoryId: string; orderNumber: string; skuId: string | null; plannedQty: number; actualStart: Date | null },
+    userId: string,
+    actualQty: number,
+    goodQty: number,
+    scrapQty: number,
+    actualEnd: Date,
+  ) {
+    try {
+      const sku = wo.skuId
+        ? await this.prisma.sKU.findUnique({ where: { id: wo.skuId }, select: { baseUnit: true, name: true, itemNumber: true } })
+        : null;
+
+      // 1) Output batch (idempotent)
+      const batchNumber = `BATCH-${wo.orderNumber}`;
+      const batch = await this.prisma.batchRecord.upsert({
+        where: { batchNumber },
+        update: {
+          quantity: Math.round(actualQty),
+          goodQuantity: Math.round(goodQty),
+          scrapQuantity: Math.round(scrapQty),
+          endTime: actualEnd,
+          status: 'COMPLETED',
+        },
+        create: {
+          factoryId: wo.factoryId,
+          workOrderId: wo.id,
+          skuId: wo.skuId,
+          batchNumber,
+          lotNumber: `LOT-${wo.orderNumber}`,
+          status: 'COMPLETED',
+          quantity: Math.round(actualQty),
+          goodQuantity: Math.round(goodQty),
+          scrapQuantity: Math.round(scrapQty),
+          unit: sku?.baseUnit ?? 'CARTON',
+          startTime: wo.actualStart ?? undefined,
+          endTime: actualEnd,
+        },
+      });
+
+      // 2+3) Steps — STEP_COMPLETED trace events + idempotent material consumption
+      const jos = await this.prisma.jobOrder.findMany({
+        where: { workOrderId: wo.id },
+        orderBy: { sequenceOrder: 'asc' },
+        include: {
+          machine: { select: { name: true, code: true } },
+        },
+      });
+
+      for (const jo of jos) {
+        await this.prisma.traceEvent.create({
+          data: {
+            factoryId: wo.factoryId,
+            entityType: 'PROD_WO',
+            entityId: wo.id,
+            entityCode: wo.orderNumber,
+            eventType: 'STEP_COMPLETED',
+            quantity: jo.plannedQtyOut ?? null,
+            eventData: {
+              step: jo.sequenceOrder,
+              operation: jo.operationName,
+              machine: jo.machine?.name ?? null,
+              machineCode: jo.machine?.code ?? null,
+              qtyIn: jo.plannedQtyIn,
+              inUnit: jo.inputUnit,
+              qtyOut: jo.plannedQtyOut,
+              outUnit: jo.outputUnit,
+              cycleTimeSec: jo.idealCycleTimeSec,
+              batchNumber,
+            },
+            performedById: userId,
+            performedAt: actualEnd,
+            relatedType: 'BATCH',
+            relatedId: batch.id,
+          },
+        });
+
+        // Consume this step's materials — idempotent per job order, so steps already
+        // consumed incrementally at their own COMPLETE are skipped (no double-count);
+        // steps never completed individually are consumed here as a fallback.
+        await this.consumeStepMaterials(
+          {
+            id: jo.id, factoryId: wo.factoryId, workOrderId: wo.id,
+            sequenceOrder: jo.sequenceOrder, operationName: jo.operationName,
+            actualQtyGood: jo.actualQtyGood, plannedQtyOut: jo.plannedQtyOut, routingStepId: jo.routingStepId,
+          },
+          userId,
+          { batchId: batch.id, batchNumber, consumedAt: actualEnd },
+        );
+      }
+
+      // Batch-level completion event (genealogy root)
+      await this.prisma.traceEvent.create({
+        data: {
+          factoryId: wo.factoryId,
+          entityType: 'BATCH',
+          entityId: batch.id,
+          entityCode: batchNumber,
+          eventType: 'BATCH_COMPLETED',
+          quantity: actualQty,
+          eventData: {
+            workOrder: wo.orderNumber,
+            sku: sku ? `${sku.itemNumber} ${sku.name}` : null,
+            goodQty,
+            scrapQty,
+            unit: sku?.baseUnit ?? 'CARTON',
+            steps: jos.length,
+          },
+          performedById: userId,
+          performedAt: actualEnd,
+          relatedType: 'PROD_WO',
+          relatedId: wo.id,
+        },
+      });
+    } catch (err) {
+      // Traceability must never block production completion
+      this.logger.error('Failed to record traceability for WO completion', err);
+    }
+  }
+
+  /**
+   * Soft-reserve (direction = 1) or release (direction = -1) the step-material
+   * demand of a work order on RawMaterial.reservedStock, with a RESERVATION /
+   * RELEASE ledger entry per material. Completion releases via consumeMaterialFifo.
+   */
+  private async adjustMaterialReservation(workOrderId: string, direction: 1 | -1, userId: string) {
+    try {
+      const jos = await this.prisma.jobOrder.findMany({
+        where: { workOrderId },
+        include: { routingStep: { include: { materials: true } } },
+      });
+      const round3 = (x: number) => Math.round(x * 1000) / 1000;
+      const demand = new Map<string, number>();
+      for (const jo of jos) {
+        for (const m of jo.routingStep?.materials ?? []) {
+          if (!m.rawMaterialId) continue;
+          demand.set(m.rawMaterialId, (demand.get(m.rawMaterialId) ?? 0) + m.qtyPerOutputUnit * (jo.plannedQtyOut ?? 0));
+        }
+      }
+      for (const [rmId, qty] of demand) {
+        const rm = await this.prisma.rawMaterial.findUnique({ where: { id: rmId } });
+        if (!rm || qty <= 0) continue;
+        const next = direction === 1 ? rm.reservedStock + qty : Math.max(0, rm.reservedStock - qty);
+        await this.prisma.rawMaterial.update({ where: { id: rmId }, data: { reservedStock: round3(next) } });
+        await this.prisma.stockMovement.create({
+          data: {
+            factoryId: rm.factoryId,
+            entityType: 'RAW_MATERIAL',
+            entityId: rm.id,
+            entityCode: rm.code,
+            entityName: rm.name,
+            movementType: direction === 1 ? 'RESERVATION' : 'RELEASE',
+            quantity: direction === 1 ? qty : -qty,
+            stockBefore: rm.currentStock,
+            stockAfter: rm.currentStock, // soft reserve — physical stock unchanged
+            referenceType: 'PRODUCTION_WO',
+            referenceId: workOrderId,
+            performedById: userId,
+            notes: direction === 1 ? 'Soft reservation at WO release' : 'Reservation released (WO cancelled)',
+          },
+        });
+      }
+    } catch (err) {
+      // Reservation is advisory — never block the WO lifecycle
+      this.logger.error('Material reservation adjustment failed', err);
+    }
+  }
+
+  /**
+   * FEFO→FIFO multi-lot consumption engine.
+   * Orders lots by earliest expiry (never expired), then oldest receipt; splits the
+   * demand across as many lots as needed, decrementing each lot's remainingQty
+   * (status → DEPLETED at zero). Writes one MaterialConsumption row PER lot slice
+   * (the genealogy feed), a stock-ledger ISSUE entry, releases the soft reservation,
+   * and raises a LOT_SHORTAGE trace event when lot stock can't cover the demand.
+   */
+  private async consumeMaterialFifo(params: {
+    factoryId: string;
+    workOrderId: string;
+    orderNumber: string;
+    batchId: string | null;
+    batchNumber: string;
+    userId: string | null;
+    consumedAt: Date;
+    material: { rawMaterialId: string | null; materialCode: string | null; name: string; unit: string };
+    step: { sequenceOrder: number; operationName: string };
+    plannedQty: number;
+    actualQty: number;
+    jobOrderId?: string | null;
+  }) {
+    const { factoryId, material } = params;
+    const round3 = (x: number) => Math.round(x * 1000) / 1000;
+
+    const lots = (material.rawMaterialId || material.materialCode)
+      ? await this.prisma.materialLot.findMany({
+          where: {
+            factoryId,
+            status: 'ACTIVE',
+            remainingQty: { gt: 0 },
+            OR: [{ expiryDate: null }, { expiryDate: { gte: params.consumedAt } }],
+            ...(material.rawMaterialId
+              ? { rawMaterialId: material.rawMaterialId }
+              : { materialCode: material.materialCode! }),
+          },
+          orderBy: [{ expiryDate: { sort: 'asc', nulls: 'last' } }, { receivedAt: 'asc' }],
+        })
+      : [];
+
+    // Split demand across lots (FEFO first, FIFO tiebreak)
+    let remaining = round3(params.actualQty);
+    const slices: Array<{ lotId: string | null; lotNumber: string | null; qty: number }> = [];
+    for (const lot of lots) {
+      if (remaining <= 0) break;
+      const take = round3(Math.min(lot.remainingQty, remaining));
+      const left = round3(lot.remainingQty - take);
+      await this.prisma.materialLot.update({
+        where: { id: lot.id },
+        data: { remainingQty: left, ...(left <= 0 && { status: 'DEPLETED' }) },
+      });
+      slices.push({ lotId: lot.id, lotNumber: lot.lotNumber, qty: take });
+      remaining = round3(remaining - take);
+    }
+    const shortage = remaining > 0;
+    if (shortage || slices.length === 0) {
+      // Unlotted remainder still recorded so the ledger stays complete
+      slices.push({ lotId: null, lotNumber: null, qty: round3(Math.max(remaining, 0)) });
+    }
+
+    // One consumption row per lot slice — planned qty distributed pro-rata
+    const totalActual = params.actualQty > 0 ? params.actualQty : 1;
+    for (const slice of slices) {
+      await this.prisma.materialConsumption.create({
+        data: {
+          factoryId,
+          workOrderId: params.workOrderId,
+          batchRecordId: params.batchId,
+          jobOrderId: params.jobOrderId ?? null,
+          materialLotId: slice.lotId,
+          materialCode: material.materialCode ?? material.name,
+          materialName: material.name,
+          quantityPlanned: round3(params.plannedQty * (slice.qty / totalActual)),
+          quantityActual: slice.qty,
+          unit: material.unit,
+          consumedAt: params.consumedAt,
+          consumedById: params.userId,
+        },
+      });
+    }
+
+    // Stock ledger + reservation release on the raw-material master
+    if (material.rawMaterialId) {
+      const rm = await this.prisma.rawMaterial.findUnique({ where: { id: material.rawMaterialId } });
+      if (rm) {
+        const stockBefore = rm.currentStock;
+        const stockAfter = round3(Math.max(0, stockBefore - params.actualQty));
+        await this.prisma.rawMaterial.update({
+          where: { id: rm.id },
+          data: {
+            currentStock: stockAfter,
+            reservedStock: round3(Math.max(0, rm.reservedStock - params.plannedQty)),
+          },
+        });
+        await this.prisma.stockMovement.create({
+          data: {
+            factoryId,
+            entityType: 'RAW_MATERIAL',
+            entityId: rm.id,
+            entityCode: rm.code,
+            entityName: rm.name,
+            movementType: 'CONSUMPTION',
+            quantity: -params.actualQty,
+            unitCost: rm.unitCost,
+            totalCost: rm.unitCost != null ? round3(rm.unitCost * params.actualQty) : null,
+            stockBefore,
+            stockAfter,
+            referenceType: 'PRODUCTION_WO',
+            referenceId: params.workOrderId,
+            referenceNumber: params.orderNumber,
+            performedById: params.userId,
+            notes: `${params.step.operationName} (step ${params.step.sequenceOrder}) → ${params.batchNumber}`,
+          },
+        });
+      }
+    }
+
+    // CONSUMED trace event carrying the full lot split
+    await this.prisma.traceEvent.create({
+      data: {
+        factoryId,
+        entityType: 'RAW_MATERIAL',
+        entityId: material.rawMaterialId ?? material.materialCode ?? material.name,
+        entityCode: material.materialCode ?? material.name,
+        eventType: 'CONSUMED',
+        quantity: round3(params.actualQty),
+        eventData: {
+          material: material.name,
+          unit: material.unit,
+          step: params.step.sequenceOrder,
+          operation: params.step.operationName,
+          lots: slices.map((s) => ({ lotNumber: s.lotNumber, qty: s.qty })),
+          batchNumber: params.batchNumber,
+          workOrder: params.orderNumber,
+        },
+        performedById: params.userId,
+        performedAt: params.consumedAt,
+        relatedType: 'PROD_WO',
+        relatedId: params.workOrderId,
+      },
+    });
+
+    if (shortage) {
+      await this.prisma.traceEvent.create({
+        data: {
+          factoryId,
+          entityType: 'RAW_MATERIAL',
+          entityId: material.rawMaterialId ?? material.materialCode ?? material.name,
+          entityCode: material.materialCode ?? material.name,
+          eventType: 'LOT_SHORTAGE',
+          quantity: round3(remaining),
+          eventData: {
+            material: material.name,
+            unit: material.unit,
+            required: round3(params.actualQty),
+            coveredByLots: round3(params.actualQty - remaining),
+            shortBy: round3(remaining),
+            workOrder: params.orderNumber,
+            batchNumber: params.batchNumber,
+          },
+          performedById: params.userId,
+          performedAt: params.consumedAt,
+          relatedType: 'PROD_WO',
+          relatedId: params.workOrderId,
+        },
+      });
+    }
+  }
+
+  /**
+   * Incremental ("أول بأول") consumption for ONE completed routing step. Consumes
+   * every routing-step material at the step's ACTUAL good output (FEFO/FIFO lot
+   * depletion + raw-material stock + ledger), so stock falls as each step finishes
+   * rather than in one lump at WO completion.
+   *
+   * Idempotent per job order: if this step already has consumption rows it is a
+   * no-op — so the WO-completion pass can safely call it as a fallback for any
+   * step that was never completed individually, with zero double-counting.
+   */
+  async consumeStepMaterials(
+    jo: {
+      id: string; factoryId: string; workOrderId: string;
+      sequenceOrder: number; operationName: string;
+      actualQtyGood: number; plannedQtyOut: number | null; routingStepId: string | null;
+    },
+    userId: string | null,
+    opts?: { batchId?: string | null; batchNumber?: string; consumedAt?: Date },
+  ): Promise<boolean> {
+    try {
+      if (!jo.routingStepId) return false;
+
+      // Idempotency guard — never consume the same step twice.
+      const already = await this.prisma.materialConsumption.count({ where: { jobOrderId: jo.id } });
+      if (already > 0) return false;
+
+      const materials = await this.prisma.routingStepMaterial.findMany({
+        where: { stepId: jo.routingStepId },
+      });
+      if (materials.length === 0) return false;
+
+      const wo = await this.prisma.workOrder.findUnique({
+        where: { id: jo.workOrderId },
+        select: { orderNumber: true },
+      });
+      const orderNumber = wo?.orderNumber ?? jo.workOrderId;
+      const consumedAt = opts?.consumedAt ?? new Date();
+      // Consume against the step's real good output (fallback to planned if 0).
+      const output = jo.actualQtyGood > 0 ? jo.actualQtyGood : (jo.plannedQtyOut ?? 0);
+
+      for (const m of materials) {
+        const plannedQty = m.qtyPerOutputUnit * (jo.plannedQtyOut ?? 0);
+        const actualUsed = m.qtyPerOutputUnit * output;
+        if (actualUsed <= 0) continue;
+        await this.consumeMaterialFifo({
+          factoryId: jo.factoryId,
+          workOrderId: jo.workOrderId,
+          orderNumber,
+          batchId: opts?.batchId ?? null,
+          batchNumber: opts?.batchNumber ?? `BATCH-${orderNumber}`,
+          userId,
+          consumedAt,
+          material: { rawMaterialId: m.rawMaterialId, materialCode: m.materialCode, name: m.name, unit: m.unit },
+          step: { sequenceOrder: jo.sequenceOrder, operationName: jo.operationName },
+          plannedQty,
+          actualQty: actualUsed,
+          jobOrderId: jo.id,
+        });
+      }
+
+      // Let the inventory/raw-material views refresh live as stock falls.
+      this.eventEmitter.emit('inventory.consumption.recorded', {
+        factoryId: jo.factoryId, workOrderId: jo.workOrderId, jobOrderId: jo.id,
+      });
+      return true;
+    } catch (err) {
+      // Consumption must never block the job-order transition.
+      this.logger.error(`consumeStepMaterials failed for JO ${jo.id}`, err as any);
+      return false;
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // PRIVATE HELPERS
+  // ────────────────────────────────────────────────────────────
+
+  private async assertTransition(
+    factoryId: string | null,
+    workOrderId: string,
+    targetStatus: WorkOrderStatus,
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id: workOrderId, ...factoryFilter, deletedAt: null },
+    });
+    if (!wo) throw new NotFoundException('Work order not found');
+
+    const allowed = VALID_TRANSITIONS[wo.status];
+    if (!allowed.includes(targetStatus)) {
+      throw new BadRequestException(
+        `Cannot transition work order from ${wo.status} to ${targetStatus}. Allowed: [${allowed.join(', ')}]`,
+      );
+    }
+    return wo;
+  }
+
+  private async updateMachineStatus(
+    machineId: string,
+    state: string,
+    currentWOId: string | null,
+    currentSKUId: string | null | undefined,
+  ) {
+    try {
+      await this.prisma.machineCurrentStatus.upsert({
+        where: { machineId },
+        create: {
+          machineId,
+          state: state as 'RUNNING' | 'IDLE',
+          currentWOId,
+          currentSKUId: currentSKUId ?? null,
+          goodCount: 0,
+          rejectCount: 0,
+        },
+        update: {
+          state: state as 'RUNNING' | 'IDLE',
+          currentWOId,
+          currentSKUId: currentSKUId ?? null,
+          lastEventAt: new Date(),
+          ...(state === 'IDLE' && { goodCount: 0, rejectCount: 0, downtimeMinutes: 0, runtimeMinutes: 0 }),
+        },
+      });
+    } catch (err) {
+      this.logger.error(`Failed to update machine status for ${machineId}`, err);
+    }
+  }
+
+  private async recordProductionEvent(
+    factoryId: string,
+    workOrderId: string | null,
+    machineId: string | null | undefined,
+    eventType: 'WO_STARTED' | 'WO_COMPLETED' | 'WO_PAUSED' | 'COUNT_UPDATE' | 'SCRAP_RECORDED',
+    value?: number,
+    metadata?: Record<string, unknown>,
+  ) {
+    try {
+      await this.prisma.productionEvent.create({
+        data: {
+          factoryId,
+          workOrderId,
+          machineId: machineId ?? null,
+          eventType,
+          value: value ?? null,
+          metadata: metadata as Prisma.InputJsonValue ?? undefined,
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to record production event', err);
+    }
+  }
+
+  private async calculateAndStoreOEE(
+    wo: {
+      factoryId: string;
+      id: string;
+      skuId: string | null;
+      plannedStart: Date;
+      plannedEnd: Date;
+      actualStart: Date | null;
+      plannedCycleTime: number | null;
+    },
+    totalOutput: number,
+    goodOutput: number,
+    actualEnd: Date,
+  ) {
+    if (!wo.actualStart) return null;
+
+    // Routed WOs carry machines on their job orders, not the header — use the
+    // first routed machine so the machine-grain OEE record is still anchored.
+    const firstJo = await this.prisma.jobOrder.findFirst({
+      where: { workOrderId: wo.id, machineId: { not: null } },
+      orderBy: { sequenceOrder: 'asc' },
+      select: { machineId: true },
+    });
+    const machineId = firstJo?.machineId ?? null;
+    if (!machineId) return null;
+
+    try {
+      const plannedStart = wo.actualStart;
+      const plannedEnd = actualEnd;
+      const plannedMinutes = (plannedEnd.getTime() - plannedStart.getTime()) / 60_000;
+
+      // Calculate downtime during this WO
+      const downtimeEvents = await this.prisma.downtimeEvent.findMany({
+        where: {
+          workOrderId: wo.id,
+          isPlanned: false,
+          endTime: { not: null },
+        },
+      });
+      const downtimeMinutes = downtimeEvents.reduce((s, e) => s + (e.durationMinutes ?? 0), 0);
+
+      const idealCycleTime = wo.plannedCycleTime
+        ? wo.plannedCycleTime / 60   // convert seconds → minutes
+        : null;
+
+      const result = this.oeeService.calculate({
+        plannedProductionTime: plannedMinutes,
+        downtime: downtimeMinutes,
+        idealCycleTime: idealCycleTime ?? (plannedMinutes / (totalOutput || 1)),
+        totalCount: totalOutput,
+        goodCount: goodOutput,
+      });
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      await this.prisma.oEERecord.create({
+        data: {
+          factoryId: wo.factoryId,
+          machineId,
+          recordDate: today,
+          plannedProductionMin: plannedMinutes,
+          actualProductionMin: plannedMinutes - downtimeMinutes,
+          uptimeMin: result.actualRunTime,
+          downtimeMin: downtimeMinutes,
+          totalOutput,
+          goodOutput,
+          scrapOutput: totalOutput - goodOutput,
+          idealCycleTime: idealCycleTime ?? null,
+          availability: result.availability,
+          performance: result.performance,
+          quality: result.quality,
+          oee: result.oee,
+        },
+      });
+
+      // Update work order with OEE values
+      await this.prisma.workOrder.update({
+        where: { id: wo.id },
+        data: {
+          oee: result.oee,
+          availability: result.availability,
+          performance: result.performance,
+          quality: result.quality,
+          downtimeMinutes,
+        },
+      });
+
+      return result;
+    } catch (err) {
+      this.logger.error('Failed to calculate/store OEE', err);
+      return null;
+    }
+  }
+
+  private mapWorkOrder(wo: any) {
+    // Machine scope derives from the routing steps (job orders), not a header machine.
+    const machines = dedupeMachines((wo.jobOrders ?? []).map((jo: any) => jo.machine));
+    return {
+      id: wo.id,
+      orderNumber: wo.orderNumber,
+      poNumber: wo.productionOrder?.orderNumber ?? null,
+      productName: wo.sku?.name ?? '',
+      productCode: wo.sku?.code ?? '',
+      itemNumber: wo.sku?.itemNumber ?? '',
+      status: wo.status,
+      priority: wo.priority,
+      plannedQty: wo.plannedQty,
+      actualQty: wo.actualQty ?? 0,
+      goodQty: wo.goodQty ?? 0,
+      scrapQty: wo.scrapQty ?? 0,
+      reworkQty: wo.reworkQty ?? 0,
+      progress: this.calcProgress(wo),
+      plannedStart: wo.plannedStart.toISOString(),
+      actualStart: wo.actualStart?.toISOString(),
+      plannedEnd: wo.plannedEnd.toISOString(),
+      actualEnd: wo.actualEnd?.toISOString(),
+      // Distinct machines across the routing; `machine`/`machineCode` kept as a
+      // short summary (first step) for backward-compatible callers.
+      machines,
+      machine: machines.length ? (machines.length === 1 ? machines[0].name : `${machines.length} machines`) : '',
+      machineCode: machines[0]?.code ?? '',
+      line: wo.line?.name ?? '',
+      operator: wo.operator?.name ?? '',
+      supervisor: wo.supervisor?.name ?? '',
+      oee: wo.oee,
+      availability: wo.availability,
+      performance: wo.performance,
+      quality: wo.quality,
+    };
+  }
+
+  private calcProgress(wo: { status: string; actualQty: number; plannedQty: number }): number {
+    if (wo.status === 'COMPLETED') return 100;
+    if (wo.status === 'CANCELLED') return 0;
+    if (!wo.actualQty) return 0;
+    return Math.min(Math.round((wo.actualQty / wo.plannedQty) * 100), 100);
+  }
+
+  private async generateOrderNumber(factoryId: string): Promise<string> {
+    const today = new Date();
+    const prefix = `WO-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+
+    const lastOrder = await this.prisma.workOrder.findFirst({
+      where: { factoryId, orderNumber: { startsWith: prefix } },
+      orderBy: { orderNumber: 'desc' },
+    });
+
+    const seq = lastOrder ? parseInt(lastOrder.orderNumber.slice(-4), 10) + 1 : 1;
+    return `${prefix}-${String(seq).padStart(4, '0')}`;
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // JOB ORDERS (ISA-95 Dispatch List — per RoutingStep per WO)
+  // ────────────────────────────────────────────────────────────
+
+  async listAllJobOrders(
+    factoryId: string | null,
+    filters: {
+      status?: string; workOrderId?: string; productionOrderId?: string; machineIds?: string;
+      areaId?: string; lineId?: string; machineId?: string;
+    },
+  ) {
+    // machineIds: comma-separated multi-machine filter from the shop-floor smart filter
+    const machineIdList = (filters.machineIds ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    // Global analysis scope (area/line/machine) → machine ids, intersected with any
+    // explicit machineIds filter so the JO panel respects the active dashboard scope.
+    const scopeIds = await this.kpiService.resolveScopeMachineIds(factoryId, {
+      areaId: filters.areaId, lineId: filters.lineId, machineId: filters.machineId,
+    });
+    let machineFilter: string[] | undefined;
+    if (scopeIds && machineIdList.length) machineFilter = scopeIds.filter((id) => machineIdList.includes(id));
+    else if (scopeIds) machineFilter = scopeIds;
+    else if (machineIdList.length) machineFilter = machineIdList;
+
+    const where: any = {
+      ...(factoryId ? { factoryId } : {}),
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.workOrderId ? { workOrderId: filters.workOrderId } : {}),
+      ...(machineFilter ? { machineId: { in: machineFilter } } : {}),
+      ...(filters.productionOrderId
+        ? { workOrder: { productionOrderId: filters.productionOrderId } }
+        : {}),
+    };
+
+    const jos = await this.prisma.jobOrder.findMany({
+      where,
+      orderBy: [{ workOrderId: 'asc' }, { sequenceOrder: 'asc' }],
+      include: {
+        machine: { select: { id: true, name: true, code: true } },
+        workCenter: { select: { id: true, name: true, code: true } },
+        workOrder: {
+          select: {
+            id: true, orderNumber: true,
+            sku: { select: { name: true, code: true } },
+            productionOrder: { select: { id: true, orderNumber: true } },
+          },
+        },
+        operator: { select: { id: true, name: true, nameAr: true } },
+        predecessor: {
+          select: { id: true, operationName: true, status: true, routingStepId: true, actualStart: true },
+        },
+      },
+    });
+
+    const withDep = await this.attachDepTypes(jos);
+    const withOee = withDep.map((jo) => ({ ...jo, ...this.calcJobOrderOEE(jo) }));
+    return this.attachTimeBasedOEE(withOee);
+  }
+
+  /**
+   * Bulk-attach the SECOND availability method (time-based = Uptime ÷ (Uptime +
+   * Downtime)) and its OEE to a list of job orders, using one batched downtime
+   * query. The classic schedule-based values from calcJobOrderOEE are untouched.
+   */
+  private async attachTimeBasedOEE(jos: any[]): Promise<any[]> {
+    const active = jos.filter((j) => j.machineId && j.actualStart);
+    if (!active.length) {
+      return jos.map((j) => ({ ...j, joAvailabilityTimeBased: null, joOEETimeBased: null }));
+    }
+    const machineIds = [...new Set(active.map((j) => j.machineId))];
+    const earliest = active.reduce((m, j) => Math.min(m, new Date(j.actualStart).getTime()), Date.now());
+    const events = await this.prisma.downtimeEvent.findMany({
+      where: {
+        machineId: { in: machineIds },
+        isPlanned: false,
+        startTime: { lte: new Date() },
+        OR: [{ endTime: null }, { endTime: { gte: new Date(earliest) } }],
+      },
+      select: { machineId: true, startTime: true, endTime: true },
+    });
+    const now = Date.now();
+
+    return jos.map((jo) => {
+      if (!jo.machineId || !jo.actualStart) {
+        return { ...jo, joAvailabilityTimeBased: null, joOEETimeBased: null };
+      }
+      const start = new Date(jo.actualStart).getTime();
+      const end = jo.actualEnd ? new Date(jo.actualEnd).getTime() : now;
+      const operatingMin = Math.max(0, (end - start) / 60_000);
+      let downMin = 0;
+      for (const ev of events) {
+        if (ev.machineId !== jo.machineId) continue;
+        const from = Math.max(ev.startTime.getTime(), start);
+        const to = Math.min((ev.endTime ?? new Date(now)).getTime(), end);
+        if (to > from) downMin += (to - from) / 60_000;
+      }
+      const runMin = Math.max(0, operatingMin - downMin);
+      const availTb = (runMin + downMin) > 0 ? (runMin / (runMin + downMin)) * 100 : null;
+      const joAvailabilityTimeBased = availTb != null ? parseFloat(availTb.toFixed(1)) : null;
+      const joOEETimeBased =
+        availTb != null && jo.joPerformance != null && jo.joQuality != null
+          ? parseFloat(((availTb / 100) * (jo.joPerformance / 100) * (jo.joQuality / 100) * 100).toFixed(1))
+          : availTb != null && jo.joQuality != null
+          ? parseFloat(((availTb / 100) * (jo.joQuality / 100) * 100).toFixed(1))
+          : null;
+      return { ...jo, joAvailabilityTimeBased, joOEETimeBased };
+    });
+  }
+
+  /** Bulk-attach depType to a list of job orders without N+1 queries */
+  private async attachDepTypes(jos: any[]): Promise<any[]> {
+    const pairs = jos
+      .filter((j) => j.routingStepId && j.predecessor?.routingStepId)
+      .map((j) => ({ from: j.predecessor.routingStepId as string, to: j.routingStepId as string }));
+
+    const recs = pairs.length
+      ? await this.prisma.stepDependency.findMany({
+          where: { OR: pairs.map((p) => ({ fromStepId: p.from, toStepId: p.to })) },
+          select: { fromStepId: true, toStepId: true, type: true },
+        })
+      : [];
+
+    const depMap = new Map(recs.map((r) => [`${r.fromStepId}:${r.toStepId}`, r.type as string]));
+
+    return jos.map((jo) => ({
+      ...jo,
+      depType: jo.predecessor?.routingStepId && jo.routingStepId
+        ? (depMap.get(`${jo.predecessor.routingStepId as string}:${jo.routingStepId as string}`) ?? 'FINISH_TO_START')
+        : null,
+    }));
+  }
+
+  async getJobOrders(factoryId: string | null, workOrderId: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id: workOrderId, ...factoryFilter, deletedAt: null },
+    });
+    if (!wo) throw new NotFoundException('Work order not found');
+
+    const jos = await this.prisma.jobOrder.findMany({
+      where: { workOrderId },
+      include: {
+        machine: { select: { name: true, code: true, machineType: true } },
+        workCenter: { select: { name: true, code: true } },
+        routingStep: { select: { stepNumber: true, operationName: true } },
+        materials: true,
+        operator: { select: { id: true, name: true, nameAr: true } },
+        predecessor: {
+          select: { id: true, operationName: true, status: true, routingStepId: true, actualStart: true },
+        },
+        successors: { select: { id: true, operationName: true, status: true } },
+      },
+      orderBy: { sequenceOrder: 'asc' },
+    });
+
+    const withDep = await this.attachDepTypes(jos);
+    return withDep.map((jo) => ({ ...jo, ...this.calcJobOrderOEE(jo) }));
+  }
+
+  async generateJobOrders(
+    factoryId: string | null,
+    workOrderId: string,
+    dto: { plannedStart?: string; plannedEnd?: string; clearExisting?: boolean; assignments?: Array<{ stepId: string; operatorId: string }> },
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    // Per-routing-step operator pre-assignment (chosen in the auto-generate form)
+    const operatorByStep = new Map((dto.assignments ?? []).filter((a) => a.operatorId).map((a) => [a.stepId, a.operatorId]));
+
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id: workOrderId, ...factoryFilter, deletedAt: null },
+      include: {
+        sku: true,
+        productionOrder: { select: { orderNumber: true, unit: true } },
+      },
+    });
+    if (!wo) throw new NotFoundException('Work order not found');
+    if (!wo.skuId) throw new BadRequestException('Work order has no product (SKU) assigned');
+
+    // Resolve manufacturing process for this SKU by scope priority:
+    // 1) PRODUCT (direct)  2) PRODUCT_LIST (membership)
+    // 3) CATEGORY (same category)  4) BASE_WEIGHT (same base weight)
+    const stepsInclude = {
+      routingSteps: {
+        include: {
+          machine: { select: { id: true, name: true, code: true } },
+          workCenterRef: { select: { id: true, name: true, code: true } },
+          // Primary + alternative machines for intelligent allocation
+          machineOptions: {
+            where: { isActive: true },
+            orderBy: { priority: 'asc' as const },
+            include: { machine: { select: { id: true, name: true, code: true, machineType: true } } },
+          },
+          // Typed routing relations (FS/SS/SF/FF + lag) — copied onto job orders
+          predecessors: { select: { fromStepId: true, type: true, lagMins: true } },
+        },
+        orderBy: { stepNumber: 'asc' as const },
+      },
+    };
+    // Canonical scope-chain resolution (PRODUCT → LIST → CATEGORY → BASE_WEIGHT)
+    // — the process's covered product ids are the single source of truth.
+    const process = await findProcessForSku<
+      Prisma.ManufacturingProcessGetPayload<{ include: typeof stepsInclude }>
+    >(this.prisma, factoryId, wo.skuId, stepsInclude);
+
+    if (!process || process.routingSteps.length === 0) {
+      throw new BadRequestException(
+        'No active manufacturing process with routing steps found for this product. ' +
+        'Configure a Manufacturing Process first.',
+      );
+    }
+
+    const resolvedFactoryId = factoryId ?? wo.factoryId;
+
+    if (dto.clearExisting) {
+      await this.prisma.jobOrder.deleteMany({ where: { workOrderId } });
+    } else {
+      const existing = await this.prisma.jobOrder.count({ where: { workOrderId } });
+      if (existing > 0) {
+        throw new BadRequestException(
+          `Work order already has ${existing} job orders. ` +
+          'Pass clearExisting:true to regenerate.',
+        );
+      }
+    }
+
+    // Compute time window for distributing JOs
+    const startMs = dto.plannedStart
+      ? new Date(dto.plannedStart).getTime()
+      : wo.plannedStart.getTime();
+    const endMs = dto.plannedEnd
+      ? new Date(dto.plannedEnd).getTime()
+      : wo.plannedEnd.getTime();
+    const steps = process.routingSteps;
+    const slotMs = steps.length > 0 ? (endMs - startMs) / steps.length : 0;
+
+    // Packaging specs for unit-flow calculation
+    const skuPkg = {
+      unitsPerInner: wo.sku?.unitsPerInner ?? 1,
+      innersPerCarton: wo.sku?.innersPerCarton ?? 1,
+      cartonsPerPallet: wo.sku?.cartonsPerPallet ?? 1,
+    };
+    const ppc = Math.max(1, skuPkg.unitsPerInner * skuPkg.innersPerCarton);
+    const poUnit = (wo.productionOrder as any)?.unit ?? 'PIECE';
+    // Normalise WO.plannedQty to PIECE base
+    let prevOutputQty: number = poUnit === 'CARTON' ? wo.plannedQty * ppc
+      : poUnit === 'PALLET' ? wo.plannedQty * ppc * skuPkg.cartonsPerPallet
+      : wo.plannedQty;
+    let prevOutputUnit = 'PIECE';
+
+    const created: any[] = [];
+    let prevId: string | null = null;
+    const stepToJo = new Map<string, string>(); // routingStepId → created JO id
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+
+      // Routing-defined predecessor (typed FS/SS/SF/FF + lag); falls back to
+      // the sequential chain when the routing has no dependency rows.
+      const routedDep = step.predecessors?.find((d) => stepToJo.has(d.fromStepId));
+      const predecessorId = routedDep ? stepToJo.get(routedDep.fromStepId)! : prevId;
+      const predecessorType = routedDep?.type ?? 'FINISH_TO_START';
+      const predecessorLagMins = routedDep?.lagMins ?? 0;
+
+      const jPlannedStart = new Date(startMs + i * slotMs);
+      const jPlannedEnd = new Date(startMs + (i + 1) * slotMs);
+
+      // Unit flow: the routing step's explicit In/Out units win;
+      // the operation-name heuristic is only a fallback for legacy routings.
+      const inputUnit  = step.inUnit ?? prevOutputUnit;
+      const outputUnit = step.outUnit ?? this.resolveStepOutputUnit(step.operationName, inputUnit);
+      const inputQty   = this.convertUnits(prevOutputQty, prevOutputUnit, inputUnit, skuPkg);
+      const outputQty  = this.convertUnits(inputQty, inputUnit, outputUnit, skuPkg);
+
+      // Intelligent allocation: default machine if idle in the window,
+      // otherwise the earliest-finishing ready alternative.
+      const pick = await this.pickStepMachine(step as any, factoryId, jPlannedStart, jPlannedEnd, outputQty);
+      const resolvedMachineId = pick.machineId;
+
+      // Look up ideal cycle time for this machine × product
+      const cycleTime = resolvedMachineId
+        ? await this.prisma.machineCycleTime.findFirst({
+            where: { machineId: resolvedMachineId, skuId: wo.skuId, isActive: true },
+          })
+        : null;
+
+      // Per-machine cycle override (alternative may run slower) wins, then the
+      // routing step seconds (THE reference), machine×SKU table, legacy minutes.
+      const idealCycleTimeSec: number | null = pick.cycleOverrideSec
+        ?? step.cycleTimeSec
+        ?? cycleTime?.cycleTimeSeconds
+        ?? (step.cycleTimeMins != null ? step.cycleTimeMins * 60 : null);
+
+      const jo: Record<string, unknown> = await this.prisma.jobOrder.create({
+        data: {
+          factoryId: resolvedFactoryId,
+          workOrderId,
+          routingStepId: step.id,
+          machineId: resolvedMachineId,
+          workCenterId: step.workCenterId ?? null,
+          sequenceOrder: step.stepNumber,
+          operationName: step.operationName,
+          status: i === 0 ? 'READY' : 'SCHEDULED',
+          predecessorId,
+          predecessorType: predecessorType as any,
+          predecessorLagMins,
+          plannedStart: jPlannedStart,
+          plannedEnd: jPlannedEnd,
+          plannedQtyIn: inputQty,
+          plannedQtyOut: outputQty,
+          inputUnit,
+          outputUnit,
+          idealCycleTimeSec,
+          assignmentReason: pick.reason,
+          operatorId: operatorByStep.get(step.id) ?? null,
+        },
+        include: {
+          machine: { select: { name: true, code: true } },
+          workCenter: { select: { name: true, code: true } },
+        },
+      });
+
+      prevOutputUnit = outputUnit;
+      prevOutputQty  = outputQty;
+      created.push(jo);
+      prevId = jo['id'] as string;
+      stepToJo.set(step.id, prevId);
+    }
+
+    this.logger.log(
+      `Generated ${created.length} job orders for WO ${wo.orderNumber} ` +
+      `(Process: ${process.name} v${process.version})`,
+    );
+
+    // Recalculate the plan for THIS work order only: finite-capacity forward
+    // scheduling honouring FS/SS/SF/FF (SS = synchronized line, bottleneck end)
+    // around the other open jobs' existing windows.
+    let scheduled = 0;
+    try {
+      const res = await this.apsService.runSchedule(resolvedFactoryId, {
+        workOrderId,
+        startFrom: dto.plannedStart ?? wo.plannedStart.toISOString(),
+      });
+      scheduled = res.scheduled ?? 0;
+    } catch (err) {
+      this.logger.warn(`Scoped APS recalculation skipped for WO ${wo.orderNumber}: ${(err as any)?.message}`);
+    }
+
+    // Return the freshly scheduled windows
+    const jobOrders = scheduled > 0
+      ? await this.prisma.jobOrder.findMany({
+          where: { workOrderId },
+          orderBy: { sequenceOrder: 'asc' },
+          include: {
+            machine: { select: { name: true, code: true } },
+            workCenter: { select: { name: true, code: true } },
+          },
+        })
+      : created;
+
+    return {
+      created: created.length,
+      scheduled,
+      jobOrders,
+      process: { name: process.name, version: process.version },
+    };
+  }
+
+  /**
+   * Per-step machine recommendation preview for a work order: every candidate
+   * (default + alternatives) ranked by earliest finish (wait + setup + run),
+   * with busy-until visibility — lets the UI show "M3 busy until 14:20 →
+   * recommended: M4 (ready now)" before committing a (re)generation.
+   */
+  async recommendMachines(factoryId: string | null, workOrderId: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id: workOrderId, ...factoryFilter, deletedAt: null },
+      select: { id: true, orderNumber: true, plannedStart: true, plannedEnd: true },
+    });
+    if (!wo) throw new NotFoundException('Work order not found');
+
+    const jos = await this.prisma.jobOrder.findMany({
+      where: { workOrderId },
+      orderBy: { sequenceOrder: 'asc' },
+      include: {
+        machine: { select: { id: true, code: true, name: true } },
+        routingStep: {
+          include: {
+            machineOptions: {
+              where: { isActive: true },
+              orderBy: { priority: 'asc' },
+              include: { machine: { select: { id: true, code: true, name: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    const steps = [] as any[];
+    for (const jo of jos) {
+      const from = jo.plannedStart ?? wo.plannedStart;
+      const to = jo.plannedEnd ?? wo.plannedEnd;
+      const options = jo.routingStep?.machineOptions ?? [];
+      const candidates = await Promise.all(options.map(async (o) => {
+        const cycleSec = o.cycleTimeSec ?? jo.routingStep?.cycleTimeSec ?? jo.idealCycleTimeSec ?? 60;
+        const runMs = (jo.plannedQtyOut ?? 0) * cycleSec * 1000;
+        const busyUntil = await this.machineBusyUntil(o.machineId, from, to);
+        const waitMs = busyUntil ? Math.max(0, busyUntil.getTime() - from.getTime()) : 0;
+        const setupMs = (o.setupTimeMins ?? 0) * 60_000;
+        return {
+          machineId: o.machineId,
+          machineCode: o.machine.code,
+          machineName: o.machine.name,
+          isDefault: o.isDefault,
+          priority: o.priority,
+          cycleTimeSec: cycleSec,
+          busyUntil,
+          waitMins: Math.round(waitMs / 60_000),
+          estFinish: new Date(from.getTime() + waitMs + setupMs + runMs),
+          score: waitMs + setupMs + runMs,
+        };
+      }));
+      candidates.sort((a, b) => a.score - b.score);
+      steps.push({
+        jobOrderId: jo.id,
+        step: jo.sequenceOrder,
+        operation: jo.operationName,
+        assignedMachine: jo.machine,
+        assignmentReason: jo.assignmentReason,
+        recommended: candidates[0] ?? null,
+        candidates,
+      });
+    }
+    return { workOrder: { id: wo.id, orderNumber: wo.orderNumber }, steps };
+  }
+
+  async updateJobOrderStatus(
+    factoryId: string | null,
+    jobOrderId: string,
+    status: string,
+    dto: { actualQtyGood?: number; actualQtyRejected?: number; handoverQty?: number; notes?: string },
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const jo = await this.prisma.jobOrder.findFirst({
+      where: { id: jobOrderId, ...factoryFilter },
+      include: {
+        predecessor: {
+          select: {
+            id: true, operationName: true, status: true,
+            routingStepId: true, actualStart: true,
+          },
+        },
+      },
+    });
+    if (!jo) throw new NotFoundException('Job order not found');
+
+    const VALID_JO_TRANSITIONS: Record<string, string[]> = {
+      SCHEDULED: ['READY', 'CANCELLED'],
+      READY:     ['EXECUTING', 'CANCELLED'],
+      EXECUTING: ['PAUSED', 'COMPLETE', 'CANCELLED'],
+      PAUSED:    ['EXECUTING', 'CANCELLED'],
+      COMPLETE:  [],
+      CANCELLED: [],
+    };
+
+    const allowed = VALID_JO_TRANSITIONS[jo.status] ?? [];
+    if (!allowed.includes(status)) {
+      throw new BadRequestException(
+        `Cannot transition job order from ${jo.status} to ${status}. ` +
+        `Allowed: [${allowed.join(', ')}]`,
+      );
+    }
+
+    // ── Dependency-aware start validation (→ EXECUTING) ──────────────────
+    if (status === 'EXECUTING' && (jo as any).predecessor) {
+      const pred = (jo as any).predecessor;
+      const dep = await this.lookupDepType(pred.routingStepId, jo.routingStepId);
+
+      if (dep === 'FINISH_TO_START' && pred.status !== 'COMPLETE') {
+        throw new BadRequestException(
+          `FS dependency: "${pred.operationName}" must FINISH before "${jo.operationName}" can start.`,
+        );
+      }
+      if (dep === 'START_TO_START' && !['EXECUTING', 'COMPLETE'].includes(pred.status)) {
+        throw new BadRequestException(
+          `SS dependency: "${pred.operationName}" must START before "${jo.operationName}" can start.`,
+        );
+      }
+      // SF and FF impose NO start restriction — B can start independently
+    }
+
+    // ── Dependency-aware complete validation (→ COMPLETE) ────────────────
+    if (status === 'COMPLETE' && (jo as any).predecessor) {
+      const pred = (jo as any).predecessor;
+      const dep = await this.lookupDepType(pred.routingStepId, jo.routingStepId);
+
+      if (dep === 'FINISH_TO_FINISH' && pred.status !== 'COMPLETE') {
+        throw new BadRequestException(
+          `FF dependency: "${pred.operationName}" must FINISH before "${jo.operationName}" can complete.`,
+        );
+      }
+      if (dep === 'START_TO_FINISH' && !pred.actualStart) {
+        throw new BadRequestException(
+          `SF dependency: "${pred.operationName}" must START before "${jo.operationName}" can complete.`,
+        );
+      }
+    }
+
+    const updated = await this.prisma.jobOrder.update({
+      where: { id: jobOrderId },
+      data: {
+        status: status as any,
+        ...(dto.notes !== undefined && { notes: dto.notes }),
+        ...(status === 'EXECUTING' && !jo.actualStart && { actualStart: new Date() }),
+        ...(status === 'COMPLETE' && {
+          actualEnd: new Date(),
+          // auto-set handoverQty so successor step receives the right qty
+          handoverQty: dto.handoverQty ?? dto.actualQtyGood ?? (jo as any).plannedQtyOut ?? 0,
+        }),
+        ...(dto.actualQtyGood !== undefined && { actualQtyGood: dto.actualQtyGood }),
+        ...(dto.actualQtyRejected !== undefined && { actualQtyRejected: dto.actualQtyRejected }),
+        ...(dto.handoverQty !== undefined && { handoverQty: dto.handoverQty }),
+      },
+    });
+
+    // Keep the machine state + live snapshot consistent with the JO it runs
+    if (jo.machineId) {
+      await this.syncMachineStateWithJobOrder(jo.factoryId, jo.machineId, status, jo.workOrderId, jo.actualStart ?? updated.actualStart);
+    }
+
+    // Incremental ("أول بأول") material consumption when a routing step finishes:
+    // deplete this step's materials/lots now, not in one lump at WO completion.
+    if (status === 'COMPLETE') {
+      await this.consumeStepMaterials({
+        id: updated.id,
+        factoryId: updated.factoryId,
+        workOrderId: updated.workOrderId,
+        sequenceOrder: updated.sequenceOrder,
+        operationName: updated.operationName,
+        actualQtyGood: updated.actualQtyGood,
+        plannedQtyOut: updated.plannedQtyOut,
+        routingStepId: updated.routingStepId,
+      }, null);
+    }
+
+    // ── Auto-promote successors based on their dep type ───────────────────
+    const successors = await this.prisma.jobOrder.findMany({
+      where: { predecessorId: jobOrderId, status: 'SCHEDULED' },
+    });
+
+    for (const succ of successors) {
+      const dep = await this.lookupDepType(jo.routingStepId, succ.routingStepId);
+      let shouldPromote = false;
+
+      // FS: promote on predecessor COMPLETE
+      if (status === 'COMPLETE' && dep === 'FINISH_TO_START') shouldPromote = true;
+      // SS: promote on predecessor EXECUTING (parallel start!)
+      if (status === 'EXECUTING' && dep === 'START_TO_START') shouldPromote = true;
+      // FF: B can start anytime → promote immediately on first transition of predecessor
+      if (dep === 'FINISH_TO_FINISH' && ['EXECUTING', 'COMPLETE'].includes(status)) shouldPromote = true;
+      // SF: B must start before A → promote immediately (unusual ordering)
+      if (dep === 'START_TO_FINISH') shouldPromote = true;
+
+      if (shouldPromote) {
+        const transferQty = dto.handoverQty ?? updated.actualQtyGood ?? 0;
+        if (transferQty >= (succ.handoverCriteria ?? 0)) {
+          await this.prisma.jobOrder.update({ where: { id: succ.id }, data: { status: 'READY' } });
+          this.logger.log(`[${dep}] "${succ.operationName}" promoted READY after "${jo.operationName}" → ${status}`);
+        }
+      }
+    }
+
+    // Timeline event for the live dashboard (start / pause / resume / complete)
+    const evType =
+      status === 'EXECUTING' ? (jo.status === 'PAUSED' ? 'DOWNTIME_END' : 'WO_STARTED')
+      : status === 'PAUSED' ? 'WO_PAUSED'
+      : status === 'COMPLETE' ? 'WO_COMPLETED'
+      : null;
+    if (evType) {
+      await this.prisma.productionEvent.create({
+        data: {
+          factoryId: jo.factoryId,
+          workOrderId: jo.workOrderId,
+          machineId: jo.machineId,
+          eventType: evType as any,
+          value: updated.actualQtyGood,
+          metadata: { jobOrderId: jo.id, joStatus: status, operationName: jo.operationName },
+        },
+      }).catch(() => undefined);
+    }
+
+    // Roll up live OEE + propagate WO/PO status & broadcast
+    await this.kpiService.propagateFromJobOrder(jobOrderId);
+
+    return updated;
+  }
+
+  /** Report actual output quantities for an EXECUTING or COMPLETE job order.
+   *  Does NOT change the status — pure qty update so operators can log partial progress. */
+  async reportJobOrderOutput(
+    factoryId: string | null,
+    jobOrderId: string,
+    dto: {
+      actualQtyGood: number;
+      actualQtyRejected?: number;
+      scrapReason?: string;
+      scrapCategory?: string;
+    },
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const jo = await this.prisma.jobOrder.findFirst({ where: { id: jobOrderId, ...factoryFilter } });
+    if (!jo) throw new NotFoundException('Job order not found');
+    if (!['EXECUTING', 'PAUSED', 'COMPLETE'].includes(jo.status)) {
+      throw new BadRequestException(
+        `Can only report output for EXECUTING, PAUSED, or COMPLETE job orders (current: ${jo.status})`,
+      );
+    }
+
+    const newRejected = dto.actualQtyRejected ?? jo.actualQtyRejected;
+    const delta = Math.max(0, newRejected - jo.actualQtyRejected);
+    const goodDelta = dto.actualQtyGood - jo.actualQtyGood;
+
+    const updated = await this.prisma.jobOrder.update({
+      where: { id: jobOrderId },
+      data: {
+        actualQtyGood: dto.actualQtyGood,
+        actualQtyRejected: newRejected,
+        ...(dto.scrapReason !== undefined && { scrapReason: dto.scrapReason }),
+      },
+    });
+
+    // Real time-series for the live dashboard: every count report becomes a
+    // COUNT_UPDATE production event (cumulative totals in metadata).
+    if (goodDelta !== 0 || delta > 0) {
+      const shiftId = await this.resolveActiveShiftId(jo.factoryId, jo.machineId);
+      await this.prisma.productionEvent.create({
+        data: {
+          factoryId: jo.factoryId,
+          workOrderId: jo.workOrderId,
+          machineId: jo.machineId,
+          shiftId,
+          eventType: 'COUNT_UPDATE',
+          value: goodDelta,
+          metadata: {
+            jobOrderId: jo.id,
+            good: dto.actualQtyGood,
+            rejected: newRejected,
+            goodDelta,
+            scrapDelta: delta,
+          },
+        },
+      }).catch(() => undefined);
+    }
+
+    // Create audit trail entry whenever new scrap is added
+    if (delta > 0) {
+      const validCategories = ['QUALITY','SETUP','DAMAGE','OVERRUN','MATERIAL','MACHINE','OPERATOR','OTHER'];
+      const category = (validCategories.includes(dto.scrapCategory ?? '') ? dto.scrapCategory : 'OTHER') as any;
+      await this.prisma.scrapLog.create({
+        data: {
+          factoryId: jo.factoryId,
+          workOrderId: jo.workOrderId,
+          jobOrderId: jo.id,
+          operatorId: jo.operatorId ?? null,
+          qty: delta,
+          reason: dto.scrapReason || 'Not specified',
+          category,
+        },
+      });
+    }
+
+    // Roll up live OEE from the new counts + propagate
+    await this.kpiService.propagateFromJobOrder(jobOrderId);
+
+    return updated;
+  }
+
+  /** The shift instance covering this machine's line right now: IN_PROGRESS first, else today's. */
+  private async resolveActiveShiftId(factoryId: string, machineId: string | null): Promise<string | null> {
+    const lineId = machineId
+      ? (await this.prisma.machine.findUnique({ where: { id: machineId }, select: { lineId: true } }).catch(() => null))?.lineId ?? null
+      : null;
+    const lineWhere = lineId ? { OR: [{ lineId }, { lineId: null }] } : {};
+    const inProgress = await this.prisma.shiftInstance.findFirst({
+      where: { factoryId, status: 'IN_PROGRESS', ...lineWhere },
+      orderBy: { startTime: 'desc' }, select: { id: true },
+    }).catch(() => null);
+    if (inProgress) return inProgress.id;
+    // Fallback: today's planned/active instance (operators may not have pressed Start).
+    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+    const today = await this.prisma.shiftInstance.findFirst({
+      where: { factoryId, shiftDate: { gte: dayStart }, ...lineWhere },
+      orderBy: { startTime: 'desc' }, select: { id: true },
+    }).catch(() => null);
+    return today?.id ?? null;
+  }
+
+  /**
+   * Smart incremental count entry from the shop-floor card. Each call ADDS to the
+   * running totals (never replaces): goodDelta increments good output, scrapDelta
+   * increments rejected (bad) qty AND creates a ScrapLog entry (so quality drops
+   * accordingly). handoverQty is the operator-controlled quantity passed to the
+   * next step. Every entry is journalled as a COUNT_UPDATE production event.
+   */
+  async addJobOrderCount(
+    factoryId: string | null,
+    jobOrderId: string,
+    dto: {
+      goodDelta?: number;
+      scrapDelta?: number;
+      scrapReason?: string;
+      scrapCategory?: string;
+      handoverQty?: number;
+    },
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const jo = await this.prisma.jobOrder.findFirst({ where: { id: jobOrderId, ...factoryFilter } });
+    if (!jo) throw new NotFoundException('Job order not found');
+    if (!['EXECUTING', 'PAUSED', 'COMPLETE'].includes(jo.status)) {
+      throw new BadRequestException(
+        `Can only record counts for EXECUTING, PAUSED or COMPLETE job orders (current: ${jo.status})`,
+      );
+    }
+
+    const goodDelta = Math.max(0, dto.goodDelta ?? 0);
+    const scrapDelta = Math.max(0, dto.scrapDelta ?? 0);
+    if (goodDelta === 0 && scrapDelta === 0 && dto.handoverQty === undefined) {
+      throw new BadRequestException('Nothing to record — provide a good, scrap or handover quantity.');
+    }
+
+    const newGood = jo.actualQtyGood + goodDelta;
+    const newRejected = jo.actualQtyRejected + scrapDelta;
+    // Handover defaults to "all good so far" but is operator-overridable; never exceeds good output.
+    let handoverQty = jo.handoverQty;
+    if (dto.handoverQty !== undefined) {
+      handoverQty = Math.max(0, Math.min(dto.handoverQty, newGood));
+    }
+
+    const updated = await this.prisma.jobOrder.update({
+      where: { id: jobOrderId },
+      data: {
+        actualQtyGood: newGood,
+        actualQtyRejected: newRejected,
+        // Track the manual portion separately so the gateway counter never overwrites it.
+        manualQtyGood: { increment: goodDelta },
+        manualQtyRejected: { increment: scrapDelta },
+        ...(dto.handoverQty !== undefined && { handoverQty }),
+        ...(dto.scrapReason !== undefined && scrapDelta > 0 && { scrapReason: dto.scrapReason }),
+      },
+    });
+
+    // Each scrap increment is a real ScrapLog row (drives Quality & Scrap analysis)
+    if (scrapDelta > 0) {
+      const validCategories = ['QUALITY', 'SETUP', 'DAMAGE', 'OVERRUN', 'MATERIAL', 'MACHINE', 'OPERATOR', 'OTHER'];
+      const category = (validCategories.includes(dto.scrapCategory ?? '') ? dto.scrapCategory : 'OTHER') as any;
+      await this.prisma.scrapLog.create({
+        data: {
+          factoryId: jo.factoryId,
+          workOrderId: jo.workOrderId,
+          jobOrderId: jo.id,
+          operatorId: jo.operatorId ?? null,
+          qty: scrapDelta,
+          reason: dto.scrapReason || 'Not specified',
+          category,
+        },
+      });
+    }
+
+    // Journal the increment for the live time-series (production-over-time / rejects),
+    // attributed to the active shift so per-shift production is queryable.
+    if (goodDelta > 0 || scrapDelta > 0) {
+      const shiftId = await this.resolveActiveShiftId(jo.factoryId, jo.machineId);
+      await this.prisma.productionEvent.create({
+        data: {
+          factoryId: jo.factoryId,
+          workOrderId: jo.workOrderId,
+          machineId: jo.machineId,
+          shiftId,
+          eventType: 'COUNT_UPDATE',
+          value: goodDelta,
+          metadata: { jobOrderId: jo.id, good: newGood, rejected: newRejected, goodDelta, scrapDelta },
+        },
+      }).catch(() => undefined);
+    }
+
+    // Roll up live OEE (good/scrap changed → quality changes) + propagate + historian
+    await this.kpiService.propagateFromJobOrder(jobOrderId);
+    await this.historian.sampleActiveJobOrders().catch(() => undefined);
+
+    return updated;
+  }
+
+  async listScrapLogs(
+    factoryId: string | null,
+    filters: { workOrderId?: string; jobOrderId?: string; category?: string; from?: string; to?: string; limit?: number },
+  ) {
+    const where: any = {
+      ...(factoryId ? { factoryId } : {}),
+      ...(filters.workOrderId ? { workOrderId: filters.workOrderId } : {}),
+      ...(filters.jobOrderId  ? { jobOrderId: filters.jobOrderId }   : {}),
+      ...(filters.category    ? { category: filters.category }        : {}),
+      ...((filters.from || filters.to) ? {
+        createdAt: {
+          ...(filters.from ? { gte: new Date(filters.from) } : {}),
+          ...(filters.to   ? { lte: new Date(filters.to)   } : {}),
+        },
+      } : {}),
+    };
+
+    return this.prisma.scrapLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(filters.limit ?? 200, 500),
+      include: {
+        jobOrder:  { select: { operationName: true, sequenceOrder: true, outputUnit: true } },
+        workOrder: { select: { orderNumber: true, sku: { select: { name: true, code: true } } } },
+        operator:  { select: { name: true } },
+      },
+    });
+  }
+
+  async assignJobOrderOperator(
+    factoryId: string | null,
+    jobOrderId: string,
+    operatorId: string | null,
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const jo = await this.prisma.jobOrder.findFirst({ where: { id: jobOrderId, ...factoryFilter } });
+    if (!jo) throw new NotFoundException('Job order not found');
+
+    if (operatorId) {
+      const user = await this.prisma.user.findUnique({ where: { id: operatorId } });
+      if (!user) throw new NotFoundException('Operator not found');
+    }
+
+    return this.prisma.jobOrder.update({
+      where: { id: jobOrderId },
+      data: { operatorId },
+      include: { operator: { select: { id: true, name: true, nameAr: true } } },
+    });
+  }
+
+  /**
+   * Keep MachineCurrentStatus + the MachineStateRecord timeline aligned with the
+   * job order actually running on the machine. Called on every JO transition so the
+   * shop-floor card, the live dashboard and the machine-status strip never disagree:
+   *   EXECUTING → RUNNING (open a RUNNING record from the JO start)
+   *   PAUSED    → IDLE    (close the open record)
+   *   COMPLETE / CANCELLED → IDLE unless another JO is still EXECUTING here
+   * Down states (BREAKDOWN/SETUP/…) are owned by DowntimeService.setMachineState and
+   * left untouched here.
+   */
+  private async syncMachineStateWithJobOrder(
+    factoryId: string,
+    machineId: string,
+    joStatus: string,
+    workOrderId: string,
+    joStart?: Date | null,
+  ) {
+    try {
+      const DOWN = new Set(['BREAKDOWN', 'PLANNED_STOP', 'SETUP', 'CHANGEOVER', 'STARVED', 'BLOCKED', 'MAINTENANCE']);
+      const current = await this.prisma.machineCurrentStatus.findUnique({ where: { machineId } });
+      // Don't override an operator-declared downtime — that's resolved via setMachineState.
+      if (current && DOWN.has(current.state as string)) return;
+
+      let target: string | null = null;
+      if (joStatus === 'EXECUTING') target = 'RUNNING';
+      else if (joStatus === 'PAUSED') target = 'IDLE';
+      else if (joStatus === 'COMPLETE' || joStatus === 'CANCELLED') {
+        const stillRunning = await this.prisma.jobOrder.count({
+          where: { machineId, status: 'EXECUTING', id: { not: undefined } },
+        });
+        target = stillRunning > 0 ? 'RUNNING' : 'IDLE';
+      }
+      if (!target) return;
+      if (current?.state === target) {
+        // Still ensure a RUNNING record is open while executing
+        if (target !== 'RUNNING') return;
+      }
+
+      const now = new Date();
+      // Close any open state record
+      const open = await this.prisma.machineStateRecord.findFirst({
+        where: { machineId, endTime: null },
+        orderBy: { startTime: 'desc' },
+      });
+      if (open && open.state !== target) {
+        await this.prisma.machineStateRecord.update({
+          where: { id: open.id },
+          data: { endTime: now, durationMinutes: (now.getTime() - open.startTime.getTime()) / 60_000 },
+        });
+      }
+      // Open a new record for the target state (RUNNING anchored to the JO start)
+      if (!open || open.state !== target) {
+        await this.prisma.machineStateRecord.create({
+          data: {
+            factoryId,
+            machineId,
+            state: target as any,
+            startTime: target === 'RUNNING' && joStart ? joStart : now,
+            workOrderId,
+            isPlannedStop: false,
+            source: 'SYSTEM',
+          },
+        });
+      }
+      await this.prisma.machineCurrentStatus.upsert({
+        where: { machineId },
+        create: { machineId, state: target as any, currentWOId: target === 'RUNNING' ? workOrderId : null, lastEventAt: now },
+        update: { state: target as any, currentWOId: target === 'RUNNING' ? workOrderId : null, lastEventAt: now },
+      });
+    } catch (err) {
+      this.logger.error('syncMachineStateWithJobOrder failed', err as any);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // OEE PER JOB ORDER
+  // ────────────────────────────────────────────────────────────
+
+  private calcJobOrderOEE(jo: any): {
+    joQuality: number | null;
+    joPerformance: number | null;
+    joAvailability: number | null;
+    joOEE: number | null;
+  } {
+    const totalProduced = (jo.actualQtyGood ?? 0) + (jo.actualQtyRejected ?? 0);
+
+    // Quality
+    const joQuality: number | null =
+      totalProduced > 0
+        ? parseFloat(((jo.actualQtyGood / totalProduced) * 100).toFixed(1))
+        : null;
+
+    // Operating time in seconds
+    let operatingTimeSec: number | null = null;
+    if (jo.actualStart) {
+      const startMs = new Date(jo.actualStart).getTime();
+      const endMs   = jo.actualEnd ? new Date(jo.actualEnd).getTime() : Date.now();
+      operatingTimeSec = (endMs - startMs) / 1000;
+    }
+
+    // Performance: only if idealCycleTimeSec > 0 and operatingTimeSec > 0
+    let joPerformance: number | null = null;
+    if (
+      jo.idealCycleTimeSec != null &&
+      jo.idealCycleTimeSec > 0 &&
+      operatingTimeSec != null &&
+      operatingTimeSec > 0
+    ) {
+      const raw = ((jo.idealCycleTimeSec * totalProduced) / operatingTimeSec) * 100;
+      joPerformance = parseFloat(Math.min(100, raw).toFixed(1));
+    }
+
+    // Availability: only if plannedStart and plannedEnd exist
+    let joAvailability: number | null = null;
+    if (jo.plannedStart && jo.plannedEnd && operatingTimeSec != null) {
+      const plannedDurationSec =
+        (new Date(jo.plannedEnd).getTime() - new Date(jo.plannedStart).getTime()) / 1000;
+      if (plannedDurationSec > 0) {
+        const raw = (operatingTimeSec / plannedDurationSec) * 100;
+        joAvailability = parseFloat(Math.min(100, raw).toFixed(1));
+      }
+    }
+
+    // OEE
+    let joOEE: number | null = null;
+    if (joAvailability != null && joPerformance != null && joQuality != null) {
+      joOEE = parseFloat(
+        ((joAvailability / 100) * (joPerformance / 100) * (joQuality / 100) * 100).toFixed(1),
+      );
+    } else if (joQuality != null) {
+      joOEE = joQuality;
+    }
+
+    return { joQuality, joPerformance, joAvailability, joOEE };
+  }
+
+  async deleteJobOrders(factoryId: string | null, workOrderId: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { id: workOrderId, ...factoryFilter, deletedAt: null },
+    });
+    if (!wo) throw new NotFoundException('Work order not found');
+
+    const active = await this.prisma.jobOrder.count({
+      where: { workOrderId, status: { in: ['EXECUTING', 'PAUSED'] } },
+    });
+    if (active > 0) {
+      throw new ConflictException('Cannot delete job orders while any are EXECUTING or PAUSED.');
+    }
+
+    const { count } = await this.prisma.jobOrder.deleteMany({ where: { workOrderId } });
+    return { deleted: count };
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // JOB ORDER LIVE DASHBOARD
+  // One comprehensive, real-data payload for the shop-floor live page:
+  // OEE (ISO 22400) + benchmark class, six big losses, time model
+  // waterfall, downtime Pareto + MTTR/MTBF/MTTA, production trend,
+  // scrap analysis, machine state timeline, alarms, maintenance.
+  // ────────────────────────────────────────────────────────────
+
+  async getJobOrderLiveDashboard(factoryId: string | null, jobOrderId: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+
+    const jo = await this.prisma.jobOrder.findFirst({
+      where: { id: jobOrderId, ...factoryFilter },
+      include: {
+        machine: {
+          include: {
+            currentStatus: true,
+            line: { select: { id: true, name: true, code: true } },
+            area: { select: { id: true, name: true, code: true } },
+          },
+        },
+        workCenter: { select: { id: true, name: true, code: true } },
+        routingStep: { select: { stepNumber: true, operationName: true, cycleTimeSec: true, setupTimeMins: true } },
+        operator: { select: { id: true, name: true, nameAr: true } },
+        materials: true,
+        predecessor: { select: { id: true, operationName: true, status: true, routingStepId: true, actualStart: true } },
+        successors: { select: { id: true, operationName: true, status: true, sequenceOrder: true } },
+        workOrder: {
+          select: {
+            id: true, orderNumber: true, status: true, plannedQty: true,
+            plannedStart: true, plannedEnd: true, actualStart: true, actualEnd: true,
+            sku: { select: { id: true, name: true, code: true } },
+            productionOrder: { select: { id: true, orderNumber: true, targetQty: true, unit: true, plannedEnd: true, customer: true } },
+          },
+        },
+      },
+    });
+    if (!jo) throw new NotFoundException('Job order not found');
+
+    const [withDep] = await this.attachDepTypes([jo]);
+    const oee = this.calcJobOrderOEE(jo);
+
+    // ── Analysis window: actual start (or planned) → actual end (or now) ──
+    const now = new Date();
+    const windowStart = jo.actualStart ?? jo.plannedStart ?? jo.createdAt;
+    const windowEnd = jo.actualEnd ?? now;
+    const windowMins = Math.max(0, (windowEnd.getTime() - windowStart.getTime()) / 60_000);
+
+    const machineId = jo.machineId;
+    const machineHistoryFrom = new Date(now.getTime() - 30 * 86_400_000); // 30-day reliability window
+
+    const [
+      downtimeEvents,
+      scrapLogs,
+      countEvents,
+      stateRecords,
+      alarms,
+      maintenanceWOs,
+      reliabilityEvents,
+      oeeTrendRecords,
+    ] = await Promise.all([
+      // Downtime overlapping the JO window — scoped to THIS machine (a WO spans
+      // multiple machines, one per step, so machine-scoping keeps the per-JO view
+      // about this operation only). Falls back to the WO when no machine is set.
+      this.prisma.downtimeEvent.findMany({
+        where: {
+          ...(factoryId ? { factoryId } : {}),
+          ...(machineId ? { machineId } : { workOrderId: jo.workOrderId }),
+          startTime: { lte: windowEnd },
+          OR: [{ endTime: null }, { endTime: { gte: windowStart } }],
+        },
+        include: {
+          cause: { select: { code: true, name: true, nameAr: true, category: true } },
+          operator: { select: { name: true } },
+        },
+        orderBy: { startTime: 'desc' },
+      }),
+      this.prisma.scrapLog.findMany({
+        where: { jobOrderId: jo.id },
+        orderBy: { createdAt: 'desc' },
+        include: { operator: { select: { name: true } } },
+      }),
+      // COUNT_UPDATE + transition events for this JO (real recorded series)
+      this.prisma.productionEvent.findMany({
+        where: {
+          workOrderId: jo.workOrderId,
+          timestamp: { gte: windowStart },
+          metadata: { path: ['jobOrderId'], equals: jo.id },
+        },
+        orderBy: { timestamp: 'asc' },
+        take: 1000,
+      }),
+      // Machine state timeline strip
+      machineId
+        ? this.prisma.machineStateRecord.findMany({
+            where: {
+              machineId,
+              startTime: { lte: windowEnd },
+              OR: [{ endTime: null }, { endTime: { gte: windowStart } }],
+            },
+            include: { downtimeCause: { select: { name: true, code: true } } },
+            orderBy: { startTime: 'asc' },
+            take: 500,
+          })
+        : Promise.resolve([] as any[]),
+      // Alarms: machine alarms in window + alarms explicitly tagged with this JO
+      this.prisma.alarmEvent.findMany({
+        where: {
+          ...(factoryId ? { factoryId } : {}),
+          OR: [
+            ...(machineId ? [{ machineId, triggeredAt: { gte: windowStart } }] : []),
+            { metadata: { path: ['jobOrderId'], equals: jo.id } },
+          ],
+        },
+        orderBy: { triggeredAt: 'desc' },
+        take: 100,
+        include: { machine: { select: { name: true, code: true } } },
+      }),
+      // Maintenance on this machine: open + recent
+      machineId
+        ? this.prisma.maintenanceWO.findMany({
+            where: {
+              machineId,
+              deletedAt: null,
+              OR: [
+                { status: { in: ['OPEN', 'AWAITING_PARTS', 'ASSIGNED', 'IN_PROGRESS', 'ON_HOLD'] } },
+                { createdAt: { gte: machineHistoryFrom } },
+              ],
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+            include: {
+              assignedTo: { select: { name: true } },
+              requestedBy: { select: { name: true } },
+            },
+          })
+        : Promise.resolve([] as any[]),
+      // 30-day unplanned downtime history → MTTR / MTBF
+      machineId
+        ? this.prisma.downtimeEvent.findMany({
+            where: {
+              machineId,
+              isPlanned: false,
+              startTime: { gte: machineHistoryFrom },
+            },
+            orderBy: { startTime: 'asc' },
+            select: {
+              startTime: true, endTime: true, durationMinutes: true,
+              acknowledgedAt: true, reasonCode: true,
+            },
+          })
+        : Promise.resolve([] as Array<{ startTime: Date; endTime: Date | null; durationMinutes: number | null; acknowledgedAt: Date | null; reasonCode: string }>),
+      // OEE history for trend lines (last 14 days, this machine + this SKU when known)
+      machineId
+        ? this.prisma.oEERecord.findMany({
+            where: {
+              machineId,
+              recordDate: { gte: new Date(now.getTime() - 14 * 86_400_000) },
+            },
+            orderBy: { recordDate: 'asc' },
+            take: 400,
+            select: {
+              recordDate: true, shiftCode: true,
+              availability: true, performance: true, quality: true, oee: true,
+            },
+          })
+        : Promise.resolve([] as Array<{ recordDate: Date; shiftCode: string | null; availability: number; performance: number; quality: number; oee: number }>),
+    ]);
+
+    // ── Downtime aggregation within the JO window ──────────────
+    const clampMins = (s: Date, e: Date | null) => {
+      const from = Math.max(s.getTime(), windowStart.getTime());
+      const to = Math.min((e ?? now).getTime(), windowEnd.getTime());
+      return Math.max(0, (to - from) / 60_000);
+    };
+
+    let plannedStopMins = 0;
+    let unplannedStopMins = 0;
+    let microStopMins = 0;
+    let changeoverMins = 0;
+    const paretoMap = new Map<string, { label: string; mins: number; count: number; category: string }>();
+
+    for (const ev of downtimeEvents) {
+      const mins = clampMins(ev.startTime, ev.endTime);
+      if (mins <= 0) continue;
+      if (ev.isPlanned) plannedStopMins += mins;
+      else unplannedStopMins += mins;
+      if (ev.reasonCode === 'MICRO_STOP') microStopMins += mins;
+      if (ev.reasonCode === 'CHANGEOVER') changeoverMins += mins;
+
+      const key = ev.cause?.name ?? ev.reason ?? ev.reasonCode ?? 'Unspecified';
+      const cur = paretoMap.get(key) ?? { label: key, mins: 0, count: 0, category: ev.category as string };
+      cur.mins += mins;
+      cur.count += 1;
+      paretoMap.set(key, cur);
+    }
+    const pareto = [...paretoMap.values()].sort((a, b) => b.mins - a.mins);
+    const totalDowntimeMins = plannedStopMins + unplannedStopMins;
+    const openDowntime = downtimeEvents.find((e) => !e.endTime) ?? null;
+
+    // ── ISO 22400 time model (minutes, within the JO window) ───
+    const totalProduced = (jo.actualQtyGood ?? 0) + (jo.actualQtyRejected ?? 0);
+    const ict = jo.idealCycleTimeSec ?? null;
+    const operationalMins = Math.max(0, windowMins - plannedStopMins);
+    const netProductionMins = Math.max(0, operationalMins - unplannedStopMins);
+    const idealProductionMins = ict ? (ict * totalProduced) / 60 : null;
+    // Performance loss = running slower than ideal (excl. recorded micro stops)
+    const performanceLossMins = idealProductionMins != null
+      ? Math.max(0, netProductionMins - idealProductionMins)
+      : null;
+    const netOperatingMins = idealProductionMins != null
+      ? Math.min(netProductionMins, idealProductionMins)
+      : netProductionMins;
+    const qualityLossMins = ict ? (ict * (jo.actualQtyRejected ?? 0)) / 60 : null;
+    const usedOperationalMins = qualityLossMins != null
+      ? Math.max(0, netOperatingMins - qualityLossMins)
+      : null;
+
+    // ── Six Big Losses (ISO/TPM) — all from recorded data ──────
+    const setupScrap = scrapLogs.filter((s) => s.category === 'SETUP').reduce((t, s) => t + s.qty, 0);
+    const processScrap = (jo.actualQtyRejected ?? 0) - setupScrap;
+    const sixLosses = {
+      availability: {
+        equipmentFailure: {
+          mins: Math.round(Math.max(0, unplannedStopMins - microStopMins) * 10) / 10,
+          count: downtimeEvents.filter((e) => !e.isPlanned && e.reasonCode !== 'MICRO_STOP').length,
+        },
+        setupAdjustments: {
+          mins: Math.round((changeoverMins + plannedStopMins) * 10) / 10,
+          count: downtimeEvents.filter((e) => e.isPlanned || e.reasonCode === 'CHANGEOVER').length,
+        },
+      },
+      performance: {
+        idlingMinorStops: {
+          mins: Math.round(microStopMins * 10) / 10,
+          count: downtimeEvents.filter((e) => e.reasonCode === 'MICRO_STOP').length,
+        },
+        reducedSpeed: {
+          mins: performanceLossMins != null ? Math.round(performanceLossMins * 10) / 10 : null,
+        },
+      },
+      quality: {
+        processDefects: {
+          qty: Math.max(0, processScrap),
+          mins: ict ? Math.round(((ict * Math.max(0, processScrap)) / 60) * 10) / 10 : null,
+        },
+        startupRejects: {
+          qty: setupScrap,
+          mins: ict ? Math.round(((ict * setupScrap) / 60) * 10) / 10 : null,
+        },
+      },
+    };
+
+    // ── Reliability (30-day machine history): MTTR / MTBF / MTTA ──
+    const closed = reliabilityEvents.filter((e) => e.endTime && (e.durationMinutes ?? 0) > 0);
+    const mttrMins = closed.length
+      ? closed.reduce((t, e) => t + (e.durationMinutes ?? 0), 0) / closed.length
+      : null;
+    let mtbfMins: number | null = null;
+    if (reliabilityEvents.length >= 2) {
+      let gaps = 0;
+      let gapTotal = 0;
+      for (let i = 1; i < reliabilityEvents.length; i++) {
+        const prevEnd = reliabilityEvents[i - 1].endTime;
+        if (!prevEnd) continue;
+        const gap = (reliabilityEvents[i].startTime.getTime() - prevEnd.getTime()) / 60_000;
+        if (gap > 0) { gaps++; gapTotal += gap; }
+      }
+      mtbfMins = gaps ? gapTotal / gaps : null;
+    }
+    const acked = reliabilityEvents.filter((e) => e.acknowledgedAt);
+    // MTTA / MTTD — mean time from failure to acknowledgement (detect + respond)
+    const mttaMins = acked.length
+      ? acked.reduce((t, e) => t + (e.acknowledgedAt!.getTime() - e.startTime.getTime()) / 60_000, 0) / acked.length
+      : null;
+    // Repair time — mean time from acknowledgement to resume (the wrench-on time)
+    const repairCandidates = closed.filter((e) => e.acknowledgedAt && e.endTime);
+    const repairTimeMins = repairCandidates.length
+      ? repairCandidates.reduce((t, e) => t + (e.endTime!.getTime() - e.acknowledgedAt!.getTime()) / 60_000, 0) / repairCandidates.length
+      : null;
+
+    // ── Downtime statistics within the window (occurrence/total/median/average) ──
+    const windowDurations = downtimeEvents
+      .map((e) => clampMins(e.startTime, e.endTime))
+      .filter((m) => m > 0)
+      .sort((a, b) => a - b);
+    const dtMedianMins = windowDurations.length
+      ? windowDurations[Math.floor(windowDurations.length / 2)]
+      : null;
+    const dtAvgMins = windowDurations.length
+      ? windowDurations.reduce((t, m) => t + m, 0) / windowDurations.length
+      : null;
+
+    // ── Microstop Pareto (Performance loss category, separate from breakdowns) ──
+    const microMap = new Map<string, { label: string; mins: number; count: number; category: string }>();
+    for (const ev of downtimeEvents) {
+      if (ev.reasonCode !== 'MICRO_STOP') continue;
+      const mins = clampMins(ev.startTime, ev.endTime);
+      if (mins <= 0) continue;
+      const key = ev.cause?.name ?? ev.reason ?? 'Micro-stop';
+      const cur = microMap.get(key) ?? { label: key, mins: 0, count: 0, category: ev.category as string };
+      cur.mins += mins; cur.count += 1;
+      microMap.set(key, cur);
+    }
+    const microstopPareto = [...microMap.values()].sort((a, b) => b.mins - a.mins);
+
+    // ── Machine state distribution (time-model: Run / Idle / Down split) ──
+    const stateMap = new Map<string, { state: string; mins: number; count: number }>();
+    for (const r of stateRecords) {
+      const mins = clampMins(r.startTime, r.endTime);
+      if (mins <= 0) continue;
+      const cur = stateMap.get(r.state) ?? { state: r.state, mins: 0, count: 0 };
+      cur.mins += mins; cur.count += 1;
+      stateMap.set(r.state, cur);
+    }
+    const stateDurations = [...stateMap.values()].map((s) => s.mins).sort((a, b) => a - b);
+    const stateOccurrences = [...stateMap.values()].reduce((t, s) => t + s.count, 0);
+    const stateTotalMins = [...stateMap.values()].reduce((t, s) => t + s.mins, 0);
+    const stateDistribution = {
+      occurrences: stateOccurrences,
+      totalMins: Math.round(stateTotalMins * 10) / 10,
+      medianMins: stateDurations.length ? Math.round(stateDurations[Math.floor(stateDurations.length / 2)] * 10) / 10 : null,
+      avgMins: stateDurations.length ? Math.round((stateTotalMins / [...stateMap.values()].length) * 10) / 10 : null,
+      byState: [...stateMap.values()]
+        .sort((a, b) => b.mins - a.mins)
+        .map((s) => ({ ...s, mins: Math.round(s.mins * 10) / 10 })),
+    };
+
+    // ── Top reject reasons + when rejects peaked ──────────────
+    const rejectMap = new Map<string, { reason: string; qty: number; count: number; category: string }>();
+    for (const s of scrapLogs) {
+      const key = s.reason || 'Not specified';
+      const cur = rejectMap.get(key) ?? { reason: key, qty: 0, count: 0, category: s.category as string };
+      cur.qty += s.qty; cur.count += 1;
+      rejectMap.set(key, cur);
+    }
+    const topRejectReasons = [...rejectMap.values()].sort((a, b) => b.qty - a.qty).slice(0, 8);
+    const highestRejectLog = scrapLogs.reduce<any>((max, s) => (!max || s.qty > max.qty ? s : max), null);
+
+    // ── Production trend from recorded COUNT_UPDATE events ─────
+    const trend = countEvents.map((ev) => {
+      const meta = (ev.metadata ?? {}) as any;
+      return {
+        t: ev.timestamp,
+        type: ev.eventType,
+        delta: ev.value ?? 0,
+        good: meta.good ?? null,
+        rejected: meta.rejected ?? null,
+        scrapDelta: meta.scrapDelta ?? 0,
+      };
+    });
+
+    // ── Pace / ETA ─────────────────────────────────────────────
+    const elapsedHrs = jo.actualStart ? Math.max(0.001, (windowEnd.getTime() - jo.actualStart.getTime()) / 3_600_000) : null;
+    const paceGoodPerHr = elapsedHrs && jo.actualQtyGood > 0 ? jo.actualQtyGood / elapsedHrs : null;
+    const remainingQty = Math.max(0, (jo.plannedQtyOut ?? 0) - jo.actualQtyGood);
+    const etaMins = paceGoodPerHr && remainingQty > 0 ? (remainingQty / paceGoodPerHr) * 60 : null;
+    const idealRatePerHr = ict ? 3600 / ict : null;
+
+    // ── OEE benchmark classification (world-class ≥85 / good / fair / poor) ──
+    const benchmark = (v: number | null) =>
+      v == null ? null : v >= 85 ? 'WORLD_CLASS' : v >= 70 ? 'GOOD' : v >= 60 ? 'FAIR' : 'POOR';
+
+    const r1 = (v: number | null) => (v == null ? null : Math.round(v * 10) / 10);
+
+    // ── TEEP = OEE × Utilization (utilization = scheduled/operational vs all time) ──
+    const utilizationPct = windowMins > 0 ? Math.min(100, (operationalMins / windowMins) * 100) : null;
+    const teepPct = oee.joOEE != null && utilizationPct != null
+      ? (oee.joOEE * utilizationPct) / 100
+      : null;
+
+    // ── Time-Based Availability = Uptime ÷ (Uptime + Downtime) ──
+    // A SECOND availability method shown alongside the classic schedule-based one.
+    // Uptime = running time (net production); Downtime = unplanned stops.
+    const uptimeMins = netProductionMins;
+    const availabilityTimeBased = (uptimeMins + unplannedStopMins) > 0
+      ? (uptimeMins / (uptimeMins + unplannedStopMins)) * 100
+      : null;
+    // Time-based OEE reuses the same Performance & Quality, only Availability differs.
+    const oeeTimeBased = availabilityTimeBased != null && oee.joPerformance != null && oee.joQuality != null
+      ? (availabilityTimeBased / 100) * (oee.joPerformance / 100) * (oee.joQuality / 100) * 100
+      : null;
+    const teepTimeBasedPct = oeeTimeBased != null && utilizationPct != null
+      ? (oeeTimeBased * utilizationPct) / 100
+      : null;
+
+    // ── OEE trend — prefer the InfluxDB historian (real TSDB time-series, both
+    // availability methods); fall back to OEERecord rows if Influx is unavailable.
+    let oeeTrend: any[] = [];
+    if (machineId) {
+      const hist = await this.historian.getOeeTrend(
+        machineId,
+        new Date(now.getTime() - 14 * 86_400_000).toISOString(),
+        now.toISOString(),
+        1440, // daily resolution → clean 14-day trend
+      );
+      oeeTrend = hist.map((h) => ({
+        date: h.time,
+        availability: h.availability,
+        availabilityTb: h.availabilityTb,
+        performance: h.performance,
+        quality: h.quality,
+        oee: h.oee,
+        oeeTb: h.oeeTb,
+      }));
+    }
+    if (!oeeTrend.length) {
+      // Fallback: relational OEERecord history (classic availability only)
+      oeeTrend = oeeTrendRecords.map((o) => ({
+        date: o.recordDate,
+        availability: r1(o.availability),
+        availabilityTb: null,
+        performance: r1(o.performance),
+        quality: r1(o.quality),
+        oee: r1(o.oee),
+        oeeTb: null,
+      }));
+    }
+
+    return {
+      generatedAt: now,
+      jobOrder: { ...withDep, ...oee },
+      window: { start: windowStart, end: jo.actualEnd ?? null, isLive: !jo.actualEnd, minutes: r1(windowMins) },
+      oee: {
+        ...oee,
+        oeeClass: benchmark(oee.joOEE),
+        availabilityClass: benchmark(oee.joAvailability),
+        performanceClass: benchmark(oee.joPerformance),
+        qualityClass: benchmark(oee.joQuality),
+        utilizationPct: r1(utilizationPct),
+        teepPct: r1(teepPct),
+        teepClass: benchmark(teepPct),
+        // Second availability method (time-based) + its OEE, shown side by side
+        availabilityTimeBased: r1(availabilityTimeBased),
+        availabilityTimeBasedClass: benchmark(availabilityTimeBased),
+        oeeTimeBased: r1(oeeTimeBased),
+        oeeTimeBasedClass: benchmark(oeeTimeBased),
+        teepTimeBasedPct: r1(teepTimeBasedPct),
+        uptimeMins: r1(uptimeMins),
+        downtimeMins: r1(unplannedStopMins),
+        trend: oeeTrend,
+      },
+      production: {
+        plannedQty: jo.plannedQtyOut,
+        good: jo.actualQtyGood,
+        rejected: jo.actualQtyRejected,
+        total: totalProduced,
+        unit: jo.outputUnit,
+        progressPct: (jo.plannedQtyOut ?? 0) > 0 ? r1(Math.min(100, (jo.actualQtyGood / jo.plannedQtyOut!) * 100)) : null,
+        rejectRatePct: totalProduced > 0 ? r1((jo.actualQtyRejected / totalProduced) * 100) : null,
+        paceGoodPerHr: r1(paceGoodPerHr),
+        idealRatePerHr: r1(idealRatePerHr),
+        etaMins: r1(etaMins),
+        idealCycleTimeSec: ict,
+        trend,
+      },
+      timeModel: {
+        totalMins: r1(windowMins),
+        plannedStopMins: r1(plannedStopMins),
+        operationalMins: r1(operationalMins),
+        availabilityLossMins: r1(unplannedStopMins),
+        netProductionMins: r1(netProductionMins),
+        performanceLossMins: r1(performanceLossMins),
+        microStopMins: r1(microStopMins),
+        netOperatingMins: r1(netOperatingMins),
+        qualityLossMins: r1(qualityLossMins),
+        usedOperationalMins: r1(usedOperationalMins),
+        utilizationPct: r1(utilizationPct),
+        teepPct: r1(teepPct),
+      },
+      sixLosses,
+      stateDistribution,
+      downtime: {
+        totalMins: r1(totalDowntimeMins),
+        plannedMins: r1(plannedStopMins),
+        unplannedMins: r1(unplannedStopMins),
+        occurrences: downtimeEvents.length,
+        medianMins: r1(dtMedianMins),
+        avgMins: r1(dtAvgMins),
+        open: openDowntime,
+        events: downtimeEvents,
+        pareto: pareto.map((p) => ({ ...p, mins: r1(p.mins) })),
+        microstopPareto: microstopPareto.map((p) => ({ ...p, mins: r1(p.mins) })),
+        mttrMins: r1(mttrMins),
+        mtbfMins: r1(mtbfMins),
+        mttaMins: r1(mttaMins),
+        repairTimeMins: r1(repairTimeMins),
+        reliabilityWindowDays: 30,
+      },
+      scrap: {
+        total: jo.actualQtyRejected,
+        logs: scrapLogs,
+        highestRejectAt: highestRejectLog?.createdAt ?? null,
+        highestRejectQty: highestRejectLog?.qty ?? null,
+        topReasons: topRejectReasons,
+        byCategory: Object.entries(
+          scrapLogs.reduce((acc: Record<string, number>, s) => {
+            acc[s.category] = (acc[s.category] ?? 0) + s.qty;
+            return acc;
+          }, {}),
+        ).map(([category, qty]) => ({ category, qty })).sort((a, b) => (b.qty as number) - (a.qty as number)),
+      },
+      machine: jo.machine
+        ? {
+            id: jo.machine.id,
+            name: jo.machine.name,
+            code: jo.machine.code,
+            line: jo.machine.line,
+            area: jo.machine.area,
+            designCapacity: jo.machine.designCapacity,
+            criticality: jo.machine.criticality,
+            currentStatus: jo.machine.currentStatus,
+            stateTimeline: stateRecords,
+          }
+        : null,
+      alarms: {
+        events: alarms,
+        active: alarms.filter((a) => !a.resolvedAt).length,
+        unacknowledged: alarms.filter((a) => !a.acknowledgedAt && !a.resolvedAt).length,
+        bySeverity: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'].map((sev) => ({
+          severity: sev,
+          count: alarms.filter((a) => a.severity === sev).length,
+        })).filter((s) => s.count > 0),
+      },
+      maintenance: {
+        workOrders: maintenanceWOs,
+        open: maintenanceWOs.filter((m) =>
+          ['OPEN', 'AWAITING_PARTS', 'ASSIGNED', 'IN_PROGRESS', 'ON_HOLD'].includes(m.status as string),
+        ).length,
+      },
+    };
+  }
+}
+
+/**
+ * Distinct, order-preserving list of the machines a work order touches, derived
+ * from its job-order steps. Replaces the removed single header machine.
+ */
+function dedupeMachines(
+  machines: Array<{ id: string; name: string; code: string } | null | undefined>,
+): Array<{ id: string; name: string; code: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ id: string; name: string; code: string }> = [];
+  for (const m of machines) {
+    if (!m || seen.has(m.id)) continue;
+    seen.add(m.id);
+    out.push({ id: m.id, name: m.name, code: m.code });
+  }
+  return out;
+}

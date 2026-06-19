@@ -1,0 +1,262 @@
+# ============================================================
+# MES360° — Hostinger VPS + Traefik (Docker Manager) compose
+# ------------------------------------------------------------
+# Same app as docker-compose.prod.yml, but:
+#   • NO nginx service and NO host ports 80/443 (Traefik owns them).
+#   • `api` + `web` join the shared external `traefik-proxy` network
+#     and carry Traefik labels so Traefik routes traffic to them.
+#   • One domain serves everything (same-origin):
+#       https://APP_DOMAIN/            -> web   (Next.js, port 4000)
+#       https://APP_DOMAIN/api/...     -> api   (NestJS, port 3001)
+#       https://APP_DOMAIN/socket.io/  -> api   (WebSocket)
+#
+# Prereqs:
+#   1. Deploy the Traefik project template once in Docker Manager.
+#   2. Confirm the shared network name (default below: traefik-proxy):
+#        docker network ls | grep -i traefik
+#      If it differs, change `traefik-proxy` everywhere in this file.
+#   3. Point an A record  APP_DOMAIN -> your VPS IP  in DNS.
+#   4. Set the env vars: cp .env.hostinger.example .env.hostinger && edit it.
+#
+# Deploy:   docker compose -f docker-compose.hostinger.yml --env-file .env.hostinger up -d
+# ============================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mes-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mes360}
+      POSTGRES_USER: ${POSTGRES_USER:-mes_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - mes-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mes_user} -d ${POSTGRES_DB:-mes360}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: mes-redis-prod
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - mes-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: mes-influxdb-prod
+    restart: always
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USERNAME:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG:-mes360}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET:-mes_timeseries}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - mes-network
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mes-mqtt-prod
+    restart: always
+    volumes:
+      - ./infrastructure/docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - mes-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: mes-minio-prod
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - mes-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # One-shot DB init: push the Prisma schema + seed initial data (admin users,
+  # roles, reference data). Runs once and exits; the api waits for it to finish.
+  migrate-seed:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: production
+    image: mes360-api:hostinger
+    container_name: mes-migrate-seed-prod
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mes_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mes360}?schema=public
+    networks:
+      - mes-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "node node_modules/.bin/prisma db push --skip-generate --accept-data-loss &&
+             node prisma/prod-init.js"
+
+  api:
+    # Built locally on the VPS from source (the prebuilt Hub image does not exist).
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: production
+    image: mes360-api:hostinger
+    container_name: mes-api-prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      API_PORT: "3001"
+      API_PREFIX: /api/v1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mes_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mes360}?schema=public
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_ORG: ${INFLUX_ORG:-mes360}
+      INFLUX_BUCKET: ${INFLUX_BUCKET:-mes_timeseries}
+      MQTT_BROKER_URL: mqtt://mosquitto:1883
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: mes360
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRES_IN: 8h
+      JWT_REFRESH_EXPIRES_IN: 30d
+      # Same-origin in the browser means CORS is not strictly needed, but set the
+      # real domain so any cross-origin tooling is accepted.
+      CORS_ORIGINS: https://${APP_DOMAIN}
+    # Schema + seed are handled by migrate-seed; the api just runs the server.
+    command: node dist/main.js
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate-seed:
+        condition: service_completed_successfully
+    networks:
+      - mes-network
+    labels:
+      - traefik.enable=true
+      # API + WebSocket on the same domain, HIGHER priority so it wins over the
+      # web catch-all for /api/* and /socket.io/*.
+      - traefik.http.routers.mes-api.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/socket.io`))
+      - traefik.http.routers.mes-api.entrypoints=websecure
+      - traefik.http.routers.mes-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.mes-api.priority=100
+      - traefik.http.services.mes-api.loadbalancer.server.port=3001
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 768M
+
+  web:
+    # Built locally on the VPS from source. NEXT_PUBLIC_* are baked at build time;
+    # the browser still uses same-origin, so these mainly affect SSR fetches.
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      target: production
+      args:
+        NEXT_PUBLIC_API_URL: https://${APP_DOMAIN}
+        NEXT_PUBLIC_WS_URL: wss://${APP_DOMAIN}
+    image: mes360-web:hostinger
+    container_name: mes-web-prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      # Next standalone server.js honours PORT; Traefik routes to this port.
+      PORT: "4000"
+      HOSTNAME: "0.0.0.0"
+      # Browser uses same-origin (relative /api/v1) so these only affect SSR fetches.
+      NEXT_PUBLIC_API_URL: https://${APP_DOMAIN}
+      NEXT_PUBLIC_WS_URL: wss://${APP_DOMAIN}
+      NEXT_PUBLIC_APP_URL: https://${APP_DOMAIN}
+    depends_on:
+      - api
+    networks:
+      - mes-network
+    labels:
+      - traefik.enable=true
+      # Frontend catch-all for the domain (LOWER priority than the api router).
+      # Hostinger's Traefik already does a global HTTP->HTTPS redirect, so only
+      # the websecure (443) router is needed here.
+      - traefik.http.routers.mes-web.rule=Host(`${APP_DOMAIN}`)
+      - traefik.http.routers.mes-web.entrypoints=websecure
+      - traefik.http.routers.mes-web.tls.certresolver=letsencrypt
+      - traefik.http.routers.mes-web.priority=1
+      - traefik.http.services.mes-web.loadbalancer.server.port=4000
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  influxdb_data:
+    driver: local
+  minio_data:
+    driver: local
+  mosquitto_data:
+    driver: local
+  mosquitto_log:
+    driver: local
+
+networks:
+  # Single bridge network for the whole stack. Hostinger's Traefik runs in
+  # host-network mode and reaches these containers by their bridge IP via the
+  # Docker provider — no shared/external network is needed.
+  mes-network:
+    driver: bridge

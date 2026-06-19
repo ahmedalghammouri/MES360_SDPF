@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MES360° Edge Gateway</title>
+<link rel="icon" href="/logo.png" />
+<style>
+  :root{
+    --bg:222 47% 7%; --bg2:220 40% 9%; --fg:213 31% 92%;
+    --card:215 28% 11%; --card2:215 28% 9%; --border:215 25% 18%;
+    --muted:215 28% 14%; --muted-fg:215 18% 58%;
+    --primary:236 72% 64%; --primary2:265 70% 68%;
+    --sidebar:220 38% 6%; --sidebar-fg:213 31% 85%; --sidebar-accent:215 28% 13%; --sidebar-border:215 25% 13%;
+    --good:152 58% 50%; --bad:0 80% 68%; --warn:38 92% 58%; --brand1:#818cf8; --brand2:#a78bfa;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;color:hsl(var(--fg));font-size:14px;
+    background:hsl(var(--bg));background-image:radial-gradient(900px 500px at 100% -5%,hsl(265 70% 60%/.07),transparent),radial-gradient(900px 500px at 0% 0%,hsl(236 72% 60%/.07),transparent)}
+  *::-webkit-scrollbar{width:9px;height:9px}*::-webkit-scrollbar-thumb{background:hsl(var(--border));border-radius:5px}
+  .hidden{display:none!important}.grow{flex:1}.mono{font-variant-numeric:tabular-nums;font-family:'Cascadia Code',Consolas,monospace}
+  input,select{width:100%;background:hsl(var(--bg2));border:1px solid hsl(var(--border));color:hsl(var(--fg));border-radius:9px;padding:10px 12px;margin-top:6px;font-size:13px;transition:.15s}
+  input:focus,select:focus{outline:none;border-color:hsl(var(--primary));box-shadow:0 0 0 3px hsl(var(--primary)/.2)}
+  label{font-size:11px;font-weight:600;letter-spacing:.02em;color:hsl(var(--muted-fg));display:block;margin-top:12px;text-transform:uppercase}
+  button{background:linear-gradient(135deg,var(--brand1),var(--brand2));color:#fff;border:0;border-radius:9px;padding:9px 16px;font-weight:600;cursor:pointer;font-size:13px;transition:.15s;box-shadow:0 4px 12px hsl(var(--primary)/.25)}
+  button:hover{transform:translateY(-1px);filter:brightness(1.05)}
+  button.ghost{background:transparent;border:1px solid hsl(var(--border));color:hsl(var(--fg));box-shadow:none}
+  button.ghost:hover{background:hsl(var(--muted)/.6);transform:none}
+  button.danger{background:transparent;border:1px solid hsl(var(--bad)/.4);color:hsl(var(--bad));box-shadow:none}
+  button.danger:hover{background:hsl(var(--bad)/.12);transform:none}
+  button.sm{padding:6px 11px;font-size:12px}
+  .brand-mark{font-weight:800;background:linear-gradient(90deg,var(--brand1),var(--brand2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .err{color:hsl(var(--bad));font-size:12px;margin-top:10px;min-height:16px}
+
+  /* Login */
+  #login{min-height:100vh;display:flex;align-items:center;justify-content:center}
+  .login-card{background:hsl(var(--card)/.85);backdrop-filter:blur(12px);border:1px solid hsl(var(--border));border-radius:20px;padding:36px;width:390px;box-shadow:var(--shadow)}
+  .login-head{display:flex;align-items:center;gap:13px;margin-bottom:4px}
+  .login-head img{width:44px;height:44px;border-radius:12px;object-fit:contain}
+
+  /* Shell */
+  #app{display:flex;min-height:100vh}
+  aside{width:248px;background:hsl(var(--sidebar));border-right:1px solid hsl(var(--sidebar-border));display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;height:100vh;z-index:10}
+  .logo{display:flex;align-items:center;gap:12px;height:66px;padding:0 18px;border-bottom:1px solid hsl(var(--sidebar-border))}
+  .logo img{width:40px;height:40px;border-radius:11px;object-fit:contain}
+  .logo .t1{font-size:16px;line-height:1}.logo .t2{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:hsl(var(--sidebar-fg)/.4);margin-top:4px;font-weight:600}
+  nav{flex:1;padding:14px 12px;display:flex;flex-direction:column;gap:3px;overflow:auto}
+  nav .sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:hsl(var(--sidebar-fg)/.32);padding:16px 12px 7px}
+  nav button{position:relative;display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:transparent;color:hsl(var(--sidebar-fg)/.72);border-radius:10px;padding:11px 13px;font-weight:500;font-size:13px;box-shadow:none}
+  nav button:hover{background:hsl(var(--sidebar-accent)/.7);color:hsl(var(--sidebar-fg));transform:none}
+  nav button.active{background:hsl(var(--primary)/.16);color:#c7ccff;font-weight:600}
+  nav button.active::before{content:"";position:absolute;left:-12px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(var(--brand1),var(--brand2))}
+  nav button svg{width:17px;height:17px;flex-shrink:0}
+  .side-foot{padding:13px;border-top:1px solid hsl(var(--sidebar-border))}
+  .u{display:flex;align-items:center;gap:10px}
+  .avatar{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,hsl(var(--primary)/.3),hsl(var(--primary2)/.3));color:#c7ccff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+
+  .content{margin-left:248px;flex:1;display:flex;flex-direction:column;min-width:0}
+  header{display:flex;align-items:center;gap:10px;padding:15px 26px;border-bottom:1px solid hsl(var(--border));background:hsl(var(--bg)/.7);backdrop-filter:blur(10px);position:sticky;top:0;z-index:5}
+  header h1{font-size:17px;font-weight:700;margin:0}
+  header .sub{font-size:11.5px;color:hsl(var(--muted-fg));margin-top:1px}
+  .pill{font-size:11px;font-weight:600;padding:5px 10px;border-radius:999px;border:1px solid hsl(var(--border));display:inline-flex;align-items:center;gap:6px;background:hsl(var(--card)/.7)}
+  .dot{width:8px;height:8px;border-radius:50%;background:hsl(var(--muted-fg));transition:.3s}
+  .dot.on{background:hsl(var(--good));box-shadow:0 0 0 3px hsl(var(--good)/.18)}
+  .dot.off{background:hsl(var(--bad));box-shadow:0 0 0 3px hsl(var(--bad)/.18)}
+  .dot.live{background:hsl(var(--good));animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 hsl(var(--good)/.5)}50%{box-shadow:0 0 0 5px hsl(var(--good)/0)}}
+  main{padding:24px 26px;max-width:1240px;width:100%}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:18px}
+  .kpi{background:linear-gradient(150deg,hsl(var(--card)),hsl(var(--card2)));border:1px solid hsl(var(--border));border-radius:15px;padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .kpi::after{content:"";position:absolute;right:-20px;top:-20px;width:70px;height:70px;border-radius:50%;background:hsl(var(--primary)/.08)}
+  .kpi .l{font-size:11px;color:hsl(var(--muted-fg));text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:8px}
+  .kpi .v{font-size:27px;font-weight:800;letter-spacing:-.02em}
+  .kpi .v.good{color:hsl(var(--good))}.kpi .v.bad{color:hsl(var(--bad))}.kpi .v.brand{color:#aab1ff}
+
+  .card{background:linear-gradient(150deg,hsl(var(--card)),hsl(var(--card2)));border:1px solid hsl(var(--border));border-radius:16px;box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden}
+  .card-h{display:flex;justify-content:space-between;align-items:center;padding:15px 18px;border-bottom:1px solid hsl(var(--border))}
+  .card-h .ttl{font-size:13px;font-weight:700;display:flex;align-items:center;gap:9px}
+  .card-h .ttl svg{width:16px;height:16px;color:hsl(var(--primary))}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:hsl(var(--muted-fg));font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;padding:11px 18px;background:hsl(var(--bg2)/.5)}
+  td{padding:13px 18px;border-top:1px solid hsl(var(--border)/.5)}
+  tbody tr{transition:background .15s}
+  tbody tr:hover{background:hsl(var(--primary)/.05)}
+  .tg{font-size:10px;font-weight:600;padding:3px 9px;border-radius:7px;border:1px solid hsl(var(--border));display:inline-flex;align-items:center;gap:5px}
+  .tg .d{width:6px;height:6px;border-radius:50%}
+  .tg.GOOD,.tg.on{color:hsl(var(--good));border-color:hsl(var(--good)/.35);background:hsl(var(--good)/.12)}
+  .tg.GOOD .d,.tg.on .d{background:hsl(var(--good))}
+  .tg.TOTAL{color:#aab1ff;border-color:hsl(var(--primary)/.4);background:hsl(var(--primary)/.14)}
+  .tg.BAD,.tg.off{color:hsl(var(--bad));border-color:hsl(var(--bad)/.35);background:hsl(var(--bad)/.12)}
+  .tg.off .d{background:hsl(var(--bad))}
+  .tg.warn{color:hsl(var(--warn));border-color:hsl(var(--warn)/.35);background:hsl(var(--warn)/.12)}
+  .tg.neutral{color:hsl(var(--muted-fg))}
+  .val{font-weight:700;font-size:14px}
+  @keyframes flash{0%{background:hsl(var(--primary)/.35);color:#fff}100%{background:transparent}}
+  .flash{animation:flash 1s ease-out}
+  .empty{text-align:center;padding:34px 18px;color:hsl(var(--muted-fg))}
+  .empty svg{width:34px;height:34px;opacity:.3;margin-bottom:10px}
+
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.66);backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding:46px 16px;z-index:50;overflow:auto}
+  .modal{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:18px;width:680px;max-width:100%;padding:24px;box-shadow:var(--shadow)}
+  .modal h3{margin:0 0 18px;font-size:17px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  .section{grid-column:1/-1;border-top:1px solid hsl(var(--border));margin-top:8px;padding-top:10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:hsl(var(--primary))}
+  .modal-foot{display:flex;justify-content:flex-end;gap:9px;margin-top:20px}
+  .hint{font-size:11.5px;color:hsl(var(--muted-fg));margin-top:12px}
+  code{background:hsl(var(--muted));padding:2px 6px;border-radius:5px;font-size:12px}
+
+  /* Light theme (sidebar stays dark, matching the MES web app) */
+  body.light{--bg:220 20% 97%;--bg2:220 16% 93%;--fg:222 47% 13%;
+    --card:0 0% 100%;--card2:220 25% 98%;--border:220 13% 87%;
+    --muted:220 14% 92%;--muted-fg:215 16% 42%;--shadow:0 6px 22px rgba(30,40,70,.08)}
+  body.light table th{background:hsl(220 16% 95%)}
+  .theme-btn{cursor:pointer;background:hsl(var(--card)/.7);border:1px solid hsl(var(--border));color:hsl(var(--fg));width:30px;height:30px;padding:0;border-radius:8px;font-size:14px;box-shadow:none}
+  .theme-btn:hover{background:hsl(var(--muted)/.7);transform:none}
+
+  /* Scrollable table body with sticky header */
+  .tbl-wrap{max-height:440px;overflow:auto}
+  .tbl-wrap thead th{position:sticky;top:0;z-index:2;background:hsl(var(--card2))}
+  body.light .tbl-wrap thead th{background:hsl(220 18% 94%)}
+  /* Pagination */
+  .pager{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;border-top:1px solid hsl(var(--border));font-size:12px;color:hsl(var(--muted-fg))}
+  .pager .pg{display:flex;gap:8px;align-items:center}
+  .pager button[disabled]{opacity:.4;cursor:default}
+</style>
+</head>
+<body>
+  <!-- Login -->
+  <div id="login">
+    <div class="login-card">
+      <div class="login-head"><img src="/logo.png" alt="MES360°" />
+        <div><div style="font-size:19px"><span class="brand-mark">STAR</span><span style="color:hsl(var(--muted-fg));font-weight:700">-MES</span></div>
+          <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:hsl(var(--muted-fg));font-weight:600">Edge Gateway</div></div>
+      </div>
+      <div style="color:hsl(var(--muted-fg));font-size:12.5px;margin-top:8px">Local monitoring &amp; configuration</div>
+      <label>Email</label><input id="email" type="email" placeholder="admin@mes360.sa" />
+      <label>Password</label><input id="password" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" />
+      <div class="err" id="loginErr"></div>
+      <button style="width:100%;margin-top:18px" onclick="doLogin()">Sign in</button>
+    </div>
+  </div>
+
+  <!-- App -->
+  <div id="app" class="hidden">
+    <aside>
+      <div class="logo"><img src="/logo.png" alt="MES360°" />
+        <div><div class="t1"><span class="brand-mark">STAR</span><span style="color:hsl(var(--sidebar-fg)/.75);font-weight:700">-MES</span></div>
+          <div class="t2">Edge Gateway</div></div>
+      </div>
+      <nav>
+        <div class="sec">Gateway</div>
+        <button data-tab="overview" class="active" onclick="switchTab('overview')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Overview</button>
+        <div class="sec">IIoT &amp; Connectivity</div>
+        <button data-tab="devices" onclick="switchTab('devices')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>Devices</button>
+        <button data-tab="tags" onclick="switchTab('tags')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></svg>Tag Browser</button>
+        <button data-tab="meters" onclick="switchTab('meters')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>Energy Meters</button>
+        <div class="sec">System</div>
+        <button data-tab="settings" onclick="switchTab('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
+      </nav>
+      <div class="side-foot"><div class="u">
+        <div class="avatar" id="userInitials">--</div>
+        <div style="min-width:0;flex:1"><div id="userName" style="font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">User</div>
+          <div id="userRole" style="color:hsl(var(--muted-fg));font-size:10px"></div></div>
+        <button class="ghost sm" onclick="logout()" title="Sign out">⎋</button>
+      </div></div>
+    </aside>
+
+    <div class="content">
+      <header>
+        <div><h1 id="pageTitle">Overview</h1><div class="sub" id="pageSub">Live monitoring</div></div>
+        <div class="grow"></div>
+        <button class="theme-btn" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+        <span class="pill"><span class="dot live"></span> Live</span>
+        <span class="pill"><span class="dot" id="dotDb"></span> DB</span>
+        <span class="pill"><span class="dot" id="dotMqtt"></span> MQTT</span>
+        <span class="pill"><span class="dot" id="dotInflux"></span> Influx</span>
+        <span class="pill"><span class="dot" id="dotMes"></span> MES</span>
+        <span class="pill" id="bufPill">buffer 0</span>
+      </header>
+      <main>
+        <section id="tab-overview">
+          <div class="kpis" id="ovKpis"></div>
+          <div class="card"><div class="card-h"><span class="ttl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>Devices</span></div>
+            <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Tags</th><th>Poll</th></tr></thead><tbody id="ovDevices"></tbody></table></div></div>
+          <div class="card"><div class="card-h"><span class="ttl">Executing Job Orders — live counts</span></div>
+            <div class="tbl-wrap"><table><thead><tr><th>Work Order</th><th>Operation</th><th>Machine</th><th class="mono">Good</th><th class="mono">Bad</th><th class="mono">Total</th></tr></thead><tbody id="ovJobs"></tbody></table></div></div>
+          <div class="card"><div class="card-h"><span class="ttl">Live tag values</span></div>
+            <div class="tbl-wrap"><table><thead><tr><th>Tag</th><th>Role</th><th class="mono">Value</th><th>Unit</th><th>Updated</th></tr></thead><tbody id="ovTags"></tbody></table></div></div>
+        </section>
+
+        <section id="tab-devices" class="hidden">
+          <div class="kpis" id="devKpis"></div>
+          <div class="card"><div class="card-h"><span class="ttl">Modbus Devices</span><button class="sm" onclick="openDeviceForm()">+ Add Device</button></div>
+            <div class="tbl-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>IP : Port</th><th>Machine</th><th>Status</th><th>Tags</th><th></th></tr></thead><tbody id="devRows"></tbody></table></div>
+            <div id="devPager"></div></div>
+        </section>
+
+        <section id="tab-tags" class="hidden">
+          <div class="kpis" id="tagKpis"></div>
+          <div class="card"><div class="card-h"><span class="ttl">Tags</span><button class="sm" onclick="openTagForm()">+ Add Tag</button></div>
+            <div class="tbl-wrap"><table><thead><tr><th>Tag</th><th>Device</th><th>Type / Role</th><th>Register</th><th class="mono">Value</th><th>Updated</th><th></th></tr></thead><tbody id="tagRows"></tbody></table></div>
+            <div id="tagPager"></div></div>
+        </section>
+
+        <section id="tab-meters" class="hidden">
+          <div class="kpis" id="meterKpis"></div>
+          <div class="card"><div class="card-h"><span class="ttl">Energy / Power Meters</span><button class="sm" onclick="openMeterForm()">+ Add Meter</button></div>
+            <div class="tbl-wrap"><table><thead><tr><th>Meter</th><th>Model</th><th>Connection</th><th>Status</th><th>Tags</th><th></th></tr></thead><tbody id="meterRows"></tbody></table></div>
+          </div>
+        </section>
+
+        <section id="tab-settings" class="hidden">
+          <div class="card"><div class="card-h"><span class="ttl">Service Connections</span></div>
+            <div style="padding:18px"><div class="grid2" id="settingsForm"></div>
+              <div class="hint">Saved to <code>gateway-config.json</code> (overrides <code>.env</code>); applied after restart.</div>
+              <div class="modal-foot" style="justify-content:flex-start;margin-top:16px">
+                <button onclick="saveSettings()">Save</button>
+                <button class="ghost" onclick="restartGateway()">Save &amp; Restart</button>
+                <span id="settingsMsg" style="align-self:center;font-size:12px;color:hsl(var(--muted-fg))"></span>
+              </div></div></div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div id="modalRoot"></div>
+
+<script>
+  const T={get:()=>localStorage.getItem('eg_token'),set:t=>localStorage.setItem('eg_token',t),clear:()=>localStorage.removeItem('eg_token')};
+  const TITLES={overview:['Overview','Live monitoring'],devices:['Devices','Modbus device configuration'],tags:['Tag Browser','Tag & counter configuration'],meters:['Energy Meters','Power-meter configuration'],settings:['Settings','Service connections']};
+  let timer=null,tab='overview',cache={devices:[],tags:[],machines:[],lines:[],areas:[]},prevVals={};
+  function lineOpts(sel){return'<option value="">— select —</option>'+cache.lines.map(l=>`<option value="${l.id}" ${l.id===sel?'selected':''}>${esc(l.name)} (${esc(l.code)})</option>`).join('')}
+  function areaOpts(sel){return'<option value="">— select —</option>'+cache.areas.map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)} (${esc(a.code)})</option>`).join('')}
+  function scopeSelect(p,e){e=e||{};const st=e.lineId?'line':e.areaId?'area':'machine';return `
+    <div><label>Scope</label><select id="${p}_scope" onchange="egScopeToggle('${p}')">${selOpts2([['machine','Machine'],['line','Line'],['area','Area']],st)}</select></div>
+    <div><label>Target (Machine / Line / Area)</label>
+      <select id="${p}_machine" style="display:${st==='machine'?'block':'none'}">${machineOpts(e.machineId)}</select>
+      <select id="${p}_line" style="display:${st==='line'?'block':'none'}">${lineOpts(e.lineId)}</select>
+      <select id="${p}_area" style="display:${st==='area'?'block':'none'}">${areaOpts(e.areaId)}</select>
+    </div>`}
+  function egScopeToggle(p){const st=val(p+'_scope');document.getElementById(p+'_machine').style.display=st==='machine'?'block':'none';document.getElementById(p+'_line').style.display=st==='line'?'block':'none';document.getElementById(p+'_area').style.display=st==='area'?'block':'none'}
+  function scopeDto(p){const st=val(p+'_scope');return {machineId:st==='machine'?(val(p+'_machine')||null):null,lineId:st==='line'?(val(p+'_line')||null):null,areaId:st==='area'?(val(p+'_area')||null):null}}
+
+  async function api(p,o={}){const r=await fetch('/api'+p,{...o,headers:{'Content-Type':'application/json',...(T.get()?{Authorization:'Bearer '+T.get()}:{}),...(o.headers||{})}});
+    if(r.status===401){logout();throw new Error('unauthorized')}if(!r.ok){let m='HTTP '+r.status;try{m=(await r.json()).message||m}catch{}throw new Error(m)}return r.status===204?null:r.json()}
+  function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+  function timeAgo(ts){if(!ts)return'—';const s=Math.round((Date.now()-new Date(ts).getTime())/1000);return s<60?s+'s ago':Math.round(s/60)+'m ago'}
+  function dot(el,on){el.className='dot '+(on?'on':'off')}
+  function kpi(l,v,cls){return`<div class="kpi"><div class="l">${l}</div><div class="v ${cls||''}">${v}</div></div>`}
+  function val(id){return document.getElementById(id).value.trim()}
+  function emptyRow(c,msg){return`<tr><td colspan="${c}"><div class="empty">${msg||'No data'}</div></td></tr>`}
+  const PAGE=10;let devPage=1,tagPage=1;
+  function pager(page,total,fn){const pages=Math.max(1,Math.ceil(total/PAGE));return total>PAGE?`<div class="pager"><span>${total} item(s)</span><span class="pg"><button class="ghost sm" ${page<=1?'disabled':''} onclick="${fn}(${page-1})">‹ Prev</button><span>Page ${page} / ${pages}</span><button class="ghost sm" ${page>=pages?'disabled':''} onclick="${fn}(${page+1})">Next ›</button></span></div>`:''}
+  function initTheme(){applyTheme(localStorage.getItem('eg_theme')||'dark')}
+  function applyTheme(t){document.body.classList.toggle('light',t==='light');localStorage.setItem('eg_theme',t);const b=document.getElementById('themeToggle');if(b)b.textContent=t==='light'?'☀️':'🌙'}
+  function toggleTheme(){applyTheme(document.body.classList.contains('light')?'dark':'light')}
+
+  // Auth
+  async function doLogin(){const email=document.getElementById('email').value.trim(),password=document.getElementById('password').value,err=document.getElementById('loginErr');err.textContent='';
+    try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+      if(!r.ok){err.textContent='Invalid credentials';return}const d=await r.json();T.set(d.accessToken);localStorage.setItem('eg_user',JSON.stringify(d.user||{}));showApp()}catch{err.textContent='Connection error'}}
+  function logout(){T.clear();clearInterval(timer);document.getElementById('app').classList.add('hidden');document.getElementById('login').classList.remove('hidden')}
+  function showApp(){document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');
+    const u=JSON.parse(localStorage.getItem('eg_user')||'{}');document.getElementById('userName').textContent=u.name||u.email||'User';
+    document.getElementById('userRole').textContent=u.role||'';document.getElementById('userInitials').textContent=((u.name||u.email||'U').slice(0,2)).toUpperCase();
+    switchTab('overview');startPoll()}
+
+  function switchTab(t){tab=t;document.querySelectorAll('nav button[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+    ['overview','devices','tags','meters','settings'].forEach(s=>document.getElementById('tab-'+s).classList.toggle('hidden',s!==t));
+    document.getElementById('pageTitle').textContent=TITLES[t][0];document.getElementById('pageSub').textContent=TITLES[t][1];
+    if(t==='overview')refreshOverview();if(t==='devices')loadDevices();if(t==='tags')loadTags();if(t==='meters')loadMeters();if(t==='settings')loadSettings()}
+
+  // Polling (1.5s)
+  function startPoll(){clearInterval(timer);tick();timer=setInterval(tick,1500)}
+  async function tick(){
+    try{const s=await api('/status');
+      dot(document.getElementById('dotDb'),s.sinks.db);dot(document.getElementById('dotMqtt'),s.sinks.mqtt);dot(document.getElementById('dotInflux'),s.sinks.influx);
+      document.getElementById('dotMes').className='dot '+(s.sinks.mes===null?'':(s.sinks.mes?'on':'off'));
+      document.getElementById('bufPill').textContent='buffer '+(s.buffers.pgTagValue+s.buffers.influx+s.buffers.mqtt);
+      window._devStatus=s.devices||[];
+      if(tab==='overview')refreshOverview();
+      else if(tab==='tags')pollTagValues();
+      else if(tab==='devices')pollDeviceStatus();
+    }catch{}
+  }
+
+  async function refreshOverview(){
+    try{const[jobs,live]=await Promise.all([api('/job-orders'),api('/live')]);const ds=window._devStatus||[];
+      document.getElementById('ovKpis').innerHTML=kpi('Devices Online',ds.filter(d=>d.connected).length+' / '+ds.length,'brand')+kpi('Executing Job Orders',(jobs||[]).length)+kpi('Live Tags',(live||[]).length);
+      document.getElementById('ovDevices').innerHTML=ds.map(d=>`<tr><td>${esc(d.name)}</td><td><span class="tg ${d.connected?'on':'off'}"><span class="d"></span>${d.connected?'Connected':'Down'}</span></td><td class="mono">${d.tagCount}</td><td class="mono">${d.intervalMs}ms</td></tr>`).join('')||emptyRow(4);
+      document.getElementById('ovJobs').innerHTML=(jobs||[]).map(j=>{const g=j.actualQtyGood||0,b=j.actualQtyRejected||0;return`<tr><td>${esc(j.workOrder?.orderNumber||'—')}</td><td>${esc(j.operationName||'')}</td><td>${esc(j.machine?.name||'—')}</td><td class="mono" style="color:hsl(var(--good))">${g}</td><td class="mono" style="color:hsl(var(--bad))">${b}</td><td class="mono val">${g+b}</td></tr>`}).join('')||emptyRow(6,'No executing job orders');
+      document.getElementById('ovTags').innerHTML=(live||[]).map(v=>{const r=v.tag?.counterRole;return`<tr><td>${esc(v.tag?.name||v.tag?.code||'')}</td><td>${r&&r!=='NONE'?`<span class="tg ${r}">${r}</span>`:'<span class="tg neutral">—</span>'}</td><td class="mono val">${esc(v.value)}</td><td>${esc(v.tag?.unit||'')}</td><td style="color:hsl(var(--muted-fg))">${timeAgo(v.timestamp)}</td></tr>`}).join('')||emptyRow(5,'No tag values yet');
+    }catch{}
+  }
+
+  // Devices
+  async function loadDevices(){try{const[devs,machines,lines,areas]=await Promise.all([api('/devices'),api('/machines'),api('/lines'),api('/areas')]);cache.devices=devs||[];cache.machines=machines||[];cache.lines=lines||[];cache.areas=areas||[];renderDevices()}catch(e){document.getElementById('devRows').innerHTML=emptyRow(7,e.message)}}
+  function goDevPage(p){devPage=p;renderDevices()}
+  function renderDevices(){const all=cache.devices;const pages=Math.max(1,Math.ceil(all.length/PAGE));if(devPage>pages)devPage=pages;const d=all.slice((devPage-1)*PAGE,devPage*PAGE);
+    document.getElementById('devKpis').innerHTML=kpi('Total Devices',all.length)+kpi('Connected',all.filter(x=>x.status==='CONNECTED').length,'good')+kpi('Errors',all.filter(x=>x.status==='ERROR').length,'bad');
+    document.getElementById('devRows').innerHTML=d.map(x=>`<tr><td class="mono" style="color:#aab1ff;font-weight:600">${esc(x.deviceCode)}</td><td>${esc(x.name)}</td><td class="mono">${esc(x.ipAddress||'—')} : ${x.port||502}</td><td>${esc(x.machine?.name||'—')}</td><td id="ds_${x.id}"><span class="tg ${x.status==='CONNECTED'?'on':'off'}"><span class="d"></span>${esc(x.status)}</span>${x.status==='ERROR'&&x.lastError?`<div style="color:hsl(var(--bad));font-size:10px;margin-top:2px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.lastError)}">${esc(x.lastError)}</div>`:''}</td><td class="mono">${(x.tagDefinitions||[]).length}</td><td style="text-align:right;white-space:nowrap"><button class="ghost sm" onclick='openDeviceForm(${JSON.stringify(x)})'>Edit</button> <button class="danger sm" onclick="delDevice('${x.id}','${esc(x.name)}')">Delete</button></td></tr>`).join('')||emptyRow(7,'No devices — add one to start polling');
+    document.getElementById('devPager').innerHTML=pager(devPage,all.length,'goDevPage')}
+  function pollDeviceStatus(){const map={};(window._devStatus||[]).forEach(d=>map[d.id]=d);cache.devices.forEach(x=>{const c=document.getElementById('ds_'+x.id);if(c&&map[x.id]){const on=map[x.id].connected;c.innerHTML=`<span class="tg ${on?'on':'off'}"><span class="d"></span>${on?'CONNECTED':'ERROR'}</span>`}})}
+  function machineOpts(sel){return'<option value="">— none —</option>'+cache.machines.map(m=>`<option value="${m.id}" ${m.id===sel?'selected':''}>${esc(m.name)} (${esc(m.code)})</option>`).join('')}
+  function openDeviceForm(d){const e=d||{},ed=!!d;openModal((ed?'Edit':'Add')+' Device',`<div class="grid2">
+    <div><label>Device Code *</label><input id="f_code" value="${esc(e.deviceCode||'')}" ${ed?'disabled':''} placeholder="PLC-LINE1"></div>
+    <div><label>Name *</label><input id="f_name" value="${esc(e.name||'')}"></div>
+    <div><label>Type</label><select id="f_type">${['PLC','HMI','GATEWAY','SENSOR','METER','DRIVE'].map(t=>`<option ${e.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    ${scopeSelect('f',e)}
+    <div><label>Protocol</label><select id="f_proto" onchange="document.getElementById('tcpBox').style.display=this.value==='MODBUS_RTU'?'none':'contents';document.getElementById('serBox').style.display=this.value==='MODBUS_RTU'?'contents':'none'">${selOpts2([['MODBUS','Modbus TCP'],['MODBUS_RTU_TCP','Modbus RTU over TCP'],['MODBUS_RTU','Modbus RTU (serial)']],e.protocol||'MODBUS')}</select></div>
+    <div><label>Modbus Unit ID</label><input id="f_unit" value="${e.unitId??1}"></div>
+    <div id="tcpBox" style="display:${e.protocol==='MODBUS_RTU'?'none':'contents'}">
+      <div><label>IP Address</label><input id="f_ip" value="${esc(e.ipAddress||'')}" placeholder="192.168.1.100"></div>
+      <div><label>Port</label><input id="f_port" value="${e.port||502}"></div>
+    </div>
+    <div id="serBox" style="display:${e.protocol==='MODBUS_RTU'?'contents':'none'}">
+      <div><label>Serial Port</label><input id="f_serial" value="${esc(e.serialPort||'')}" placeholder="COM3"></div>
+      <div><label>Baud Rate</label><input id="f_baud" value="${e.baudRate??9600}"></div>
+      <div><label>Parity</label><select id="f_parity">${selOpts(['none','even','odd'],e.parity||'none')}</select></div>
+      <div><label>Stop Bits</label><input id="f_stop" value="${e.stopBits??1}"></div>
+    </div>
+    <div><label>Poll Interval (ms)</label><input id="f_poll" value="${e.pollIntervalMs??''}" placeholder="1000"></div></div>`,async()=>{
+      const num=v=>v===''?undefined:Number(v);const proto=val('f_proto');
+      const dto={name:val('f_name'),type:val('f_type'),protocol:proto,...scopeDto('f'),unitId:num(val('f_unit')),pollIntervalMs:num(val('f_poll'))};
+      if(proto==='MODBUS_RTU'){dto.serialPort=val('f_serial')||null;dto.baudRate=num(val('f_baud'));dto.parity=val('f_parity');dto.stopBits=num(val('f_stop'))}
+      else{dto.ipAddress=val('f_ip')||null;dto.port=num(val('f_port'))}
+      if(ed){await api('/devices/'+e.id,{method:'PATCH',body:JSON.stringify(dto)})}else{dto.deviceCode=val('f_code');if(!dto.deviceCode||!dto.name)throw new Error('Code and name required');await api('/devices',{method:'POST',body:JSON.stringify(dto)})}closeModal();loadDevices()})}
+  async function delDevice(id,name){if(!confirm('Delete device '+name+'?'))return;await api('/devices/'+id,{method:'PATCH',body:JSON.stringify({isActive:false})});loadDevices()}
+
+  // Tags
+  async function loadTags(){try{const[tags,devs,machines,lines,areas]=await Promise.all([api('/tags'),api('/devices'),api('/machines'),api('/lines'),api('/areas')]);cache.tags=tags||[];cache.devices=devs||[];cache.machines=machines||[];cache.lines=lines||[];cache.areas=areas||[];renderTags()}catch(e){document.getElementById('tagRows').innerHTML=emptyRow(7,e.message)}}
+  function goTagPage(p){tagPage=p;renderTags()}
+  function renderTags(){const all=cache.tags;const pages=Math.max(1,Math.ceil(all.length/PAGE));if(tagPage>pages)tagPage=pages;const t=all.slice((tagPage-1)*PAGE,tagPage*PAGE);
+    document.getElementById('tagKpis').innerHTML=kpi('Total Tags',all.length)+kpi('Counters',all.filter(x=>x.tagType==='COUNTER').length,'brand')+kpi('Mapped',all.filter(x=>x.counterRole&&x.counterRole!=='NONE').length,'good');
+    document.getElementById('tagRows').innerHTML=t.map(x=>{const r=x.counterRole,dev=cache.devices.find(d=>d.id===x.deviceId);return`<tr>
+      <td><div class="mono" style="color:#aab1ff;font-weight:600">${esc(x.code)}</div><div style="color:hsl(var(--muted-fg));font-size:12px">${esc(x.name)}</div></td>
+      <td>${esc(dev?.name||x.device?.name||'—')}</td>
+      <td><span class="tg neutral">${esc(x.tagType)}</span> ${r&&r!=='NONE'?`<span class="tg ${r}">${r}</span>`:''}</td>
+      <td class="mono">${esc(x.registerType||'')} ${esc(x.address||'')}</td>
+      <td class="mono val" id="tv_${x.id}">${esc(x.currentValue?.value??'—')}</td>
+      <td id="tt_${x.id}" style="color:hsl(var(--muted-fg))">${timeAgo(x.currentValue?.timestamp)}</td>
+      <td style="text-align:right;white-space:nowrap"><button class="ghost sm" onclick='openTagForm(${JSON.stringify(x)})'>Edit</button> <button class="danger sm" onclick="delTag('${x.id}','${esc(x.name)}')">Delete</button></td></tr>`}).join('')||emptyRow(7,'No tags');
+    document.getElementById('tagPager').innerHTML=pager(tagPage,all.length,'goTagPage')}
+  async function pollTagValues(){try{const live=await api('/live');const map={};live.forEach(v=>map[v.tagId]=v);
+    cache.tags.forEach(x=>{const vc=document.getElementById('tv_'+x.id),tc=document.getElementById('tt_'+x.id);if(!vc)return;const lv=map[x.id];if(!lv)return;
+      const nv=String(lv.value);if(prevVals[x.id]!==undefined&&prevVals[x.id]!==nv){vc.classList.remove('flash');void vc.offsetWidth;vc.classList.add('flash')}
+      prevVals[x.id]=nv;vc.textContent=nv;if(tc)tc.textContent=timeAgo(lv.timestamp)})}catch{}}
+  function deviceOpts(sel){return'<option value="">— none —</option>'+cache.devices.map(d=>`<option value="${d.id}" ${d.id===sel?'selected':''}>${esc(d.name)}</option>`).join('')}
+  function selOpts(a,sel){return a.map(o=>`<option ${o===sel?'selected':''}>${o}</option>`).join('')}
+  function selOpts2(pairs,sel){return pairs.map(([v,l])=>`<option value="${v}" ${v===sel?'selected':''}>${l}</option>`).join('')}
+  function openTagForm(t){const e=t||{},ed=!!t;openModal((ed?'Edit':'Add')+' Tag',`<div class="grid2">
+    <div><label>Tag Code *</label><input id="f_code" value="${esc(e.code||'')}" ${ed?'disabled':''} placeholder="CNT_GOOD_01"></div>
+    <div><label>Name *</label><input id="f_name" value="${esc(e.name||'')}"></div>
+    <div><label>Tag Type</label><select id="f_ttype" onchange="document.getElementById('counterBox').style.display=this.value==='COUNTER'?'contents':'none'">${selOpts(['MEASUREMENT','COUNTER','STATUS','SETPOINT','ALARM','EVENT','ENERGY'],e.tagType||'MEASUREMENT')}</select></div>
+    <div><label>Data Type</label><select id="f_dtype">${selOpts(['INT','FLOAT','BOOL','STRING','TIMESTAMP'],e.dataType||'INT')}</select></div>
+    <div><label>Source Device</label><select id="f_device">${deviceOpts(e.deviceId)}</select></div>
+    <div><label>Unit</label><input id="f_unit" value="${esc(e.unit||'')}" placeholder="pcs, °C"></div>
+    ${scopeSelect('f',e)}
+    <div class="section">Modbus binding</div>
+    <div><label>Register Address</label><input id="f_addr" value="${esc(e.address||'')}" placeholder="100"></div>
+    <div><label>Register Type</label><select id="f_rtype">${selOpts(['HOLDING','INPUT','COIL','DISCRETE'],e.registerType||'HOLDING')}</select></div>
+    <div><label>Word Count</label><select id="f_wc">${selOpts(['1','2'],String(e.wordCount||1))}</select></div>
+    <div><label>Word Order</label><select id="f_wo">${selOpts(['BIG','LITTLE'],e.wordOrder||'BIG')}</select></div>
+    <div><label>Scale Factor</label><input id="f_scale" value="${e.scaleFactor??''}" placeholder="1"></div>
+    <div><label>Offset</label><input id="f_offset" value="${e.offset??''}" placeholder="0"></div>
+    <div id="counterBox" style="display:${e.tagType==='COUNTER'?'contents':'none'}"><div class="section">Counter mapping — +1 per edge → running Job Order</div>
+      <div><label>Counter Role</label><select id="f_role">${selOpts(['NONE','TOTAL','GOOD','BAD'],e.counterRole||'NONE')}</select></div>
+      <div><label>Edge Trigger</label><select id="f_edge">${selOpts(['RISING','FALLING','CHANGE'],e.edgeType||'RISING')}</select></div></div>
+    </div>`,async()=>{const num=v=>v===''?undefined:Number(v),isC=val('f_ttype')==='COUNTER';
+      const dto={name:val('f_name'),tagType:val('f_ttype'),dataType:val('f_dtype'),deviceId:val('f_device')||null,unit:val('f_unit')||null,...scopeDto('f'),address:val('f_addr')||null,registerType:val('f_rtype'),wordCount:num(val('f_wc')),wordOrder:val('f_wo'),scaleFactor:num(val('f_scale')),offset:num(val('f_offset')),counterRole:isC?val('f_role'):'NONE',edgeType:isC?val('f_edge'):'RISING'};
+      if(ed){await api('/tags/'+e.id,{method:'PATCH',body:JSON.stringify(dto)})}else{dto.code=val('f_code');if(!dto.code||!dto.name)throw new Error('Code and name required');await api('/tags',{method:'POST',body:JSON.stringify(dto)})}closeModal();loadTags()})}
+  async function delTag(id,name){if(!confirm('Delete tag '+name+'?'))return;await api('/tags/'+id,{method:'DELETE'});loadTags()}
+
+  // Energy Meters
+  async function loadMeters(){
+    try{const[meters,templates,machines,lines,areas]=await Promise.all([api('/meters'),api('/meter-templates'),api('/machines'),api('/lines'),api('/areas')]);
+      cache.meters=meters||[];cache.templates=templates||[];cache.machines=machines||[];cache.lines=lines||[];cache.areas=areas||[];
+      const online=cache.meters.filter(m=>m.device?.status==='CONNECTED').length;
+      document.getElementById('meterKpis').innerHTML=kpi('Meters',cache.meters.length)+kpi('Connected',online,'good')+kpi('Templates',cache.templates.length,'brand');
+      document.getElementById('meterRows').innerHTML=cache.meters.map(m=>{const dv=m.device;const conn=dv?(dv.protocol==='MODBUS_RTU'?'serial':`${dv.protocol}`):'manual';const st=dv?.status||'—';return`<tr>
+        <td><div class="mono" style="color:#aab1ff;font-weight:600">${esc(m.meterNumber)}</div><div style="color:hsl(var(--muted-fg));font-size:12px">${esc(m.name)}</div></td>
+        <td>${esc(m.model||m.templateKey||'—')}</td>
+        <td class="mono">${esc(conn)}</td>
+        <td><span class="tg ${st==='CONNECTED'?'on':'off'}"><span class="d"></span>${esc(st)}</span></td>
+        <td class="mono">${m._count?.tags??0}</td>
+        <td style="text-align:right;white-space:nowrap"><button class="ghost sm" onclick="meterTemplate('${m.id}')">Template</button></td></tr>`}).join('')||emptyRow(6,'No meters — add one');
+    }catch(e){document.getElementById('meterRows').innerHTML=emptyRow(6,e.message)}
+  }
+  function tplOpts(sel){return'<option value="">— none —</option>'+(cache.templates||[]).map(t=>`<option value="${t.key}" ${t.key===sel?'selected':''}>${esc(t.label)}</option>`).join('')}
+  async function meterTemplate(id){const key=prompt('Template key (SCHNEIDER_PM5110 / SIEMENS_PAC3200 / SIEMENS_PAC2200 / GENERIC_PM):');if(!key)return;try{await api('/meters/'+id+'/apply-template',{method:'POST',body:JSON.stringify({templateKey:key})});loadMeters()}catch(e){alert(e.message)}}
+  function openMeterForm(){
+    openModal('Add Energy Meter',`<div class="grid2">
+      <div><label>Meter Number *</label><input id="m_num" placeholder="EM-PM-01"></div>
+      <div><label>Name *</label><input id="m_name" placeholder="Main incomer"></div>
+      <div><label>Unit</label><input id="m_unit" value="kWh"></div>
+      ${scopeSelect('m',{})}
+      <div><label>Template</label><select id="m_tpl">${tplOpts('')}</select></div>
+      <div><label>Protocol</label><select id="m_proto" onchange="document.getElementById('mtcp').style.display=this.value==='MODBUS_RTU'?'none':'contents';document.getElementById('mser').style.display=this.value==='MODBUS_RTU'?'contents':'none'">${selOpts2([['MODBUS','Modbus TCP'],['MODBUS_RTU_TCP','Modbus RTU over TCP'],['MODBUS_RTU','Modbus RTU (serial)']],'MODBUS')}</select></div>
+      <div id="mtcp" style="display:contents"><div><label>IP Address</label><input id="m_ip" placeholder="192.168.1.50"></div><div><label>Port</label><input id="m_port" value="502"></div></div>
+      <div id="mser" style="display:none"><div><label>Serial Port</label><input id="m_serial" placeholder="COM3"></div><div><label>Baud</label><input id="m_baud" value="9600"></div></div>
+      <div><label>Modbus Unit ID</label><input id="m_unit_id" value="1"></div>
+      <div><label>Model</label><input id="m_model" placeholder="METSEPM5110"></div>
+    </div>`,async()=>{
+      const num=v=>v===''?undefined:Number(v);const proto=val('m_proto');
+      const dto={meterNumber:val('m_num'),name:val('m_name'),type:'ELECTRICAL',unit:val('m_unit')||'kWh',...scopeDto('m'),templateKey:val('m_tpl')||null,model:val('m_model')||null,protocol:proto,unitId:num(val('m_unit_id'))};
+      if(proto==='MODBUS_RTU'){dto.serialPort=val('m_serial')||null;dto.baudRate=num(val('m_baud'))}else{dto.ipAddress=val('m_ip')||null;dto.port=num(val('m_port'))}
+      if(!dto.meterNumber||!dto.name)throw new Error('Meter number and name required');
+      await api('/meters',{method:'POST',body:JSON.stringify(dto)});closeModal();loadMeters();
+    });
+  }
+
+  // Settings
+  const SF=[['gatewayName','Gateway Name'],['factoryCode','Factory Code'],['databaseUrl','Database URL (Postgres)'],['mqttBrokerUrl','MQTT Broker URL'],['influxUrl','InfluxDB URL'],['influxToken','InfluxDB Token'],['influxOrg','InfluxDB Org'],['influxBucket','InfluxDB Bucket'],['mesPlatformUrl','MES Platform URL'],['defaultPollIntervalMs','Default Poll Interval (ms)']];
+  async function loadSettings(){try{const s=await api('/settings');document.getElementById('settingsForm').innerHTML=SF.map(([k,l])=>`<div><label>${l}</label><input id="set_${k}" value="${esc(s[k]??'')}" ${k==='influxToken'?'type="password"':''}></div>`).join('')}catch(e){document.getElementById('settingsForm').innerHTML='<div style="color:hsl(var(--bad))">'+e.message+'</div>'}}
+  function collectSettings(){const dto={};SF.forEach(([k])=>{let v=document.getElementById('set_'+k).value;if(k==='defaultPollIntervalMs')v=v===''?undefined:Number(v);dto[k]=v});return dto}
+  async function saveSettings(){const m=document.getElementById('settingsMsg');try{await api('/settings',{method:'PATCH',body:JSON.stringify(collectSettings())});m.textContent='✓ Saved. Restart to apply.';m.style.color='hsl(var(--good))'}catch(e){m.textContent=e.message;m.style.color='hsl(var(--bad))'}}
+  async function restartGateway(){const m=document.getElementById('settingsMsg');try{await api('/settings',{method:'PATCH',body:JSON.stringify(collectSettings())});await api('/restart',{method:'POST'});m.textContent='Restarting… reload in a few seconds.';m.style.color='hsl(var(--warn))'}catch(e){m.textContent=e.message;m.style.color='hsl(var(--bad))'}}
+
+  // Modal
+  function openModal(title,body,onSave){document.getElementById('modalRoot').innerHTML=`<div class="backdrop" onclick="if(event.target===this)closeModal()"><div class="modal"><h3>${title}</h3>${body}<div class="err" id="modalErr"></div><div class="modal-foot"><button class="ghost" onclick="closeModal()">Cancel</button><button id="modalSave">Save</button></div></div></div>`;
+    document.getElementById('modalSave').onclick=async()=>{try{await onSave()}catch(e){document.getElementById('modalErr').textContent=e.message}}}
+  function closeModal(){document.getElementById('modalRoot').innerHTML=''}
+
+  initTheme();
+  if(T.get())showApp();
+</script>
+</body>
+</html>

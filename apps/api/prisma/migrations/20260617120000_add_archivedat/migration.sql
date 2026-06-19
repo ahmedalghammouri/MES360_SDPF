@@ -1,0 +1,14 @@
+-- Unified soft-archive across core entity tables (archive/restore, not delete).
+ALTER TABLE "work_orders"         ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "production_orders"   ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "ncrs"                ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "capas"               ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "inspection_results"  ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "raw_materials"       ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "spare_parts"         ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "skus"                ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "machines"            ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "maintenance_wos"     ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "material_lots"       ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "quality_plans"       ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
+ALTER TABLE "pm_plans"            ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);

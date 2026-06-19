@@ -1,0 +1,285 @@
+{
+  "uid": "mes-tpl-blank-factory",
+  "title": "TEMPLATE — Blank Factory-Aware",
+  "description": "Empty starting point with all MES360° factory-context variables wired. Clone to build a new dashboard.",
+  "tags": [
+    "mes360",
+    "template"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "",
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "factory",
+        "label": "Factory",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT name AS \"__text\", code AS \"__value\" FROM factories WHERE \"isActive\" = true ORDER BY name",
+        "query": "SELECT name AS \"__text\", code AS \"__value\" FROM factories WHERE \"isActive\" = true ORDER BY name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "Saudi Industrial Detergent Company",
+          "value": "SIDCO"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "Saudi Industrial Detergent Company",
+            "value": "SIDCO"
+          }
+        ],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT a.name AS \"__text\", a.id AS \"__value\" FROM areas a JOIN factories f ON f.id = a.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY a.name",
+        "query": "SELECT a.name AS \"__text\", a.id AS \"__value\" FROM areas a JOIN factories f ON f.id = a.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY a.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "line",
+        "label": "Production Line",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT l.name AS \"__text\", l.id AS \"__value\" FROM production_lines l JOIN factories f ON f.id = l.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY l.name",
+        "query": "SELECT l.name AS \"__text\", l.id AS \"__value\" FROM production_lines l JOIN factories f ON f.id = l.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY l.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "machine",
+        "label": "Machine",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT m.name AS \"__text\", m.id AS \"__value\" FROM machines m JOIN factories f ON f.id = m.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY m.name",
+        "query": "SELECT m.name AS \"__text\", m.id AS \"__value\" FROM machines m JOIN factories f ON f.id = m.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY m.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "shift",
+        "label": "Shift",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT s.name AS \"__text\", s.id AS \"__value\" FROM shift_templates s JOIN factories f ON f.id = s.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY s.name",
+        "query": "SELECT s.name AS \"__text\", s.id AS \"__value\" FROM shift_templates s JOIN factories f ON f.id = s.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY s.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "product",
+        "label": "Product",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT k.name AS \"__text\", k.id AS \"__value\" FROM skus k JOIN factories f ON f.id = k.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY k.name",
+        "query": "SELECT k.name AS \"__text\", k.id AS \"__value\" FROM skus k JOIN factories f ON f.id = k.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY k.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      },
+      {
+        "name": "batch",
+        "label": "Batch",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "mes_postgres"
+        },
+        "definition": "SELECT b.\"batchNumber\" AS \"__text\", b.id AS \"__value\" FROM batch_records b JOIN factories f ON f.id = b.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY b.\"startTime\" DESC NULLS LAST LIMIT 500",
+        "query": "SELECT b.\"batchNumber\" AS \"__text\", b.id AS \"__value\" FROM batch_records b JOIN factories f ON f.id = b.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY b.\"startTime\" DESC NULLS LAST LIMIT 500",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "",
+        "multi": false,
+        "current": {},
+        "options": [],
+        "sort": 1,
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Factories",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COUNT(*) AS value FROM factories WHERE \"isActive\"=true"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 2,
+      "title": "Add your panels here",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT 'Use $factory, $area, $line, $machine, $shift, $product, $batch in your queries' AS \"Hint\""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        },
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 9
+      }
+    }
+  ]
+}

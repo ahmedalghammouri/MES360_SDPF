@@ -1,0 +1,257 @@
+# ════════════════════════════════════════════════════════════════
+# MES360° — Grafana alert rules (unified alerting, provisioned)
+# Each rule: A = Postgres metric query, B = reduce(last), C = threshold.
+# Thresholds are deliberately conservative defaults — tune per plant.
+# ════════════════════════════════════════════════════════════════
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: MES Operational Alerts
+    folder: Alerts
+    interval: 1m
+    rules:
+      # ── 1. Low OEE ───────────────────────────────────────────────
+      - uid: mes_alert_low_oee
+        title: Low OEE
+        condition: C
+        for: 10m
+        labels: { severity: warning, domain: production }
+        annotations:
+          summary: "Plant OEE below target (60%)"
+          description: "Average OEE over the last hour dropped below 60%."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: mes_postgres
+            model:
+              refId: A
+              format: table
+              datasource: { type: postgres, uid: mes_postgres }
+              rawSql: >
+                SELECT COALESCE(AVG(oee), 100) AS value
+                FROM oee_records
+                WHERE "recordDate" > NOW() - INTERVAL '1 hour';
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, reducer: last, expression: A, datasource: { type: __expr__, uid: __expr__ } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              datasource: { type: __expr__, uid: __expr__ }
+              conditions:
+                - evaluator: { type: lt, params: [60] }
+
+      # ── 2. High Downtime ─────────────────────────────────────────
+      - uid: mes_alert_high_downtime
+        title: High Downtime
+        condition: C
+        for: 5m
+        labels: { severity: warning, domain: production }
+        annotations:
+          summary: "Excessive unplanned downtime"
+          description: "More than 60 minutes of OEE-impacting downtime in the last hour."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: mes_postgres
+            model:
+              refId: A
+              format: table
+              datasource: { type: postgres, uid: mes_postgres }
+              rawSql: >
+                SELECT COALESCE(SUM("durationMinutes"), 0) AS value
+                FROM downtime_events
+                WHERE "startTime" > NOW() - INTERVAL '1 hour' AND "affectsOEE" = true;
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, reducer: last, expression: A, datasource: { type: __expr__, uid: __expr__ } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              datasource: { type: __expr__, uid: __expr__ }
+              conditions:
+                - evaluator: { type: gt, params: [60] }
+
+      # ── 3. Machine / Device Offline ──────────────────────────────
+      - uid: mes_alert_machine_offline
+        title: Machine Offline
+        condition: C
+        for: 5m
+        labels: { severity: critical, domain: iiot }
+        annotations:
+          summary: "Devices offline"
+          description: "One or more active devices are not reporting (status != ONLINE)."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mes_postgres
+            model:
+              refId: A
+              format: table
+              datasource: { type: postgres, uid: mes_postgres }
+              rawSql: >
+                SELECT COUNT(*) AS value
+                FROM devices
+                WHERE "isActive" = true AND UPPER(status) <> 'ONLINE';
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, reducer: last, expression: A, datasource: { type: __expr__, uid: __expr__ } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              datasource: { type: __expr__, uid: __expr__ }
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      # ── 4. Quality Failures ──────────────────────────────────────
+      - uid: mes_alert_quality_failures
+        title: Quality Failures
+        condition: C
+        for: 5m
+        labels: { severity: critical, domain: quality }
+        annotations:
+          summary: "Critical non-conformances raised"
+          description: "Critical NCRs were detected in the last hour and remain open."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: mes_postgres
+            model:
+              refId: A
+              format: table
+              datasource: { type: postgres, uid: mes_postgres }
+              rawSql: >
+                SELECT COUNT(*) AS value
+                FROM ncrs
+                WHERE "detectedAt" > NOW() - INTERVAL '1 hour'
+                  AND severity = 'CRITICAL'
+                  AND status NOT IN ('RESOLVED', 'CLOSED');
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, reducer: last, expression: A, datasource: { type: __expr__, uid: __expr__ } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              datasource: { type: __expr__, uid: __expr__ }
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      # ── 5. Energy Overconsumption ────────────────────────────────
+      - uid: mes_alert_energy_overconsumption
+        title: Energy Overconsumption
+        condition: C
+        for: 10m
+        labels: { severity: warning, domain: energy }
+        annotations:
+          summary: "Average power demand above threshold"
+          description: "Average power draw over the last 15 minutes exceeds the configured ceiling."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: mes_postgres
+            model:
+              refId: A
+              format: table
+              datasource: { type: postgres, uid: mes_postgres }
+              rawSql: >
+                SELECT COALESCE(AVG("powerKw"), 0) AS value
+                FROM energy_readings
+                WHERE timestamp > NOW() - INTERVAL '15 minutes';
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, reducer: last, expression: A, datasource: { type: __expr__, uid: __expr__ } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              datasource: { type: __expr__, uid: __expr__ }
+              conditions:
+                - evaluator: { type: gt, params: [500] }
+
+      # ── 6. Inventory Below Safety Stock ──────────────────────────
+      - uid: mes_alert_inventory_safety_stock
+        title: Inventory Below Safety Stock
+        condition: C
+        for: 15m
+        labels: { severity: warning, domain: inventory }
+        annotations:
+          summary: "Items below safety stock"
+          description: "Raw materials or spare parts have dropped below their minimum stock level."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mes_postgres
+            model:
+              refId: A
+              format: table
+              datasource: { type: postgres, uid: mes_postgres }
+              rawSql: >
+                SELECT COUNT(*) AS value FROM (
+                  SELECT 1 FROM raw_materials WHERE "currentStock" < "minStock"
+                  UNION ALL
+                  SELECT 1 FROM spare_parts WHERE "stockQty" < "minStockQty"
+                ) x;
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, reducer: last, expression: A, datasource: { type: __expr__, uid: __expr__ } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              datasource: { type: __expr__, uid: __expr__ }
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      # ── 7. Critical Maintenance Overdue ──────────────────────────
+      - uid: mes_alert_maintenance_overdue
+        title: Critical Maintenance Overdue
+        condition: C
+        for: 5m
+        labels: { severity: critical, domain: maintenance }
+        annotations:
+          summary: "Overdue critical maintenance work orders"
+          description: "Critical maintenance work orders are past their due date and not completed."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mes_postgres
+            model:
+              refId: A
+              format: table
+              datasource: { type: postgres, uid: mes_postgres }
+              rawSql: >
+                SELECT COUNT(*) AS value
+                FROM maintenance_wos
+                WHERE "dueDate" < NOW()
+                  AND status NOT IN ('COMPLETED', 'CANCELLED')
+                  AND priority = 'CRITICAL'
+                  AND "deletedAt" IS NULL;
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, reducer: last, expression: A, datasource: { type: __expr__, uid: __expr__ } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              datasource: { type: __expr__, uid: __expr__ }
+              conditions:
+                - evaluator: { type: gt, params: [0] }

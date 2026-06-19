@@ -1,0 +1,1 @@
+# Grafana looks for this dir; intentionally empty (plugins are pre-installed via GF_PLUGINS_PREINSTALL)

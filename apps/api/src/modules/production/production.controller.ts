@@ -1,0 +1,728 @@
+import {
+  Controller, Get, Post, Patch, Delete, Body, Param, Query,
+  HttpCode, HttpStatus, ParseUUIDPipe, NotFoundException,
+} from '@nestjs/common';
+import {
+  ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiResponse,
+} from '@nestjs/swagger';
+
+import { ProductionService } from './production.service';
+import { OEEService } from './oee.service';
+import { KpiService } from './kpi.service';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { AuditLog } from '../../common/decorators/audit-log.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import {
+  CreateWorkOrderDto,
+  UpdateWorkOrderDto,
+  StartWorkOrderDto,
+  CompleteWorkOrderDto,
+  HoldWorkOrderDto,
+  CancelWorkOrderDto,
+  RecordCountDto,
+  CreateProductionOrderDto,
+  UpdateProductionOrderDto,
+  CreateWOFromPODto,
+  ProductionOrderFiltersDto,
+  HoldProductionOrderDto,
+  CancelProductionOrderDto,
+  AutoGenerateWOsDto,
+  CreateRescheduleRequestDto,
+  ReviewRescheduleRequestDto,
+} from './dto/work-order.dto';
+
+interface RequestUser {
+  id: string;
+  factoryId: string | null;
+}
+
+@ApiTags('Production')
+@ApiBearerAuth('JWT-auth')
+@Controller('production')
+export class ProductionController {
+  constructor(
+    private readonly productionService: ProductionService,
+    private readonly oeeService: OEEService,
+    private readonly kpiService: KpiService,
+  ) {}
+
+  // ────────────────────────────────────────────────────────────
+  // KPIs & OEE
+  // ────────────────────────────────────────────────────────────
+
+  @Get('kpis')
+  @ApiOperation({ summary: 'Get production KPIs for current day' })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  async getKPIs(
+    @CurrentUser() user: RequestUser,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+  ) {
+    return this.productionService.getKPIs(user.factoryId, { areaId, lineId, machineId });
+  }
+
+  @Get('oee/calculate')
+  @ApiOperation({ summary: 'Get current OEE summary with trend and per-equipment breakdown' })
+  @ApiQuery({ name: 'timeframe', required: false, description: 'day | week | month | shift (any case)' })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  async getOEESummary(
+    @CurrentUser() user: RequestUser,
+    @Query('timeframe') timeframe?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+  ) {
+    return this.productionService.getOEESummary(user.factoryId, { areaId, lineId, machineId }, timeframe ?? 'day', dateFrom, dateTo);
+  }
+
+  @Post('oee/calculate')
+  @ApiOperation({ summary: 'Calculate OEE from manual input values' })
+  calculateOEE(@Body() body: {
+    plannedProductionTime: number;
+    downtime: number;
+    idealCycleTime: number;
+    totalCount: number;
+    goodCount: number;
+  }) {
+    return this.oeeService.calculate(body);
+  }
+
+  @Get('oee/hierarchy')
+  @ApiOperation({ summary: 'Weighted OEE rolled up Factory→Area→Line→Machine + six-loss + Pareto' })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  getOeeHierarchy(
+    @CurrentUser() user: RequestUser,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+  ) {
+    return this.kpiService.hierarchyOEE(user.factoryId, dateFrom, dateTo, { areaId, lineId, machineId });
+  }
+
+  @Get('oee-records')
+  @ApiOperation({ summary: 'Get stored OEE records' })
+  @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async getOEERecords(
+    @CurrentUser() user: RequestUser,
+    @Query('machineId') machineId?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+  ) {
+    return this.productionService.getOEERecords(user.factoryId, {
+      machineId,
+      areaId,
+      lineId,
+      dateFrom,
+      dateTo,
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // WORK ORDER CRUD
+  // ────────────────────────────────────────────────────────────
+
+  @Get('work-orders')
+  @ApiOperation({ summary: 'List work orders with filters' })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'priority', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async findWorkOrders(
+    @CurrentUser() user: RequestUser,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('priority') priority?: string,
+    @Query('machineId') machineId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('areaId') areaId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('archived') archived?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+  ) {
+    return this.productionService.findWorkOrders(user.factoryId, {
+      search,
+      status: status as any,
+      priority,
+      machineId,
+      lineId,
+      areaId,
+      dateFrom,
+      dateTo,
+      archived,
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+    });
+  }
+
+  @Get('work-orders/:id')
+  @ApiOperation({ summary: 'Get a work order by ID with full detail' })
+  async getWorkOrderById(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.getWorkOrderById(user.factoryId, id);
+  }
+
+  @Post('work-orders')
+  @RequirePermissions('production:write')
+  @AuditLog('PRODUCTION_WO_CREATE')
+  @ApiOperation({ summary: 'Create a new work order' })
+  @ApiResponse({ status: 201, description: 'Work order created' })
+  async createWorkOrder(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateWorkOrderDto,
+  ) {
+    return this.productionService.createWorkOrder(user.factoryId, user.id, dto);
+  }
+
+  @Patch('work-orders/:id')
+  @RequirePermissions('production:write')
+  @AuditLog('PRODUCTION_WO_UPDATE')
+  @ApiOperation({ summary: 'Update work order metadata (not status)' })
+  async updateWorkOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateWorkOrderDto,
+  ) {
+    return this.productionService.updateWorkOrder(user.factoryId, id, dto);
+  }
+
+  @Delete('work-orders/:id')
+  @RequirePermissions('production:write')
+  @AuditLog('PRODUCTION_WO_DELETE')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Soft-delete a work order (cannot delete IN_PROGRESS)' })
+  async deleteWorkOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.productionService.deleteWorkOrder(user.factoryId, id);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // STATE MACHINE TRANSITIONS
+  // ────────────────────────────────────────────────────────────
+
+  @Patch('work-orders/:id/start')
+  @RequirePermissions('production:execute')
+  @AuditLog('PRODUCTION_WO_START')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Start a planned/released work order → IN_PROGRESS' })
+  async startWorkOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: StartWorkOrderDto,
+  ) {
+    return this.productionService.startWorkOrder(user.factoryId, user.id, id, dto.operatorId);
+  }
+
+  @Patch('work-orders/:id/hold')
+  @RequirePermissions('production:execute')
+  @AuditLog('PRODUCTION_WO_HOLD')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Hold an in-progress work order → ON_HOLD' })
+  async holdWorkOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: HoldWorkOrderDto,
+  ) {
+    return this.productionService.holdWorkOrder(user.factoryId, user.id, id, dto);
+  }
+
+  @Patch('work-orders/:id/release')
+  @RequirePermissions('production:execute')
+  @AuditLog('PRODUCTION_WO_RELEASE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Release a held work order → IN_PROGRESS' })
+  async releaseWorkOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.releaseWorkOrder(user.factoryId, user.id, id);
+  }
+
+  @Patch('work-orders/:id/cancel')
+  @RequirePermissions('production:write')
+  @AuditLog('PRODUCTION_WO_CANCEL')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel a work order' })
+  async cancelWorkOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelWorkOrderDto,
+  ) {
+    return this.productionService.cancelWorkOrder(user.factoryId, user.id, id, dto.reason);
+  }
+
+  @Patch('work-orders/:id/complete')
+  @RequirePermissions('production:execute')
+  @AuditLog('PRODUCTION_WO_COMPLETE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Complete an in-progress work order (triggers OEE calculation)' })
+  async completeWorkOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CompleteWorkOrderDto,
+  ) {
+    return this.productionService.completeWorkOrder(user.factoryId, user.id, id, dto);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // PRODUCTION COUNT RECORDING
+  // ────────────────────────────────────────────────────────────
+
+  @Post('work-orders/:id/count')
+  @RequirePermissions('production:execute')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Record production count update (called periodically during production)' })
+  async recordCount(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RecordCountDto,
+  ) {
+    return this.productionService.recordCount(user.factoryId, id, dto);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // BATCH RECORDS
+  // ────────────────────────────────────────────────────────────
+
+  @Get('batches')
+  @ApiOperation({ summary: 'List batch records' })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'workOrderId', required: false })
+  @ApiQuery({ name: 'skuId', required: false })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async findBatches(
+    @CurrentUser() user: RequestUser,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('workOrderId') workOrderId?: string,
+    @Query('skuId') skuId?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+  ) {
+    return this.productionService.findBatches(user.factoryId, {
+      search, status, workOrderId, skuId,
+      page: parseInt(page, 10), limit: parseInt(limit, 10),
+    });
+  }
+
+  @Post('batches')
+  @ApiOperation({ summary: 'Create batch record' })
+  async createBatch(@CurrentUser() user: RequestUser, @Body() dto: any) {
+    const factoryId = user.factoryId ?? dto.factoryId;
+    if (!factoryId) throw new Error('Factory context required');
+    return this.productionService.createBatch(factoryId, dto);
+  }
+
+  @Patch('batches/:id')
+  @ApiOperation({ summary: 'Update batch record' })
+  async updateBatch(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: any,
+  ) {
+    return this.productionService.updateBatch(user.factoryId, id, dto);
+  }
+
+  @Delete('batches/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a non-active batch record' })
+  async deleteBatch(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.deleteBatch(user.factoryId, id);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // PRODUCTION ORDERS (ISA-95 Level 4 — ERP/Scheduling)
+  // ────────────────────────────────────────────────────────────
+
+  @Get('production-orders')
+  @ApiOperation({ summary: 'List production orders with optional filters' })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async findProductionOrders(
+    @CurrentUser() user: RequestUser,
+    @Query() filters: ProductionOrderFiltersDto,
+  ) {
+    return this.productionService.findProductionOrders(user.factoryId, filters);
+  }
+
+  @Post('production-orders')
+  @RequirePermissions('production:manage')
+  @AuditLog('PRODUCTION_ORDER_CREATE')
+  @ApiOperation({ summary: 'Create a new production order (ISA-95 Level 4)' })
+  async createProductionOrder(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateProductionOrderDto,
+  ) {
+    return this.productionService.createProductionOrder(user.factoryId, user.id, dto);
+  }
+
+  @Get('production-orders/:id')
+  @ApiOperation({ summary: 'Get production order detail with linked work orders' })
+  async findOneProductionOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.findOneProductionOrder(user.factoryId, id);
+  }
+
+  @Patch('production-orders/:id')
+  @RequirePermissions('production:manage')
+  @AuditLog('PRODUCTION_ORDER_UPDATE')
+  @ApiOperation({ summary: 'Update a production order (blocked once COMPLETED/CANCELLED)' })
+  async updateProductionOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateProductionOrderDto,
+  ) {
+    return this.productionService.updateProductionOrder(user.factoryId, id, dto);
+  }
+
+  @Patch('production-orders/:id/release')
+  @RequirePermissions('production:manage')
+  @AuditLog('PRODUCTION_ORDER_RELEASE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Release a PLANNED production order → RELEASED (authorises WO creation)' })
+  async releaseProductionOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.releaseProductionOrder(user.factoryId, id);
+  }
+
+  @Post('production-orders/:id/work-orders')
+  @RequirePermissions('production:manage')
+  @AuditLog('PRODUCTION_ORDER_WO_CREATE')
+  @ApiOperation({ summary: 'Convert a released production order into a work order (ISA-95 PO→WO)' })
+  async createWorkOrderFromPO(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateWOFromPODto,
+  ) {
+    return this.productionService.createWorkOrderFromPO(user.factoryId, user.id, id, dto);
+  }
+
+  @Patch('production-orders/:id/cancel')
+  @RequirePermissions('production:manage')
+  @AuditLog('PRODUCTION_ORDER_CANCEL')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel a production order (blocked if IN_PROGRESS WOs exist)' })
+  async cancelProductionOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelProductionOrderDto,
+  ) {
+    return this.productionService.cancelProductionOrder(user.factoryId, id, dto.reason);
+  }
+
+  @Patch('production-orders/:id/hold')
+  @RequirePermissions('production:manage')
+  @AuditLog('PRODUCTION_ORDER_HOLD')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Put a RELEASED or IN_PROGRESS production order on hold' })
+  async holdProductionOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: HoldProductionOrderDto,
+  ) {
+    return this.productionService.holdProductionOrder(user.factoryId, id, dto.reason);
+  }
+
+  @Patch('production-orders/:id/resume')
+  @RequirePermissions('production:manage')
+  @AuditLog('PRODUCTION_ORDER_RESUME')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resume an ON_HOLD production order' })
+  async resumeProductionOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.resumeProductionOrder(user.factoryId, id);
+  }
+
+  @Patch('production-orders/:id/complete')
+  @RequirePermissions('production:manage')
+  @AuditLog('PRODUCTION_ORDER_COMPLETE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Complete an IN_PROGRESS production order' })
+  async completeProductionOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.completeProductionOrder(user.factoryId, id);
+  }
+
+  @Delete('production-orders/:id')
+  @RequirePermissions('production:manage')
+  @AuditLog('PRODUCTION_ORDER_DELETE')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Soft-delete a PLANNED or CANCELLED production order' })
+  async deleteProductionOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.deleteProductionOrder(user.factoryId, id);
+  }
+
+  @Get('production-orders/:id/auto-generate-preview')
+  @ApiOperation({ summary: 'Preview work orders + smart finish time (overlap-aware schedule + planned stoppage) — no changes made' })
+  @ApiQuery({ name: 'from', required: false, description: 'Schedule from this instant (defaults to PO planned start)' })
+  async previewAutoGenerateWOs(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('from') from?: string,
+  ) {
+    return this.productionService.previewAutoGenerateWOs(user.factoryId, id, from);
+  }
+
+  // ── Reschedule requests (governance for over-due smart finish) ──
+  @Get('reschedule-requests')
+  @ApiOperation({ summary: 'List reschedule requests (optionally by status / production order)' })
+  async listRescheduleRequests(
+    @CurrentUser() user: RequestUser,
+    @Query('status') status?: string,
+    @Query('productionOrderId') productionOrderId?: string,
+  ) {
+    return this.productionService.listRescheduleRequests(user.factoryId, { status, productionOrderId });
+  }
+
+  @Post('production-orders/:id/reschedule-requests')
+  @AuditLog('RESCHEDULE_REQUEST_CREATE')
+  @ApiOperation({ summary: 'Raise a reschedule request when the smart finish exceeds the due date' })
+  async createRescheduleRequest(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateRescheduleRequestDto,
+  ) {
+    return this.productionService.createRescheduleRequest(user.factoryId, user.id, id, dto);
+  }
+
+  @Patch('reschedule-requests/:id/review')
+  @RequirePermissions('production:manage')
+  @AuditLog('RESCHEDULE_REQUEST_REVIEW')
+  @ApiOperation({ summary: 'Approve or reject a reschedule request' })
+  async reviewRescheduleRequest(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReviewRescheduleRequestDto,
+  ) {
+    return this.productionService.reviewRescheduleRequest(user.factoryId, user.id, id, dto.approve, dto.reason);
+  }
+
+  @Post('production-orders/:id/auto-generate-work-orders')
+  @RequirePermissions('production:manage')
+  @AuditLog('PRODUCTION_ORDER_AUTO_GENERATE_WOS')
+  @ApiOperation({ summary: 'Auto-generate work orders from recipe routing steps (ISA-95 Control Recipe instantiation)' })
+  async autoGenerateWorkOrders(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AutoGenerateWOsDto,
+  ) {
+    return this.productionService.autoGenerateWorkOrders(user.factoryId, user.id, id, dto);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // JOB ORDERS (ISA-95 Dispatch List — per RoutingStep per WO)
+  // ────────────────────────────────────────────────────────────
+
+  @Get('job-orders')
+  @ApiOperation({ summary: 'List all job orders for the factory (dispatch list overview)' })
+  @ApiQuery({ name: 'machineIds', required: false, description: 'Comma-separated machine ids (multi-machine filter)' })
+  @ApiQuery({ name: 'productionOrderId', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  async listAllJobOrders(
+    @CurrentUser() user: RequestUser,
+    @Query('status') status?: string,
+    @Query('workOrderId') workOrderId?: string,
+    @Query('productionOrderId') productionOrderId?: string,
+    @Query('machineIds') machineIds?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+  ) {
+    return this.productionService.listAllJobOrders(user.factoryId, {
+      status, workOrderId, productionOrderId, machineIds, areaId, lineId, machineId,
+    });
+  }
+
+  @Get('job-orders/:id/live')
+  @ApiOperation({ summary: 'Live job-order dashboard payload — OEE, six losses, downtime, scrap, trends, alarms, maintenance' })
+  async jobOrderLiveDashboard(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.getJobOrderLiveDashboard(user.factoryId, id);
+  }
+
+  @Get('work-orders/:id/job-orders')
+  @ApiOperation({ summary: 'Get job orders (dispatch list) for a work order' })
+  async getJobOrders(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.getJobOrders(user.factoryId, id);
+  }
+
+  @Get('work-orders/:id/machine-recommendations')
+  @ApiOperation({ summary: 'Per-step machine candidates ranked by earliest finish (default vs ready alternatives)' })
+  async machineRecommendations(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.recommendMachines(user.factoryId, id);
+  }
+
+  @Post('work-orders/:id/job-orders/generate')
+  @RequirePermissions('production:manage')
+  @AuditLog('JOB_ORDERS_GENERATE')
+  @ApiOperation({ summary: 'Auto-generate job orders from manufacturing process routing steps' })
+  async generateJobOrders(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: { plannedStart?: string; plannedEnd?: string; clearExisting?: boolean },
+  ) {
+    return this.productionService.generateJobOrders(user.factoryId, id, dto);
+  }
+
+  @Delete('work-orders/:id/job-orders')
+  @RequirePermissions('production:manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete all job orders for a work order (none must be EXECUTING)' })
+  async deleteJobOrders(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productionService.deleteJobOrders(user.factoryId, id);
+  }
+
+  @Patch('job-orders/:id/output')
+  @RequirePermissions('production:execute')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Report actual output quantities for an executing/paused/complete job order (no status change)' })
+  async reportJobOrderOutput(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { actualQtyGood: number; actualQtyRejected?: number; scrapReason?: string; scrapCategory?: string },
+  ) {
+    return this.productionService.reportJobOrderOutput(user.factoryId, id, body);
+  }
+
+  @Patch('job-orders/:id/add-count')
+  @RequirePermissions('production:execute')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Smart incremental count — ADDS good / scrap(bad) qty to the running totals (each scrap → ScrapLog), and controls handover qty' })
+  async addJobOrderCount(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { goodDelta?: number; scrapDelta?: number; scrapReason?: string; scrapCategory?: string; handoverQty?: number },
+  ) {
+    return this.productionService.addJobOrderCount(user.factoryId, id, body);
+  }
+
+  @Get('scrap-logs')
+  @ApiOperation({ summary: 'List scrap log entries with optional filters' })
+  @ApiQuery({ name: 'workOrderId', required: false })
+  @ApiQuery({ name: 'jobOrderId', required: false })
+  @ApiQuery({ name: 'category', required: false })
+  @ApiQuery({ name: 'from', required: false })
+  @ApiQuery({ name: 'to', required: false })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async listScrapLogs(
+    @CurrentUser() user: RequestUser,
+    @Query('workOrderId') workOrderId?: string,
+    @Query('jobOrderId') jobOrderId?: string,
+    @Query('category') category?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.productionService.listScrapLogs(user.factoryId, {
+      workOrderId,
+      jobOrderId,
+      category,
+      from,
+      to,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
+  @Patch('job-orders/:id/operator')
+  @RequirePermissions('production:execute')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Assign or unassign an operator to a job order' })
+  async assignJobOrderOperator(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { operatorId: string | null },
+  ) {
+    return this.productionService.assignJobOrderOperator(user.factoryId, id, body.operatorId);
+  }
+
+  @Patch('job-orders/:id/status')
+  @RequirePermissions('production:execute')
+  @AuditLog('JOB_ORDER_STATUS')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Transition a job order status (READY → EXECUTING → COMPLETE etc.)' })
+  async updateJobOrderStatus(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: {
+      status: string;
+      actualQtyGood?: number;
+      actualQtyRejected?: number;
+      handoverQty?: number;
+      notes?: string;
+    },
+  ) {
+    return this.productionService.updateJobOrderStatus(user.factoryId, id, body.status, body);
+  }
+}

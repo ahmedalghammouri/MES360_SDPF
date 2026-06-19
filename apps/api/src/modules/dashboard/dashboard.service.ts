@@ -1,0 +1,448 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { KpiService } from '../production/kpi.service';
+import { ShiftService } from '../shift/shift.service';
+
+@Injectable()
+export class DashboardService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly kpi: KpiService,
+    private readonly shift: ShiftService,
+  ) {}
+
+  /** Resolve an analysis scope (area/line/machine) to the machine ids it covers. */
+  private async scopeMachineIds(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+  ): Promise<string[] | undefined> {
+    if (!scope || (!scope.areaId && !scope.lineId && !scope.machineId)) return undefined;
+    const ms = await this.prisma.machine.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        ...(scope.machineId ? { id: scope.machineId } : {}),
+        ...(scope.lineId ? { lineId: scope.lineId } : {}),
+        ...(scope.areaId ? { line: { areaId: scope.areaId } } : {}),
+      },
+      select: { id: true },
+    });
+    return ms.map((m) => m.id);
+  }
+
+  /**
+   * Resolve the requested analysis window. Defaults to "today" (00:00 → now)
+   * when no range is given, and derives an equal-length previous window for trends.
+   */
+  private resolveWindow(range?: { timeframe?: string; dateFrom?: string; dateTo?: string }) {
+    const now = new Date();
+    let from: Date;
+    let to: Date = now;
+
+    if (range?.dateFrom) {
+      from = new Date(`${range.dateFrom}T00:00:00`);
+      if (range.dateTo) {
+        const end = new Date(`${range.dateTo}T23:59:59.999`);
+        to = end < now ? end : now;
+      }
+    } else {
+      from = new Date(now);
+      from.setHours(0, 0, 0, 0); // today / shift
+    }
+    if (isNaN(from.getTime())) {
+      from = new Date(now);
+      from.setHours(0, 0, 0, 0);
+    }
+
+    const spanMs = Math.max(to.getTime() - from.getTime(), 3_600_000);
+    const prevTo = new Date(from.getTime());
+    const prevFrom = new Date(from.getTime() - spanMs);
+    const multiDay = spanMs > 36 * 3_600_000;
+    return { from, to, prevFrom, prevTo, spanMs, multiDay };
+  }
+
+  async getOverview(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+    range?: { timeframe?: string; dateFrom?: string; dateTo?: string },
+  ) {
+    const machineIds = await this.scopeMachineIds(factoryId, scope);
+    const win = this.resolveWindow(range);
+    // Compute the window's OEE analytics ONCE and feed both the KPI strip and the
+    // machine grid — so per-machine OEE is LIVE (from job orders) instead of the stale
+    // MachineCurrentStatus.oee snapshot.
+    const bucket: 'hour' | 'day' = win.multiDay ? 'day' : 'hour';
+    const analytics = await this.kpi.oeeAnalytics(factoryId, win.from, win.to, machineIds, bucket);
+    const [kpis, machines, productionStatus, alarms] = await Promise.all([
+      this.getKPIs(factoryId, machineIds, win, analytics),
+      this.getMachineStatus(factoryId, machineIds, analytics),
+      this.getProductionStatus(factoryId, machineIds, win),
+      this.getActiveAlarms(factoryId),
+    ]);
+
+    const [productionTrend, qualityTrend, downtimePareto, shiftSummary] = await Promise.all([
+      this.getProductionTrend(factoryId, machineIds, win),
+      this.getQualityTrend(factoryId, machineIds, win),
+      this.getDowntimePareto(factoryId, win),
+      this.getCurrentShiftSummary(factoryId, analytics),
+    ]);
+
+    return {
+      kpis,
+      machines,
+      productionStatus,
+      alarms,
+      productionTrend,
+      qualityTrend,
+      downtimePareto,
+      shiftSummary,
+    };
+  }
+
+  /** First-pass-yield / scrap trend bucketed over the window (from job-order output). */
+  private async getQualityTrend(
+    factoryId: string | null,
+    machineIds: string[] | undefined,
+    win: ReturnType<DashboardService['resolveWindow']>,
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const machineScope = machineIds ? { machineId: { in: machineIds } } : {};
+    const { from, to, multiDay } = win;
+
+    const buckets: { start: Date; label: string }[] = [];
+    if (multiDay) {
+      const d = new Date(from);
+      d.setHours(0, 0, 0, 0);
+      while (d <= to && buckets.length < 60) {
+        buckets.push({ start: new Date(d), label: `${d.getMonth() + 1}/${d.getDate()}` });
+        d.setDate(d.getDate() + 1);
+      }
+    } else {
+      const h = new Date(from);
+      h.setMinutes(0, 0, 0);
+      while (h <= to && buckets.length < 24) {
+        buckets.push({ start: new Date(h), label: `${h.getHours()}:00` });
+        h.setHours(h.getHours() + 1);
+      }
+    }
+
+    const jos = await this.prisma.jobOrder.findMany({
+      where: { ...factoryFilter, ...machineScope, actualStart: { gte: from, lte: to } },
+      select: { actualStart: true, actualQtyGood: true, actualQtyRejected: true },
+    });
+    const stepMs = multiDay ? 86_400_000 : 3_600_000;
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+    return buckets.map((b) => {
+      const next = b.start.getTime() + stepMs;
+      let good = 0;
+      let rejected = 0;
+      for (const jo of jos) {
+        const t = jo.actualStart ? jo.actualStart.getTime() : 0;
+        if (t >= b.start.getTime() && t < next) {
+          good += jo.actualQtyGood ?? 0;
+          rejected += jo.actualQtyRejected ?? 0;
+        }
+      }
+      const total = good + rejected;
+      // FPY = good/total; scrap = rejected/total. Rework is not tracked at job-order level → 0.
+      return {
+        time: b.label,
+        fpy: total > 0 ? r1((good / total) * 100) : 0,
+        rework: 0,
+        scrap: total > 0 ? r1((rejected / total) * 100) : 0,
+      };
+    });
+  }
+
+  private async getKPIs(
+    factoryId: string | null,
+    machineIds: string[] | undefined,
+    win: ReturnType<DashboardService['resolveWindow']>,
+    today: Awaited<ReturnType<KpiService['oeeAnalytics']>>,
+  ) {
+    const { prevFrom, prevTo, multiDay } = win;
+    const bucket: 'hour' | 'day' = multiDay ? 'day' : 'hour';
+
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+
+    // `today` is computed once in getOverview and shared. Only the previous-window
+    // comparison + alarm counts are fetched here.
+    const [prev, activeAlarms, prevAlarms] = await Promise.all([
+      this.kpi.oeeAnalytics(factoryId, prevFrom, prevTo, machineIds, bucket),
+      this.prisma.alarmEvent.count({ where: { ...factoryFilter, acknowledgedAt: null, resolvedAt: null } }),
+      this.prisma.alarmEvent.count({ where: { ...factoryFilter, triggeredAt: { gte: prevFrom, lt: prevTo } } }),
+    ]);
+
+    const hasData = today.totalOutput > 0 && prev.totalOutput > 0;
+    const trend = (t: number, p: number) => (hasData ? r1(t - p) : 0);
+
+    return {
+      oee: today.current.oee,
+      availability: today.current.availability,
+      performance: today.current.performance,
+      quality: today.current.quality,
+      // Time-based (AT-OEE) variant — exposed everywhere alongside schedule-based OEE.
+      oeeTb: today.current.oeeTb,
+      availabilityTb: today.current.availabilityTb,
+      totalOutput: today.totalOutput,
+      activeAlarms,
+      oeeTrend: trend(today.current.oee, prev.current.oee),
+      oeeTbTrend: trend(today.current.oeeTb, prev.current.oeeTb),
+      availabilityTrend: trend(today.current.availability, prev.current.availability),
+      availabilityTbTrend: trend(today.current.availabilityTb, prev.current.availabilityTb),
+      performanceTrend: trend(today.current.performance, prev.current.performance),
+      qualityTrend: trend(today.current.quality, prev.current.quality),
+      outputTrend: trend(today.totalOutput, prev.totalOutput),
+      alarmTrend: activeAlarms - prevAlarms,
+    };
+  }
+
+  private async getMachineStatus(
+    factoryId: string | null,
+    machineIds: string[] | undefined,
+    analytics: Awaited<ReturnType<KpiService['oeeAnalytics']>>,
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const scopeFilter = machineIds ? { id: { in: machineIds } } : {};
+
+    // Live per-machine OEE from the engine (job orders in the window), keyed by machine id.
+    // The MachineCurrentStatus.oee snapshot is only used as a fallback when a machine ran
+    // no job orders in the window.
+    const liveOee = new Map(analytics.byEquipment.map((e) => [e.machineId, e]));
+
+    const machines = await this.prisma.machine.findMany({
+      where: { ...factoryFilter, ...scopeFilter, isActive: true },
+      include: {
+        currentStatus: true,
+        line: {
+          include: {
+            area: { select: { name: true } },
+          },
+        },
+      },
+      take: 20,
+    });
+
+    // A WorkOrder is routed across MANY machines (one JobOrder per step). The WO shown
+    // on a machine card must be the WO of the JOB ORDER currently running on THAT machine
+    // — not the WO header's machine. Resolve per-machine via the active (EXECUTING) JO.
+    const machineIdList = machines.map((m) => m.id);
+    const activeJos = machineIdList.length
+      ? await this.prisma.jobOrder.findMany({
+          where: { ...factoryFilter, machineId: { in: machineIdList }, status: { in: ['EXECUTING', 'PAUSED'] } },
+          select: { machineId: true, actualStart: true, workOrder: { select: { orderNumber: true } } },
+          orderBy: { actualStart: 'desc' },
+        })
+      : [];
+    const woByMachine = new Map<string, string>();
+    for (const jo of activeJos) {
+      if (jo.machineId && !woByMachine.has(jo.machineId) && jo.workOrder?.orderNumber) {
+        woByMachine.set(jo.machineId, jo.workOrder.orderNumber);
+      }
+    }
+
+    return machines.map((m) => {
+      const live = liveOee.get(m.id);
+      return {
+        id: m.id,
+        name: m.name,
+        code: m.code,
+        state: m.currentStatus?.state ?? 'OFFLINE',
+        // Prefer live job-order OEE; fall back to the stored snapshot.
+        oee: live ? live.oee : (m.currentStatus?.oee ?? 0),
+        oeeTb: live ? live.oeeTb : null,
+        // WO of the job order running on this machine (correct for routed WOs).
+        currentOrder: woByMachine.get(m.id),
+        throughput: m.currentStatus?.actualSpeed ?? 0,
+        runtime: m.currentStatus?.runtimeMinutes ?? 0,
+        lastUpdate: m.currentStatus?.updatedAt?.toISOString() ?? new Date().toISOString(),
+        area: m.line?.area?.name ?? 'Unknown',
+      };
+    });
+  }
+
+  private async getProductionStatus(
+    factoryId: string | null,
+    machineIds: string[] | undefined,
+    win: ReturnType<DashboardService['resolveWindow']>,
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const machineScope = machineIds ? { machineId: { in: machineIds } } : {};
+    const idScope = machineIds ? { id: { in: machineIds } } : {};
+    // WorkOrder has no machineId column — it links to machines through its job orders.
+    const woMachineScope = machineIds ? { jobOrders: { some: { machineId: { in: machineIds } } } } : {};
+    const { from, to } = win;
+
+    const [totalMachines, activeWOs, completedToday, shiftTargets, outputToday] = await Promise.all([
+      this.prisma.machine.count({ where: { ...factoryFilter, ...idScope, isActive: true } }),
+      // Running lines/active orders are an instantaneous snapshot (not range-bound)
+      this.prisma.workOrder.count({ where: { ...factoryFilter, ...woMachineScope, status: 'IN_PROGRESS' } }),
+      this.prisma.workOrder.count({
+        where: { ...factoryFilter, ...woMachineScope, status: 'COMPLETED', actualEnd: { gte: from, lte: to } },
+      }),
+      // Planned output = sum of the window's shift targets (real shift model)
+      this.prisma.shiftInstance.aggregate({
+        where: { ...factoryFilter, startTime: { gte: from, lte: to } },
+        _sum: { targetQty: true },
+      }),
+      // Actual output = recorded OEE output within the window
+      this.prisma.oEERecord.aggregate({
+        where: { ...factoryFilter, ...machineScope, recordDate: { gte: from, lte: to } },
+        _sum: { totalOutput: true },
+      }),
+    ]);
+
+    return {
+      runningLines: Math.min(activeWOs, totalMachines),
+      totalLines: totalMachines,
+      activeOrders: activeWOs,
+      completedToday,
+      plannedOutput: shiftTargets._sum.targetQty ?? 0,
+      actualOutput: outputToday._sum.totalOutput ?? 0,
+    };
+  }
+
+  private async getActiveAlarms(factoryId: string | null) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+
+    return this.prisma.alarmEvent.findMany({
+      where: { ...factoryFilter, resolvedAt: null },
+      orderBy: [{ severity: 'desc' }, { triggeredAt: 'desc' }],
+      take: 10,
+      include: { machine: { select: { name: true } } },
+    }).then((alarms) =>
+      alarms.map((a) => ({
+        id: a.id,
+        code: a.code,
+        description: a.description,
+        severity: a.severity,
+        machine: a.machine?.name ?? 'Unknown',
+        triggeredAt: a.triggeredAt.toISOString(),
+        acknowledged: !!a.acknowledgedAt,
+      })),
+    );
+  }
+
+  /**
+   * Current-shift summary for the Home card. Built from the SAME engine as the
+   * shop-floor Shift Analysis band (template-clock window + real COUNT_UPDATE
+   * production), so it works even when no ShiftInstance has been "started".
+   */
+  private async getCurrentShiftSummary(
+    factoryId: string | null,
+    analytics?: { current?: { oee?: number | null } },
+  ) {
+    const analysis = await this.shift.getShiftAnalysis(factoryId).catch(() => null);
+    if (!analysis?.status?.active) return null; // no shift window now — UI renders idle state
+    const { status, totals } = analysis;
+
+    // Operator from the IN_PROGRESS instance if one was started (optional).
+    const instance = await this.prisma.shiftInstance
+      .findFirst({
+        where: { ...(factoryId ? { factoryId } : {}), status: 'IN_PROGRESS' },
+        select: { operator: { select: { name: true } } },
+        orderBy: { startTime: 'desc' },
+      })
+      .catch(() => null);
+
+    return {
+      shiftName: status.active.name ?? 'Shift',
+      operator: instance?.operator?.name ?? null,
+      startTime: status.shiftStart,
+      elapsed: Math.round(status.elapsedMin ?? 0),
+      // finished output this shift + any work-in-process, in the shift's target unit
+      output: totals?.good ?? 0,
+      inProcess: totals?.inProcess ?? 0,
+      unit: totals?.unit ?? null,
+      target: totals?.target ?? null,
+      // shift OEE = the window OEE already computed for the KPI strip (single source)
+      oee: analytics?.current?.oee ?? null,
+      downtime: Math.round(totals?.downtimeMins ?? 0),
+      defects: totals?.scrap ?? 0,
+    };
+  }
+
+  private async getProductionTrend(
+    factoryId: string | null,
+    machineIds: string[] | undefined,
+    win: ReturnType<DashboardService['resolveWindow']>,
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const machineScope = machineIds ? { machineId: { in: machineIds } } : {};
+    const { from, to, multiDay } = win;
+
+    // Multi-day windows bucket by day; same-day windows bucket by hour.
+    const buckets: { start: Date; label: string }[] = [];
+    if (multiDay) {
+      const d = new Date(from);
+      d.setHours(0, 0, 0, 0);
+      while (d <= to && buckets.length < 60) {
+        buckets.push({ start: new Date(d), label: `${d.getMonth() + 1}/${d.getDate()}` });
+        d.setDate(d.getDate() + 1);
+      }
+    } else {
+      const h = new Date(from);
+      h.setMinutes(0, 0, 0);
+      while (h <= to && buckets.length < 24) {
+        buckets.push({ start: new Date(h), label: `${h.getHours()}:00` });
+        h.setHours(h.getHours() + 1);
+      }
+    }
+
+    // Real production from job orders (source of truth): actual = good + scrap,
+    // target = planned output, efficiency = actual / target. One query, bucketed in-memory.
+    const jos = await this.prisma.jobOrder.findMany({
+      where: { ...factoryFilter, ...machineScope, actualStart: { gte: from, lte: to } },
+      select: { actualStart: true, actualQtyGood: true, actualQtyRejected: true, plannedQtyOut: true },
+    });
+    const stepMs = multiDay ? 86_400_000 : 3_600_000;
+    return buckets.map((b) => {
+      const next = b.start.getTime() + stepMs;
+      let actual = 0;
+      let target = 0;
+      for (const jo of jos) {
+        const t = jo.actualStart ? jo.actualStart.getTime() : 0;
+        if (t >= b.start.getTime() && t < next) {
+          actual += (jo.actualQtyGood ?? 0) + (jo.actualQtyRejected ?? 0);
+          target += jo.plannedQtyOut ?? 0;
+        }
+      }
+      const efficiency = target > 0 ? Math.round(Math.min(100, (actual / target) * 100)) : 0;
+      return { time: b.label, actual, target, efficiency };
+    });
+  }
+
+  private async getDowntimePareto(
+    factoryId: string | null,
+    win: ReturnType<DashboardService['resolveWindow']>,
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const { from, to } = win;
+
+    const events = await this.prisma.downtimeEvent.findMany({
+      // Unplanned-loss Pareto only — planned downtime (break/cleaning) is excluded
+      where: { ...factoryFilter, startTime: { gte: from, lte: to }, durationMinutes: { not: null }, isPlanned: false },
+      select: { category: true, durationMinutes: true },
+    });
+
+    const grouped: Record<string, { duration: number; frequency: number }> = {};
+    for (const e of events) {
+      const key = e.category ?? 'UNKNOWN';
+      if (!grouped[key]) grouped[key] = { duration: 0, frequency: 0 };
+      grouped[key].duration += e.durationMinutes ?? 0;
+      grouped[key].frequency += 1;
+    }
+
+    const sorted = Object.entries(grouped)
+      .map(([reason, v]) => ({ reason, ...v }))
+      .sort((a, b) => b.duration - a.duration);
+
+    const total = sorted.reduce((s, r) => s + r.duration, 0);
+    let cum = 0;
+    return sorted.map((r) => {
+      cum += r.duration;
+      return { ...r, cumulative: total > 0 ? Math.round((cum / total) * 100) : 0 };
+    });
+  }
+
+}
