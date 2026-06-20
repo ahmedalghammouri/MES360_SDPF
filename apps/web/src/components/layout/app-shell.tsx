@@ -24,6 +24,7 @@ const SCOPE_EXACT = new Set([
   '/production/downtime', '/production/orders', '/production/production-orders',
   '/production/reports', '/quality/reports',
   '/energy',
+  '/ai', // AI Intelligence — all panels re-scope by area/line/machine
 ]);
 const SCOPE_PREFIX = ['/scheduling']; // ScheduleView Gantt/Calendar pages
 

@@ -82,7 +82,7 @@ export class DashboardService {
     const [productionTrend, qualityTrend, downtimePareto, shiftSummary] = await Promise.all([
       this.getProductionTrend(factoryId, machineIds, win),
       this.getQualityTrend(factoryId, machineIds, win),
-      this.getDowntimePareto(factoryId, win),
+      this.getDowntimePareto(factoryId, win, machineIds),
       this.getCurrentShiftSummary(factoryId, analytics),
     ]);
 
@@ -415,13 +415,21 @@ export class DashboardService {
   private async getDowntimePareto(
     factoryId: string | null,
     win: ReturnType<DashboardService['resolveWindow']>,
+    machineIds?: string[],
   ) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const { from, to } = win;
 
     const events = await this.prisma.downtimeEvent.findMany({
-      // Unplanned-loss Pareto only — planned downtime (break/cleaning) is excluded
-      where: { ...factoryFilter, startTime: { gte: from, lte: to }, durationMinutes: { not: null }, isPlanned: false },
+      // Unplanned-loss Pareto only — planned downtime (break/cleaning) is excluded.
+      // Respects the dashboard scope (area/line/machine) like every other section.
+      where: {
+        ...factoryFilter,
+        ...(machineIds ? { machineId: { in: machineIds } } : {}),
+        startTime: { gte: from, lte: to },
+        durationMinutes: { not: null },
+        isPlanned: false,
+      },
       select: { category: true, durationMinutes: true },
     });
 
