@@ -251,7 +251,7 @@
       "targetDate": "Target Date", "reason": "Reason / Justification", "reasonPlaceholder": "Describe the reason for this change..."
     },
     "crkpi": { "open": "Open CRs", "underReview": "Under Review", "approvedMonth": "Approved This Month", "rejected": "Rejected" },
-    "design": { "title": "Manufacturing Design", "subtitle": "PLM matrix — BOM, Recipe and Process coverage per product" },
+    "design": { "title": "Manufacturing Design", "subtitle": "PLM matrix — BOM, Recipe and Process coverage per product", "searchProducts": "Search products…" },
     "reports": { "title": "PLM Reports", "subtitle": "Product lifecycle management — catalog, BOM, recipes and change history" },
     "crType": { "BOM_CHANGE": "BOM", "RECIPE_CHANGE": "Recipe", "PROCESS_CHANGE": "Process", "DESIGN_CHANGE": "Design" },
     "crStatus": { "DRAFT": "Draft", "SUBMITTED": "Submitted", "UNDER_REVIEW": "Under Review", "APPROVED": "Approved", "REJECTED": "Rejected", "IMPLEMENTED": "Implemented" },

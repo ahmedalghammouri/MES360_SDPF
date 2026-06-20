@@ -303,7 +303,7 @@ export default function PlmDesignView() {
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search products..."
+              placeholder={t('plm.design.searchProducts')}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm w-56"

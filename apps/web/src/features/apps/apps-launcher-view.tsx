@@ -27,6 +27,9 @@ const tile = {
 export function AppsLauncherView() {
   const { t } = useTranslation('apps');
   const catLabel = (c: string) => t(`categories.${c}`, { defaultValue: c });
+  // App labels live in the catalog as English keys; resolve them through the
+  // apps namespace (keySeparator off because labels contain dots, e.g. "Maint. Orders").
+  const appLabel = (label: string) => t(label, { keySeparator: false, nsSeparator: false, defaultValue: label });
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('all');
 
@@ -39,7 +42,10 @@ export function AppsLauncherView() {
       .map((g) => ({
         ...g,
         actions: g.actions.filter(
-          (a) => a.label.toLowerCase().includes(needle) || g.category.toLowerCase().includes(needle),
+          (a) => a.label.toLowerCase().includes(needle)
+            || appLabel(a.label).toLowerCase().includes(needle)
+            || g.category.toLowerCase().includes(needle)
+            || catLabel(g.category).toLowerCase().includes(needle),
         ),
       }))
       .filter((g) => g.actions.length > 0);
@@ -156,7 +162,7 @@ export function AppsLauncherView() {
                                   <span className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
                                 </span>
                                 <span className="text-[11px] font-medium text-center leading-tight text-muted-foreground transition-colors group-hover:text-foreground line-clamp-2">
-                                  {a.label}
+                                  {appLabel(a.label)}
                                 </span>
                               </div>
                             </Link>

@@ -251,7 +251,7 @@
       "targetDate": "التاريخ المستهدف", "reason": "السبب / المبرر", "reasonPlaceholder": "صِف سبب هذا التغيير..."
     },
     "crkpi": { "open": "طلبات مفتوحة", "underReview": "قيد المراجعة", "approvedMonth": "معتمدة هذا الشهر", "rejected": "مرفوضة" },
-    "design": { "title": "تصميم التصنيع", "subtitle": "مصفوفة إدارة المنتج — تغطية المكوّنات والوصفة والعملية لكل منتج" },
+    "design": { "title": "تصميم التصنيع", "subtitle": "مصفوفة إدارة المنتج — تغطية المكوّنات والوصفة والعملية لكل منتج", "searchProducts": "ابحث عن المنتجات…" },
     "reports": { "title": "تقارير إدارة المنتج", "subtitle": "إدارة دورة حياة المنتج — الكتالوج والمكوّنات والوصفات وسجل التغييرات" },
     "crType": { "BOM_CHANGE": "قائمة المكوّنات", "RECIPE_CHANGE": "وصفة", "PROCESS_CHANGE": "عملية", "DESIGN_CHANGE": "تصميم" },
     "crStatus": { "DRAFT": "مسودة", "SUBMITTED": "مُقدَّم", "UNDER_REVIEW": "قيد المراجعة", "APPROVED": "معتمد", "REJECTED": "مرفوض", "IMPLEMENTED": "مُنفَّذ" },
