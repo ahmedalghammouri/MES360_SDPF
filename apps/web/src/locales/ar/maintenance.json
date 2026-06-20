@@ -119,7 +119,7 @@
     "description": "الوصف", "descPlaceholder": "تفاصيل إضافية…",
     "internalNotes": "ملاحظات داخلية", "notesPlaceholder": "ملاحظات داخلية لأمر الصيانة…",
     "linkPO": "الربط بأمر إنتاج", "optional": "اختياري", "notLinkedPO": "غير مرتبط بالإنتاج",
-    "linkFailureMode": "اربط نمط عطل معروف…", "selectMachineFirst": "اختر ماكينة أولاً",
+    "linkFailureMode": "اربط أنماط أعطال معروفة…", "addFailureMode": "إضافة نمط عطل آخر", "selectMachineFirst": "اختر ماكينة أولاً",
     "searchTechnicians": "ابحث عن الفنيين…", "searchFailureModes": "ابحث عن أنماط الأعطال…", "searchProdOrders": "ابحث عن أوامر الإنتاج…"
   },
   "fmManager": {

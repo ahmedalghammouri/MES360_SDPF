@@ -32,6 +32,7 @@ import { useRowSelection } from '@/hooks/use-row-selection';
 import { BulkActionsBar } from '@/components/ui/bulk-actions-bar';
 import { MachinePicker } from '@/components/ui/machine-picker';
 import { FailureModeManager } from '@/components/maintenance/failure-mode-manager';
+import { FailureModeMultiSelect } from '@/components/maintenance/failure-mode-multi-select';
 import { TablePagination } from '@/components/ui/table-pagination';
 import { SortableHeader } from '@/components/ui/sortable-header';
 import { useSortedData } from '@/lib/use-sorted-data';
@@ -117,7 +118,7 @@ const EMPTY_FORM = {
   assignedToId: '',
   notes: '',
   productionWOId: '',
-  failureModeId: '',
+  failureModeIds: [] as string[],
 };
 
 // ── Component ────────────────────────────────────────────────
@@ -432,7 +433,7 @@ export function MaintenanceWorkOrdersView() {
       assignedToId: wo.assignedToId ?? '',
       notes: wo.notes ?? '',
       productionWOId: wo.productionWOId ?? '',
-      failureModeId: (wo as any).failureModeId ?? '',
+      failureModeIds: (wo as any).failureModeIds ?? ((wo as any).failureModeId ? [(wo as any).failureModeId] : []),
     });
     setSpareLines([]);
     setFormOpen(true);
@@ -459,7 +460,7 @@ export function MaintenanceWorkOrdersView() {
       assignedToId: form.assignedToId || undefined,
       notes: form.notes || undefined,
       productionWOId: form.productionWOId || undefined,
-      failureModeId: form.failureModeId || undefined,
+      failureModeIds: form.failureModeIds,
     };
     if (!editWO && spareLines.length > 0) {
       dto.spareParts = spareLines.map(l => ({
@@ -790,14 +791,13 @@ export function MaintenanceWorkOrdersView() {
                       <Settings2 size={13} /> {t('fmManager.manage')}
                     </button>
                   </div>
-                  <EntityPicker
+                  <FailureModeMultiSelect
                     items={failureModeOptions}
-                    value={form.failureModeId || null}
-                    onChange={id => setForm(f => ({ ...f, failureModeId: id ?? '' }))}
-                    getId={(fm: any) => fm.id}
-                    getPrimary={(fm: any) => `${fm.code} — ${fm.description}`}
-                    getMeta={(fm: any) => <span className="text-muted-foreground">{fm.category} · RPN {fm.rpn}</span>}
+                    value={form.failureModeIds}
+                    onChange={ids => setForm(f => ({ ...f, failureModeIds: ids }))}
+                    disabled={!form.machineId}
                     placeholder={form.machineId ? t('mform.linkFailureMode') : t('mform.selectMachineFirst')}
+                    addLabel={t('mform.addFailureMode')}
                     searchPlaceholder={t('mform.searchFailureModes')}
                   />
                 </div>

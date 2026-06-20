@@ -1508,10 +1508,24 @@ model FailureMode {
   isActive          Boolean          @default(true)
   createdAt         DateTime         @default(now())
 
-  machine Machine @relation(fields: [machineId], references: [id])
+  machine    Machine                    @relation(fields: [machineId], references: [id])
+  workOrders MaintenanceWOFailureMode[]
 
   @@index([machineId])
   @@map("failure_modes")
+}
+
+/// Join table linking a maintenance work order to multiple FMEA failure modes.
+model MaintenanceWOFailureMode {
+  woId          String
+  failureModeId String
+
+  wo          MaintenanceWO @relation(fields: [woId], references: [id], onDelete: Cascade)
+  failureMode FailureMode   @relation(fields: [failureModeId], references: [id], onDelete: Cascade)
+
+  @@id([woId, failureModeId])
+  @@index([failureModeId])
+  @@map("maintenance_wo_failure_modes")
 }
 
 model PMPlan {
@@ -1632,6 +1646,7 @@ model MaintenanceWO {
   requestedBy  User?              @relation("MaintRequestedBy", fields: [requestedById], references: [id])
   productionWO WorkOrder?         @relation("MaintLinkedProdWO", fields: [productionWOId], references: [id])
   sparesUsed   MaintWOSparePart[]
+  failureModes MaintenanceWOFailureMode[]
 
   @@index([factoryId, status])
   @@index([machineId])

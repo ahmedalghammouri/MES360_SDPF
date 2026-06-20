@@ -304,25 +304,57 @@ interface SidebarItemProps {
   countsMap?: Record<string, number>;
 }
 
-function hasActiveDescendant(item: NavItem, pathname: string): boolean {
-  if (item.href) return item.href !== '/dashboard' && pathname.startsWith(item.href);
-  return item.children?.some(c => hasActiveDescendant(c, pathname)) ?? false;
+/** Every href that appears anywhere in the nav (incl. nested + bottom items). */
+function collectHrefs(items: NavItem[]): string[] {
+  const out: string[] = [];
+  for (const it of items) {
+    if (it.href) out.push(it.href);
+    if (it.children) out.push(...collectHrefs(it.children));
+  }
+  return out;
+}
+const ALL_NAV_HREFS = collectHrefs([...navItems, ...bottomNavItems]);
+
+/**
+ * The single best-matching nav href for a path. The longest prefix that matches
+ * on a path boundary wins, so a parent index route (e.g. `/maintenance`) is
+ * never left highlighted on a child page (`/maintenance/scheduling`) while a
+ * detail page (`/maintenance/work-orders/123`) still lights its list item.
+ */
+function resolveActiveHref(pathname: string): string | null {
+  let best: string | null = null;
+  for (const href of ALL_NAV_HREFS) {
+    // `/dashboard` (Home) is an index-only route — never matched as a prefix.
+    const matches = href === '/dashboard'
+      ? pathname === href
+      : pathname === href || pathname.startsWith(href + '/');
+    if (matches && (best === null || href.length > best.length)) best = href;
+  }
+  return best;
+}
+
+/** True when this item (or, for a group, any descendant) is the active href. */
+function subtreeContainsHref(item: NavItem, activeHref: string | null): boolean {
+  if (!activeHref) return false;
+  if (item.href) return item.href === activeHref;
+  return item.children?.some(c => subtreeContainsHref(c, activeHref)) ?? false;
 }
 
 function SidebarItem({ item, isCollapsed, depth = 0, dynamicBadge, countsMap }: SidebarItemProps) {
   const pathname = usePathname();
+  const activeHref = resolveActiveHref(pathname);
   const { t, i18n } = useTranslation('nav');
   // nav keys are the literal English labels → disable key/ns separators, fall back to English.
   const label = t(item.label, { keySeparator: false, nsSeparator: false, defaultValue: item.label });
   const isRtl = i18n.dir() === 'rtl';
   const [isOpen, setIsOpen] = useState(() => {
     if (!item.children) return false;
-    return hasActiveDescendant(item, pathname);
+    return subtreeContainsHref(item, resolveActiveHref(pathname));
   });
 
   const isActive = item.href
-    ? pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-    : hasActiveDescendant(item, pathname);
+    ? item.href === activeHref
+    : subtreeContainsHref(item, activeHref);
 
   const Icon = item.icon;
 

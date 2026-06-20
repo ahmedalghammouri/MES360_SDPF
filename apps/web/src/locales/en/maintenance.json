@@ -119,7 +119,7 @@
     "description": "Description", "descPlaceholder": "Additional details…",
     "internalNotes": "Internal Notes", "notesPlaceholder": "Internal notes for this maintenance order…",
     "linkPO": "Link to Production Order", "optional": "optional", "notLinkedPO": "Not linked to production",
-    "linkFailureMode": "Link a known failure mode…", "selectMachineFirst": "Select a machine first",
+    "linkFailureMode": "Link known failure modes…", "addFailureMode": "Add another failure mode", "selectMachineFirst": "Select a machine first",
     "searchTechnicians": "Search technicians…", "searchFailureModes": "Search failure modes…", "searchProdOrders": "Search production orders…"
   },
   "fmManager": {

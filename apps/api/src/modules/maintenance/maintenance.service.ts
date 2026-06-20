@@ -257,6 +257,13 @@ export class MaintenanceService {
       if (missing.length) throw new NotFoundException(`Spare part(s) not found: ${missing.join(', ')}`);
     }
 
+    // Normalise the failure-mode selection: prefer the multi-select list, fall
+    // back to the legacy single field. The first id is mirrored onto the legacy
+    // column for backward compatibility; the join table holds the full set.
+    const failureModeIds = [...new Set(
+      dto.failureModeIds?.length ? dto.failureModeIds : (dto.failureModeId ? [dto.failureModeId] : []),
+    )];
+
     const wo = await this.prisma.$transaction(async (tx) => {
       const created = await tx.maintenanceWO.create({
         data: {
@@ -266,7 +273,7 @@ export class MaintenanceService {
           priority: dto.priority as Priority,
           status: initialStatus,
           machineId: dto.machineId,
-          failureModeId: dto.failureModeId,
+          failureModeId: failureModeIds[0] ?? null,
           triggeredByDowntimeId: dto.triggeredByDowntimeId,
           title: dto.title,
           description: dto.description,
@@ -293,6 +300,12 @@ export class MaintenanceService {
             quantityRequested: sp.quantityRequested,
             notes: sp.notes,
           })),
+        });
+      }
+      if (failureModeIds.length) {
+        await tx.maintenanceWOFailureMode.createMany({
+          data: failureModeIds.map((failureModeId) => ({ woId: created.id, failureModeId })),
+          skipDuplicates: true,
         });
       }
       return created;
@@ -347,10 +360,18 @@ export class MaintenanceService {
             sparePart: { select: { partNumber: true, name: true, unitCost: true } },
           },
         },
+        failureModes: {
+          include: {
+            failureMode: { select: { id: true, code: true, description: true, category: true, rpn: true, recommendedAction: true } },
+          },
+        },
       },
     });
     if (!wo) throw new NotFoundException('Maintenance work order not found');
-    return wo;
+    return {
+      ...wo,
+      failureModeIds: (wo.failureModes ?? []).map((f) => f.failureModeId),
+    };
   }
 
   async updateWO(factoryId: string | null, id: string, dto: UpdateMaintenanceWODto) {
@@ -363,24 +384,44 @@ export class MaintenanceService {
       throw new BadRequestException(`Cannot update a ${wo.status} work order`);
     }
 
-    return this.prisma.maintenanceWO.update({
-      where: { id },
-      data: {
-        ...(dto.type && { type: dto.type }),
-        ...(dto.priority && { priority: dto.priority as Priority }),
-        ...(dto.title && { title: dto.title }),
-        ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.estimatedHours !== undefined && { estimatedHours: dto.estimatedHours }),
-        ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
-        ...(dto.notes !== undefined && { notes: dto.notes }),
-        ...(dto.machineId && { machineId: dto.machineId }),
-        ...(dto.assignedToId !== undefined && {
-          assignedToId: dto.assignedToId || null,
-          status: dto.assignedToId && wo.status === 'OPEN' ? 'ASSIGNED' : wo.status,
-        }),
-        ...(dto.productionWOId !== undefined && { productionWOId: dto.productionWOId || null }),
-        ...(dto.failureModeId !== undefined && { failureModeId: dto.failureModeId || null }),
-      },
+    // Resolve whether the failure-mode set is being changed in this update.
+    const failureModesProvided = dto.failureModeIds !== undefined || dto.failureModeId !== undefined;
+    const failureModeIds = failureModesProvided
+      ? [...new Set(dto.failureModeIds?.length ? dto.failureModeIds : (dto.failureModeId ? [dto.failureModeId] : []))]
+      : [];
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.maintenanceWO.update({
+        where: { id },
+        data: {
+          ...(dto.type && { type: dto.type }),
+          ...(dto.priority && { priority: dto.priority as Priority }),
+          ...(dto.title && { title: dto.title }),
+          ...(dto.description !== undefined && { description: dto.description }),
+          ...(dto.estimatedHours !== undefined && { estimatedHours: dto.estimatedHours }),
+          ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
+          ...(dto.notes !== undefined && { notes: dto.notes }),
+          ...(dto.machineId && { machineId: dto.machineId }),
+          ...(dto.assignedToId !== undefined && {
+            assignedToId: dto.assignedToId || null,
+            status: dto.assignedToId && wo.status === 'OPEN' ? 'ASSIGNED' : wo.status,
+          }),
+          ...(dto.productionWOId !== undefined && { productionWOId: dto.productionWOId || null }),
+          ...(failureModesProvided && { failureModeId: failureModeIds[0] ?? null }),
+        },
+      });
+
+      if (failureModesProvided) {
+        // Replace the linked set with the new selection.
+        await tx.maintenanceWOFailureMode.deleteMany({ where: { woId: id } });
+        if (failureModeIds.length) {
+          await tx.maintenanceWOFailureMode.createMany({
+            data: failureModeIds.map((failureModeId) => ({ woId: id, failureModeId })),
+            skipDuplicates: true,
+          });
+        }
+      }
+      return updated;
     });
   }
 
@@ -438,6 +479,7 @@ export class MaintenanceService {
           requestedBy: { select: { name: true } },
           productionWO: { select: { id: true, orderNumber: true, status: true } },
           sparesUsed: { select: { id: true, status: true } },
+          failureModes: { select: { failureModeId: true } },
         },
         orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],
         skip: (page - 1) * limit,
@@ -471,6 +513,7 @@ export class MaintenanceService {
         hasPendingParts: (wo.sparesUsed ?? []).some((s: any) => s.status === 'PENDING'),
         archivedAt: wo.archivedAt ?? null,
         failureModeId: wo.failureModeId ?? null,
+        failureModeIds: (wo.failureModes ?? []).map((f: any) => f.failureModeId),
         productionWOId: wo.productionWOId ?? null,
       })),
       total,
@@ -1262,7 +1305,11 @@ export class MaintenanceService {
     const existing = await this.prisma.failureMode.findFirst({ where: { id, ...factoryFilter } });
     if (!existing) throw new NotFoundException('Failure mode not found');
 
-    const usedBy = await this.prisma.maintenanceWO.count({ where: { failureModeId: id } });
+    const [legacyUses, linkUses] = await Promise.all([
+      this.prisma.maintenanceWO.count({ where: { failureModeId: id } }),
+      this.prisma.maintenanceWOFailureMode.count({ where: { failureModeId: id } }),
+    ]);
+    const usedBy = Math.max(legacyUses, linkUses);
     if (usedBy > 0) {
       await this.prisma.failureMode.update({ where: { id }, data: { isActive: false } });
       return { disabled: true, usedBy };

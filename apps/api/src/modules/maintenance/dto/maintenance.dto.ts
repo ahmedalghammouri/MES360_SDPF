@@ -93,10 +93,16 @@ export class CreateMaintenanceWODto {
   @IsDateString()
   dueDate?: string;
 
-  @ApiPropertyOptional({ example: 'uuid-failure-mode-id' })
+  @ApiPropertyOptional({ example: 'uuid-failure-mode-id', deprecated: true, description: 'Legacy single failure mode — prefer failureModeIds' })
   @IsOptional()
   @IsUUID()
   failureModeId?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'FMEA failure modes linked to this work order' })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  failureModeIds?: string[];
 
   @ApiPropertyOptional({ example: 'uuid-downtime-event-id' })
   @IsOptional()
@@ -177,10 +183,16 @@ export class UpdateMaintenanceWODto {
   @IsUUID()
   productionWOId?: string;
 
-  @ApiPropertyOptional({ example: 'uuid-failure-mode-id', description: 'FMEA failure mode (optional)' })
+  @ApiPropertyOptional({ example: 'uuid-failure-mode-id', deprecated: true, description: 'Legacy single failure mode — prefer failureModeIds' })
   @IsOptional()
   @IsUUID()
   failureModeId?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'FMEA failure modes linked to this work order (replaces existing set)' })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  failureModeIds?: string[];
 }
 
 export class AssignWODto {
