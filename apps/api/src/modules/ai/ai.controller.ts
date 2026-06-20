@@ -1,5 +1,5 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AiService } from './ai.service';
 
@@ -16,7 +16,15 @@ export class AiController {
 
   @Get('insights')
   @ApiOperation({ summary: 'Get rule-based AI insights derived from live operational data' })
-  async getInsights(@CurrentUser() user: RequestUser) {
-    return this.aiService.getInsights(user.factoryId);
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  async getInsights(
+    @CurrentUser() user: RequestUser,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+  ) {
+    return this.aiService.getInsights(user.factoryId, { areaId, lineId, machineId });
   }
 }

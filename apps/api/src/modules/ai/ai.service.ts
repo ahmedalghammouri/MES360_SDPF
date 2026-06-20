@@ -60,11 +60,34 @@ function clamp(n: number, min: number, max: number) {
 export class AiService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Resolve an analysis scope (area/line/machine) to the machine ids it covers (undefined = whole factory). */
+  private async scopeMachineIds(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+  ): Promise<string[] | undefined> {
+    if (!scope || (!scope.areaId && !scope.lineId && !scope.machineId)) return undefined;
+    if (scope.machineId) return [scope.machineId];
+    const ms = await this.prisma.machine.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        ...(scope.lineId ? { lineId: scope.lineId } : {}),
+        ...(scope.areaId ? { line: { areaId: scope.areaId } } : {}),
+      },
+      select: { id: true },
+    });
+    return ms.map((m) => m.id);
+  }
+
   /**
    * Derives real, rule-based intelligence from operational data across modules.
    * No external ML — these are deterministic detectors over live MES data.
+   * When `scope` is set, the machine query and every per-machine `where` clause
+   * is restricted to the machines that scope covers (area/line/machine).
    */
-  async getInsights(factoryId: string | null) {
+  async getInsights(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+  ) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const now = new Date();
     const since30 = new Date(now.getTime() - 30 * DAY_MS);
@@ -72,8 +95,16 @@ export class AiService {
     const since7 = new Date(now.getTime() - 7 * DAY_MS);
     const prev7 = new Date(now.getTime() - 14 * DAY_MS);
 
+    // Scope → machine-id set applied to every machine-bound query (undefined = whole factory).
+    const machineIds = await this.scopeMachineIds(factoryId, scope);
+    // Filters scoped to the machine set. NCRs/SPC carry a nullable machineId, so a
+    // machine-scoped filter must still allow `null` would exclude unattributed rows —
+    // we intentionally restrict those to the scoped machines only when a scope is set.
+    const machineScope = machineIds ? { machineId: { in: machineIds } } : {};
+    const machineIdScope = machineIds ? { id: { in: machineIds } } : {};
+
     const machines = await this.prisma.machine.findMany({
-      where: { ...factoryFilter, isActive: true },
+      where: { ...factoryFilter, ...machineIdScope, isActive: true },
       select: { id: true, code: true, name: true },
     });
     const machineMap = new Map(machines.map((m) => [m.id, m]));
@@ -81,12 +112,12 @@ export class AiService {
     const [downtime30, openCorrective, overdueWOs, oocSpc, openNcrs, oeeRecent, oeePrior] =
       await Promise.all([
         this.prisma.downtimeEvent.findMany({
-          where: { ...factoryFilter, startTime: { gte: since30 }, affectsOEE: true },
+          where: { ...factoryFilter, ...machineScope, startTime: { gte: since30 }, affectsOEE: true },
           select: { machineId: true, durationMinutes: true, startTime: true },
         }),
         this.prisma.maintenanceWO.findMany({
           where: {
-            ...factoryFilter,
+            ...factoryFilter, ...machineScope,
             type: { in: [MaintType.CORRECTIVE, MaintType.EMERGENCY] },
             status: { notIn: [MaintStatus.COMPLETED, MaintStatus.CANCELLED] },
             deletedAt: null,
@@ -95,7 +126,7 @@ export class AiService {
         }),
         this.prisma.maintenanceWO.findMany({
           where: {
-            ...factoryFilter,
+            ...factoryFilter, ...machineScope,
             status: { notIn: [MaintStatus.COMPLETED, MaintStatus.CANCELLED] },
             dueDate: { lt: now },
             deletedAt: null,
@@ -103,7 +134,7 @@ export class AiService {
           select: { id: true, machineId: true, title: true, dueDate: true },
         }),
         this.prisma.sPCMeasurement.findMany({
-          where: { ...factoryFilter, isOutOfControl: true, measuredAt: { gte: since7 } },
+          where: { ...factoryFilter, ...machineScope, isOutOfControl: true, measuredAt: { gte: since7 } },
           select: {
             id: true, machineId: true, parameterName: true, parameterUnit: true,
             value: true, controlViolation: true, measuredAt: true,
@@ -112,7 +143,7 @@ export class AiService {
         }),
         this.prisma.nCR.findMany({
           where: {
-            ...factoryFilter,
+            ...factoryFilter, ...machineScope,
             status: { notIn: [NCRStatus.RESOLVED, NCRStatus.CLOSED] },
           },
           select: {
@@ -122,11 +153,11 @@ export class AiService {
           orderBy: { detectedAt: 'desc' },
         }),
         this.prisma.oEERecord.aggregate({
-          where: { ...factoryFilter, recordDate: { gte: since7 } },
+          where: { ...factoryFilter, ...machineScope, recordDate: { gte: since7 } },
           _avg: { oee: true },
         }),
         this.prisma.oEERecord.aggregate({
-          where: { ...factoryFilter, recordDate: { gte: prev7, lt: since7 } },
+          where: { ...factoryFilter, ...machineScope, recordDate: { gte: prev7, lt: since7 } },
           _avg: { oee: true },
         }),
       ]);
