@@ -20,6 +20,9 @@ import {
   HoldWODto,
   AddSparePartsToWODto,
   IssueSparePartDto,
+  CreateFailureModeDto,
+  UpdateFailureModeDto,
+  SeedStandardFailureModesDto,
 } from './dto/maintenance.dto';
 
 interface RequestUser {
@@ -336,6 +339,46 @@ export class MaintenanceController {
   @ApiQuery({ name: 'machineId', required: false })
   async findFailureModes(@CurrentUser() user: RequestUser, @Query('machineId') machineId?: string) {
     return this.maintenanceService.findFailureModes(user.factoryId, machineId);
+  }
+
+  @Post('failure-modes')
+  @RequirePermissions('maintenance:write')
+  @AuditLog('MAINTENANCE_FAILURE_MODE_CREATE')
+  @ApiOperation({ summary: 'Create an FMEA failure mode for a machine' })
+  @ApiResponse({ status: 201 })
+  async createFailureMode(@CurrentUser() user: RequestUser, @Body() dto: CreateFailureModeDto) {
+    return this.maintenanceService.createFailureMode(user.factoryId, dto);
+  }
+
+  @Post('failure-modes/seed-standard')
+  @RequirePermissions('maintenance:write')
+  @AuditLog('MAINTENANCE_FAILURE_MODE_SEED')
+  @ApiOperation({ summary: 'Seed the standard FMEA library onto a machine' })
+  async seedStandardFailureModes(@CurrentUser() user: RequestUser, @Body() dto: SeedStandardFailureModesDto) {
+    return this.maintenanceService.seedStandardFailureModes(user.factoryId, dto.machineId);
+  }
+
+  @Patch('failure-modes/:id')
+  @RequirePermissions('maintenance:write')
+  @AuditLog('MAINTENANCE_FAILURE_MODE_UPDATE')
+  @ApiOperation({ summary: 'Update an FMEA failure mode' })
+  async updateFailureMode(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateFailureModeDto,
+  ) {
+    return this.maintenanceService.updateFailureMode(user.factoryId, id, dto);
+  }
+
+  @Delete('failure-modes/:id')
+  @RequirePermissions('maintenance:write')
+  @AuditLog('MAINTENANCE_FAILURE_MODE_DELETE')
+  @ApiOperation({ summary: 'Delete (or disable if in use) an FMEA failure mode' })
+  async deleteFailureMode(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.maintenanceService.deleteFailureMode(user.factoryId, id);
   }
 
   @Get('pm-plans')

@@ -287,3 +287,141 @@ export class HoldWODto {
   @MaxLength(500)
   reason?: string;
 }
+
+// ── FMEA Failure Modes ────────────────────────────────────────────
+
+export enum FailureModeCategory {
+  MECHANICAL = 'MECHANICAL',
+  ELECTRICAL = 'ELECTRICAL',
+  PROCESS = 'PROCESS',
+  MATERIAL = 'MATERIAL',
+  OPERATOR = 'OPERATOR',
+  CHANGEOVER = 'CHANGEOVER',
+  UTILITY = 'UTILITY',
+  QUALITY = 'QUALITY',
+  PLANNED_MAINTENANCE = 'PLANNED_MAINTENANCE',
+  PLANNED_CLEANING = 'PLANNED_CLEANING',
+  PLANNED_BREAK = 'PLANNED_BREAK',
+  EXTERNAL = 'EXTERNAL',
+}
+
+export class CreateFailureModeDto {
+  @ApiProperty({ example: 'uuid-machine-id', description: 'Machine this failure mode belongs to' })
+  @IsUUID()
+  machineId!: string;
+
+  @ApiPropertyOptional({ example: 'FM-001', description: 'Code (auto-generated if omitted)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  code?: string;
+
+  @ApiProperty({ example: 'Bearing wear' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(255)
+  description!: string;
+
+  @ApiPropertyOptional({ enum: FailureModeCategory })
+  @IsOptional()
+  @IsEnum(FailureModeCategory)
+  category?: FailureModeCategory;
+
+  @ApiPropertyOptional({ example: 'Lack of lubrication' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  causeDescription?: string;
+
+  @ApiPropertyOptional({ example: 'Excessive vibration, eventual seizure' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  effectDescription?: string;
+
+  @ApiPropertyOptional({ example: 6, description: 'Severity 1-10' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  severityScore?: number;
+
+  @ApiPropertyOptional({ example: 4, description: 'Occurrence 1-10' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  occurrenceScore?: number;
+
+  @ApiPropertyOptional({ example: 3, description: 'Detection 1-10' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  detectionScore?: number;
+
+  @ApiPropertyOptional({ example: 'Inspect and lubricate bearings monthly' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  recommendedAction?: string;
+}
+
+export class UpdateFailureModeDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  code?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(255)
+  description?: string;
+
+  @ApiPropertyOptional({ enum: FailureModeCategory })
+  @IsOptional()
+  @IsEnum(FailureModeCategory)
+  category?: FailureModeCategory;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  causeDescription?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  effectDescription?: string;
+
+  @ApiPropertyOptional({ example: 6 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  severityScore?: number;
+
+  @ApiPropertyOptional({ example: 4 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  occurrenceScore?: number;
+
+  @ApiPropertyOptional({ example: 3 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  detectionScore?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  recommendedAction?: string;
+}
+
+export class SeedStandardFailureModesDto {
+  @ApiProperty({ example: 'uuid-machine-id', description: 'Machine to seed the standard FMEA library onto' })
+  @IsUUID()
+  machineId!: string;
+}

@@ -5,7 +5,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Search, Filter, ChevronDown, Wrench, AlertTriangle, Clock,
   User, CheckCircle, Trash2, Package, X, PackageCheck, PackageMinus,
-  PackageX, ChevronRight, Info, Play, Ban, FileText,
+  PackageX, ChevronRight, Info, Play, Ban, FileText, Settings2,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
@@ -31,6 +31,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useRowSelection } from '@/hooks/use-row-selection';
 import { BulkActionsBar } from '@/components/ui/bulk-actions-bar';
 import { MachinePicker } from '@/components/ui/machine-picker';
+import { FailureModeManager } from '@/components/maintenance/failure-mode-manager';
 import { TablePagination } from '@/components/ui/table-pagination';
 import { SortableHeader } from '@/components/ui/sortable-header';
 import { useSortedData } from '@/lib/use-sorted-data';
@@ -135,6 +136,7 @@ export function MaintenanceWorkOrdersView() {
   const [spareLines, setSpareLines] = useState<SpareLineItem[]>([]);
   const [spareSearch, setSpareSearch] = useState('');
   const [showPartPicker, setShowPartPicker] = useState(false);
+  const [fmManagerOpen, setFmManagerOpen] = useState(false);
 
   // Issue dialog state
   const [issueDialog, setIssueDialog] = useState<{ request: SparePartRequest } | null>(null);
@@ -776,7 +778,18 @@ export function MaintenanceWorkOrdersView() {
                 </div>
                 {/* Failure Mode (FMEA) */}
                 <div className="col-span-2 space-y-1.5">
-                  <Label className="text-xs">{t('mform.failureMode')} <span className="text-[10px] font-normal text-muted-foreground">({t('mform.failureModeHint')})</span></Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">{t('mform.failureMode')} <span className="text-[10px] font-normal text-muted-foreground">({t('mform.failureModeHint')})</span></Label>
+                    <button
+                      type="button"
+                      disabled={!form.machineId}
+                      onClick={() => setFmManagerOpen(true)}
+                      className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1 text-[11px]"
+                      title={form.machineId ? t('fmManager.manage') : t('mform.selectMachineFirst')}
+                    >
+                      <Settings2 size={13} /> {t('fmManager.manage')}
+                    </button>
+                  </div>
                   <EntityPicker
                     items={failureModeOptions}
                     value={form.failureModeId || null}
@@ -938,6 +951,16 @@ export function MaintenanceWorkOrdersView() {
             )}
           </div>
       </InlineFormPanel>
+
+      {/* Failure Mode (FMEA) manager — scoped to the selected machine */}
+      {form.machineId && (
+        <FailureModeManager
+          machineId={form.machineId}
+          machineName={form.machineName}
+          open={fmManagerOpen}
+          onOpenChange={setFmManagerOpen}
+        />
+      )}
 
       {/* ── MO Detail Sheet ──────────────────────────────────── */}
       <Sheet open={!!viewWO} onOpenChange={o => { if (!o) { setViewWO(null); setSpareLines([]); setShowPartPicker(false); setSpareSearch(''); } }}>

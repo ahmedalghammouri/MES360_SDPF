@@ -3,11 +3,12 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
-import { MaintStatus, MaintType, Priority, SpareIssueStatus, type Prisma } from '@prisma/client';
+import { MaintStatus, MaintType, Priority, SpareIssueStatus, DowntimeCategory, type Prisma } from '@prisma/client';
 import type {
   CreateMaintenanceWODto, UpdateMaintenanceWODto, AssignWODto,
   StartWODto, CompleteWODto, CancelWODto,
   SparePartRequestItemDto, IssueSparePartDto,
+  CreateFailureModeDto, UpdateFailureModeDto,
 } from './dto/maintenance.dto';
 import { TraceabilityService } from '../traceability/traceability.service';
 import { archivedWhere } from '../../common/archive.util';
@@ -1177,9 +1178,159 @@ export class MaintenanceService {
     const factoryFilter = factoryId ? { factoryId } : {};
     return this.prisma.failureMode.findMany({
       where: { ...factoryFilter, isActive: true, ...(machineId ? { machineId } : {}) },
-      select: { id: true, code: true, description: true, category: true, rpn: true, machineId: true, recommendedAction: true },
+      select: {
+        id: true, code: true, description: true, category: true, rpn: true,
+        machineId: true, recommendedAction: true,
+        causeDescription: true, effectDescription: true,
+        severityScore: true, occurrenceScore: true, detectionScore: true,
+      },
       orderBy: [{ rpn: 'desc' }, { code: 'asc' }],
     });
+  }
+
+  /** Validate the machine exists in the caller's factory and return its resolved factoryId. */
+  private async resolveMachineFactory(factoryId: string | null, machineId: string): Promise<string> {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const machine = await this.prisma.machine.findFirst({
+      where: { id: machineId, ...factoryFilter },
+      select: { id: true, factoryId: true },
+    });
+    if (!machine) throw new NotFoundException('Machine not found');
+    return factoryId ?? machine.factoryId;
+  }
+
+  /** Next FM-### code for a machine (per-machine sequence). */
+  private async nextFailureModeCode(machineId: string): Promise<string> {
+    const count = await this.prisma.failureMode.count({ where: { machineId } });
+    return `FM-${String(count + 1).padStart(3, '0')}`;
+  }
+
+  async createFailureMode(factoryId: string | null, dto: CreateFailureModeDto) {
+    const resolvedFactoryId = await this.resolveMachineFactory(factoryId, dto.machineId);
+    const severity = dto.severityScore ?? 1;
+    const occurrence = dto.occurrenceScore ?? 1;
+    const detection = dto.detectionScore ?? 1;
+    const code = dto.code?.trim() || (await this.nextFailureModeCode(dto.machineId));
+
+    return this.prisma.failureMode.create({
+      data: {
+        factoryId: resolvedFactoryId,
+        machineId: dto.machineId,
+        code,
+        description: dto.description.trim(),
+        category: (dto.category as DowntimeCategory) ?? DowntimeCategory.MECHANICAL,
+        causeDescription: dto.causeDescription ?? null,
+        effectDescription: dto.effectDescription ?? null,
+        severityScore: severity,
+        occurrenceScore: occurrence,
+        detectionScore: detection,
+        rpn: severity * occurrence * detection,
+        recommendedAction: dto.recommendedAction ?? null,
+      },
+    });
+  }
+
+  async updateFailureMode(factoryId: string | null, id: string, dto: UpdateFailureModeDto) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const existing = await this.prisma.failureMode.findFirst({ where: { id, ...factoryFilter } });
+    if (!existing) throw new NotFoundException('Failure mode not found');
+
+    const severity = dto.severityScore ?? existing.severityScore;
+    const occurrence = dto.occurrenceScore ?? existing.occurrenceScore;
+    const detection = dto.detectionScore ?? existing.detectionScore;
+
+    return this.prisma.failureMode.update({
+      where: { id },
+      data: {
+        ...(dto.code !== undefined && { code: dto.code.trim() }),
+        ...(dto.description !== undefined && { description: dto.description.trim() }),
+        ...(dto.category !== undefined && { category: dto.category as DowntimeCategory }),
+        ...(dto.causeDescription !== undefined && { causeDescription: dto.causeDescription || null }),
+        ...(dto.effectDescription !== undefined && { effectDescription: dto.effectDescription || null }),
+        ...(dto.recommendedAction !== undefined && { recommendedAction: dto.recommendedAction || null }),
+        severityScore: severity,
+        occurrenceScore: occurrence,
+        detectionScore: detection,
+        rpn: severity * occurrence * detection,
+      },
+    });
+  }
+
+  /** Delete a failure mode, or disable it if it is referenced by any work order. */
+  async deleteFailureMode(factoryId: string | null, id: string) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const existing = await this.prisma.failureMode.findFirst({ where: { id, ...factoryFilter } });
+    if (!existing) throw new NotFoundException('Failure mode not found');
+
+    const usedBy = await this.prisma.maintenanceWO.count({ where: { failureModeId: id } });
+    if (usedBy > 0) {
+      await this.prisma.failureMode.update({ where: { id }, data: { isActive: false } });
+      return { disabled: true, usedBy };
+    }
+    await this.prisma.failureMode.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  /** Standard FMEA library — generic failure modes applicable to most equipment. */
+  private static readonly STANDARD_FAILURE_MODES: Array<{
+    description: string;
+    category: DowntimeCategory;
+    causeDescription: string;
+    effectDescription: string;
+    severityScore: number;
+    occurrenceScore: number;
+    detectionScore: number;
+    recommendedAction: string;
+  }> = [
+    { description: 'Bearing wear / failure', category: DowntimeCategory.MECHANICAL, causeDescription: 'Inadequate lubrication, contamination, fatigue', effectDescription: 'Excessive vibration, noise, eventual seizure', severityScore: 7, occurrenceScore: 4, detectionScore: 4, recommendedAction: 'Vibration monitoring; lubricate per schedule; replace at wear limit' },
+    { description: 'Belt slip / breakage', category: DowntimeCategory.MECHANICAL, causeDescription: 'Improper tension, misalignment, wear', effectDescription: 'Loss of drive, line stop', severityScore: 6, occurrenceScore: 5, detectionScore: 3, recommendedAction: 'Inspect tension & alignment monthly; replace worn belts' },
+    { description: 'Motor overheating', category: DowntimeCategory.ELECTRICAL, causeDescription: 'Overload, blocked cooling, bearing drag', effectDescription: 'Thermal trip, winding damage', severityScore: 8, occurrenceScore: 3, detectionScore: 4, recommendedAction: 'Monitor temperature & current; clean cooling fins' },
+    { description: 'Seal / gasket leak', category: DowntimeCategory.MECHANICAL, causeDescription: 'Aging elastomer, over-pressure, wear', effectDescription: 'Fluid loss, contamination, pressure loss', severityScore: 5, occurrenceScore: 5, detectionScore: 3, recommendedAction: 'Inspect seals; replace at PM interval' },
+    { description: 'Sensor drift / failure', category: DowntimeCategory.ELECTRICAL, causeDescription: 'Calibration loss, wiring fault, contamination', effectDescription: 'False readings, mis-control, scrap', severityScore: 6, occurrenceScore: 4, detectionScore: 5, recommendedAction: 'Periodic calibration; verify wiring; clean sensor face' },
+    { description: 'Pneumatic / hydraulic pressure loss', category: DowntimeCategory.UTILITY, causeDescription: 'Leaks, compressor fault, valve failure', effectDescription: 'Slow or failed actuation', severityScore: 6, occurrenceScore: 4, detectionScore: 3, recommendedAction: 'Leak test; inspect valves & fittings' },
+    { description: 'Lubrication system failure', category: DowntimeCategory.MECHANICAL, causeDescription: 'Pump failure, blocked line, low reservoir', effectDescription: 'Accelerated wear of moving parts', severityScore: 7, occurrenceScore: 3, detectionScore: 5, recommendedAction: 'Monitor lube level/flow; clean lines; verify pump' },
+    { description: 'Control / PLC fault', category: DowntimeCategory.ELECTRICAL, causeDescription: 'Software fault, power glitch, I/O failure', effectDescription: 'Unexpected stop, mis-operation', severityScore: 8, occurrenceScore: 2, detectionScore: 6, recommendedAction: 'UPS protection; firmware updates; I/O diagnostics' },
+    { description: 'Material jam / misfeed', category: DowntimeCategory.PROCESS, causeDescription: 'Out-of-spec material, guide misalignment', effectDescription: 'Stoppage, product damage', severityScore: 4, occurrenceScore: 6, detectionScore: 2, recommendedAction: 'Verify material spec; adjust guides; clean feed path' },
+    { description: 'Coupling / shaft misalignment', category: DowntimeCategory.MECHANICAL, causeDescription: 'Improper installation, thermal growth, wear', effectDescription: 'Vibration, bearing & coupling wear', severityScore: 6, occurrenceScore: 3, detectionScore: 4, recommendedAction: 'Laser-align at install; recheck after thermal cycling' },
+  ];
+
+  /** Seed the standard FMEA library onto a machine (skips entries that already exist). */
+  async seedStandardFailureModes(factoryId: string | null, machineId: string) {
+    const resolvedFactoryId = await this.resolveMachineFactory(factoryId, machineId);
+
+    const existing = await this.prisma.failureMode.findMany({
+      where: { machineId },
+      select: { description: true },
+    });
+    const existingDesc = new Set(existing.map((e) => e.description.trim().toLowerCase()));
+
+    const toCreate = MaintenanceService.STANDARD_FAILURE_MODES.filter(
+      (fm) => !existingDesc.has(fm.description.trim().toLowerCase()),
+    );
+    if (toCreate.length === 0) return { created: 0, skipped: MaintenanceService.STANDARD_FAILURE_MODES.length };
+
+    let seq = await this.prisma.failureMode.count({ where: { machineId } });
+    await this.prisma.failureMode.createMany({
+      data: toCreate.map((fm) => {
+        seq += 1;
+        return {
+          factoryId: resolvedFactoryId,
+          machineId,
+          code: `FM-${String(seq).padStart(3, '0')}`,
+          description: fm.description,
+          category: fm.category,
+          causeDescription: fm.causeDescription,
+          effectDescription: fm.effectDescription,
+          severityScore: fm.severityScore,
+          occurrenceScore: fm.occurrenceScore,
+          detectionScore: fm.detectionScore,
+          rpn: fm.severityScore * fm.occurrenceScore * fm.detectionScore,
+          recommendedAction: fm.recommendedAction,
+        };
+      }),
+    });
+
+    return { created: toCreate.length, skipped: MaintenanceService.STANDARD_FAILURE_MODES.length - toCreate.length };
   }
 
   async findPreventiveSchedules(factoryId: string | null, filters: { search?: string; page: number; limit: number; archived?: string }) {
