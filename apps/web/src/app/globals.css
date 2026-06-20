@@ -224,9 +224,9 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* RTL Support */
+  /* RTL Support — Arabic font loaded via <link> in layout; system fallbacks for offline. */
   [dir="rtl"] {
-    font-family: var(--font-arabic), 'Tajawal', 'Cairo', sans-serif;
+    font-family: 'IBM Plex Sans Arabic', 'Tajawal', 'Cairo', 'Segoe UI', sans-serif;
   }
 
   /* Scrollbar styling */

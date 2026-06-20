@@ -116,8 +116,8 @@ export function MaintenanceOverview() {
           <KPICard title={t('ov.kpiPmCompliance')} value={kpis?.pmCompliance ?? 0} unit="%" target={90} colorMode="oee" isLoading={kpisLoading} />
         </div>
 
-        {/* MTTR/MTBF Chart */}
-        <MTTRMTBFChart isLoading={kpisLoading} />
+        {/* MTTR/MTBF Chart — scoped like the KPI cards */}
+        <MTTRMTBFChart isLoading={kpisLoading} scopeParams={scopeFilter} scopeKey={scopeKey} />
 
         {/* Work Orders */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>

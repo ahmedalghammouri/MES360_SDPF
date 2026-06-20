@@ -310,13 +310,14 @@ export default function ProductionKpiView() {
     [workOrders],
   );
 
+  // First-Pass Yield = Σ good / Σ (good + scrap) across completed WOs.
+  // (Global ratio of totals — NOT an average of per-WO percentages, which would
+  //  over-weight small orders and mismatch the platform's other quality figures.)
   const firstPassYield = useMemo(() => {
-    if (completedWOs.length === 0) return 0;
-    const sum = completedWOs.reduce((acc, w) => {
-      const pq = w.plannedQty > 0 ? (w.goodQty / w.plannedQty) * 100 : 0;
-      return acc + pq;
-    }, 0);
-    return sum / completedWOs.length;
+    const good = completedWOs.reduce((acc, w) => acc + (w.goodQty ?? 0), 0);
+    const scrap = completedWOs.reduce((acc, w) => acc + (w.scrapQty ?? 0), 0);
+    const produced = good + scrap;
+    return produced > 0 ? (good / produced) * 100 : 0;
   }, [completedWOs]);
 
   const completionRate = totalWOs > 0 ? (completedWOs.length / totalWOs) * 100 : 0;

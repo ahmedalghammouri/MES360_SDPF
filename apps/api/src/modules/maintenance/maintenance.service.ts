@@ -3,7 +3,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
-import { MaintStatus, MaintType, Priority, SpareIssueStatus, DowntimeCategory, type Prisma } from '@prisma/client';
+import { MaintStatus, MaintType, Priority, SpareIssueStatus, DowntimeCategory, MachineState, type Prisma } from '@prisma/client';
 import type {
   CreateMaintenanceWODto, UpdateMaintenanceWODto, AssignWODto,
   StartWODto, CompleteWODto, CancelWODto,
@@ -55,6 +55,30 @@ export class MaintenanceService {
     return ms.map((m) => m.id);
   }
 
+  /**
+   * Actual operating (RUNNING) machine-hours in a window, from MachineStateRecord.
+   * This is the true MTBF denominator (uptime), not calendar time. Returns 0 when no
+   * state segments exist — callers fall back to calendar machine-hours in that case so
+   * the metric degrades gracefully until machine-state tracking is populated.
+   */
+  private async sumRunningHours(
+    factoryId: string | null,
+    machineIds: string[] | undefined,
+    start: Date,
+    end: Date,
+  ): Promise<number> {
+    const agg = await this.prisma.machineStateRecord.aggregate({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        ...(machineIds ? { machineId: { in: machineIds } } : {}),
+        state: MachineState.RUNNING,
+        startTime: { gte: start, lt: end },
+      },
+      _sum: { durationMinutes: true },
+    });
+    return (agg._sum.durationMinutes ?? 0) / 60;
+  }
+
   async getKPIs(
     factoryId: string | null,
     scope?: { areaId?: string; lineId?: string; machineId?: string },
@@ -99,6 +123,9 @@ export class MaintenanceService {
       this.prisma.maintenanceWO.findMany({
         where: {
           ...factoryFilter, ...woScope,
+          // MTTR = mean time to REPAIR → unplanned (corrective/emergency) only,
+          // matching the reliability-trend definition.
+          type: { in: [MaintType.CORRECTIVE, MaintType.EMERGENCY] },
           status: MaintStatus.COMPLETED,
           completedAt: { gte: monthStart },
           deletedAt: null,
@@ -140,9 +167,12 @@ export class MaintenanceService {
       ? completedThisMonth.reduce((s, w) => s + (w.actualHours ?? 0), 0) / completedThisMonth.length
       : 0;
 
-    // MTBF = total operating machine-hours in period / number of failures
+    // MTBF = actual operating (RUNNING) machine-hours in period / number of failures.
+    // Prefer true uptime from machine-state records; fall back to calendar machine-hours
+    // only when no state segments exist yet (graceful degradation).
     const periodHours = Math.max((now.getTime() - monthStart.getTime()) / 3_600_000, 1);
-    const operatingHours = Math.max(machineCount, 1) * periodHours;
+    const runningHours = await this.sumRunningHours(factoryId, machineIds, monthStart, now);
+    const operatingHours = runningHours > 0 ? runningHours : Math.max(machineCount, 1) * periodHours;
     const mtbf = failureCount > 0 ? operatingHours / failureCount : operatingHours;
 
     // Availability = MTBF / (MTBF + MTTR) — standard reliability formula
@@ -167,12 +197,20 @@ export class MaintenanceService {
    * MTTR = avg actual repair hours for completed corrective/emergency WOs that month.
    * MTBF = operating machine-hours that month / number of failures that month.
    */
-  async getReliabilityTrend(factoryId: string | null, months = 6) {
+  async getReliabilityTrend(
+    factoryId: string | null,
+    months = 6,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+  ) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const now = new Date();
 
+    // Apply the same area/line/machine scope as the KPI cards.
+    const machineIds = await this.scopeMachineIds(factoryId, scope);
+    const woScope = machineIds ? { machineId: { in: machineIds } } : {};
+
     const machineCount = await this.prisma.machine.count({
-      where: { ...factoryFilter, isActive: true },
+      where: { ...factoryFilter, ...(machineIds ? { id: { in: machineIds } } : {}), isActive: true },
     });
 
     const buckets: { month: string; mttr: number; mtbf: number }[] = [];
@@ -182,10 +220,10 @@ export class MaintenanceService {
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
       const periodEnd = end > now ? now : end;
 
-      const [completed, failures] = await Promise.all([
+      const [completed, failures, runningHours] = await Promise.all([
         this.prisma.maintenanceWO.findMany({
           where: {
-            ...factoryFilter,
+            ...factoryFilter, ...woScope,
             type: { in: [MaintType.CORRECTIVE, MaintType.EMERGENCY] },
             status: MaintStatus.COMPLETED,
             completedAt: { gte: start, lt: end },
@@ -195,20 +233,22 @@ export class MaintenanceService {
         }),
         this.prisma.maintenanceWO.count({
           where: {
-            ...factoryFilter,
+            ...factoryFilter, ...woScope,
             type: { in: [MaintType.CORRECTIVE, MaintType.EMERGENCY] },
             createdAt: { gte: start, lt: end },
             deletedAt: null,
           },
         }),
+        this.sumRunningHours(factoryId, machineIds, start, periodEnd),
       ]);
 
       const mttr = completed.length > 0
         ? completed.reduce((s, w) => s + (w.actualHours ?? 0), 0) / completed.length
         : 0;
 
+      // Actual operating hours; fall back to calendar machine-hours if no state segments.
       const periodHours = Math.max((periodEnd.getTime() - start.getTime()) / 3_600_000, 1);
-      const operatingHours = Math.max(machineCount, 1) * periodHours;
+      const operatingHours = runningHours > 0 ? runningHours : Math.max(machineCount, 1) * periodHours;
       const mtbf = failures > 0 ? operatingHours / failures : operatingHours;
 
       buckets.push({

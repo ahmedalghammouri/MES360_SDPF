@@ -15,17 +15,20 @@ interface ReliabilityPoint {
 
 interface MTTRMTBFChartProps {
   isLoading?: boolean;
+  /** Analysis scope (area/line/machine) — keeps the trend in sync with the KPI cards. */
+  scopeParams?: Record<string, string | undefined>;
+  scopeKey?: string;
 }
 
-export function MTTRMTBFChart({ isLoading }: MTTRMTBFChartProps) {
+export function MTTRMTBFChart({ isLoading, scopeParams, scopeKey }: MTTRMTBFChartProps) {
   const { t } = useTranslation('common');
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
 
   const { data, isLoading: trendLoading } = useQuery({
-    queryKey: ['maintenance', 'reliability-trend'],
+    queryKey: ['maintenance', 'reliability-trend', scopeKey ?? 'all'],
     queryFn: () => api.get<ReliabilityPoint[]>('/maintenance/reliability-trend', {
-      params: { months: 6 },
+      params: { months: 6, ...(scopeParams ?? {}) },
     }),
     refetchInterval: 60_000,
     staleTime: 30_000,

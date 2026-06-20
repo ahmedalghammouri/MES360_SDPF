@@ -180,13 +180,20 @@ export function ProductionBatchesView() {
 
   const handleUpdate = () => {
     if (!editBatch) return;
+    const isAuto = editBatch.quantitySource === 'AUTO';
     updateMutation.mutate({
       id: editBatch.id,
       dto: {
         status: editBatch.status,
-        quantity: editBatch.quantity,
-        goodQuantity: editBatch.goodQuantity,
-        scrapQuantity: editBatch.scrapQuantity,
+        // Preserve the AUTO/MANUAL mode + linked WOs so the backend recomputes correctly.
+        quantitySource: editBatch.quantitySource,
+        workOrderIds: editBatch.workOrderIds,
+        // AUTO batches derive quantity/good/scrap live from linked WOs — don't override them.
+        ...(isAuto ? {} : {
+          quantity: editBatch.quantity,
+          goodQuantity: editBatch.goodQuantity,
+          scrapQuantity: editBatch.scrapQuantity,
+        }),
         lotNumber: editBatch.lotNumber ?? undefined,
         notes: editBatch.notes ?? undefined,
       },
@@ -481,24 +488,30 @@ export function ProductionBatchesView() {
               {/* Quantities */}
               <div>
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('bform.quantities')}</p>
+                {editBatch.quantitySource === 'AUTO' && (
+                  <p className="text-[11px] text-muted-foreground mb-2">{t('bform.autoCountsHint', { defaultValue: 'Quantities are summed automatically from the linked work orders.' })}</p>
+                )}
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">{t('bform.totalPlanned')}</Label>
                     <Input type="number" min={0} value={editBatch.quantity ?? ''}
+                      disabled={editBatch.quantitySource === 'AUTO'}
                       onChange={e => setEditBatch({ ...editBatch, quantity: parseInt(e.target.value) || 0 })}
-                      className="h-9" />
+                      className="h-9 disabled:opacity-60" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">{t('bform.goodQty')}</Label>
                     <Input type="number" min={0} value={editBatch.goodQuantity ?? ''}
+                      disabled={editBatch.quantitySource === 'AUTO'}
                       onChange={e => setEditBatch({ ...editBatch, goodQuantity: parseInt(e.target.value) || 0 })}
-                      className="h-9 border-green-500/40 focus-visible:ring-green-500/30" />
+                      className="h-9 border-green-500/40 focus-visible:ring-green-500/30 disabled:opacity-60" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">{t('bform.scrapQty')}</Label>
                     <Input type="number" min={0} value={editBatch.scrapQuantity ?? ''}
+                      disabled={editBatch.quantitySource === 'AUTO'}
                       onChange={e => setEditBatch({ ...editBatch, scrapQuantity: parseInt(e.target.value) || 0 })}
-                      className="h-9 border-red-500/40 focus-visible:ring-red-500/30" />
+                      className="h-9 border-red-500/40 focus-visible:ring-red-500/30 disabled:opacity-60" />
                   </div>
                 </div>
                 {/* Live yield preview */}

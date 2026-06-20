@@ -1830,7 +1830,7 @@ export class ProductionService {
     const wos = allWoIds.length
       ? await this.prisma.workOrder.findMany({
           where: { id: { in: allWoIds } },
-          select: { id: true, orderNumber: true, plannedQty: true },
+          select: { id: true, orderNumber: true, plannedQty: true, goodQty: true, scrapQty: true },
         })
       : [];
     const woById = new Map(wos.map((w) => [w.id, w]));
@@ -1838,18 +1838,26 @@ export class ProductionService {
     return {
       data: data.map(b => {
         const woIds = (b.workOrderIds as string[] | null) ?? (b.workOrderId ? [b.workOrderId] : []);
-        const linkedWorkOrders = woIds.map((id) => woById.get(id)).filter(Boolean).map((w) => ({ id: w!.id, orderNumber: w!.orderNumber }));
-        // AUTO batches show the LIVE sum of linked WO planned quantities.
-        const quantity = b.quantitySource === 'AUTO'
-          ? linkedWorkOrders.reduce((s, w) => s + (woById.get(w.id)?.plannedQty ?? 0), 0)
-          : b.quantity;
+        const linked = woIds.map((id) => woById.get(id)).filter(Boolean) as Array<{ id: string; orderNumber: string; plannedQty: number; goodQty: number | null; scrapQty: number | null }>;
+        const linkedWorkOrders = linked.map((w) => ({ id: w.id, orderNumber: w.orderNumber }));
+        const isAuto = b.quantitySource === 'AUTO';
+        // AUTO batches roll up LIVE from their linked WOs: quantity = Σ plannedQty,
+        // good/scrap = Σ actual good/scrap (so yield reflects real WO output instead of
+        // staying at the stored 0). MANUAL batches keep their entered/adjusted values.
+        const quantity = isAuto ? linked.reduce((s, w) => s + (w.plannedQty ?? 0), 0) : b.quantity;
+        const goodQuantity = isAuto ? linked.reduce((s, w) => s + (w.goodQty ?? 0), 0) : b.goodQuantity;
+        const scrapQuantity = isAuto ? linked.reduce((s, w) => s + (w.scrapQty ?? 0), 0) : b.scrapQuantity;
+        // Yield/scrap are clamped to [0,100] so display never exceeds 100% on overproduction.
+        const clamp = (n: number) => Math.max(0, Math.min(100, n));
         return {
           ...b,
           quantity,
+          goodQuantity,
+          scrapQuantity,
           linkedWorkOrders,
           workOrderIds: woIds,
-          yieldPct: quantity > 0 ? parseFloat(((b.goodQuantity / quantity) * 100).toFixed(1)) : 0,
-          scrapPct: quantity > 0 ? parseFloat(((b.scrapQuantity / quantity) * 100).toFixed(1)) : 0,
+          yieldPct: quantity > 0 ? clamp(parseFloat(((goodQuantity / quantity) * 100).toFixed(1))) : 0,
+          scrapPct: quantity > 0 ? clamp(parseFloat(((scrapQuantity / quantity) * 100).toFixed(1))) : 0,
         };
       }),
       total,
@@ -1924,6 +1932,26 @@ export class ProductionService {
     const batch = await this.prisma.batchRecord.findFirst({ where: { id, ...factoryFilter } });
     if (!batch) throw new NotFoundException('Batch record not found');
 
+    // ── Status state-machine: only allow sane transitions ──────────────
+    if (dto.status && dto.status !== batch.status) {
+      const VALID_BATCH_TRANSITIONS: Record<string, string[]> = {
+        ACTIVE:     ['COMPLETED', 'ON_HOLD', 'QUARANTINE', 'REJECTED', 'RELEASED'],
+        ON_HOLD:    ['ACTIVE', 'QUARANTINE', 'REJECTED', 'RELEASED'],
+        QUARANTINE: ['RELEASED', 'REJECTED', 'ON_HOLD'],
+        COMPLETED:  ['RELEASED', 'QUARANTINE', 'REJECTED'],
+        RELEASED:   ['QUARANTINE', 'REJECTED'], // recall path
+        REJECTED:   [],
+        DEPLETED:   [],
+      };
+      const allowed = VALID_BATCH_TRANSITIONS[batch.status] ?? [];
+      if (!(batch.status in VALID_BATCH_TRANSITIONS)) {
+        throw new BadRequestException(`Unknown batch status "${dto.status}"`);
+      }
+      if (!allowed.includes(dto.status)) {
+        throw new BadRequestException(`Cannot change batch status from ${batch.status} to ${dto.status}`);
+      }
+    }
+
     // Effective linked WOs + source (use the incoming values, else keep existing).
     const woIds = dto.workOrderIds !== undefined
       ? dto.workOrderIds.filter(Boolean)
@@ -1933,6 +1961,17 @@ export class ProductionService {
     const quantity = source === 'AUTO'
       ? await this.sumWorkOrderPlannedQty(factoryId, woIds)
       : dto.quantity;
+
+    // ── Count sanity for MANUAL batches: good + scrap must not exceed quantity ──
+    if (source === 'MANUAL' && (dto.goodQuantity !== undefined || dto.scrapQuantity !== undefined)) {
+      const effQty = quantity ?? batch.quantity;
+      const good = dto.goodQuantity ?? batch.goodQuantity;
+      const scrap = dto.scrapQuantity ?? batch.scrapQuantity;
+      if (good < 0 || scrap < 0) throw new BadRequestException('Good and scrap quantities cannot be negative');
+      if (effQty > 0 && good + scrap > effQty) {
+        throw new BadRequestException(`Good (${good}) + scrap (${scrap}) cannot exceed batch quantity (${effQty})`);
+      }
+    }
 
     return this.prisma.batchRecord.update({
       where: { id },

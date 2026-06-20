@@ -2,19 +2,14 @@ import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
-import { IBM_Plex_Sans_Arabic } from 'next/font/google';
 
 import { Providers } from '@/components/providers';
 import './globals.css';
 
-// Arabic-capable font (Geist has weak Arabic coverage). Applied via --font-arabic
-// when <html dir="rtl"> (see globals.css).
-const arabicFont = IBM_Plex_Sans_Arabic({
-  weight: ['400', '500', '600', '700'],
-  subsets: ['arabic'],
-  variable: '--font-arabic',
-  display: 'swap',
-});
+// Arabic-capable font (Geist has weak Arabic coverage). Loaded at RUNTIME via a
+// <link> to Google Fonts (see <head> below) instead of next/font/google, so the
+// production build never needs network access. --font-arabic + the Tajawal/Cairo
+// fallbacks are defined in globals.css, so Arabic still renders cleanly offline.
 
 const dirOf = (l?: string): 'rtl' | 'ltr' => (l === 'ar' ? 'rtl' : 'ltr');
 
@@ -72,9 +67,17 @@ export default async function RootLayout({
       lang={locale}
       dir={dirOf(locale)}
       suppressHydrationWarning
-      className={`${GeistSans.variable} ${GeistMono.variable} ${arabicFont.variable}`}
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
     >
-      <head />
+      <head>
+        {/* Arabic webfont at runtime (build stays offline). Falls back to Tajawal/Cairo/system. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"
+        />
+      </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         <Providers>{children}</Providers>
       </body>
