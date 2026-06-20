@@ -7,20 +7,22 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { CalendarRange } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useTimeRangeStore, type TimePreset } from '@/store/time-range-store';
 
-const PRESETS: { value: Exclude<TimePreset, 'custom'>; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: 'shift', label: 'Shift' },
-  { value: 'week', label: 'Week' },
-  { value: 'month', label: 'Month' },
+const PRESETS: { value: Exclude<TimePreset, 'custom'>; labelKey: string }[] = [
+  { value: 'today', labelKey: 'timeRange.today' },
+  { value: 'shift', labelKey: 'timeRange.shift' },
+  { value: 'week', labelKey: 'timeRange.week' },
+  { value: 'month', labelKey: 'timeRange.month' },
 ];
 
 export function TimeRangeFilter({ className }: { className?: string }) {
+  const { t } = useTranslation('common');
   const { preset, from, to, setPreset, setCustom } = useTimeRangeStore();
   const [open, setOpen] = useState(false);
   const [draftFrom, setDraftFrom] = useState(from ?? new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10));
@@ -37,7 +39,7 @@ export function TimeRangeFilter({ className }: { className?: string }) {
             preset === p.value ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted/50',
           )}
         >
-          {p.label}
+          {t(p.labelKey)}
         </button>
       ))}
       <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -49,7 +51,7 @@ export function TimeRangeFilter({ className }: { className?: string }) {
             )}
           >
             <CalendarRange size={12} />
-            {preset === 'custom' && from && to ? `${from.slice(5)} – ${to.slice(5)}` : 'Custom'}
+            {preset === 'custom' && from && to ? `${from.slice(5)} – ${to.slice(5)}` : t('timeRange.custom')}
           </button>
         </PopoverPrimitive.Trigger>
         <PopoverPrimitive.Portal>
@@ -60,17 +62,17 @@ export function TimeRangeFilter({ className }: { className?: string }) {
           >
             <div className="space-y-2.5">
               <div>
-                <label className="text-[10px] uppercase text-muted-foreground">From</label>
+                <label className="text-[10px] uppercase text-muted-foreground">{t('timeRange.from')}</label>
                 <input type="date" value={draftFrom} max={draftTo} onChange={(e) => setDraftFrom(e.target.value)}
                   className="w-full h-8 px-2 text-sm rounded-md border border-input bg-background outline-none focus:ring-1 focus:ring-ring" />
               </div>
               <div>
-                <label className="text-[10px] uppercase text-muted-foreground">To</label>
+                <label className="text-[10px] uppercase text-muted-foreground">{t('timeRange.to')}</label>
                 <input type="date" value={draftTo} min={draftFrom} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDraftTo(e.target.value)}
                   className="w-full h-8 px-2 text-sm rounded-md border border-input bg-background outline-none focus:ring-1 focus:ring-ring" />
               </div>
               <Button size="sm" className="w-full h-8" onClick={() => { setCustom(draftFrom, draftTo); setOpen(false); }}>
-                Apply range
+                {t('timeRange.applyRange')}
               </Button>
             </div>
           </PopoverPrimitive.Content>

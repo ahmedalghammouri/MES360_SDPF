@@ -72,11 +72,11 @@ interface Recipe {
 
 // ── Status config ─────────────────────────────────────────────
 
-const STATUS: Record<RecipeStatus, { label: string; color: string; bg: string; border: string }> = {
-  DRAFT:    { label: 'Draft',    color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20' },
-  REVIEW:   { label: 'Review',   color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20' },
-  APPROVED: { label: 'Approved', color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20' },
-  OBSOLETE: { label: 'Obsolete', color: 'text-slate-400',  bg: 'bg-slate-500/10',  border: 'border-slate-500/20' },
+const STATUS: Record<RecipeStatus, { labelKey: string; color: string; bg: string; border: string }> = {
+  DRAFT:    { labelKey: 'rec.status.DRAFT',    color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20' },
+  REVIEW:   { labelKey: 'rec.status.REVIEW',   color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20' },
+  APPROVED: { labelKey: 'rec.status.APPROVED', color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20' },
+  OBSOLETE: { labelKey: 'rec.status.OBSOLETE', color: 'text-slate-400',  bg: 'bg-slate-500/10',  border: 'border-slate-500/20' },
 };
 
 // ── Empty forms ───────────────────────────────────────────────
@@ -185,29 +185,29 @@ export function ProductionRecipesView() {
     mutationFn: (dto: any) => api.post('/production/recipes', dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['production', 'recipes'] });
-      toast({ title: 'Recipe created' });
+      toast({ title: t('rec.toast.created') });
       setCreateOpen(false);
       setForm(EMPTY_RECIPE_FORM());
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('rec.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const submitMut = useMutation({
     mutationFn: (id: string) => api.post(`/production/recipes/${id}/submit`, {}),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production', 'recipes'] }); toast({ title: 'Submitted for review' }); },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production', 'recipes'] }); toast({ title: t('rec.toast.submitted') }); },
+    onError: (e: any) => toast({ title: t('rec.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const approveMut = useMutation({
     mutationFn: (id: string) => api.post(`/production/recipes/${id}/approve`, {}),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production', 'recipes'] }); toast({ title: 'Recipe approved' }); },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production', 'recipes'] }); toast({ title: t('rec.toast.approved') }); },
+    onError: (e: any) => toast({ title: t('rec.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const obsoleteMut = useMutation({
     mutationFn: (id: string) => api.post(`/production/recipes/${id}/obsolete`, {}),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production', 'recipes'] }); toast({ title: 'Recipe obsoleted' }); },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production', 'recipes'] }); toast({ title: t('rec.toast.obsoleted') }); },
+    onError: (e: any) => toast({ title: t('rec.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const cloneMut = useMutation({
@@ -215,17 +215,17 @@ export function ProductionRecipesView() {
       api.post(`/production/recipes/${id}/clone`, { version }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['production', 'recipes'] });
-      toast({ title: 'Recipe cloned as new DRAFT' });
+      toast({ title: t('rec.toast.cloned') });
       setCloneTarget(null);
       setCloneVersion('');
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('rec.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/production/recipes/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production', 'recipes'] }); toast({ title: 'Recipe deleted' }); },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production', 'recipes'] }); toast({ title: t('rec.toast.deleted') }); },
+    onError: (e: any) => toast({ title: t('rec.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const addIngMut = useMutation({
@@ -233,11 +233,11 @@ export function ProductionRecipesView() {
       api.post(`/production/recipes/${recipeId}/ingredients`, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['production', 'recipes'] });
-      toast({ title: 'Ingredient added' });
+      toast({ title: t('rec.toast.ingredientAdded') });
       setIngTarget(null);
       setIngForm(EMPTY_ING_FORM());
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('rec.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const removeIngMut = useMutation({
@@ -300,7 +300,7 @@ export function ProductionRecipesView() {
           </p>
         </div>
         <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setCreateOpen(true)}>
-          <Plus size={13} />New Recipe
+          <Plus size={13} />{t('rec.newRecipe')}
         </Button>
       </div>
 
@@ -329,7 +329,7 @@ export function ProductionRecipesView() {
               </div>
               <div>
                 <div className="text-xl font-bold">{(data as any)?.total !== undefined && statusFilter === 'ALL' ? (counts[s] ?? 0) : '—'}</div>
-                <div className="text-xs text-muted-foreground">{cfg.label}</div>
+                <div className="text-xs text-muted-foreground">{t(cfg.labelKey)}</div>
               </div>
             </motion.button>
           ))}
@@ -339,8 +339,7 @@ export function ProductionRecipesView() {
         <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20 text-sm text-muted-foreground">
           <Info size={14} className="mt-0.5 text-primary shrink-0" />
           <span>
-            Status machine: <strong className="text-foreground">DRAFT</strong> → <strong className="text-foreground">REVIEW</strong> → <strong className="text-foreground">APPROVED</strong> → <strong className="text-foreground">OBSOLETE</strong>.
-            Only APPROVED recipes can be used in Work Orders. Clone an approved recipe to create a new DRAFT for editing.
+            {t('rec.infoPre')}<strong className="text-foreground">DRAFT</strong> → <strong className="text-foreground">REVIEW</strong> → <strong className="text-foreground">APPROVED</strong> → <strong className="text-foreground">OBSOLETE</strong>{t('rec.infoPost')}
           </span>
         </div>
 
@@ -349,7 +348,7 @@ export function ProductionRecipesView() {
           <div className="relative flex-1 max-w-xs">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search recipe, code, product..."
+              placeholder={t('rec.search')}
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="h-8 pl-7 text-xs"
@@ -360,9 +359,9 @@ export function ProductionRecipesView() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Statuses</SelectItem>
+              <SelectItem value="ALL">{t('rec.allStatuses')}</SelectItem>
               {Object.entries(STATUS).map(([s, cfg]) => (
-                <SelectItem key={s} value={s}>{cfg.label}</SelectItem>
+                <SelectItem key={s} value={s}>{t(cfg.labelKey)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -373,14 +372,14 @@ export function ProductionRecipesView() {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b">
-                <SortableHeader column="code"      label="Code"    sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                <SortableHeader column="name"      label="Name"    sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                <SortableHeader column="status"    label="Status"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                <SortableHeader column="version"   label="Version" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                <SortableHeader column="yieldPct"  label="Yield"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                <SortableHeader column="unitCost"  label="Cost"    sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                <SortableHeader column="updatedAt" label="Updated" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                <SortableHeader column="createdAt" label="Created" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader column="code"      label={t('rec.col.code')}    sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader column="name"      label={t('rec.col.name')}    sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader column="status"    label={t('rec.col.status')}  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader column="version"   label={t('rec.col.version')} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader column="yieldPct"  label={t('rec.col.yield')}   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader column="unitCost"  label={t('rec.col.cost')}    sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader column="updatedAt" label={t('rec.col.updated')} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader column="createdAt" label={t('rec.col.created')} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
               </tr>
             </thead>
           </table>
@@ -389,11 +388,11 @@ export function ProductionRecipesView() {
         {/* Recipe list */}
         <div className="flex flex-col gap-3">
           {isLoading ? (
-            <div className="text-sm text-muted-foreground p-8 text-center">Loading recipes...</div>
+            <div className="text-sm text-muted-foreground p-8 text-center">{t('rec.loading')}</div>
           ) : sortedData.length === 0 ? (
             <div className="border rounded-xl p-12 text-center text-sm text-muted-foreground">
               <FlaskConical size={32} className="mx-auto mb-3 opacity-20" />
-              No recipes found.
+              {t('rec.noRecipes')}
             </div>
           ) : sortedData.map(recipe => (
             <RecipeCard
@@ -669,6 +668,7 @@ function RecipeCard({
   onAddIngredient: () => void;
   onRemoveIngredient: (id: string) => void;
 }) {
+  const { t } = useTranslation(['production', 'common']);
   const cfg = STATUS[recipe.status];
 
   return (
@@ -687,15 +687,15 @@ function RecipeCard({
             <span className="font-semibold text-sm">{recipe.name}</span>
             <Badge variant="outline" className="text-[10px] h-4">v{recipe.version}</Badge>
             <Badge className={cn('text-[10px] h-4 border', cfg.bg, cfg.color, cfg.border)}>
-              {cfg.label}
+              {t(cfg.labelKey)}
             </Badge>
           </div>
           <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
             <span><Package size={10} className="inline mr-0.5" />{recipe.sku.name}</span>
             {recipe.batchSize && <span>{recipe.batchSize} {recipe.batchUnit}</span>}
-            {recipe.yieldPct != null && <span>{recipe.yieldPct}% yield</span>}
-            {recipe.cycleTimeSecs != null && <span><Clock3 size={10} className="inline mr-0.5" />{(recipe.cycleTimeSecs / 60).toFixed(0)} min</span>}
-            <span>{recipe._count.ingredients} ingredients</span>
+            {recipe.yieldPct != null && <span>{t('rec.yieldSuffix', { pct: recipe.yieldPct })}</span>}
+            {recipe.cycleTimeSecs != null && <span><Clock3 size={10} className="inline mr-0.5" />{t('rec.minSuffix', { count: Number((recipe.cycleTimeSecs / 60).toFixed(0)) })}</span>}
+            <span>{t('rec.ingredientsSuffix', { count: recipe._count.ingredients })}</span>
             {recipe.estimatedMaterialCost != null && (
               <span className="text-green-400 flex items-center gap-0.5">
                 <DollarSign size={9} />{recipe.estimatedMaterialCost.toFixed(2)}
@@ -708,12 +708,12 @@ function RecipeCard({
         <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
           {recipe.status === 'DRAFT' && (
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onSubmit}>
-              <Send size={11} className="mr-1" />Review
+              <Send size={11} className="mr-1" />{t('rec.review')}
             </Button>
           )}
           {recipe.status === 'REVIEW' && (
             <Button size="sm" variant="outline" className="h-7 text-xs text-green-500 border-green-500/30 hover:bg-green-500/10" onClick={onApprove}>
-              <ShieldCheck size={11} className="mr-1" />Approve
+              <ShieldCheck size={11} className="mr-1" />{t('rec.approve')}
             </Button>
           )}
 
@@ -725,18 +725,18 @@ function RecipeCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={onClone}>
-                <Copy size={12} className="mr-2" />Clone to new version
+                <Copy size={12} className="mr-2" />{t('rec.cloneVersion')}
               </DropdownMenuItem>
               {recipe.status === 'APPROVED' && (
                 <DropdownMenuItem onClick={onObsolete} className="text-amber-500">
-                  <Archive size={12} className="mr-2" />Mark Obsolete
+                  <Archive size={12} className="mr-2" />{t('rec.markObsolete')}
                 </DropdownMenuItem>
               )}
               {recipe.status === 'DRAFT' && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={onDelete} className="text-destructive">
-                    <Trash2 size={12} className="mr-2" />Delete
+                    <Trash2 size={12} className="mr-2" />{t('rec.delete')}
                   </DropdownMenuItem>
                 </>
               )}
@@ -759,29 +759,29 @@ function RecipeCard({
             <div className="border-t p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Bill of Materials ({recipe.ingredients?.length ?? 0} ingredients)
+                  {t('rec.bom', { count: recipe.ingredients?.length ?? 0 })}
                 </div>
                 {(recipe.status === 'DRAFT' || recipe.status === 'REVIEW') && (
                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onAddIngredient}>
-                    <Plus size={11} className="mr-1" />Add Ingredient
+                    <Plus size={11} className="mr-1" />{t('rec.addIngredient')}
                   </Button>
                 )}
               </div>
 
               {(recipe.ingredients?.length ?? 0) === 0 ? (
                 <div className="text-xs text-muted-foreground p-4 border rounded-lg border-dashed text-center">
-                  No ingredients yet. Add raw materials to define the BOM.
+                  {t('rec.noIngredients')}
                 </div>
               ) : (
                 <div className="rounded-lg border overflow-hidden">
                   <table className="w-full text-xs">
                     <thead className="bg-muted/40">
                       <tr>
-                        <th className="text-left px-3 py-2 font-medium text-muted-foreground">Material</th>
-                        <th className="text-left px-3 py-2 font-medium text-muted-foreground">Phase</th>
-                        <th className="text-right px-3 py-2 font-medium text-muted-foreground">Qty/Batch</th>
-                        <th className="text-right px-3 py-2 font-medium text-muted-foreground">Scrap %</th>
-                        <th className="text-right px-3 py-2 font-medium text-muted-foreground">Cost/unit</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t('rec.colMaterial')}</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t('rec.colPhase')}</th>
+                        <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t('rec.colQtyBatch')}</th>
+                        <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t('rec.colScrap')}</th>
+                        <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t('rec.colCostUnit')}</th>
                         <th className="px-3 py-2"></th>
                       </tr>
                     </thead>
@@ -819,7 +819,7 @@ function RecipeCard({
                       <tfoot className="border-t bg-muted/30">
                         <tr>
                           <td colSpan={4} className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">
-                            Estimated material cost / batch:
+                            {t('rec.estCostBatch')}
                           </td>
                           <td className="px-3 py-2 text-right text-xs font-bold text-green-400">
                             ${recipe.estimatedMaterialCost.toFixed(2)}
@@ -835,19 +835,19 @@ function RecipeCard({
               {/* Meta */}
               <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
                 {recipe.process && (
-                  <div><span className="font-medium text-foreground">Process:</span> {recipe.process.name} v{recipe.process.version}</div>
+                  <div><span className="font-medium text-foreground">{t('rec.metaProcess')}</span> {recipe.process.name} v{recipe.process.version}</div>
                 )}
                 {recipe.shelfLifeDays && (
-                  <div><span className="font-medium text-foreground">Shelf Life:</span> {recipe.shelfLifeDays} days</div>
+                  <div><span className="font-medium text-foreground">{t('rec.metaShelfLife')}</span> {t('rec.shelfDays', { count: recipe.shelfLifeDays })}</div>
                 )}
                 {recipe.storageConditions && (
-                  <div><span className="font-medium text-foreground">Storage:</span> {recipe.storageConditions}</div>
+                  <div><span className="font-medium text-foreground">{t('rec.metaStorage')}</span> {recipe.storageConditions}</div>
                 )}
                 {recipe.approvedBy && (
-                  <div><span className="font-medium text-foreground">Approved by:</span> {recipe.approvedBy.name}</div>
+                  <div><span className="font-medium text-foreground">{t('rec.metaApprovedBy')}</span> {recipe.approvedBy.name}</div>
                 )}
                 {recipe._count.workOrders > 0 && (
-                  <div><span className="font-medium text-foreground">Work Orders:</span> {recipe._count.workOrders}</div>
+                  <div><span className="font-medium text-foreground">{t('rec.metaWorkOrders')}</span> {recipe._count.workOrders}</div>
                 )}
               </div>
             </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Factory, ClipboardList, CheckCircle2, Activity } from 'lucide-react';
 import type { ProductionStatus } from '@/features/dashboard/use-dashboard-data';
 import { cn, formatPercent } from '@/lib/utils';
@@ -11,6 +12,7 @@ interface ProductionStatusBarProps {
 }
 
 export function ProductionStatusBar({ data, isLoading }: ProductionStatusBarProps) {
+  const { t } = useTranslation('common');
   const efficiency = data?.plannedOutput
     ? (data.actualOutput / data.plannedOutput) * 100
     : 0;
@@ -18,28 +20,28 @@ export function ProductionStatusBar({ data, isLoading }: ProductionStatusBarProp
   const items = [
     {
       icon: Factory,
-      label: 'Running Lines',
+      label: t('widgets.runningLines'),
       value: isLoading ? '—' : `${data?.runningLines ?? 0} / ${data?.totalLines ?? 0}`,
       color: 'text-success-400',
       bg: 'bg-success-500/10',
     },
     {
       icon: ClipboardList,
-      label: 'Active Orders',
+      label: t('widgets.activeOrders'),
       value: isLoading ? '—' : String(data?.activeOrders ?? 0),
       color: 'text-brand-400',
       bg: 'bg-brand-500/10',
     },
     {
       icon: CheckCircle2,
-      label: 'Completed Today',
+      label: t('widgets.completedToday'),
       value: isLoading ? '—' : String(data?.completedToday ?? 0),
       color: 'text-success-400',
       bg: 'bg-success-500/10',
     },
     {
       icon: Activity,
-      label: 'Output Efficiency',
+      label: t('widgets.outputEfficiency'),
       value: isLoading ? '—' : formatPercent(efficiency),
       color: efficiency >= 90 ? 'text-success-400' : efficiency >= 75 ? 'text-warning-400' : 'text-danger-400',
       bg: 'bg-primary/5',

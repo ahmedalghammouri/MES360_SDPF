@@ -153,10 +153,10 @@ export function ProductionBatchesView() {
   const totalScrap = batches.reduce((sum, b) => sum + (b.scrapQuantity ?? 0), 0);
 
   const SUMMARY = [
-    { label: 'Active Batches',  value: activeCount,    icon: FlaskConical, color: 'text-brand-400' },
-    { label: 'Completed',       value: completedCount, icon: CheckCircle2, color: 'text-green-400' },
-    { label: 'On Hold',         value: onHoldCount,    icon: Clock,        color: 'text-amber-400' },
-    { label: 'Total Scrap',     value: totalScrap,     icon: AlertTriangle,color: 'text-red-400'   },
+    { labelKey: 'batchv.summaryActive',    value: activeCount,    icon: FlaskConical, color: 'text-brand-400' },
+    { labelKey: 'batchv.summaryCompleted', value: completedCount, icon: CheckCircle2, color: 'text-green-400' },
+    { labelKey: 'batchv.summaryOnHold',    value: onHoldCount,    icon: Clock,        color: 'text-amber-400' },
+    { labelKey: 'batchv.summaryScrap',     value: totalScrap,     icon: AlertTriangle,color: 'text-red-400'   },
   ];
 
   // Live AUTO quantity = sum of the selected work orders' planned quantities.
@@ -215,12 +215,12 @@ export function ProductionBatchesView() {
           {SUMMARY.map((s, i) => {
             const Icon = s.icon;
             return (
-              <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+              <motion.div key={s.labelKey} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                 className="industrial-card rounded-xl p-4 flex items-center gap-3">
                 <Icon className={cn('w-8 h-8', s.color)} />
                 <div>
                   <div className="text-2xl font-bold">{s.value}</div>
-                  <div className="text-xs text-muted-foreground">{s.label}</div>
+                  <div className="text-xs text-muted-foreground">{t(s.labelKey)}</div>
                 </div>
               </motion.div>
             );
@@ -579,7 +579,7 @@ export function ProductionBatchesView() {
               <div className="flex items-center gap-3 pr-6">
                 <div className="flex-1">
                   <SheetTitle className="font-mono text-sm">{viewBatch.batchNumber}</SheetTitle>
-                  <SheetDescription className="mt-0.5">{viewBatch.lotNumber ? `Lot: ${viewBatch.lotNumber}` : 'No lot number'}</SheetDescription>
+                  <SheetDescription className="mt-0.5">{viewBatch.lotNumber ? t('batchv.lotPrefix', { lot: viewBatch.lotNumber }) : t('batchv.noLot')}</SheetDescription>
                 </div>
                 <Badge variant={STATUS_CONFIG[viewBatch.status]?.variant ?? 'outline'}>
                   {t(`batches.status.${viewBatch.status}`, { defaultValue: STATUS_CONFIG[viewBatch.status]?.label ?? viewBatch.status })}
@@ -592,14 +592,14 @@ export function ProductionBatchesView() {
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
               {/* Yield metrics */}
               <div>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Quality Metrics</p>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('batchv.qualityMetrics')}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { label: 'Planned', value: viewBatch.quantity, color: '' },
-                    { label: 'Good', value: viewBatch.goodQuantity, color: 'text-green-400' },
-                    { label: 'Scrap', value: viewBatch.scrapQuantity, color: 'text-red-400' },
+                    { key: 'planned', label: t('batchv.metricPlanned'), value: viewBatch.quantity, color: '' },
+                    { key: 'good', label: t('batchv.metricGood'), value: viewBatch.goodQuantity, color: 'text-green-400' },
+                    { key: 'scrap', label: t('batchv.metricScrap'), value: viewBatch.scrapQuantity, color: 'text-red-400' },
                   ].map(m => (
-                    <div key={m.label} className="industrial-card rounded-lg p-3 text-center">
+                    <div key={m.key} className="industrial-card rounded-lg p-3 text-center">
                       <div className={cn('text-xl font-bold tabular-nums', m.color)}>{m.value ?? 0}</div>
                       <div className="text-[10px] text-muted-foreground mt-0.5">{m.label}</div>
                     </div>
@@ -613,24 +613,24 @@ export function ProductionBatchesView() {
                     />
                   </div>
                   <span className="text-xs font-semibold text-green-400 tabular-nums">
-                    {viewBatch.yieldPct ?? (viewBatch.quantity > 0 ? Math.round((viewBatch.goodQuantity / viewBatch.quantity) * 100) : 0)}% yield
+                    {t('batchv.yieldValue', { pct: viewBatch.yieldPct ?? (viewBatch.quantity > 0 ? Math.round((viewBatch.goodQuantity / viewBatch.quantity) * 100) : 0) })}
                   </span>
                 </div>
               </div>
 
               {/* Details */}
               <div>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Batch Details</p>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('batchv.batchDetails')}</p>
                 <div className="industrial-card rounded-lg px-3">
                   {[
-                    { label: 'Product', value: viewBatch.sku?.name },
-                    { label: 'SKU Code', value: viewBatch.sku?.code },
-                    { label: 'Lot Number', value: viewBatch.lotNumber },
-                    { label: 'Work Order', value: viewBatch.workOrder?.orderNumber },
-                    { label: 'Machine', value: viewBatch.workOrder?.machine?.name },
-                    { label: 'Created', value: viewBatch.createdAt ? formatDate(viewBatch.createdAt) : undefined },
+                    { key: 'product', label: t('batchv.detailProduct'), value: viewBatch.sku?.name },
+                    { key: 'skuCode', label: t('batchv.detailSkuCode'), value: viewBatch.sku?.code },
+                    { key: 'lot', label: t('batchv.detailLot'), value: viewBatch.lotNumber },
+                    { key: 'workOrder', label: t('batchv.detailWorkOrder'), value: viewBatch.workOrder?.orderNumber },
+                    { key: 'machine', label: t('batchv.detailMachine'), value: viewBatch.workOrder?.machine?.name },
+                    { key: 'created', label: t('batchv.detailCreated'), value: viewBatch.createdAt ? formatDate(viewBatch.createdAt) : undefined },
                   ].map(row => (
-                    <div key={row.label} className="flex items-start gap-2 py-2 border-b border-border/20 last:border-0">
+                    <div key={row.key} className="flex items-start gap-2 py-2 border-b border-border/20 last:border-0">
                       <span className="text-[11px] text-muted-foreground w-24 shrink-0 pt-0.5">{row.label}</span>
                       <span className="text-xs font-medium flex-1">{row.value ?? <span className="text-muted-foreground">—</span>}</span>
                     </div>
@@ -641,7 +641,7 @@ export function ProductionBatchesView() {
               {/* Notes */}
               {viewBatch.notes && (
                 <div>
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Notes</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('bform.notes')}</p>
                   <div className="industrial-card rounded-lg px-3 py-2">
                     <p className="text-xs text-muted-foreground">{viewBatch.notes}</p>
                   </div>
@@ -654,7 +654,7 @@ export function ProductionBatchesView() {
             <div className="px-6 py-3 border-t border-border/50 flex items-center gap-2 shrink-0">
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5"
                 onClick={() => { setViewBatch(null); setEditBatch(viewBatch); }}>
-                <Edit3 size={11} />Edit Batch
+                <Edit3 size={11} />{t('batchv.editBatch')}
               </Button>
             </div>
           )}
@@ -666,14 +666,14 @@ export function ProductionBatchesView() {
         <Dialog open onOpenChange={o => !o && setDeleteId(null)}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle className="text-sm">Delete Batch?</DialogTitle>
-              <DialogDescription className="text-xs">This action cannot be undone.</DialogDescription>
+              <DialogTitle className="text-sm">{t('batchv.deleteTitle')}</DialogTitle>
+              <DialogDescription className="text-xs">{t('event.cannotUndo')}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" size="sm" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => setDeleteId(null)}>{t('bform.cancel')}</Button>
               <Button variant="destructive" size="sm" disabled={deleteMutation.isPending}
                 onClick={() => deleteMutation.mutate(deleteId)}>
-                {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+                {deleteMutation.isPending ? t('event.deleting') : t('bform.delete')}
               </Button>
             </DialogFooter>
           </DialogContent>

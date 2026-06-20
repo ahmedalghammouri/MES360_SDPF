@@ -343,9 +343,21 @@
     "colNotes": "ملاحظات",
     "pass": "ناجح",
     "fail": "راسب",
+    "nominalLabel": "الاسمية",
     "paramsPassing": "{{passing}}/{{total}} معايير ناجحة",
     "notes": "ملاحظات",
+    "result": { "PASS": "ناجح", "FAIL": "راسب", "CONDITIONAL": "مشروط", "PENDING": "قيد الانتظار" },
     "type": { "INCOMING": "وارد", "IN_PROCESS": "أثناء العملية", "FINAL": "نهائي", "PATROL": "دورية", "AUDIT": "تدقيق", "SPC": "SPC" }
+  },
+  "pdf": {
+    "summary": "ملخص",
+    "ownership": "المسؤولية",
+    "verifiedAt": "وقت التحقق",
+    "actionPlan": "خطة الإجراءات",
+    "actionN": "الإجراء {{n}}",
+    "totalPassFail": "الإجمالي / ناجح / راسب",
+    "paramN": "المعيار {{n}}",
+    "measurements": "القياسات"
   },
   "ncrDetail": {
     "loading": "جارٍ تحميل البلاغ…",
@@ -367,6 +379,7 @@
     "noData": "لا توجد بيانات قياس لهذا المعيار",
     "sample": "العينة",
     "valueLabel": "القيمة",
+    "mean": "المتوسط",
     "status": { "IN_CONTROL": "تحت السيطرة", "WARNING": "تحذير", "OUT_OF_CONTROL": "خارج السيطرة" }
   },
   "reports": {

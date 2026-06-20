@@ -213,15 +213,15 @@ function POFormDialog({ open, onClose, initial }: POFormDialogProps) {
       : api.post('/production/production-orders', dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['production-orders'] });
-      toast({ title: isEdit ? 'PO updated' : 'PO created', description: form.orderNumber });
+      toast({ title: isEdit ? t('po.toast.poUpdated') : t('po.toast.poCreated'), description: form.orderNumber });
       onClose();
     },
-    onError: (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message ?? 'Failed' }),
+    onError: (e: any) => toast({ variant: 'destructive', title: t('po.toast.error'), description: e?.response?.data?.message ?? t('po.toast.failed') }),
   });
 
   function handleSubmit() {
     if (!form.orderNumber || !form.skuId || !form.targetQty || !form.plannedStart || !form.plannedEnd) {
-      toast({ variant: 'destructive', title: 'Required fields missing' }); return;
+      toast({ variant: 'destructive', title: t('po.toast.requiredMissing') }); return;
     }
     const dto: any = {
       targetQty: parseInt(form.targetQty, 10),
@@ -429,15 +429,15 @@ function CreateWODialog({ po, open, onClose }: CreateWODialogProps) {
       qc.invalidateQueries({ queryKey: ['production-orders'] });
       qc.invalidateQueries({ queryKey: ['production', 'work-orders'] });
       qc.invalidateQueries({ queryKey: ['production', 'kpis'] });
-      toast({ title: 'Work order created', description: `${wo?.orderNumber ?? 'WO'} → ${po.orderNumber}` });
+      toast({ title: t('po.toast.woCreated'), description: `${wo?.orderNumber ?? 'WO'} → ${po.orderNumber}` });
       onClose();
     },
-    onError: (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message ?? 'Failed' }),
+    onError: (e: any) => toast({ variant: 'destructive', title: t('po.toast.error'), description: e?.response?.data?.message ?? t('po.toast.failed') }),
   });
 
   function handleSubmit() {
     if (!form.plannedQty || !form.plannedStart || !form.plannedEnd) {
-      toast({ variant: 'destructive', title: 'Required fields missing' }); return;
+      toast({ variant: 'destructive', title: t('po.toast.requiredMissing') }); return;
     }
     mut.mutate({
       plannedQty: parseInt(form.plannedQty, 10),
@@ -847,16 +847,16 @@ function DispatchListPanel({ woId, woStatus, plannedStart, plannedEnd }: Dispatc
     }),
     onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ['job-orders', woId] });
-      toast({ title: `${res?.created ?? 0} job orders generated` });
+      toast({ title: t('po.toast.joGenerated', { count: res?.created ?? 0 }) });
     },
-    onError: (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message ?? 'Failed' }),
+    onError: (e: any) => toast({ variant: 'destructive', title: t('po.toast.error'), description: e?.response?.data?.message ?? t('po.toast.failed') }),
   });
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.patch(`/production/job-orders/${id}/status`, { status }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['job-orders', woId] }); },
-    onError: (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message }),
+    onError: (e: any) => toast({ variant: 'destructive', title: t('po.toast.error'), description: e?.response?.data?.message }),
   });
 
   if (isLoading) {
@@ -1023,7 +1023,7 @@ function PORow({ po, idx, onSelect, actions, selected, onToggle }: PORowProps) {
       className={cn('border-b border-border/30 hover:bg-foreground/5 cursor-pointer transition-colors', selected && 'bg-primary/5')}
     >
       <td className="p-3" onClick={(e) => e.stopPropagation()}>
-        <Checkbox checked={selected} onCheckedChange={onToggle} aria-label="Select row" />
+        <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={t('po.selectRow')} />
       </td>
       <td className="p-3">
         <div className="font-mono text-xs text-brand-400">{po.orderNumber}</div>
@@ -1135,38 +1135,38 @@ export function ProductionOrdersView() {
 
   const releaseMut = useMutation({
     mutationFn: (id: string) => api.patch(`/production/production-orders/${id}/release`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: 'PO Released' }); },
-    onError: (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: t('po.toast.poReleased') }); },
+    onError: (e: any) => toast({ variant: 'destructive', title: t('po.toast.error'), description: e?.response?.data?.message }),
   });
 
   const holdMut = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) => api.patch(`/production/production-orders/${id}/hold`, { reason }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: 'PO on Hold' }); setHoldFor(null); },
-    onError: (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: t('po.toast.poOnHold') }); setHoldFor(null); },
+    onError: (e: any) => toast({ variant: 'destructive', title: t('po.toast.error'), description: e?.response?.data?.message }),
   });
 
   const resumeMut = useMutation({
     mutationFn: (id: string) => api.patch(`/production/production-orders/${id}/resume`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: 'PO Resumed' }); setResumeFor(null); },
-    onError: (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: t('po.toast.poResumed') }); setResumeFor(null); },
+    onError: (e: any) => toast({ variant: 'destructive', title: t('po.toast.error'), description: e?.response?.data?.message }),
   });
 
   const completeMut = useMutation({
     mutationFn: (id: string) => api.patch(`/production/production-orders/${id}/complete`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: 'PO Completed' }); setCompleteFor(null); },
-    onError: (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: t('po.toast.poCompleted') }); setCompleteFor(null); },
+    onError: (e: any) => toast({ variant: 'destructive', title: t('po.toast.error'), description: e?.response?.data?.message }),
   });
 
   const cancelMut = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) => api.patch(`/production/production-orders/${id}/cancel`, { reason }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: 'PO Cancelled' }); setCancelFor(null); },
-    onError: (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: t('po.toast.poCancelled') }); setCancelFor(null); },
+    onError: (e: any) => toast({ variant: 'destructive', title: t('po.toast.error'), description: e?.response?.data?.message }),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/production/production-orders/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: 'PO Deleted' }); setDeleteFor(null); setDetailOpen(false); },
-    onError: (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); toast({ title: t('po.toast.poDeleted') }); setDeleteFor(null); setDetailOpen(false); },
+    onError: (e: any) => toast({ variant: 'destructive', title: t('po.toast.error'), description: e?.response?.data?.message }),
   });
 
   // ── Helper to build actions object for a PO ────────────────
@@ -1200,10 +1200,10 @@ export function ProductionOrdersView() {
   const completed = orders.filter(p => p.status === 'COMPLETED').length;
 
   const kpis = [
-    { label: 'Planned',     value: planned,   color: 'text-slate-300',  icon: Clock        },
-    { label: 'Released',    value: released,  color: 'text-blue-400',   icon: SendHorizonal },
-    { label: 'In Progress', value: running,   color: 'text-brand-400',  icon: RefreshCw    },
-    { label: 'Completed',   value: completed, color: 'text-green-400',  icon: CheckCircle2 },
+    { labelKey: 'po.kpi.planned',    value: planned,   color: 'text-slate-300',  icon: Clock        },
+    { labelKey: 'po.kpi.released',   value: released,  color: 'text-blue-400',   icon: SendHorizonal },
+    { labelKey: 'po.kpi.inProgress', value: running,   color: 'text-brand-400',  icon: RefreshCw    },
+    { labelKey: 'po.kpi.completed',  value: completed, color: 'text-green-400',  icon: CheckCircle2 },
   ];
 
   return (
@@ -1217,18 +1217,18 @@ export function ProductionOrdersView() {
         <div className="flex items-center gap-2">
           <ExportMenu
             filename="production-orders"
-            title="Production Orders"
+            title={t('po.exportTitle')}
             rows={orders}
             columns={[
-              { key: 'orderNumber', label: 'Order #' },
-              { key: 'sku', label: 'Product', value: (r: any) => r.sku?.name ?? '' },
-              { key: 'status', label: 'Status' },
-              { key: 'priority', label: 'Priority' },
-              { key: 'targetQty', label: 'Target Qty', value: (r: any) => `${r.targetQty} ${r.unit ?? ''}`.trim() },
-              { key: 'completedQty', label: 'Completed', value: (r: any) => String(r.completedQty ?? 0) },
-              { key: 'customer', label: 'Customer', value: (r: any) => r.customer ?? '' },
-              { key: 'plannedStart', label: 'Planned Start', value: (r: any) => r.plannedStart ? new Date(r.plannedStart).toLocaleDateString() : '' },
-              { key: 'plannedEnd', label: 'Planned End', value: (r: any) => r.plannedEnd ? new Date(r.plannedEnd).toLocaleDateString() : '' },
+              { key: 'orderNumber', label: t('po.col.poNumber') },
+              { key: 'sku', label: t('po.col.product'), value: (r: any) => r.sku?.name ?? '' },
+              { key: 'status', label: t('po.col.status') },
+              { key: 'priority', label: t('po.col.priority') },
+              { key: 'targetQty', label: t('po.col.targetQty'), value: (r: any) => `${r.targetQty} ${r.unit ?? ''}`.trim() },
+              { key: 'completedQty', label: t('po.exportCol.completed'), value: (r: any) => String(r.completedQty ?? 0) },
+              { key: 'customer', label: t('po.col.customer'), value: (r: any) => r.customer ?? '' },
+              { key: 'plannedStart', label: t('po.col.plannedStart'), value: (r: any) => r.plannedStart ? new Date(r.plannedStart).toLocaleDateString() : '' },
+              { key: 'plannedEnd', label: t('po.col.plannedEnd'), value: (r: any) => r.plannedEnd ? new Date(r.plannedEnd).toLocaleDateString() : '' },
             ]}
           />
           <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-3.5 h-3.5 me-1.5" />{t('po.refresh')}</Button>
@@ -1267,12 +1267,12 @@ export function ProductionOrdersView() {
           const Icon = k.icon;
           return (
             <motion.div
-              key={k.label}
+              key={k.labelKey}
               initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               className="glass-card rounded-xl p-4"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-muted-foreground">{k.label}</span>
+                <span className="text-xs text-muted-foreground">{t(k.labelKey)}</span>
                 <Icon className={cn('w-4 h-4', k.color)} />
               </div>
               <div className={cn('text-3xl font-bold', k.color)}>{k.value}</div>
@@ -1421,8 +1421,8 @@ export function ProductionOrdersView() {
         count={sel.count}
         onClear={sel.clear}
         actions={archived === 'archived'
-          ? [{ label: 'Restore', icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
-          : [{ label: 'Archive', icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
+          ? [{ label: t('po.bulk.restore'), icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
+          : [{ label: t('po.bulk.archive'), icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
       />
     </div>
   );

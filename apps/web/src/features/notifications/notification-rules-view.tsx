@@ -22,22 +22,22 @@ import { cn } from '@/lib/utils';
 // ── Static option sets ──────────────────────────────────────────
 
 const EVENT_OPTS = [
-  { value: 'production.work-order.started', label: 'Production · Work order started' },
-  { value: 'production.work-order.held',    label: 'Production · Work order on hold' },
-  { value: 'downtime.event.created',        label: 'Downtime · Unplanned downtime' },
-  { value: 'downtime.auto.created',         label: 'Downtime · Auto-detected' },
-  { value: 'quality.inspection.failed',     label: 'Quality · Inspection failed' },
-  { value: 'quality.ncr.created',           label: 'Quality · NCR raised' },
-  { value: 'quality.ncr.critical',          label: 'Quality · Critical NCR' },
-  { value: 'maintenance.wo.created',        label: 'Maintenance · Emergency WO' },
-  { value: 'machine.state.changed',         label: 'Machine · Breakdown' },
+  { value: 'production.work-order.started', labelKey: 'notifications.rulesView.event.started' },
+  { value: 'production.work-order.held',    labelKey: 'notifications.rulesView.event.held' },
+  { value: 'downtime.event.created',        labelKey: 'notifications.rulesView.event.downtimeUnplanned' },
+  { value: 'downtime.auto.created',         labelKey: 'notifications.rulesView.event.downtimeAuto' },
+  { value: 'quality.inspection.failed',     labelKey: 'notifications.rulesView.event.inspectionFailed' },
+  { value: 'quality.ncr.created',           labelKey: 'notifications.rulesView.event.ncrRaised' },
+  { value: 'quality.ncr.critical',          labelKey: 'notifications.rulesView.event.ncrCritical' },
+  { value: 'maintenance.wo.created',        labelKey: 'notifications.rulesView.event.emergencyWo' },
+  { value: 'machine.state.changed',         labelKey: 'notifications.rulesView.event.breakdown' },
 ];
 
 const CHANNEL_OPTS = [
-  { key: 'in_app', label: 'In-App' },
-  { key: 'email',  label: 'Email' },
-  { key: 'sms',    label: 'SMS' },
-  { key: 'push',   label: 'Push' },
+  { key: 'in_app', labelKey: 'notifications.rulesView.channel.in_app' },
+  { key: 'email',  labelKey: 'notifications.rulesView.channel.email' },
+  { key: 'sms',    labelKey: 'notifications.rulesView.channel.sms' },
+  { key: 'push',   labelKey: 'notifications.rulesView.channel.push' },
 ];
 
 const ROLE_OPTS = [
@@ -111,9 +111,9 @@ export function NotificationRulesView() {
     onSuccess: () => {
       invalidate();
       setForm(null);
-      toast({ title: 'Rule saved', variant: 'success' });
+      toast({ title: t('notifications.rulesView.toast.saved'), variant: 'success' });
     },
-    onError: () => toast({ title: 'Failed to save rule', variant: 'destructive' }),
+    onError: () => toast({ title: t('notifications.rulesView.toast.saveFailed'), variant: 'destructive' }),
   });
 
   const toggleMutation = useMutation({
@@ -127,9 +127,9 @@ export function NotificationRulesView() {
     onSuccess: () => {
       invalidate();
       setDeleteId(null);
-      toast({ title: 'Rule deleted' });
+      toast({ title: t('notifications.rulesView.toast.deleted') });
     },
-    onError: () => toast({ title: 'Failed to delete rule', variant: 'destructive' }),
+    onError: () => toast({ title: t('notifications.rulesView.toast.deleteFailed'), variant: 'destructive' }),
   });
 
   const rules = data ?? [];
@@ -166,13 +166,13 @@ export function NotificationRulesView() {
               {t('notifications.rules')}
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Route events to specific channels and roles. Rules override the built-in defaults.
+              {t('notifications.rulesView.subtitle')}
             </p>
           </div>
         </div>
         {!forbidden && (
           <Button size="sm" onClick={() => setForm({ ...EMPTY_FORM })} className="gap-1.5">
-            <Plus className="w-3.5 h-3.5" /> New Rule
+            <Plus className="w-3.5 h-3.5" /> {t('notifications.rulesView.newRule')}
           </Button>
         )}
       </div>
@@ -182,34 +182,34 @@ export function NotificationRulesView() {
         <FormDialog
           open={!!form}
           onClose={() => setForm(null)}
-          title={form.id ? 'Edit Rule' : 'New Notification Rule'}
+          title={form.id ? t('notifications.rulesView.editTitle') : t('notifications.rulesView.createTitle')}
           onSubmit={() => saveMutation.mutate(form)}
           isSubmitting={saveMutation.isPending}
           isValid={formValid}
         >
           <div className="space-y-4">
             <div>
-              <Label>Rule name</Label>
+              <Label>{t('notifications.rulesView.ruleName')}</Label>
               <Input
                 className="mt-1"
-                placeholder="e.g. Alert quality team on critical NCR"
+                placeholder={t('notifications.rulesView.ruleNamePlaceholder')}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
 
             <div>
-              <Label>Trigger event</Label>
+              <Label>{t('notifications.rulesView.triggerEvent')}</Label>
               <SelectMenu
                 size="md" fullWidth className="mt-1"
                 value={form.eventType}
                 onValueChange={(v) => setForm({ ...form, eventType: v })}
-                options={EVENT_OPTS}
+                options={EVENT_OPTS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
               />
             </div>
 
             <div>
-              <Label>Channels</Label>
+              <Label>{t('notifications.rulesView.channels')}</Label>
               <div className="flex flex-wrap gap-3 mt-2">
                 {CHANNEL_OPTS.map((c) => (
                   <label key={c.key} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -217,14 +217,14 @@ export function NotificationRulesView() {
                       checked={form.channels.includes(c.key)}
                       onCheckedChange={() => setForm({ ...form, channels: toggleArray(form.channels, c.key) })}
                     />
-                    {c.label}
+                    {t(c.labelKey)}
                   </label>
                 ))}
               </div>
             </div>
 
             <div>
-              <Label>Recipient roles</Label>
+              <Label>{t('notifications.rulesView.recipientRoles')}</Label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                 {ROLE_OPTS.map((r) => (
                   <label key={r} className="flex items-center gap-2 text-xs cursor-pointer">
@@ -237,7 +237,7 @@ export function NotificationRulesView() {
                 ))}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">
-                Leave empty to fall back to the built-in default recipients for this event.
+                {t('notifications.rulesView.rolesHint')}
               </p>
             </div>
 
@@ -246,7 +246,7 @@ export function NotificationRulesView() {
                 checked={form.isActive}
                 onCheckedChange={(v) => setForm({ ...form, isActive: v === true })}
               />
-              Active
+              {t('notifications.rulesView.active')}
             </label>
           </div>
         </FormDialog>
@@ -256,19 +256,19 @@ export function NotificationRulesView() {
       {forbidden ? (
         <div className="glass-card rounded-xl p-12 text-center">
           <BellOff className="w-8 h-8 mx-auto mb-3 text-muted-foreground/40" />
-          <div className="font-semibold text-foreground/70">No permission</div>
+          <div className="font-semibold text-foreground/70">{t('notifications.rulesView.noPermission')}</div>
           <div className="text-sm text-muted-foreground mt-1">
-            You need the <code>notifications:manage</code> permission to manage rules.
+            {t('notifications.rulesView.noPermissionPre')} <code>notifications:manage</code> {t('notifications.rulesView.noPermissionPost')}
           </div>
         </div>
       ) : isLoading ? (
-        <div className="glass-card rounded-xl p-12 text-center text-sm text-muted-foreground">Loading rules…</div>
+        <div className="glass-card rounded-xl p-12 text-center text-sm text-muted-foreground">{t('notifications.rulesView.loading')}</div>
       ) : rules.length === 0 ? (
         <div className="glass-card rounded-xl p-12 text-center">
           <Zap className="w-8 h-8 mx-auto mb-3 text-muted-foreground/40" />
-          <div className="font-semibold text-foreground/70">No custom rules yet</div>
+          <div className="font-semibold text-foreground/70">{t('notifications.rulesView.noRules')}</div>
           <div className="text-sm text-muted-foreground mt-1">
-            Built-in defaults still apply. Add a rule to customise channels or recipients.
+            {t('notifications.rulesView.noRulesHint')}
           </div>
         </div>
       ) : (
@@ -281,7 +281,7 @@ export function NotificationRulesView() {
                   'mt-1 w-9 h-5 rounded-full relative transition-colors shrink-0',
                   r.isActive ? 'bg-primary' : 'bg-muted',
                 )}
-                title={r.isActive ? 'Active — click to disable' : 'Disabled — click to enable'}
+                title={r.isActive ? t('notifications.rulesView.activeTitle') : t('notifications.rulesView.disabledTitle')}
               >
                 <span className={cn(
                   'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all',
@@ -300,7 +300,7 @@ export function NotificationRulesView() {
                     <Badge key={role} variant="secondary" className="text-[10px]">{roleLabel(role)}</Badge>
                   ))}
                   {(r.recipients?.roles ?? []).length === 0 && (
-                    <span className="text-[10px] text-muted-foreground italic">default recipients</span>
+                    <span className="text-[10px] text-muted-foreground italic">{t('notifications.rulesView.defaultRecipients')}</span>
                   )}
                 </div>
               </div>
@@ -326,7 +326,7 @@ export function NotificationRulesView() {
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
-        title="Delete notification rule"
+        title={t('notifications.rulesView.deleteTitle')}
         isDeleting={deleteMutation.isPending}
       />
     </div>

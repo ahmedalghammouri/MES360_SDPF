@@ -66,22 +66,22 @@ interface WorkOrder {
 // Config
 // ─────────────────────────────────────────────────────────────
 
-const PO_STATUS_CONFIG: Record<POStatus, { label: string; color: string; dot: string; icon: any }> = {
-  PLANNED:     { label: 'Planned',     color: 'text-slate-400',  dot: 'bg-slate-400',  icon: Circle        },
-  RELEASED:    { label: 'Released',    color: 'text-blue-400',   dot: 'bg-blue-400',   icon: SendHorizonal },
-  IN_PROGRESS: { label: 'Running',     color: 'text-brand-400',  dot: 'bg-brand-400',  icon: RefreshCw     },
-  COMPLETED:   { label: 'Completed',   color: 'text-green-400',  dot: 'bg-green-400',  icon: CheckCircle2  },
-  ON_HOLD:     { label: 'On Hold',     color: 'text-amber-400',  dot: 'bg-amber-400',  icon: PauseCircle   },
-  CANCELLED:   { label: 'Cancelled',   color: 'text-red-400',    dot: 'bg-red-400',    icon: XCircle       },
+const PO_STATUS_CONFIG: Record<POStatus, { labelKey: string; color: string; dot: string; icon: any }> = {
+  PLANNED:     { labelKey: 'po.status.PLANNED',     color: 'text-slate-400',  dot: 'bg-slate-400',  icon: Circle        },
+  RELEASED:    { labelKey: 'po.status.RELEASED',    color: 'text-blue-400',   dot: 'bg-blue-400',   icon: SendHorizonal },
+  IN_PROGRESS: { labelKey: 'podetail.woStatus.IN_PROGRESS', color: 'text-brand-400',  dot: 'bg-brand-400',  icon: RefreshCw     },
+  COMPLETED:   { labelKey: 'po.status.COMPLETED',   color: 'text-green-400',  dot: 'bg-green-400',  icon: CheckCircle2  },
+  ON_HOLD:     { labelKey: 'po.status.ON_HOLD',     color: 'text-amber-400',  dot: 'bg-amber-400',  icon: PauseCircle   },
+  CANCELLED:   { labelKey: 'po.status.CANCELLED',   color: 'text-red-400',    dot: 'bg-red-400',    icon: XCircle       },
 };
 
-const WO_STATUS_CONFIG: Record<WOStatus, { label: string; color: string; barColor: string }> = {
-  PLANNED:     { label: 'Planned',     color: 'text-slate-400',  barColor: 'bg-slate-500'  },
-  RELEASED:    { label: 'Released',    color: 'text-blue-400',   barColor: 'bg-blue-500'   },
-  IN_PROGRESS: { label: 'Running',     color: 'text-brand-400',  barColor: 'bg-brand-500'  },
-  COMPLETED:   { label: 'Completed',   color: 'text-green-400',  barColor: 'bg-green-500'  },
-  ON_HOLD:     { label: 'On Hold',     color: 'text-amber-400',  barColor: 'bg-amber-500'  },
-  CANCELLED:   { label: 'Cancelled',   color: 'text-red-400',    barColor: 'bg-red-500'    },
+const WO_STATUS_CONFIG: Record<WOStatus, { labelKey: string; color: string; barColor: string }> = {
+  PLANNED:     { labelKey: 'podetail.woStatus.PLANNED',     color: 'text-slate-400',  barColor: 'bg-slate-500'  },
+  RELEASED:    { labelKey: 'podetail.woStatus.RELEASED',    color: 'text-blue-400',   barColor: 'bg-blue-500'   },
+  IN_PROGRESS: { labelKey: 'podetail.woStatus.IN_PROGRESS', color: 'text-brand-400',  barColor: 'bg-brand-500'  },
+  COMPLETED:   { labelKey: 'podetail.woStatus.COMPLETED',   color: 'text-green-400',  barColor: 'bg-green-500'  },
+  ON_HOLD:     { labelKey: 'podetail.woStatus.ON_HOLD',     color: 'text-amber-400',  barColor: 'bg-amber-500'  },
+  CANCELLED:   { labelKey: 'podetail.woStatus.CANCELLED',   color: 'text-red-400',    barColor: 'bg-red-500'    },
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -118,6 +118,7 @@ function woProgress(wo: WorkOrderRef | WorkOrder): number {
 // ─────────────────────────────────────────────────────────────
 
 function POScheduleRow({ po, idx }: { po: ProductionOrder; idx: number }) {
+  const { t } = useTranslation(['production', 'common']);
   const [expanded, setExpanded] = useState(false);
   const cfg = PO_STATUS_CONFIG[po.status];
   const StatusIcon = cfg.icon;
@@ -195,18 +196,18 @@ function POScheduleRow({ po, idx }: { po: ProductionOrder; idx: number }) {
         <td className="p-3">
           <div className={cn('flex items-center gap-1.5 text-xs', cfg.color)}>
             <StatusIcon className="w-3.5 h-3.5" />
-            {cfg.label}
+            {t(cfg.labelKey)}
           </div>
         </td>
 
         {/* WO count */}
-        <td className="p-3 text-xs text-muted-foreground">{activeWOs} WO{activeWOs !== 1 ? 's' : ''}</td>
+        <td className="p-3 text-xs text-muted-foreground">{t('sched.woCount', { count: activeWOs })}</td>
       </motion.tr>
 
       {/* Expanded WO children */}
       <AnimatePresence>
         {expanded && po.workOrders.map((wo, wi) => {
-          const woCfg = WO_STATUS_CONFIG[wo.status] ?? { label: wo.status, color: 'text-muted-foreground', barColor: 'bg-slate-500' };
+          const woCfg = WO_STATUS_CONFIG[wo.status] ?? { labelKey: '', color: 'text-muted-foreground', barColor: 'bg-slate-500' };
           const woProg = woProgress(wo);
           return (
             <motion.tr
@@ -244,7 +245,7 @@ function POScheduleRow({ po, idx }: { po: ProductionOrder; idx: number }) {
                 </div>
               </td>
               <td className="p-2">
-                <span className={cn('text-[10px] font-medium', woCfg.color)}>{woCfg.label}</span>
+                <span className={cn('text-[10px] font-medium', woCfg.color)}>{woCfg.labelKey ? t(woCfg.labelKey) : wo.status}</span>
               </td>
               <td className="p-2" />
             </motion.tr>
@@ -260,7 +261,8 @@ function POScheduleRow({ po, idx }: { po: ProductionOrder; idx: number }) {
 // ─────────────────────────────────────────────────────────────
 
 function StandaloneWORow({ wo, idx }: { wo: WorkOrder; idx: number }) {
-  const cfg = WO_STATUS_CONFIG[wo.status] ?? { label: wo.status, color: 'text-muted-foreground', barColor: 'bg-slate-500' };
+  const { t } = useTranslation(['production', 'common']);
+  const cfg = WO_STATUS_CONFIG[wo.status] ?? { labelKey: '', color: 'text-muted-foreground', barColor: 'bg-slate-500' };
   const progress = woProgress(wo as any);
 
   return (
@@ -276,7 +278,7 @@ function StandaloneWORow({ wo, idx }: { wo: WorkOrder; idx: number }) {
           <span className="font-mono text-xs text-blue-300">{wo.orderNumber}</span>
           <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 text-blue-400 border-blue-500/30">WO</Badge>
         </div>
-        <div className="text-[10px] text-muted-foreground mt-0.5">No PO linked</div>
+        <div className="text-[10px] text-muted-foreground mt-0.5">{t('sched.noPoLinked')}</div>
       </td>
       <td className="p-3">
         {wo.sku && (
@@ -303,7 +305,7 @@ function StandaloneWORow({ wo, idx }: { wo: WorkOrder; idx: number }) {
         </div>
       </td>
       <td className="p-3">
-        <span className={cn('text-xs', cfg.color)}>{cfg.label}</span>
+        <span className={cn('text-xs', cfg.color)}>{cfg.labelKey ? t(cfg.labelKey) : wo.status}</span>
       </td>
       <td className="p-3 text-xs text-muted-foreground">{wo.machine?.name ?? '—'}</td>
     </motion.tr>
@@ -342,12 +344,12 @@ export function ProductionSchedulingView() {
   const isLoading = poLoading || woLoading;
 
   const summary = [
-    { label: 'Planned POs',    value: allPOs.filter(p => p.status === 'PLANNED').length,     color: 'text-slate-300'  },
-    { label: 'Released POs',   value: allPOs.filter(p => p.status === 'RELEASED').length,    color: 'text-blue-400'   },
-    { label: 'Running POs',    value: allPOs.filter(p => p.status === 'IN_PROGRESS').length,  color: 'text-brand-400'  },
-    { label: 'Completed POs',  value: allPOs.filter(p => p.status === 'COMPLETED').length,    color: 'text-green-400'  },
-    { label: 'Running WOs',    value: allWOs.filter(w => w.status === 'IN_PROGRESS').length,  color: 'text-brand-400'  },
-    { label: 'Standalone WOs', value: standaloneWOs.length,                                   color: 'text-amber-400'  },
+    { labelKey: 'sched.summary.plannedPos',    value: allPOs.filter(p => p.status === 'PLANNED').length,     color: 'text-slate-300'  },
+    { labelKey: 'sched.summary.releasedPos',   value: allPOs.filter(p => p.status === 'RELEASED').length,    color: 'text-blue-400'   },
+    { labelKey: 'sched.summary.runningPos',    value: allPOs.filter(p => p.status === 'IN_PROGRESS').length,  color: 'text-brand-400'  },
+    { labelKey: 'sched.summary.completedPos',  value: allPOs.filter(p => p.status === 'COMPLETED').length,    color: 'text-green-400'  },
+    { labelKey: 'sched.summary.runningWos',    value: allWOs.filter(w => w.status === 'IN_PROGRESS').length,  color: 'text-brand-400'  },
+    { labelKey: 'sched.summary.standaloneWos', value: standaloneWOs.length,                                   color: 'text-amber-400'  },
   ];
 
   return (
@@ -365,13 +367,13 @@ export function ProductionSchedulingView() {
       <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
         {summary.map((s, i) => (
           <motion.div
-            key={s.label}
+            key={s.labelKey}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
             className="glass-card rounded-xl p-4"
           >
-            <div className="text-xs text-muted-foreground">{s.label}</div>
+            <div className="text-xs text-muted-foreground">{t(s.labelKey)}</div>
             <div className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</div>
           </motion.div>
         ))}
@@ -381,20 +383,20 @@ export function ProductionSchedulingView() {
       <div className="glass-card rounded-xl p-4">
         <div className="flex items-center gap-2 mb-2">
           <CalendarDays className="w-4 h-4 text-muted-foreground" />
-          <span className="font-medium text-sm">Schedule Legend</span>
+          <span className="font-medium text-sm">{t('sched.legend')}</span>
         </div>
         <div className="flex items-center gap-4 flex-wrap text-xs">
           <div className="flex items-center gap-1.5">
             <Badge variant="outline" className="text-[9px] h-4 px-1.5 text-purple-400 border-purple-500/30">PO</Badge>
-            <span className="text-muted-foreground">Production Order (ERP Level)</span>
+            <span className="text-muted-foreground">{t('sched.legendPo')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Badge variant="outline" className="text-[9px] h-4 px-1.5 text-blue-400 border-blue-500/30">WO</Badge>
-            <span className="text-muted-foreground">Work Order (Shop Floor Level)</span>
+            <span className="text-muted-foreground">{t('sched.legendWo')}</span>
           </div>
           <div className="flex items-center gap-1 text-muted-foreground">
             <ArrowRight className="w-3 h-3" />
-            <span>Child WOs expand under parent PO</span>
+            <span>{t('sched.legendExpand')}</span>
           </div>
         </div>
       </div>
@@ -408,7 +410,7 @@ export function ProductionSchedulingView() {
             size="sm"
             onClick={() => setStatusFilter(s)}
           >
-            {s === 'all' ? 'All Orders' : PO_STATUS_CONFIG[s as POStatus]?.label ?? s}
+            {s === 'all' ? t('sched.allOrders') : (PO_STATUS_CONFIG[s as POStatus] ? t(PO_STATUS_CONFIG[s as POStatus].labelKey) : s)}
           </Button>
         ))}
       </div>
@@ -418,8 +420,18 @@ export function ProductionSchedulingView() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              {['', 'Order', 'Product / Machine', 'Planned Start', 'Planned End', 'Qty', 'Progress', 'Status', 'WOs'].map((h) => (
-                <th key={h} className="text-left p-3 text-muted-foreground font-medium text-xs">{h}</th>
+              {[
+                { key: 'sp', label: '' },
+                { key: 'order', label: t('po.col.poNumber') },
+                { key: 'productMachine', label: t('sched.col.productMachine') },
+                { key: 'plannedStart', label: t('po.col.plannedStart') },
+                { key: 'plannedEnd', label: t('po.col.plannedEnd') },
+                { key: 'qty', label: t('col.qty') },
+                { key: 'progress', label: t('po.col.progress') },
+                { key: 'status', label: t('po.col.status') },
+                { key: 'wos', label: t('po.col.wos') },
+              ].map((h) => (
+                <th key={h.key} className="text-left p-3 text-muted-foreground font-medium text-xs">{h.label}</th>
               ))}
             </tr>
           </thead>
@@ -434,7 +446,7 @@ export function ProductionSchedulingView() {
               ))
             ) : filteredPOs.length === 0 && standaloneWOs.length === 0 ? (
               <tr>
-                <td colSpan={9} className="p-12 text-center text-muted-foreground">No orders found</td>
+                <td colSpan={9} className="p-12 text-center text-muted-foreground">{t('po.noPos')}</td>
               </tr>
             ) : (
               <>
@@ -446,7 +458,7 @@ export function ProductionSchedulingView() {
                   <>
                     <tr className="bg-foreground/[0.02]">
                       <td colSpan={9} className="px-4 py-2 text-[10px] text-muted-foreground uppercase tracking-wider font-semibold border-t border-border">
-                        Standalone Work Orders (no PO)
+                        {t('sched.standaloneWosHeader')}
                       </td>
                     </tr>
                     {standaloneWOs.map((wo, i) => (

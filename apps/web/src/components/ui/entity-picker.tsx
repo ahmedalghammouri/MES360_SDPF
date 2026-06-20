@@ -23,6 +23,7 @@
  */
 
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { ChevronDown, Search, X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -71,9 +72,9 @@ export function EntityPicker<T>({
   getMeta,
   searchText,
   icon,
-  placeholder = 'Select…',
-  searchPlaceholder = 'Search…',
-  emptyText = 'No matches',
+  placeholder,
+  searchPlaceholder,
+  emptyText,
   disabled,
   clearable = true,
   size = 'md',
@@ -81,6 +82,10 @@ export function EntityPicker<T>({
   id,
   maxResults = 50,
 }: EntityPickerProps<T>) {
+  const { t } = useTranslation('common');
+  const placeholderText = placeholder ?? t('picker.select');
+  const searchPlaceholderText = searchPlaceholder ?? t('picker.search');
+  const emptyTextLabel = emptyText ?? t('picker.noMatches');
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
 
@@ -149,7 +154,7 @@ export function EntityPicker<T>({
                 )}
               </>
             ) : (
-              placeholder
+              placeholderText
             )}
           </span>
           {clearable && selected && !disabled && (
@@ -183,14 +188,14 @@ export function EntityPicker<T>({
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={searchPlaceholder}
+                placeholder={searchPlaceholderText}
                 className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
           </div>
           <div className="p-1 max-h-72 overflow-y-auto">
             {filtered.length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-6">{emptyText}</div>
+              <div className="text-sm text-muted-foreground text-center py-6">{emptyTextLabel}</div>
             ) : (
               filtered.map((it) => {
                 const itemId = getId(it);

@@ -53,10 +53,10 @@ function computeCpk(values: number[], ucl: number, lcl: number, mean: number): n
   return parseFloat(Math.min(cpu, cpl).toFixed(2));
 }
 
-const STATUS_CFG: Record<Status, { label: string; color: string; icon: any }> = {
-  IN_CONTROL:     { label: 'In Control',    color: 'text-green-400', icon: CheckCircle2  },
-  WARNING:        { label: 'Warning',       color: 'text-amber-400', icon: AlertTriangle },
-  OUT_OF_CONTROL: { label: 'Out of Control',color: 'text-red-400',   icon: AlertTriangle },
+const STATUS_CFG: Record<Status, { labelKey: string; color: string; icon: any }> = {
+  IN_CONTROL:     { labelKey: 'spc.status.IN_CONTROL',     color: 'text-green-400', icon: CheckCircle2  },
+  WARNING:        { labelKey: 'spc.status.WARNING',        color: 'text-amber-400', icon: AlertTriangle },
+  OUT_OF_CONTROL: { labelKey: 'spc.status.OUT_OF_CONTROL', color: 'text-red-400',   icon: AlertTriangle },
 };
 
 export function QualitySpcView() {
@@ -143,15 +143,15 @@ export function QualitySpcView() {
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
           <div>
-            <h1 className="text-lg font-bold">SPC Control Charts</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Statistical process control — monitor process stability</p>
+            <h1 className="text-lg font-bold">{t('headers.spc.title')}</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">{t('spc.subtitleStability')}</p>
           </div>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center text-muted-foreground">
             <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No SPC measurements recorded yet</p>
-            <p className="text-xs mt-1">Measurements will appear here once IoT devices start recording quality data</p>
+            <p className="text-sm">{t('spc.noMeasurements')}</p>
+            <p className="text-xs mt-1">{t('spc.noMeasurementsHint')}</p>
           </div>
         </div>
       </div>
@@ -162,8 +162,8 @@ export function QualitySpcView() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
         <div>
-          <h1 className="text-lg font-bold">SPC Control Charts</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Statistical process control — monitor process stability and capability</p>
+          <h1 className="text-lg font-bold">{t('headers.spc.title')}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('spc.subtitleCapability')}</p>
         </div>
       </div>
 
@@ -185,9 +185,9 @@ export function QualitySpcView() {
                   <span className="text-xs font-medium truncate">{p.parameterName}</span>
                   <Activity size={13} className="text-muted-foreground shrink-0" />
                 </div>
-                <div className="text-xs text-muted-foreground">Samples</div>
+                <div className="text-xs text-muted-foreground">{t('spc.samples')}</div>
                 <div className="text-2xl font-bold text-foreground">{p.sampleCount}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{p.unit ?? 'unit'}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{p.unit ?? t('spc.unit')}</div>
               </button>
             );
           })}
@@ -198,16 +198,16 @@ export function QualitySpcView() {
           <div className="industrial-card rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="font-semibold">{selectedParam.parameterName} — X-bar Control Chart</h2>
+                <h2 className="font-semibold">{t('spc.controlChart', { name: selectedParam.parameterName })}</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {ucl != null && <>UCL: {ucl.toFixed(4)} {unit} &nbsp;|&nbsp;</>}
-                  {cl  != null && <>Mean: {cl.toFixed(4)} {unit} &nbsp;|&nbsp;</>}
+                  {cl  != null && <>{t('spc.mean')}: {cl.toFixed(4)} {unit} &nbsp;|&nbsp;</>}
                   {lcl != null && <>LCL: {lcl.toFixed(4)} {unit}</>}
                 </p>
               </div>
               <div className={cn('flex items-center gap-1.5 text-xs font-semibold', STATUS_CFG[status].color)}>
                 <StatusIcon size={13} />
-                {STATUS_CFG[status].label}
+                {t(STATUS_CFG[status].labelKey)}
               </div>
             </div>
 
@@ -217,7 +217,7 @@ export function QualitySpcView() {
               </div>
             ) : chartData.length === 0 ? (
               <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
-                No measurement data for this parameter
+                {t('spc.noData')}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
@@ -226,7 +226,7 @@ export function QualitySpcView() {
                   <XAxis
                     dataKey="sample"
                     tick={{ fontSize: 11, fill: '#94a3b8' }}
-                    label={{ value: 'Sample', position: 'insideBottom', offset: -2, fontSize: 11, fill: '#64748b' }}
+                    label={{ value: t('spc.sample'), position: 'insideBottom', offset: -2, fontSize: 11, fill: '#64748b' }}
                   />
                   <YAxis
                     tick={{ fontSize: 11, fill: '#94a3b8' }}
@@ -235,7 +235,7 @@ export function QualitySpcView() {
                   />
                   <Tooltip
                     contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                    formatter={(v: number) => [`${v} ${unit}`, 'Value']}
+                    formatter={(v: number) => [`${v} ${unit}`, t('spc.valueLabel')]}
                   />
                   {ucl != null && (
                     <ReferenceLine y={ucl} stroke="#ef4444" strokeDasharray="6 3" label={{ value: 'UCL', fill: '#ef4444', fontSize: 10 }} />
@@ -265,7 +265,7 @@ export function QualitySpcView() {
                       );
                     }}
                     activeDot={{ r: 5 }}
-                    name="Value"
+                    name={t('spc.valueLabel')}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -279,7 +279,7 @@ export function QualitySpcView() {
             {[
               { label: 'Cpk',  value: cpk,  isGood: cpk >= 1.33  },
               { label: 'UCL',  value: ucl != null ? `${ucl.toFixed(4)} ${unit}` : '—', isGood: true },
-              { label: 'Mean', value: cl  != null ? `${cl.toFixed(4)} ${unit}`  : '—', isGood: true },
+              { label: t('spc.mean'), value: cl  != null ? `${cl.toFixed(4)} ${unit}`  : '—', isGood: true },
               { label: 'LCL',  value: lcl != null ? `${lcl.toFixed(4)} ${unit}` : '—', isGood: true },
             ].map(s => (
               <div key={s.label} className="industrial-card rounded-xl p-3 text-center">

@@ -2,7 +2,8 @@
   "picker": {
     "searchMachines": "Search machines...", "noMachines": "No machines found",
     "searchWorkCenters": "Search work centers...", "noResults": "No results",
-    "manage": "Manage {{label}}", "noneDefined": "No {{label}} defined yet."
+    "manage": "Manage {{label}}", "noneDefined": "No {{label}} defined yet.",
+    "select": "Select…", "search": "Search…", "noMatches": "No matches"
   },
   "charts": {
     "currentShift": "Current Shift", "activeAlarms": "Active Alarms", "noActiveAlarms": "No active alarms", "allNormal": "All systems operating normally",
@@ -13,6 +14,86 @@
     "availability": "Availability", "performance": "Performance", "quality": "Quality",
     "mttrMtbf": "Mean Time to Repair vs Mean Time Between Failures", "downtimePareto": "Downtime Pareto", "downtimeParetoSub": "Top downtime causes (Pareto analysis)", "mttrMtbfTitle": "MTTR & MTBF Trends",
     "gRows": "Rows", "gTimeScale": "Time scale", "gActions": "Actions", "gOrders": "Orders", "gResources": "Resources", "gSupply": "Supply", "gDemand": "Demand"
+  },
+  "gantt": {
+    "view": "Gantt View",
+    "orderTree": "Order tree (PO → WO → JO)",
+    "machines": "Machines",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "dependencyLinks": "Dependency links",
+    "nonWorkingShading": "Non-working shading",
+    "links": "Links",
+    "insights": "Insights",
+    "ctp": "CTP",
+    "filter": "Filter",
+    "hidden": "({{count}} hidden)",
+    "today": "Today",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "orderStep": "Order / Step",
+    "machine": "Machine",
+    "scheduledTasks": "Scheduled Tasks",
+    "hiddenCount": "Hidden",
+    "rows": "Rows",
+    "resources": "Resources",
+    "orders": "Orders",
+    "zoom30min": "30 min",
+    "zoomHour": "1 hour",
+    "zoomDay": "Day",
+    "zoomWeek": "Week",
+    "zoomMonth": "Month"
+  },
+  "timeRange": {
+    "today": "Today",
+    "shift": "Shift",
+    "week": "Week",
+    "month": "Month",
+    "custom": "Custom",
+    "from": "From",
+    "to": "To",
+    "applyRange": "Apply range"
+  },
+  "widgets": {
+    "runningLines": "Running Lines",
+    "activeOrders": "Active Orders",
+    "completedToday": "Completed Today",
+    "outputEfficiency": "Output Efficiency",
+    "active": "Active",
+    "elapsed": "elapsed",
+    "outputProgress": "Output Progress",
+    "ofTarget": "{{value}} of target",
+    "noTargetSet": "no target set",
+    "wip": "WIP",
+    "downtime": "Downtime",
+    "defects": "Defects",
+    "openAnalytics": "Open deep analytics for this machine",
+    "order": "Order"
+  },
+  "scope": {
+    "title": "Scope",
+    "showScope": "Show scope",
+    "collapse": "Collapse",
+    "wholeFactory": "Whole factory",
+    "noHierarchy": "No hierarchy",
+    "scopedTo": "Scoped to"
+  },
+  "rowActions": {
+    "label": "Row actions"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "new": "({{count}} new)",
+    "markAll": "Mark all",
+    "allCaughtUp": "You're all caught up",
+    "viewAll": "View all notifications",
+    "settings": "Notification settings"
+  },
+  "topbar": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "user": "User"
   },
   "actions": {
     "save": "Save",

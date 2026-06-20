@@ -32,9 +32,9 @@ import { useSortedData } from '@/lib/use-sorted-data';
 type CapaType = 'CORRECTIVE' | 'PREVENTIVE';
 type CapaStatus = 'OPEN' | 'IN_PROGRESS' | 'VERIFIED' | 'CLOSED';
 
-const TYPE_CFG: Record<CapaType, { label: string; color: string }> = {
-  CORRECTIVE: { label: 'Corrective', color: 'text-red-400' },
-  PREVENTIVE: { label: 'Preventive', color: 'text-brand-400' },
+const TYPE_CFG: Record<CapaType, { labelKey: string; color: string }> = {
+  CORRECTIVE: { labelKey: 'capa.type.CORRECTIVE', color: 'text-red-400' },
+  PREVENTIVE: { labelKey: 'capa.type.PREVENTIVE', color: 'text-brand-400' },
 };
 
 const STATUS_VARIANT: Record<CapaStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -44,12 +44,7 @@ const STATUS_VARIANT: Record<CapaStatus, 'default' | 'secondary' | 'destructive'
   CLOSED: 'secondary',
 };
 
-const STATUS_LABELS: Record<CapaStatus, string> = {
-  OPEN: 'Open',
-  IN_PROGRESS: 'In Progress',
-  VERIFIED: 'Verified',
-  CLOSED: 'Closed',
-};
+const STATUS_KEYS: CapaStatus[] = ['OPEN', 'IN_PROGRESS', 'VERIFIED', 'CLOSED'];
 
 const TRANSITIONS: Record<string, string[]> = {
   OPEN: ['IN_PROGRESS'],
@@ -113,20 +108,20 @@ export function QualityCapaView() {
     mutationFn: (dto: any) => api.post('/quality/capa', dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quality', 'capa'] })
-      toast({ title: 'CAPA created successfully' })
+      toast({ title: t('toast.capaCreated') })
       handleCloseForm()
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to create CAPA', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.capaCreateFailed'), variant: 'destructive' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/quality/capa/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quality', 'capa'] })
-      toast({ title: 'CAPA deleted successfully' })
+      toast({ title: t('toast.capaDeleted') })
       setDeleteDialog(null)
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to delete CAPA', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.capaDeleteFailed'), variant: 'destructive' }),
   })
 
   const statusMutation = useMutation({
@@ -134,19 +129,19 @@ export function QualityCapaView() {
       api.patch(`/quality/capa/${capaId}/${action}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quality', 'capa'] })
-      toast({ title: 'CAPA updated' })
+      toast({ title: t('toast.capaUpdatedShort') })
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.failed'), variant: 'destructive' }),
   })
 
   const editMutation = useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: any }) => api.patch(`/quality/capa/${id}`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quality', 'capa'] })
-      toast({ title: 'CAPA updated successfully' })
+      toast({ title: t('toast.capaUpdated') })
       handleCloseForm()
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to update CAPA', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.capaUpdateFailed'), variant: 'destructive' }),
   })
 
   const stats = [
@@ -209,17 +204,17 @@ export function QualityCapaView() {
         <div className="flex items-center gap-2">
           <ExportMenu
             filename="capa-register"
-            title="CAPA Register"
+            title={t('capa.register')}
             rows={capas}
             columns={[
-              { key: 'capaNumber', label: 'CAPA #' },
-              { key: 'title', label: 'Title' },
-              { key: 'type', label: 'Type' },
-              { key: 'status', label: 'Status' },
-              { key: 'ncr', label: 'Related NCR', value: (r: any) => r.ncr?.ncrNumber ?? '' },
-              { key: 'assignedTo', label: 'Owner', value: (r: any) => r.assignedTo?.name ?? '' },
-              { key: 'dueDate', label: 'Due', value: (r: any) => r.dueDate ? formatDate(r.dueDate) : '' },
-              { key: 'effectiveness', label: 'Effectiveness', value: (r: any) => r.effectiveness ?? '' },
+              { key: 'capaNumber', label: t('capa.col.capa') },
+              { key: 'title', label: t('capa.col.title') },
+              { key: 'type', label: t('capa.col.type') },
+              { key: 'status', label: t('capa.col.status') },
+              { key: 'ncr', label: t('capa.col.relatedNcr'), value: (r: any) => r.ncr?.ncrNumber ?? '' },
+              { key: 'assignedTo', label: t('capa.col.owner'), value: (r: any) => r.assignedTo?.name ?? '' },
+              { key: 'dueDate', label: t('capa.col.dueDate'), value: (r: any) => r.dueDate ? formatDate(r.dueDate) : '' },
+              { key: 'effectiveness', label: t('capa.col.effectiveness'), value: (r: any) => r.effectiveness ?? '' },
             ]}
           />
           <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={handleOpenCreate}><Plus size={13} />{t('capa.newCapa')}</Button>
@@ -254,7 +249,7 @@ export function QualityCapaView() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   <DropdownMenuItem onClick={() => { setStatusFilter(null); setPage(1); }}>{t('capa.allStatus')}</DropdownMenuItem>
-                  {(Object.keys(STATUS_LABELS) as CapaStatus[]).map(k => (
+                  {STATUS_KEYS.map(k => (
                     <DropdownMenuItem key={k} onClick={() => { setStatusFilter(k); setPage(1); }}>{t(`capa.status.${k}`)}</DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -329,36 +324,36 @@ export function QualityCapaView() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem asChild className="gap-2 text-xs">
-                                <Link href={`/quality/capa/${capa.id}`}><Eye size={12} /> View / manage</Link>
+                                <Link href={`/quality/capa/${capa.id}`}><Eye size={12} /> {t('capa.viewManage')}</Link>
                               </DropdownMenuItem>
                               {['OPEN', 'IN_PROGRESS'].includes(capa.status) && (
                                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => handleOpenEdit(capa)}>
-                                  <Pencil size={12} /> Edit
+                                  <Pencil size={12} /> {t('common.edit')}
                                 </DropdownMenuItem>
                               )}
                               {capa.status === 'IN_PROGRESS' && (
                                 <DropdownMenuItem asChild className="gap-2 text-xs">
-                                  <Link href={`/quality/capa/${capa.id}`}><ShieldCheck size={12} /> Add actions &amp; verify</Link>
+                                  <Link href={`/quality/capa/${capa.id}`}><ShieldCheck size={12} /> {t('capa.addActionsVerify')}</Link>
                                 </DropdownMenuItem>
                               )}
                               {capa.status === 'VERIFIED' && (
                                 <DropdownMenuItem className="gap-2 text-xs text-green-400" onClick={() => statusMutation.mutate({ capaId: capa.id, action: 'close' })}>
-                                  <CheckCircle2 size={12} /> Close CAPA
+                                  <CheckCircle2 size={12} /> {t('capa.closeCapa')}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuSeparator />
                               {(capa as any).archivedAt ? (
                                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => restoreCapa.mutate(capa.id)}>
-                                  <RotateCcw size={12} /> Restore
+                                  <RotateCcw size={12} /> {t('common.restore')}
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => archiveCapa.mutate(capa.id)}>
-                                  <ArchiveIcon size={12} /> Archive
+                                  <ArchiveIcon size={12} /> {t('common.archive')}
                                 </DropdownMenuItem>
                               )}
                               {['OPEN'].includes(capa.status) && (
                                 <DropdownMenuItem className="gap-2 text-destructive text-xs" onClick={() => setDeleteDialog({ id: capa.id, capaNumber: capa.capaNumber })}>
-                                  <Trash2 size={12} /> Delete
+                                  <Trash2 size={12} /> {t('common.delete')}
                                 </DropdownMenuItem>
                               )}
                             </DropdownMenuContent>
@@ -422,7 +417,7 @@ export function QualityCapaView() {
               getSecondary={ncr => ncr.title}
               searchText={ncr => `${ncr.ncrNumber} ${ncr.title}`}
               placeholder={t('cform.linkNcr')}
-              searchPlaceholder="Search NCRs…"
+              searchPlaceholder={t('cform.searchNcrs')}
               className="mt-1"
             />
           </div>
@@ -437,8 +432,8 @@ export function QualityCapaView() {
         open={!!deleteDialog}
         onClose={() => setDeleteDialog(null)}
         onConfirm={() => deleteDialog && deleteMutation.mutate(deleteDialog.id)}
-        title={`Delete CAPA ${deleteDialog?.capaNumber}?`}
-        description="This will permanently delete this corrective/preventive action."
+        title={t('capa.deleteTitle', { number: deleteDialog?.capaNumber })}
+        description={t('capa.deleteDescription')}
         isDeleting={deleteMutation.isPending}
       />
 

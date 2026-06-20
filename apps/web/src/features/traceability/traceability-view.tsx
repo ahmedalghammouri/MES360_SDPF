@@ -62,59 +62,58 @@ interface DrilldownEntity {
 type EntityType = 'MAINT_WO' | 'PROD_WO' | 'BATCH' | 'SPARE_PART' | 'RAW_MATERIAL' | 'MACHINE' | 'PRODUCT';
 
 const ENTITY_CONFIG: Record<string, {
-  label: string;
+  labelKey: string;
   icon: React.ElementType;
   dot: string;
   badge: string;
   iconCls: string;
 }> = {
-  MAINT_WO:     { label: 'Maintenance WO',  icon: Wrench,  dot: 'bg-amber-500',  badge: 'text-amber-400 border-amber-400/30 bg-amber-400/10',   iconCls: 'text-amber-400'  },
-  PROD_WO:      { label: 'Production WO',   icon: Factory, dot: 'bg-blue-500',   badge: 'text-blue-400 border-blue-400/30 bg-blue-400/10',       iconCls: 'text-blue-400'   },
-  BATCH:        { label: 'Batch',           icon: Layers3, dot: 'bg-green-500',  badge: 'text-green-400 border-green-400/30 bg-green-400/10',    iconCls: 'text-green-400'  },
-  SPARE_PART:   { label: 'Spare Part',      icon: Package, dot: 'bg-purple-500', badge: 'text-purple-400 border-purple-400/30 bg-purple-400/10', iconCls: 'text-purple-400' },
-  RAW_MATERIAL: { label: 'Raw Material',    icon: Layers3, dot: 'bg-cyan-500',   badge: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10',       iconCls: 'text-cyan-400'   },
-  MACHINE:      { label: 'Machine',         icon: Settings,dot: 'bg-orange-500', badge: 'text-orange-400 border-orange-400/30 bg-orange-400/10', iconCls: 'text-orange-400' },
-  PRODUCT:      { label: 'Product',         icon: Tag,     dot: 'bg-pink-500',   badge: 'text-pink-400 border-pink-400/30 bg-pink-400/10',       iconCls: 'text-pink-400'   },
+  MAINT_WO:     { labelKey: 'traceability.entity.MAINT_WO',     icon: Wrench,  dot: 'bg-amber-500',  badge: 'text-amber-400 border-amber-400/30 bg-amber-400/10',   iconCls: 'text-amber-400'  },
+  PROD_WO:      { labelKey: 'traceability.entity.PROD_WO',      icon: Factory, dot: 'bg-blue-500',   badge: 'text-blue-400 border-blue-400/30 bg-blue-400/10',       iconCls: 'text-blue-400'   },
+  BATCH:        { labelKey: 'traceability.entity.BATCH',        icon: Layers3, dot: 'bg-green-500',  badge: 'text-green-400 border-green-400/30 bg-green-400/10',    iconCls: 'text-green-400'  },
+  SPARE_PART:   { labelKey: 'traceability.entity.SPARE_PART',   icon: Package, dot: 'bg-purple-500', badge: 'text-purple-400 border-purple-400/30 bg-purple-400/10', iconCls: 'text-purple-400' },
+  RAW_MATERIAL: { labelKey: 'traceability.entity.RAW_MATERIAL', icon: Layers3, dot: 'bg-cyan-500',   badge: 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10',       iconCls: 'text-cyan-400'   },
+  MACHINE:      { labelKey: 'traceability.entity.MACHINE',      icon: Settings,dot: 'bg-orange-500', badge: 'text-orange-400 border-orange-400/30 bg-orange-400/10', iconCls: 'text-orange-400' },
+  PRODUCT:      { labelKey: 'traceability.entity.PRODUCT',      icon: Tag,     dot: 'bg-pink-500',   badge: 'text-pink-400 border-pink-400/30 bg-pink-400/10',       iconCls: 'text-pink-400'   },
 };
 
 const FALLBACK_ENTITY = {
-  label: 'Entity',
+  labelKey: 'traceability.entity.fallback',
   icon: Cpu,
   dot: 'bg-muted',
   badge: 'text-muted-foreground border-border',
   iconCls: 'text-muted-foreground',
 };
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  CREATED:             'Created',
-  STATUS_CHANGED:      'Status Changed',
-  PARTS_REQUESTED:     'Parts Requested',
-  PARTS_ISSUED:        'Parts Issued',
-  PARTS_CANCELLED:     'Parts Cancelled',
-  STOCK_ADJUSTED:      'Stock Adjusted',
-  STOCK_RECEIVED:      'Stock Received',
-  COMPLETED:           'Completed',
-  CANCELLED:           'Cancelled',
-  STARTED:             'Started',
-  UPDATED:             'Updated',
-  DELETED:             'Deleted',
-  ASSIGNED:            'Assigned',
-  INSPECTION_PASSED:   'Inspection Passed',
-  INSPECTION_FAILED:   'Inspection Failed',
-  BATCH_RELEASED:      'Batch Released',
-  BATCH_REJECTED:      'Batch Rejected',
-  QUALITY_HOLD:        'Quality Hold',
+const EVENT_TYPE_KEYS: Record<string, string> = {
+  CREATED:             'traceability.eventType.CREATED',
+  STATUS_CHANGED:      'traceability.eventType.STATUS_CHANGED',
+  PARTS_REQUESTED:     'traceability.eventType.PARTS_REQUESTED',
+  PARTS_ISSUED:        'traceability.eventType.PARTS_ISSUED',
+  PARTS_CANCELLED:     'traceability.eventType.PARTS_CANCELLED',
+  STOCK_ADJUSTED:      'traceability.eventType.STOCK_ADJUSTED',
+  STOCK_RECEIVED:      'traceability.eventType.STOCK_RECEIVED',
+  COMPLETED:           'traceability.eventType.COMPLETED',
+  CANCELLED:           'traceability.eventType.CANCELLED',
+  STARTED:             'traceability.eventType.STARTED',
+  UPDATED:             'traceability.eventType.UPDATED',
+  DELETED:             'traceability.eventType.DELETED',
+  ASSIGNED:            'traceability.eventType.ASSIGNED',
+  INSPECTION_PASSED:   'traceability.eventType.INSPECTION_PASSED',
+  INSPECTION_FAILED:   'traceability.eventType.INSPECTION_FAILED',
+  BATCH_RELEASED:      'traceability.eventType.BATCH_RELEASED',
+  BATCH_REJECTED:      'traceability.eventType.BATCH_REJECTED',
+  QUALITY_HOLD:        'traceability.eventType.QUALITY_HOLD',
 };
-
-const ENTITY_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: '__all__', label: 'All Entity Types' },
-  ...Object.entries(ENTITY_CONFIG).map(([k, v]) => ({ value: k, label: v.label })),
-];
 
 // ── Helpers ──────────────────────────────────────────────────
 
-function humanizeEventType(eventType: string): string {
-  return EVENT_TYPE_LABELS[eventType] ?? eventType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+type TFunc = (key: string, opts?: Record<string, unknown>) => string;
+
+function humanizeEventType(t: TFunc, eventType: string): string {
+  const key = EVENT_TYPE_KEYS[eventType];
+  if (key) return t(key);
+  return eventType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 // ── Component ────────────────────────────────────────────────
@@ -188,6 +187,7 @@ function GenealogyNode({ node, depth = 0 }: { node: TraceNode; depth?: number })
 }
 
 function GenealogyPanel() {
+  const { t } = useTranslation('modules');
   const [traceMode, setTraceMode] = useState<'backward' | 'forward'>('backward');
   const [entityId, setEntityId] = useState('');
   const [submitted, setSubmitted] = useState('');
@@ -221,20 +221,20 @@ function GenealogyPanel() {
               onClick={() => { setTraceMode(mode); setSubmitted(''); }}
             >
               {mode === 'backward' ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
-              {mode === 'backward' ? 'Backward (FG → Inputs)' : 'Forward (Material → Outputs)'}
+              {mode === 'backward' ? t('traceability.geneTraceBackward') : t('traceability.geneTraceForward')}
             </button>
           ))}
         </div>
 
         <div className="text-[10px] text-muted-foreground">
           {traceMode === 'backward'
-            ? 'Enter a Work Order number (e.g. WO-2026-0001) or output batch number to trace back through each routing step → the exact material lots consumed.'
-            : 'Enter a Material Lot number to trace forward through every Work Order that consumed it and the finished batches produced.'}
+            ? t('traceability.geneHintBackward')
+            : t('traceability.geneHintForward')}
         </div>
 
         <div className="flex gap-2">
           <Input
-            placeholder={traceMode === 'backward' ? 'WO number or batch number…' : 'Material lot number…'}
+            placeholder={traceMode === 'backward' ? t('traceability.genePlaceholderBackward') : t('traceability.genePlaceholderForward')}
             value={entityId}
             onChange={e => setEntityId(e.target.value)}
             className="h-8 text-xs font-mono"
@@ -247,7 +247,7 @@ function GenealogyPanel() {
             disabled={!entityId.trim() || isLoading}
           >
             <Search size={12} />
-            Trace
+            {t('traceability.geneTrace')}
           </Button>
         </div>
       </div>
@@ -261,7 +261,7 @@ function GenealogyPanel() {
       )}
       {isError && (
         <div className="glass-card p-6 text-center text-red-400 text-sm">
-          Entity not found or no traceability data.
+          {t('traceability.geneError')}
         </div>
       )}
       {node && !isLoading && (
@@ -269,7 +269,7 @@ function GenealogyPanel() {
           <div className="flex items-center gap-2 mb-3">
             <GitBranch size={14} className="text-primary" />
             <h3 className="text-sm font-semibold">
-              {traceMode === 'backward' ? 'Backward Genealogy' : 'Forward Genealogy'}
+              {traceMode === 'backward' ? t('traceability.geneBackwardTitle') : t('traceability.geneForwardTitle')}
             </h3>
           </div>
           <GenealogyNode node={node} depth={0} />
@@ -353,8 +353,8 @@ export function TraceabilityView({ fixedTab }: { fixedTab?: 'log' | 'genealogy' 
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {fixedTab === 'genealogy'
-              ? 'Batch ⇄ material lot ancestry — walk every product back to its inputs'
-              : 'Full audit trail across production, maintenance, inventory, and quality'}
+              ? t('traceability.genealogySubtitle')
+              : t('traceability.logSubtitle')}
           </p>
         </div>
         {/* Tab switcher (hidden when the page is dedicated to one section) */}
@@ -364,14 +364,14 @@ export function TraceabilityView({ fixedTab }: { fixedTab?: 'log' | 'genealogy' 
               className={cn('px-4 py-1.5 transition-colors', activeTab === 'log' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-muted/20')}
               onClick={() => setActiveTab('log')}
             >
-              Event Log
+              {t('traceability.tabEventLog')}
             </button>
             <button
               className={cn('px-4 py-1.5 flex items-center gap-1.5 transition-colors', activeTab === 'genealogy' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-muted/20')}
               onClick={() => setActiveTab('genealogy')}
             >
               <GitBranch size={11} />
-              Genealogy
+              {t('traceability.tabGenealogy')}
             </button>
           </div>
         )}
@@ -384,25 +384,25 @@ export function TraceabilityView({ fixedTab }: { fixedTab?: 'log' | 'genealogy' 
         <div className="grid grid-cols-3 gap-3">
           {[
             {
-              label: 'Total Events',
+              label: t('traceability.stat.totalEvents'),
               value: stats?.totalEvents,
               icon: Activity,
               color: 'text-primary',
-              sub: 'all time',
+              sub: t('traceability.stat.allTime'),
             },
             {
-              label: 'Last 24 Hours',
+              label: t('traceability.stat.last24h'),
               value: stats?.events24h,
               icon: Calendar,
               color: 'text-green-400',
-              sub: 'new events',
+              sub: t('traceability.stat.newEvents'),
             },
             {
-              label: 'Last 7 Days',
+              label: t('traceability.stat.last7d'),
               value: stats?.events7d,
               icon: ChevronRight,
               color: 'text-blue-400',
-              sub: 'recent activity',
+              sub: t('traceability.stat.recentActivity'),
             },
           ].map(({ label, value, icon: Icon, color, sub }) => (
             <div key={label} className="glass-card p-4">
@@ -432,8 +432,9 @@ export function TraceabilityView({ fixedTab }: { fixedTab?: 'log' | 'genealogy' 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ENTITY_TYPE_OPTIONS.map(o => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                <SelectItem value="__all__">{t('traceability.allEntityTypes')}</SelectItem>
+                {Object.entries(ENTITY_CONFIG).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>{t(v.labelKey)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -540,10 +541,10 @@ export function TraceabilityView({ fixedTab }: { fixedTab?: 'log' | 'genealogy' 
                           'text-[10px] font-medium px-2 py-0.5 rounded-full border',
                           cfg.badge,
                         )}>
-                          {cfg.label}
+                          {t(cfg.labelKey)}
                         </span>
                         <span className="text-xs text-muted-foreground font-medium">
-                          {humanizeEventType(event.eventType)}
+                          {humanizeEventType(t, event.eventType)}
                         </span>
                         <span className="ml-auto text-[10px] text-muted-foreground shrink-0">
                           {timeAgo(event.performedAt)}
@@ -575,7 +576,7 @@ export function TraceabilityView({ fixedTab }: { fixedTab?: 'log' | 'genealogy' 
                         )}
                         {event.quantity !== null && (
                           <span className="text-xs text-muted-foreground">
-                            Qty: <span className="font-semibold text-foreground">{event.quantity}</span>
+                            {t('traceability.qty')}: <span className="font-semibold text-foreground">{event.quantity}</span>
                           </span>
                         )}
                       </div>
@@ -625,7 +626,7 @@ export function TraceabilityView({ fixedTab }: { fixedTab?: 'log' | 'genealogy' 
                   <div>
                     <div className="text-xs font-semibold">{drilldown.code ?? drilldown.id.slice(0, 12)}</div>
                     <div className="text-[10px] text-muted-foreground">
-                      {(ENTITY_CONFIG[drilldown.type] ?? FALLBACK_ENTITY).label} history
+                      {t('traceability.entityHistory', { label: t((ENTITY_CONFIG[drilldown.type] ?? FALLBACK_ENTITY).labelKey) })}
                     </div>
                   </div>
                 </div>
@@ -635,7 +636,7 @@ export function TraceabilityView({ fixedTab }: { fixedTab?: 'log' | 'genealogy' 
               </div>
               <div className="p-3 max-h-[calc(100vh-360px)] overflow-y-auto">
                 {drillEvents.length === 0 ? (
-                  <div className="text-xs text-muted-foreground text-center py-4">No history found.</div>
+                  <div className="text-xs text-muted-foreground text-center py-4">{t('traceability.noHistory')}</div>
                 ) : (
                   <div className="space-y-2">
                     {drillEvents.map((ev, i) => {
@@ -649,7 +650,7 @@ export function TraceabilityView({ fixedTab }: { fixedTab?: 'log' | 'genealogy' 
                           </div>
                           <div className={cn('pb-2', isLast ? '' : '')}>
                             <div className="font-medium text-[10px] leading-snug">
-                              {humanizeEventType(ev.eventType)}
+                              {humanizeEventType(t, ev.eventType)}
                               {isStatusChange && ev.fromValue && ev.toValue && (
                                 <span className="text-muted-foreground font-normal ml-1">
                                   {ev.fromValue} → {ev.toValue}

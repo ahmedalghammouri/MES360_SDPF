@@ -32,7 +32,7 @@ interface Movement {
   performedBy?: { name: string | null } | null;
 }
 
-const ENTITY_LABELS: Record<string, string> = { SPARE_PART: 'Spare Part', RAW_MATERIAL: 'Raw Material', PRODUCT: 'Product' };
+const ENTITY_LABEL_KEYS: Record<string, string> = { SPARE_PART: 'stockMovementsView.entity.SPARE_PART', RAW_MATERIAL: 'stockMovementsView.entity.RAW_MATERIAL', PRODUCT: 'stockMovementsView.entity.PRODUCT' };
 const MOVEMENT_TONE: Record<string, string> = {
   RECEIPT: 'text-green-400 border-green-400/40', RETURN: 'text-green-400 border-green-400/40', RELEASE: 'text-green-400 border-green-400/40',
   ISSUE: 'text-red-400 border-red-400/40', CONSUMPTION: 'text-red-400 border-red-400/40',
@@ -82,20 +82,20 @@ export function StockMovementsView() {
         </div>
         <ExportMenu
           filename="stock-movements"
-          title="Stock Movements"
+          title={t('stockMovementsView.exportTitle')}
           rows={rows}
           columns={[
-            { key: 'createdAt', label: 'Date', value: (r: any) => fmt(r.createdAt) },
-            { key: 'entityType', label: 'Type', value: (r: any) => ENTITY_LABELS[r.entityType] ?? r.entityType },
-            { key: 'entityCode', label: 'Item Code', value: (r: any) => r.entityCode ?? '' },
-            { key: 'entityName', label: 'Item', value: (r: any) => r.entityName ?? '' },
-            { key: 'movementType', label: 'Movement' },
-            { key: 'quantity', label: 'Qty' },
-            { key: 'stockBefore', label: 'Before', value: (r: any) => r.stockBefore ?? '' },
-            { key: 'stockAfter', label: 'After', value: (r: any) => r.stockAfter ?? '' },
-            { key: 'totalCost', label: 'Cost', value: (r: any) => r.totalCost ?? '' },
-            { key: 'reference', label: 'Reference', value: (r: any) => r.referenceNumber ?? r.referenceType ?? '' },
-            { key: 'performedBy', label: 'By', value: (r: any) => r.performedBy?.name ?? '' },
+            { key: 'createdAt', label: t('stockMovementsView.exportCol.date'), value: (r: any) => fmt(r.createdAt) },
+            { key: 'entityType', label: t('stockMovementsView.exportCol.type'), value: (r: any) => (ENTITY_LABEL_KEYS[r.entityType] ? t(ENTITY_LABEL_KEYS[r.entityType]) : r.entityType) },
+            { key: 'entityCode', label: t('stockMovementsView.exportCol.itemCode'), value: (r: any) => r.entityCode ?? '' },
+            { key: 'entityName', label: t('stockMovementsView.exportCol.item'), value: (r: any) => r.entityName ?? '' },
+            { key: 'movementType', label: t('stockMovementsView.exportCol.movement') },
+            { key: 'quantity', label: t('stockMovementsView.exportCol.qty') },
+            { key: 'stockBefore', label: t('stockMovementsView.exportCol.before'), value: (r: any) => r.stockBefore ?? '' },
+            { key: 'stockAfter', label: t('stockMovementsView.exportCol.after'), value: (r: any) => r.stockAfter ?? '' },
+            { key: 'totalCost', label: t('stockMovementsView.exportCol.cost'), value: (r: any) => r.totalCost ?? '' },
+            { key: 'reference', label: t('stockMovementsView.exportCol.reference'), value: (r: any) => r.referenceNumber ?? r.referenceType ?? '' },
+            { key: 'performedBy', label: t('stockMovementsView.exportCol.by'), value: (r: any) => r.performedBy?.name ?? '' },
           ]}
         />
       </div>
@@ -110,19 +110,19 @@ export function StockMovementsView() {
           <Select value={entityType} onValueChange={(v) => { setEntityType(v); setPage(1); }}>
             <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Item Types</SelectItem>
-              {Object.keys(ENTITY_LABELS).map((k) => <SelectItem key={k} value={k}>{ENTITY_LABELS[k]}</SelectItem>)}
+              <SelectItem value="ALL">{t('stockMovementsView.allItemTypes')}</SelectItem>
+              {Object.keys(ENTITY_LABEL_KEYS).map((k) => <SelectItem key={k} value={k}>{t(ENTITY_LABEL_KEYS[k])}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={movementType} onValueChange={(v) => { setMovementType(v); setPage(1); }}>
             <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Movements</SelectItem>
+              <SelectItem value="ALL">{t('stockMovementsView.allMovements')}</SelectItem>
               {MOVEMENT_TYPES.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className="h-8 w-36 text-xs" title="From" />
-          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className="h-8 w-36 text-xs" title="To" />
+          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className="h-8 w-36 text-xs" title={t('stockMovementsView.from')} />
+          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className="h-8 w-36 text-xs" title={t('stockMovementsView.to')} />
         </div>
 
         <div className="rounded-lg border border-border/30 overflow-hidden">
@@ -158,7 +158,7 @@ export function StockMovementsView() {
                       <div className="font-medium">{m.entityName ?? '—'}</div>
                       <div className="text-[10px] font-mono text-muted-foreground">{m.entityCode}</div>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{ENTITY_LABELS[m.entityType] ?? m.entityType}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{ENTITY_LABEL_KEYS[m.entityType] ? t(ENTITY_LABEL_KEYS[m.entityType]) : m.entityType}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn('text-[10px]', MOVEMENT_TONE[m.movementType] ?? '')}>{m.movementType}</Badge>
                     </TableCell>

@@ -47,19 +47,19 @@ interface Asset {
   isActive: boolean;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
-  RUNNING:     { label: 'Running',     cls: 'text-green-400 border-green-400/30 bg-green-400/10' },
-  IDLE:        { label: 'Idle',        cls: 'text-yellow-400 border-yellow-400/30 bg-yellow-400/10' },
-  MAINTENANCE: { label: 'Maintenance', cls: 'text-orange-400 border-orange-400/30 bg-orange-400/10' },
-  BREAKDOWN:   { label: 'Breakdown',   cls: 'text-red-400 border-red-400/30 bg-red-400/10' },
-  OFFLINE:     { label: 'Offline',     cls: 'text-gray-400 border-gray-400/30 bg-gray-400/10' },
+const STATUS_CONFIG: Record<string, { labelKey: string; cls: string }> = {
+  RUNNING:     { labelKey: 'assetStatus.RUNNING',     cls: 'text-green-400 border-green-400/30 bg-green-400/10' },
+  IDLE:        { labelKey: 'assetStatus.IDLE',        cls: 'text-yellow-400 border-yellow-400/30 bg-yellow-400/10' },
+  MAINTENANCE: { labelKey: 'assetStatus.MAINTENANCE', cls: 'text-orange-400 border-orange-400/30 bg-orange-400/10' },
+  BREAKDOWN:   { labelKey: 'assetStatus.BREAKDOWN',   cls: 'text-red-400 border-red-400/30 bg-red-400/10' },
+  OFFLINE:     { labelKey: 'assetStatus.OFFLINE',     cls: 'text-gray-400 border-gray-400/30 bg-gray-400/10' },
 };
 
-const CRITICALITY_CONFIG: Record<string, { label: string; cls: string }> = {
-  LOW:      { label: 'Low',      cls: 'text-muted-foreground' },
-  MEDIUM:   { label: 'Medium',   cls: 'text-brand-400' },
-  HIGH:     { label: 'High',     cls: 'text-amber-400' },
-  CRITICAL: { label: 'Critical', cls: 'text-red-400 font-semibold' },
+const CRITICALITY_CONFIG: Record<string, { labelKey: string; cls: string }> = {
+  LOW:      { labelKey: 'common:priority.LOW',      cls: 'text-muted-foreground' },
+  MEDIUM:   { labelKey: 'common:priority.MEDIUM',   cls: 'text-brand-400' },
+  HIGH:     { labelKey: 'common:priority.HIGH',     cls: 'text-amber-400' },
+  CRITICAL: { labelKey: 'common:priority.CRITICAL', cls: 'text-red-400 font-semibold' },
 };
 
 const MACHINE_TYPES = [
@@ -118,10 +118,10 @@ export function MaintenanceAssetsView() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['maintenance', 'assets'] });
       qc.invalidateQueries({ queryKey: ['hierarchy'] });
-      toast({ title: 'Asset created', variant: 'success' });
+      toast({ title: t('toast.assetCreated'), variant: 'success' });
       handleClose();
     },
-    onError: (e: any) => toast({ title: 'Failed to create asset', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.assetCreateFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const updateMutation = useMutation({
@@ -129,10 +129,10 @@ export function MaintenanceAssetsView() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['maintenance', 'assets'] });
       qc.invalidateQueries({ queryKey: ['hierarchy'] });
-      toast({ title: 'Asset updated', variant: 'success' });
+      toast({ title: t('toast.assetUpdated'), variant: 'success' });
       handleClose();
     },
-    onError: (e: any) => toast({ title: 'Failed to update asset', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.assetUpdateFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
@@ -140,10 +140,10 @@ export function MaintenanceAssetsView() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['maintenance', 'assets'] });
       qc.invalidateQueries({ queryKey: ['hierarchy'] });
-      toast({ title: 'Asset deactivated' });
+      toast({ title: t('toast.assetDeactivated') });
       setDeleteDialog(null);
     },
-    onError: (e: any) => toast({ title: 'Failed to delete asset', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.assetDeleteFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const handleOpenCreate = () => {
@@ -196,7 +196,7 @@ export function MaintenanceAssetsView() {
           </p>
         </div>
         <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={handleOpenCreate}>
-          <Plus size={13} />New Asset
+          <Plus size={13} />{t('assetsView.newAsset')}
         </Button>
       </div>
 
@@ -220,9 +220,9 @@ export function MaintenanceAssetsView() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/30">
-                <th className="px-4 py-3 w-10"><Checkbox checked={sel.allSelected} onCheckedChange={sel.toggleAll} aria-label="Select all" /></th>
-                {['Code', 'Asset Name', 'Type', 'Hierarchy Location', 'Criticality', 'Manufacturer / Model', 'Status', 'Install Date', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] text-muted-foreground font-medium">{h}</th>
+                <th className="px-4 py-3 w-10"><Checkbox checked={sel.allSelected} onCheckedChange={sel.toggleAll} aria-label={t('selectAll')} /></th>
+                {[t('assetsView.col.code'), t('assetsView.col.name'), t('assetsView.col.type'), t('assetsView.col.location'), t('assetsView.col.criticality'), t('assetsView.col.manufacturerModel'), t('assetsView.col.status'), t('assetsView.col.installDate'), ''].map((h, i) => (
+                  <th key={i} className="text-left px-4 py-3 text-[11px] text-muted-foreground font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -240,7 +240,7 @@ export function MaintenanceAssetsView() {
                   <td colSpan={10} className="text-center py-14 text-muted-foreground">
                     <Factory className="w-10 h-10 mx-auto mb-3 opacity-20" />
                     <p className="text-sm">{t('assetsList.noAssets')}</p>
-                    <p className="text-xs mt-1">Create your first asset to start tracking maintenance</p>
+                    <p className="text-xs mt-1">{t('assetsView.createFirst')}</p>
                   </td>
                 </tr>
               ) : (
@@ -256,7 +256,7 @@ export function MaintenanceAssetsView() {
                       transition={{ delay: i * 0.02 }}
                       className={cn('border-b border-border/20 hover:bg-muted/20', sel.isSelected(asset.id) && 'bg-primary/5')}
                     >
-                      <td className="px-4 py-3"><Checkbox checked={sel.isSelected(asset.id)} onCheckedChange={() => sel.toggle(asset.id)} aria-label="Select row" /></td>
+                      <td className="px-4 py-3"><Checkbox checked={sel.isSelected(asset.id)} onCheckedChange={() => sel.toggle(asset.id)} aria-label={t('selectRow')} /></td>
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-primary">{asset.code}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -289,12 +289,12 @@ export function MaintenanceAssetsView() {
                         ) : (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground/50">
                             <Unlink size={10} />
-                            <span>Not linked</span>
+                            <span>{t('assetsView.notLinked')}</span>
                           </div>
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={cn('text-xs font-medium', critCfg.cls)}>{critCfg.label}</span>
+                        <span className={cn('text-xs font-medium', critCfg.cls)}>{t(`common:priority.${asset.criticality}`, { defaultValue: t(critCfg.labelKey) })}</span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-xs font-medium">{asset.manufacturer ?? '—'}</div>
@@ -302,7 +302,7 @@ export function MaintenanceAssetsView() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={cn('text-[10px] px-2 py-0.5 rounded-full border font-medium', statusCfg.cls)}>
-                          {statusCfg.label}
+                          {t(`assetStatus.${asset.status}`, { defaultValue: t(statusCfg.labelKey) })}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -314,8 +314,8 @@ export function MaintenanceAssetsView() {
                           onDelete={() => setDeleteDialog({ id: asset.id, name: asset.name })}
                           extraActions={[
                             (asset as any).archivedAt
-                              ? { label: 'Restore', icon: RotateCcw, onClick: () => restoreAsset.mutate(asset.id), separator: true }
-                              : { label: 'Archive', icon: ArchiveIcon, onClick: () => archiveAsset.mutate(asset.id), separator: true },
+                              ? { label: t('aform.restore'), icon: RotateCcw, onClick: () => restoreAsset.mutate(asset.id), separator: true }
+                              : { label: t('aform.archive'), icon: ArchiveIcon, onClick: () => archiveAsset.mutate(asset.id), separator: true },
                           ]}
                         />
                       </td>

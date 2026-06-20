@@ -110,7 +110,7 @@ const DAY = 86_400_000;
 const HOUR_MS = 3_600_000;
 const PX: Record<FactoryZoom, number> = { '30min': 3072, hour: 1536, day: 260, week: 72, month: 28 };
 const ZOOM_ORDER: FactoryZoom[] = ['month', 'week', 'day', 'hour', '30min'];
-const ZOOM_LABEL: Record<FactoryZoom, string> = { '30min': '30 min', hour: '1 hour', day: 'Day', week: 'Week', month: 'Month' };
+const ZOOM_LABEL_KEY: Record<FactoryZoom, string> = { '30min': 'gantt.zoom30min', hour: 'gantt.zoomHour', day: 'gantt.zoomDay', week: 'gantt.zoomWeek', month: 'gantt.zoomMonth' };
 const ROW_H = 44;
 const BAR_H = 24;
 const LANE_H = 40;
@@ -422,25 +422,25 @@ export function FactoryGantt({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1"><Layers size={13} /> Gantt View <ChevronDown size={12} /></Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1"><Layers size={13} /> {t('gantt.view')} <ChevronDown size={12} /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-52">
             {hasTree && (
               <>
                 <DropdownMenuLabel className="text-xs">{t('charts.gRows')}</DropdownMenuLabel>
                 <DropdownMenuCheckboxItem checked={viewMode === 'tree'} onCheckedChange={() => setViewMode('tree')} className="text-xs">
-                  <Workflow size={12} className="mr-1.5" /> Order tree (PO → WO → JO)
+                  <Workflow size={12} className="mr-1.5" /> {t('gantt.orderTree')}
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem checked={viewMode === 'resource'} onCheckedChange={() => setViewMode('resource')} className="text-xs">
-                  <Cpu size={12} className="mr-1.5" /> Machines
+                  <Cpu size={12} className="mr-1.5" /> {t('gantt.machines')}
                 </DropdownMenuCheckboxItem>
                 {viewMode === 'tree' && (
                   <>
                     <DropdownMenuItem onClick={expandAll} className="text-xs">
-                      <ChevronDown size={12} className="mr-1.5" /> Expand all
+                      <ChevronDown size={12} className="mr-1.5" /> {t('gantt.expandAll')}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={collapseAll} className="text-xs">
-                      <ChevronRight size={12} className="mr-1.5" /> Collapse all
+                      <ChevronRight size={12} className="mr-1.5" /> {t('gantt.collapseAll')}
                     </DropdownMenuItem>
                   </>
                 )}
@@ -449,18 +449,18 @@ export function FactoryGantt({
             )}
             <DropdownMenuLabel className="text-xs">{t('charts.gTimeScale')}</DropdownMenuLabel>
             {ZOOM_ORDER.map((z) => (
-              <DropdownMenuCheckboxItem key={z} checked={zoom === z} onCheckedChange={() => setZoom(z)} className="text-xs">{ZOOM_LABEL[z]}</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem key={z} checked={zoom === z} onCheckedChange={() => setZoom(z)} className="text-xs">{t(ZOOM_LABEL_KEY[z])}</DropdownMenuCheckboxItem>
             ))}
             <DropdownMenuSeparator />
             <DropdownMenuCheckboxItem checked={showLinks} onCheckedChange={(v) => setShowLinks(!!v)} className="text-xs">
-              <Workflow size={12} className="mr-1.5" /> Dependency links
+              <Workflow size={12} className="mr-1.5" /> {t('gantt.dependencyLinks')}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem checked={showShading} onCheckedChange={(v) => setShowShading(!!v)} className="text-xs">
-              <SlidersHorizontal size={12} className="mr-1.5" /> Non-working shading
+              <SlidersHorizontal size={12} className="mr-1.5" /> {t('gantt.nonWorkingShading')}
             </DropdownMenuCheckboxItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-[10px] text-muted-foreground">
-              Links: <span style={{ color: DEP_COLOR.FS }}>FS</span> · <span style={{ color: DEP_COLOR.SS }}>SS</span> · <span style={{ color: DEP_COLOR.FF }}>FF</span> · <span style={{ color: DEP_COLOR.SF }}>SF</span>
+              {t('gantt.links')}: <span style={{ color: DEP_COLOR.FS }}>FS</span> · <span style={{ color: DEP_COLOR.SS }}>SS</span> · <span style={{ color: DEP_COLOR.FF }}>FF</span> · <span style={{ color: DEP_COLOR.SF }}>SF</span>
             </DropdownMenuLabel>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -483,7 +483,7 @@ export function FactoryGantt({
         {insights && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1"><Eye size={13} /> Insights <ChevronDown size={12} /></Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1"><Eye size={13} /> {t('gantt.insights')} <ChevronDown size={12} /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-72 p-3">{insights}</DropdownMenuContent>
           </DropdownMenu>
@@ -491,14 +491,14 @@ export function FactoryGantt({
 
         {onCtp && (
           <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={onCtp}>
-            <CalendarClock size={13} /> CTP
+            <CalendarClock size={13} /> {t('gantt.ctp')}
           </Button>
         )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-              <FilterIcon size={13} /> Filter {hiddenCount > 0 && <span className="text-amber-500">({hiddenCount} hidden)</span>}
+              <FilterIcon size={13} /> {t('gantt.filter')} {hiddenCount > 0 && <span className="text-amber-500">{t('gantt.hidden', { count: hiddenCount })}</span>}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-60 max-h-80 overflow-y-auto">
@@ -529,10 +529,10 @@ export function FactoryGantt({
 
         <div className="ml-auto flex items-center gap-1">
           <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={scrollToNow}>
-            <CalendarDays size={13} /> Today
+            <CalendarDays size={13} /> {t('gantt.today')}
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomStep(-1)} title="Zoom out"><ZoomOut size={14} /></Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomStep(1)} title="Zoom in"><ZoomIn size={14} /></Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomStep(-1)} title={t('gantt.zoomOut')}><ZoomOut size={14} /></Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomStep(1)} title={t('gantt.zoomIn')}><ZoomIn size={14} /></Button>
         </div>
       </div>
 
@@ -541,7 +541,7 @@ export function FactoryGantt({
         {/* Left column */}
         <div className="shrink-0 border-r border-border/60 bg-muted/20" style={{ width: LABEL_W }}>
           <div className="flex items-center px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60" style={{ height: HEADER_H }}>
-            {viewMode === 'tree' ? 'Order / Step' : 'Machine'}
+            {viewMode === 'tree' ? t('gantt.orderStep') : t('gantt.machine')}
           </div>
           <div className="relative" style={{ height: bodyH }}>
             {hasSupply && (
@@ -777,11 +777,11 @@ export function FactoryGantt({
 
       {/* ── Status bar ── */}
       <div className="flex items-center gap-5 border-t border-border/60 bg-muted/20 px-4 py-1.5 text-[11px] text-muted-foreground">
-        <span>Scheduled Tasks: <strong className="text-foreground">{visibleTasks.length}</strong></span>
-        <span>Hidden: <strong className="text-foreground">{hiddenCount}</strong></span>
-        <span>{viewMode === 'tree' ? 'Rows' : 'Resources'}: <strong className="text-foreground">{flatRows.length}</strong></span>
-        {hasDemand && <span>Orders: <strong className="text-foreground">{demand.length}</strong></span>}
-        <span className="hidden lg:inline">Links: <span style={{ color: DEP_COLOR.FS }}>FS</span>/<span style={{ color: DEP_COLOR.SS }}>SS</span>/<span style={{ color: DEP_COLOR.FF }}>FF</span>/<span style={{ color: DEP_COLOR.SF }}>SF</span></span>
+        <span>{t('gantt.scheduledTasks')}: <strong className="text-foreground">{visibleTasks.length}</strong></span>
+        <span>{t('gantt.hiddenCount')}: <strong className="text-foreground">{hiddenCount}</strong></span>
+        <span>{viewMode === 'tree' ? t('gantt.rows') : t('gantt.resources')}: <strong className="text-foreground">{flatRows.length}</strong></span>
+        {hasDemand && <span>{t('gantt.orders')}: <strong className="text-foreground">{demand.length}</strong></span>}
+        <span className="hidden lg:inline">{t('gantt.links')}: <span style={{ color: DEP_COLOR.FS }}>FS</span>/<span style={{ color: DEP_COLOR.SS }}>SS</span>/<span style={{ color: DEP_COLOR.FF }}>FF</span>/<span style={{ color: DEP_COLOR.SF }}>SF</span></span>
         {statusExtra && <span className="ml-auto">{statusExtra}</span>}
       </div>
     </div>

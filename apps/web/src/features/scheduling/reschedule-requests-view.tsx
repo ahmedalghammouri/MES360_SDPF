@@ -44,16 +44,23 @@ interface RescheduleRequest {
   reviewedBy: { id: string; name: string } | null;
 }
 
-const SOURCE_CFG: Record<string, { label: string; cls: string }> = {
-  AUTO_GENERATE: { label: 'Auto-Generate WO', cls: 'text-sky-400 bg-sky-500/15 border-sky-500/30' },
-  APS_RECALC:    { label: 'Recalculate Plan', cls: 'text-violet-400 bg-violet-500/15 border-violet-500/30' },
-};
-const sourceCfg = (s: string) => SOURCE_CFG[s] ?? { label: s || '—', cls: 'text-muted-foreground bg-muted/40 border-border' };
+type TFunc = (key: string, opts?: Record<string, unknown>) => string;
 
-const STATUS_CFG: Record<Status, { label: string; cls: string; icon: React.ElementType }> = {
-  PENDING:  { label: 'Pending',  cls: 'text-amber-400 bg-amber-500/15 border-amber-500/30',  icon: Hourglass },
-  APPROVED: { label: 'Approved', cls: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30', icon: CheckCircle2 },
-  REJECTED: { label: 'Rejected', cls: 'text-red-400 bg-red-500/15 border-red-500/30', icon: XCircle },
+const SOURCE_CFG: Record<string, { labelKey: string; cls: string }> = {
+  AUTO_GENERATE: { labelKey: 'scheduling.reschedule.source.AUTO_GENERATE', cls: 'text-sky-400 bg-sky-500/15 border-sky-500/30' },
+  APS_RECALC:    { labelKey: 'scheduling.reschedule.source.APS_RECALC', cls: 'text-violet-400 bg-violet-500/15 border-violet-500/30' },
+};
+const sourceCfg = (t: TFunc, s: string) => {
+  const cfg = SOURCE_CFG[s];
+  return cfg
+    ? { label: t(cfg.labelKey), cls: cfg.cls }
+    : { label: s || '—', cls: 'text-muted-foreground bg-muted/40 border-border' };
+};
+
+const STATUS_CFG: Record<Status, { labelKey: string; cls: string; icon: React.ElementType }> = {
+  PENDING:  { labelKey: 'scheduling.reschedule.status.PENDING',  cls: 'text-amber-400 bg-amber-500/15 border-amber-500/30',  icon: Hourglass },
+  APPROVED: { labelKey: 'scheduling.reschedule.status.APPROVED', cls: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30', icon: CheckCircle2 },
+  REJECTED: { labelKey: 'scheduling.reschedule.status.REJECTED', cls: 'text-red-400 bg-red-500/15 border-red-500/30', icon: XCircle },
 };
 
 const fmtDateTime = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
@@ -68,13 +75,13 @@ function overrunMs(r: RescheduleRequest): number {
   if (!r.dueDate) return 0;
   return new Date(r.proposedEnd).getTime() - new Date(r.dueDate).getTime();
 }
-function fmtSpan(ms: number): string {
-  if (ms <= 0) return 'on time';
+function fmtSpan(t: TFunc, ms: number): string {
+  if (ms <= 0) return t('scheduling.reschedule.onTime');
   const mins = Math.round(ms / 60_000);
   const d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
-  if (d > 0) return `${d}d ${h}h late`;
-  if (h > 0) return `${h}h ${m}m late`;
-  return `${m}m late`;
+  if (d > 0) return t('scheduling.reschedule.lateDHM', { d, h });
+  if (h > 0) return t('scheduling.reschedule.lateHM', { h, m });
+  return t('scheduling.reschedule.lateM', { m });
 }
 
 function KpiTile({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: React.ReactNode; color: string }) {
@@ -130,7 +137,7 @@ export function RescheduleRequestsView() {
       qc.invalidateQueries({ queryKey: ['reschedule-requests'] });
       qc.invalidateQueries({ queryKey: ['sidebar-counts'] });
       qc.invalidateQueries({ queryKey: ['po-reschedule-requests'] });
-      toast({ title: vars.approve ? 'Reschedule approved' : 'Reschedule rejected' });
+      toast({ title: vars.approve ? t('scheduling.reschedule.toastApproved') : t('scheduling.reschedule.toastRejected') });
       setDetail(null);
     },
     onError: (e: any) => {
@@ -138,7 +145,7 @@ export function RescheduleRequestsView() {
       // Re-sync so the buttons reflect the true state instead of staying stuck.
       qc.invalidateQueries({ queryKey: ['reschedule-requests'] });
       qc.invalidateQueries({ queryKey: ['sidebar-counts'] });
-      toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message ?? 'Failed' });
+      toast({ variant: 'destructive', title: t('scheduling.reschedule.toastError'), description: e?.response?.data?.message ?? t('scheduling.reschedule.toastFailed') });
     },
   });
 
@@ -151,33 +158,33 @@ export function RescheduleRequestsView() {
             <CalendarClock size={22} className="text-primary" /> {t('scheduling.reschedule.title')}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Governance for work orders whose smart finish overruns the due date — review &amp; approve before generation proceeds.
+            {t('scheduling.reschedule.subtitle')}
           </p>
         </div>
         <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw size={15} className={cn('mr-2', isFetching && 'animate-spin')} /> Refresh
+          <RefreshCw size={15} className={cn('mr-2', isFetching && 'animate-spin')} /> {t('scheduling.reschedule.refresh')}
         </Button>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiTile icon={Hourglass} label="Action required" value={counts.PENDING} color="#f59e0b" />
-        <KpiTile icon={CheckCircle2} label="Approved" value={counts.APPROVED} color="#22c55e" />
-        <KpiTile icon={XCircle} label="Rejected" value={counts.REJECTED} color="#ef4444" />
-        <KpiTile icon={Clock} label="Avg overrun" value={`${avgOverrunH}h`} color="#a855f7" />
+        <KpiTile icon={Hourglass} label={t('scheduling.reschedule.kpiActionRequired')} value={counts.PENDING} color="#f59e0b" />
+        <KpiTile icon={CheckCircle2} label={t('scheduling.reschedule.kpiApproved')} value={counts.APPROVED} color="#22c55e" />
+        <KpiTile icon={XCircle} label={t('scheduling.reschedule.kpiRejected')} value={counts.REJECTED} color="#ef4444" />
+        <KpiTile icon={Clock} label={t('scheduling.reschedule.kpiAvgOverrun')} value={`${avgOverrunH}h`} color="#a855f7" />
       </div>
 
       {/* Filter tabs */}
       <div className="flex items-center gap-1 border-b border-border/60">
-        {(['PENDING', 'APPROVED', 'REJECTED', 'ALL'] as const).map(t => (
+        {(['PENDING', 'APPROVED', 'REJECTED', 'ALL'] as const).map(tab => (
           <button
-            key={t}
-            onClick={() => setFilter(t)}
+            key={tab}
+            onClick={() => setFilter(tab)}
             className={cn('px-3.5 py-2 text-sm rounded-t-md -mb-px border-b-2 transition-colors',
-              filter === t ? 'border-primary text-foreground font-medium' : 'border-transparent text-muted-foreground hover:text-foreground')}
+              filter === tab ? 'border-primary text-foreground font-medium' : 'border-transparent text-muted-foreground hover:text-foreground')}
           >
-            {t === 'ALL' ? 'All' : STATUS_CFG[t].label}
-            <span className="ml-1.5 text-xs text-muted-foreground">{counts[t]}</span>
+            {tab === 'ALL' ? t('scheduling.reschedule.filterAll') : t(STATUS_CFG[tab].labelKey)}
+            <span className="ml-1.5 text-xs text-muted-foreground">{counts[tab]}</span>
           </button>
         ))}
       </div>
@@ -189,20 +196,22 @@ export function RescheduleRequestsView() {
         ) : rows.length === 0 ? (
           <div className="p-12 text-center text-sm text-muted-foreground">
             <CheckCircle2 size={28} className="mx-auto mb-2 text-emerald-500/60" />
-            No {filter === 'ALL' ? '' : STATUS_CFG[filter as Status].label.toLowerCase()} reschedule requests.
+            {filter === 'ALL'
+              ? t('scheduling.reschedule.emptyNone')
+              : t('scheduling.reschedule.emptyFiltered', { status: t(STATUS_CFG[filter as Status].labelKey).toLowerCase() })}
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-muted-foreground">
               <tr className="text-left">
-                <th className="px-4 py-2.5 font-medium">Production Order</th>
-                <th className="px-4 py-2.5 font-medium">Source</th>
-                <th className="px-4 py-2.5 font-medium">Requested by</th>
-                <th className="px-4 py-2.5 font-medium">Proposed window</th>
-                <th className="px-4 py-2.5 font-medium">Due</th>
-                <th className="px-4 py-2.5 font-medium text-right">Overrun</th>
-                <th className="px-4 py-2.5 font-medium">Status</th>
-                <th className="px-4 py-2.5 font-medium text-right">Actions</th>
+                <th className="px-4 py-2.5 font-medium">{t('scheduling.reschedule.col.productionOrder')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('scheduling.reschedule.col.source')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('scheduling.reschedule.col.requestedBy')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('scheduling.reschedule.col.proposedWindow')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('scheduling.reschedule.col.due')}</th>
+                <th className="px-4 py-2.5 font-medium text-right">{t('scheduling.reschedule.col.overrun')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('scheduling.reschedule.col.status')}</th>
+                <th className="px-4 py-2.5 font-medium text-right">{t('scheduling.reschedule.col.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -221,8 +230,8 @@ export function RescheduleRequestsView() {
                       {r.workOrder?.orderNumber && <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{r.workOrder.orderNumber}</div>}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={cn('inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full border', sourceCfg(r.source).cls)}>
-                        {sourceCfg(r.source).label}
+                      <span className={cn('inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full border', sourceCfg(t, r.source).cls)}>
+                        {sourceCfg(t, r.source).label}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -233,21 +242,21 @@ export function RescheduleRequestsView() {
                     </td>
                     <td className="px-4 py-3 text-xs">{fmtDateTime(r.dueDate)}</td>
                     <td className={cn('px-4 py-3 text-right text-xs font-medium tabular-nums', over > 0 ? 'text-red-400' : 'text-emerald-400')}>
-                      {fmtSpan(over)}
+                      {fmtSpan(t, over)}
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn('inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border', cfg.cls)}>
-                        <SIcon size={11} /> {cfg.label}
+                        <SIcon size={11} /> {t(cfg.labelKey)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                       {r.status === 'PENDING' ? (
                         <div className="flex items-center gap-1.5 justify-end">
-                          <Button size="sm" variant="outline" className="h-7" onClick={() => review.mutate({ id: r.id, approve: false })} disabled={review.isPending}>Reject</Button>
-                          <Button size="sm" className="h-7" onClick={() => review.mutate({ id: r.id, approve: true })} disabled={review.isPending}>Approve</Button>
+                          <Button size="sm" variant="outline" className="h-7" onClick={() => review.mutate({ id: r.id, approve: false })} disabled={review.isPending}>{t('scheduling.reschedule.reject')}</Button>
+                          <Button size="sm" className="h-7" onClick={() => review.mutate({ id: r.id, approve: true })} disabled={review.isPending}>{t('scheduling.reschedule.approve')}</Button>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-muted-foreground">{r.reviewedBy?.name ? `by ${r.reviewedBy.name}` : '—'}</span>
+                        <span className="text-[11px] text-muted-foreground">{r.reviewedBy?.name ? t('scheduling.reschedule.byReviewer', { name: r.reviewedBy.name }) : '—'}</span>
                       )}
                     </td>
                   </tr>
@@ -275,16 +284,16 @@ export function RescheduleRequestsView() {
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <CalendarClock size={18} className="text-primary" />
-                    Reschedule — {detail.productionOrder?.orderNumber ?? 'PO'}
+                    {t('scheduling.reschedule.dialogTitle', { order: detail.productionOrder?.orderNumber ?? 'PO' })}
                   </DialogTitle>
                   <DialogDescription className="flex items-center gap-2 flex-wrap">
                     <span className={cn('inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border', cfg.cls)}>
-                      <cfg.icon size={11} /> {cfg.label}
+                      <cfg.icon size={11} /> {t(cfg.labelKey)}
                     </span>
-                    <span className={cn('inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border', sourceCfg(detail.source).cls)}>
-                      {sourceCfg(detail.source).label}
+                    <span className={cn('inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border', sourceCfg(t, detail.source).cls)}>
+                      {sourceCfg(t, detail.source).label}
                     </span>
-                    <span className={cn('text-xs font-medium', over > 0 ? 'text-red-400' : 'text-emerald-400')}>{fmtSpan(over)}</span>
+                    <span className={cn('text-xs font-medium', over > 0 ? 'text-red-400' : 'text-emerald-400')}>{fmtSpan(t, over)}</span>
                   </DialogDescription>
                 </DialogHeader>
 

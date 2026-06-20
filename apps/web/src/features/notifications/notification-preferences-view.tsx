@@ -22,23 +22,23 @@ interface Preference {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  alarm: 'Alarms', production: 'Production', quality: 'Quality',
-  maintenance: 'Maintenance', downtime: 'Downtime', energy: 'Energy',
-  inventory: 'Inventory', system: 'System',
+  alarm: 'prefs.catAlarm', production: 'prefs.catProduction', quality: 'prefs.catQuality',
+  maintenance: 'prefs.catMaintenance', downtime: 'prefs.catDowntime', energy: 'prefs.catEnergy',
+  inventory: 'prefs.catInventory', system: 'prefs.catSystem',
 };
 
 const SEVERITY_OPTS = [
-  { value: 'info',     label: 'Info & above'     },
-  { value: 'warning',  label: 'Warning & above'  },
-  { value: 'error',    label: 'Error & above'    },
-  { value: 'critical', label: 'Critical only'    },
+  { value: 'info',     labelKey: 'prefs.sevInfo'     },
+  { value: 'warning',  labelKey: 'prefs.sevWarning'  },
+  { value: 'error',    labelKey: 'prefs.sevError'    },
+  { value: 'critical', labelKey: 'prefs.sevCritical' },
 ];
 
-const CHANNELS: { key: keyof Pick<Preference, 'inApp' | 'email' | 'sms' | 'push'>; label: string; icon: typeof Bell }[] = [
-  { key: 'inApp', label: 'In-App', icon: Bell },
-  { key: 'email', label: 'Email',  icon: Mail },
-  { key: 'sms',   label: 'SMS',    icon: MessageSquare },
-  { key: 'push',  label: 'Push',   icon: Smartphone },
+const CHANNELS: { key: keyof Pick<Preference, 'inApp' | 'email' | 'sms' | 'push'>; labelKey: string; icon: typeof Bell }[] = [
+  { key: 'inApp', labelKey: 'prefs.chInApp', icon: Bell },
+  { key: 'email', labelKey: 'prefs.chEmail',  icon: Mail },
+  { key: 'sms',   labelKey: 'prefs.chSms',    icon: MessageSquare },
+  { key: 'push',  labelKey: 'prefs.chPush',   icon: Smartphone },
 ];
 
 export function NotificationPreferencesView() {
@@ -65,12 +65,13 @@ export function NotificationPreferencesView() {
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(['notifications', 'preferences'], ctx.prev);
-      toast({ title: 'Failed to save preference', variant: 'destructive' });
+      toast({ title: t('notifications.prefs.saveFailed'), variant: 'destructive' });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications', 'preferences'] }),
   });
 
   const prefs = data ?? [];
+  const severityOptions = SEVERITY_OPTS.map((o) => ({ value: o.value, label: t(`notifications.${o.labelKey}`) }));
 
   return (
     <div className="p-6 space-y-6 max-w-3xl">
@@ -84,7 +85,7 @@ export function NotificationPreferencesView() {
             {t('notifications.preferences')}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Choose how you want to be notified for each category of event.
+            {t('notifications.prefs.subtitle')}
           </p>
         </div>
       </div>
@@ -92,22 +93,22 @@ export function NotificationPreferencesView() {
       <div className="glass-card rounded-xl overflow-hidden">
         {/* Header row */}
         <div className="grid grid-cols-[1.4fr_repeat(4,0.6fr)_1.2fr] gap-2 px-4 py-3 border-b border-border/60 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          <span>Category</span>
+          <span>{t('notifications.prefs.category')}</span>
           {CHANNELS.map((c) => (
-            <span key={c.key} className="text-center">{c.label}</span>
+            <span key={c.key} className="text-center">{t(`notifications.${c.labelKey}`)}</span>
           ))}
-          <span className="text-center">Min. severity</span>
+          <span className="text-center">{t('notifications.prefs.minSeverity')}</span>
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">Loading preferences…</div>
+          <div className="p-10 text-center text-sm text-muted-foreground">{t('notifications.prefs.loading')}</div>
         ) : (
           prefs.map((p) => (
             <div
               key={p.category}
               className="grid grid-cols-[1.4fr_repeat(4,0.6fr)_1.2fr] gap-2 px-4 py-3 border-b border-border/40 items-center hover:bg-foreground/[0.02]"
             >
-              <span className="text-sm font-medium">{CATEGORY_LABELS[p.category] ?? p.category}</span>
+              <span className="text-sm font-medium">{CATEGORY_LABELS[p.category] ? t(`notifications.${CATEGORY_LABELS[p.category]}`) : p.category}</span>
               {CHANNELS.map((c) => (
                 <div key={c.key} className="flex justify-center">
                   <Checkbox
@@ -123,7 +124,7 @@ export function NotificationPreferencesView() {
                   size="sm"
                   value={p.minSeverity}
                   onValueChange={(v) => mutation.mutate({ category: p.category, minSeverity: v })}
-                  options={SEVERITY_OPTS}
+                  options={severityOptions}
                 />
               </div>
             </div>
@@ -132,8 +133,7 @@ export function NotificationPreferencesView() {
       </div>
 
       <p className={cn('text-xs text-muted-foreground')}>
-        In-App notifications appear in the bell and on this page. Email/SMS/Push require the
-        relevant channel to be configured by your administrator.
+        {t('notifications.prefs.footnote')}
       </p>
     </div>
   );

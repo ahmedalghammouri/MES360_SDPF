@@ -69,19 +69,19 @@ export function ReportsView() {
         <div className="flex gap-2">
           <Button variant="outline" size="sm">
             <Calendar className="w-4 h-4 mr-2" />
-            Schedule
+            {t('reports.list.schedule')}
           </Button>
           <Button size="sm">
             <FileBarChart className="w-4 h-4 mr-2" />
-            Custom Report
+            {t('reports.list.customReport')}
           </Button>
         </div>
       </div>
 
       <Tabs defaultValue="templates">
         <TabsList>
-          <TabsTrigger value="templates">Report Templates</TabsTrigger>
-          <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
+          <TabsTrigger value="templates">{t('reports.list.tabTemplates')}</TabsTrigger>
+          <TabsTrigger value="scheduled">{t('reports.list.tabScheduled')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="templates" className="mt-4 space-y-4">
@@ -94,7 +94,7 @@ export function ReportsView() {
                 onClick={() => setSelectedCategory(cat)}
                 className="capitalize"
               >
-                {cat === 'All' ? 'All' : cat}
+                {cat === 'All' ? t('reports.list.catAll') : t(`reports.list.cat.${cat}`, { defaultValue: cat })}
               </Button>
             ))}
           </div>
@@ -123,13 +123,13 @@ export function ReportsView() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">{report.name}</div>
-                        <Badge variant="outline" className="text-[10px] mt-1 capitalize">{report.module}</Badge>
+                        <Badge variant="outline" className="text-[10px] mt-1 capitalize">{t(`reports.list.cat.${report.module}`, { defaultValue: report.module })}</Badge>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">{report.description}</p>
                     <div className="flex gap-2 mt-auto">
                       <Button size="sm" className="flex-1" onClick={() => handleGenerate(report.id)} disabled={isGenerating}>
-                        {isGenerating ? 'Generating...' : 'Generate'}
+                        {isGenerating ? t('reports.list.generating') : t('reports.list.generate')}
                       </Button>
                       <Button size="sm" variant="outline">
                         <Download className="w-3.5 h-3.5" />
@@ -145,8 +145,8 @@ export function ReportsView() {
         <TabsContent value="scheduled" className="mt-4">
           <div className="glass-card rounded-xl p-8 text-center text-muted-foreground">
             <Calendar className="w-12 h-12 mx-auto mb-3 opacity-40" />
-            <div className="font-medium">Scheduled reports coming soon</div>
-            <div className="text-sm mt-1">Configure automated report generation and delivery</div>
+            <div className="font-medium">{t('reports.list.scheduledSoon')}</div>
+            <div className="text-sm mt-1">{t('reports.list.scheduledSoonDesc')}</div>
           </div>
         </TabsContent>
       </Tabs>

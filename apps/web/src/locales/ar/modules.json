@@ -4,10 +4,80 @@
     "production": { "title": "تقارير الإنتاج", "subtitle": "اتجاهات الكفاءة وتحليل الإنتاج وأداء الماكينات" },
     "quality": { "title": "تقارير الجودة", "subtitle": "مقاييس وتحليل الجودة" },
     "maintenance": { "title": "تقارير الصيانة", "subtitle": "أداء وتحليلات الصيانة" },
-    "builder": { "title": "منشئ التقارير", "subtitle": "تهيئة ومعاينة وتصدير تقارير MES" }
+    "builder": {
+      "title": "منشئ التقارير", "subtitle": "تهيئة ومعاينة وتصدير تقارير MES",
+      "selectType": "اختر نوع التقرير", "dateRange": "النطاق الزمني", "from": "من", "to": "إلى",
+      "generateReport": "إنشاء التقرير", "exportCsv": "تصدير CSV", "scheduleReport": "جدولة التقرير",
+      "schedulingSoon": "الجدولة قريباً", "soon": "قريباً",
+      "preview": "معاينة التقرير", "refresh": "تحديث",
+      "emptyTitle": "اختر نوع تقرير للبدء", "emptyDesc": "اختر من لوحة التهيئة على اليسار",
+      "energySoon": "تقارير الطاقة قريباً.", "energySoonDesc": "اربط عدّادات الطاقة للبدء.",
+      "configureHint": "اضبط الفلاتر ثم انقر على إنشاء التقرير",
+      "loadFailed": "فشل تحميل بيانات التقرير", "unknownError": "حدث خطأ غير معروف", "retry": "إعادة المحاولة",
+      "recentReports": "التقارير الأخيرة", "rerun": "إعادة التشغيل",
+      "noData": "لا توجد بيانات للفلاتر المحددة.",
+      "showingRows": "عرض {{shown}} من {{total}} صف", "exportToViewAll": "صدّر CSV لعرض كل الصفوف",
+      "rowsCount_one": "صف واحد", "rowsCount_other": "{{count}} صف",
+      "type": {
+        "production": { "label": "أداء الإنتاج", "desc": "إكمال أوامر العمل والإنتاجية واتجاهات الإنتاج" },
+        "quality": { "label": "مقاييس الجودة", "desc": "الفحوص وتقارير عدم المطابقة ومعدلات النجاح" },
+        "maintenance": { "label": "ملخص الصيانة", "desc": "سجل أوامر الصيانة، MTTR، MTBF، الالتزام بالصيانة الوقائية" },
+        "oee": { "label": "تحليل الكفاءة", "desc": "فعالية المعدات حسب الماكينة والوقت" },
+        "scrap": { "label": "الهالك والفاقد", "desc": "أحداث الهالك حسب الفئة والمنتج والمشغّل" },
+        "inventory": { "label": "حالة المخزون", "desc": "مستويات المخزون والحركات ومتطلبات قائمة المكوّنات" },
+        "energy": { "label": "استهلاك الطاقة", "desc": "مراقبة الطاقة وتحليل التكلفة" }
+      }
+    },
+    "list": {
+      "schedule": "جدولة", "customReport": "تقرير مخصّص",
+      "tabTemplates": "قوالب التقارير", "tabScheduled": "مجدولة",
+      "catAll": "الكل", "cat": { "production": "الإنتاج", "quality": "الجودة", "maintenance": "الصيانة" },
+      "generate": "إنشاء", "generating": "جارٍ الإنشاء...",
+      "scheduledSoon": "التقارير المجدولة قريباً", "scheduledSoonDesc": "تهيئة إنشاء التقارير وتسليمها تلقائياً"
+    },
+    "prod": {
+      "kpiAvgOee": "متوسط الكفاءة", "kpiAvgOeeTb": "متوسط الكفاءة (زمنية)", "kpiTotalOutput": "إجمالي الإنتاج", "kpiDowntime": "التوقف (دقيقة)", "kpiFpy": "نسبة النجاح من أول مرة",
+      "filter": "تصفية", "export": "تصدير",
+      "oeeTrend": "اتجاه الكفاءة", "noOeeRecords": "لا توجد سجلات كفاءة لهذه الفترة", "oee": "الكفاءة",
+      "outputByMachine": "الإنتاج حسب الماكينة", "noOutputData": "لا توجد بيانات إنتاج لهذه الفترة", "target": "المستهدف", "actual": "الفعلي",
+      "detailRecords": "السجلات التفصيلية ({{count}})",
+      "colDate": "التاريخ", "colMachine": "الماكينة", "colPlanned": "المخطط", "colActual": "الفعلي", "colGood": "السليم", "colOee": "الكفاءة %", "colDowntime": "التوقف (دقيقة)"
+    },
+    "maint": {
+      "dateRange": "النطاق الزمني", "exportPdf": "تصدير PDF", "hrs": "ساعة",
+      "mtbf": "متوسط الزمن بين الأعطال", "mttr": "متوسط زمن الإصلاح", "workOrders": "أوامر العمل", "completionRate": "معدل الإكمال",
+      "byStatus": "حسب الحالة", "byType": "حسب النوع", "noWorkOrders": "لا توجد أوامر عمل في هذه الفترة",
+      "costReliability": "التكلفة والموثوقية", "totalCost": "إجمالي تكلفة الصيانة", "sarValue": "{{value}} ر.س",
+      "failures": "الأعطال (تصحيحية + طارئة)", "completedWos": "أوامر العمل المكتملة"
+    },
+    "qual": {
+      "dateRange": "النطاق الزمني", "exportPdf": "تصدير PDF",
+      "fpy": "النجاح من أول مرة", "defectRate": "معدل العيوب", "inspections": "الفحوص", "ncrs": "تقارير عدم المطابقة",
+      "summary": "ملخص التقرير", "vizSoon": "تصوّر تقرير الجودة قريباً"
+    }
   },
   "scheduling": {
-    "reschedule": { "title": "طلبات إعادة الجدولة" }
+    "reschedule": {
+      "title": "طلبات إعادة الجدولة",
+      "subtitle": "حوكمة أوامر العمل التي يتجاوز إنهاؤها الذكي تاريخ الاستحقاق — راجع واعتمد قبل متابعة التوليد.",
+      "refresh": "تحديث",
+      "kpiActionRequired": "يتطلب إجراءً", "kpiApproved": "معتمد", "kpiRejected": "مرفوض", "kpiAvgOverrun": "متوسط التجاوز",
+      "filterAll": "الكل",
+      "status": { "PENDING": "قيد الانتظار", "APPROVED": "معتمد", "REJECTED": "مرفوض" },
+      "source": { "AUTO_GENERATE": "توليد أمر عمل تلقائياً", "APS_RECALC": "إعادة حساب الخطة" },
+      "emptyNone": "لا توجد طلبات إعادة جدولة.", "emptyFiltered": "لا توجد طلبات إعادة جدولة {{status}}.",
+      "onTime": "في الموعد", "lateDHM": "متأخر {{d}} ي {{h}} س", "lateHM": "متأخر {{h}} س {{m}} د", "lateM": "متأخر {{m}} د",
+      "col": { "productionOrder": "أمر الإنتاج", "source": "المصدر", "requestedBy": "مقدّم الطلب", "proposedWindow": "النافذة المقترحة", "due": "الاستحقاق", "overrun": "التجاوز", "status": "الحالة", "actions": "إجراءات" },
+      "reject": "رفض", "approve": "اعتماد", "approveReschedule": "اعتماد إعادة الجدولة", "close": "إغلاق",
+      "byReviewer": "بواسطة {{name}}",
+      "dialogTitle": "إعادة جدولة — {{order}}",
+      "field": { "proposedStart": "البداية المقترحة", "proposedFinish": "النهاية المقترحة", "dueDate": "تاريخ الاستحقاق", "requested": "تاريخ الطلب", "workContent": "محتوى العمل", "plannedStoppage": "التوقف المخطط", "total": "الإجمالي" },
+      "requestDetails": "تفاصيل الطلب", "origin": "المصدر", "workOrder": "أمر العمل", "runMakespan": "زمن إنجاز التشغيل",
+      "planCovers": "تغطي الخطة", "planCoversSuffix": "عملية — الاعتماد يطبّق هذه الأوقات بالضبط.",
+      "reason": "السبب: ", "reviewedAt": "روجِع {{when}}{{by}}.",
+      "pendingNote": "الاعتماد يقبل النهاية المقترحة كنافذة جديدة لأمر العمل؛ ويمكن عندها متابعة التوليد بهذه التواريخ.",
+      "toastApproved": "تمت الموافقة على إعادة الجدولة", "toastRejected": "تم رفض إعادة الجدولة", "toastError": "خطأ", "toastFailed": "فشل"
+    }
   },
   "schedule": {
     "view": {
@@ -143,7 +213,25 @@
     "consumption": { "title": "استهلاك المواد", "subtitle": "المواد المدخلة لكل خطوة والمستهلكة بأوامر العمل — تغذية شجرة الإنتاج (أمر ← دفعة ← لوت)" },
     "consumptionSearch": "ابحث برمز أو اسم المادة…",
     "noConsumption": "لا يوجد استهلاك بعد — أضف مواد الإدخال لخطوات المسار ثم أكمل أمر عمل.",
-    "consumptionCol": { "consumedAt": "وقت الاستهلاك", "material": "المادة", "planned": "المخطط", "actual": "الفعلي", "unit": "الوحدة", "workOrder": "أمر العمل", "outputBatch": "دفعة المخرجات", "rawLot": "اللوت الخام (FIFO)" }
+    "consumptionCol": { "consumedAt": "وقت الاستهلاك", "material": "المادة", "planned": "المخطط", "actual": "الفعلي", "unit": "الوحدة", "workOrder": "أمر العمل", "outputBatch": "دفعة المخرجات", "rawLot": "اللوت الخام (FIFO)" },
+    "logSubtitle": "سجل تدقيق كامل عبر الإنتاج والصيانة والمخزون والجودة",
+    "genealogySubtitle": "نسب الدفعة ⇄ لوت المادة — تتبّع كل منتج رجوعاً إلى مدخلاته",
+    "tabEventLog": "سجل الأحداث", "tabGenealogy": "شجرة الإنتاج",
+    "entity": { "MAINT_WO": "أمر عمل صيانة", "PROD_WO": "أمر عمل إنتاج", "BATCH": "دفعة", "SPARE_PART": "قطعة غيار", "RAW_MATERIAL": "مادة خام", "MACHINE": "ماكينة", "PRODUCT": "منتج", "fallback": "كيان" },
+    "entityHistory": "سجل {{label}}",
+    "allEntityTypes": "كل أنواع الكيانات",
+    "eventType": {
+      "CREATED": "تم الإنشاء", "STATUS_CHANGED": "تغيّرت الحالة", "PARTS_REQUESTED": "طُلبت قطع", "PARTS_ISSUED": "صُرفت قطع", "PARTS_CANCELLED": "أُلغيت قطع", "STOCK_ADJUSTED": "تعديل المخزون", "STOCK_RECEIVED": "استلام مخزون", "COMPLETED": "مكتمل", "CANCELLED": "ملغى", "STARTED": "بدأ", "UPDATED": "تم التحديث", "DELETED": "تم الحذف", "ASSIGNED": "تم الإسناد", "INSPECTION_PASSED": "نجح الفحص", "INSPECTION_FAILED": "فشل الفحص", "BATCH_RELEASED": "أُفرج عن الدفعة", "BATCH_REJECTED": "رُفضت الدفعة", "QUALITY_HOLD": "حجز جودة"
+    },
+    "stat": { "totalEvents": "إجمالي الأحداث", "allTime": "كل الأوقات", "last24h": "آخر 24 ساعة", "newEvents": "أحداث جديدة", "last7d": "آخر 7 أيام", "recentActivity": "نشاط حديث" },
+    "qty": "الكمية",
+    "noHistory": "لا يوجد سجل.",
+    "geneTraceBackward": "للخلف (منتج نهائي → مدخلات)", "geneTraceForward": "للأمام (مادة → مخرجات)",
+    "geneHintBackward": "أدخل رقم أمر عمل (مثل WO-2026-0001) أو رقم دفعة المخرجات للتتبع رجوعاً عبر كل خطوة مسار → لوتات المواد المستهلكة بالضبط.",
+    "geneHintForward": "أدخل رقم لوت مادة للتتبع للأمام عبر كل أمر عمل استهلكه والدفعات النهائية المنتَجة.",
+    "genePlaceholderBackward": "رقم أمر العمل أو رقم الدفعة…", "genePlaceholderForward": "رقم لوت المادة…",
+    "geneTrace": "تتبّع", "geneError": "الكيان غير موجود أو لا توجد بيانات تتبّع.",
+    "geneBackwardTitle": "شجرة الإنتاج للخلف", "geneForwardTitle": "شجرة الإنتاج للأمام"
   },
   "plm": {
     "overview": { "title": "إدارة دورة حياة المنتج", "subtitle": "المنتجات وقوائم المكوّنات والوصفات وعمليات التصنيع" },
@@ -164,7 +252,26 @@
     },
     "crkpi": { "open": "طلبات مفتوحة", "underReview": "قيد المراجعة", "approvedMonth": "معتمدة هذا الشهر", "rejected": "مرفوضة" },
     "design": { "title": "تصميم التصنيع", "subtitle": "مصفوفة إدارة المنتج — تغطية المكوّنات والوصفة والعملية لكل منتج" },
-    "reports": { "title": "تقارير إدارة المنتج", "subtitle": "إدارة دورة حياة المنتج — الكتالوج والمكوّنات والوصفات وسجل التغييرات" }
+    "reports": { "title": "تقارير إدارة المنتج", "subtitle": "إدارة دورة حياة المنتج — الكتالوج والمكوّنات والوصفات وسجل التغييرات" },
+    "crType": { "BOM_CHANGE": "قائمة المكوّنات", "RECIPE_CHANGE": "وصفة", "PROCESS_CHANGE": "عملية", "DESIGN_CHANGE": "تصميم" },
+    "crStatus": { "DRAFT": "مسودة", "SUBMITTED": "مُقدَّم", "UNDER_REVIEW": "قيد المراجعة", "APPROVED": "معتمد", "REJECTED": "مرفوض", "IMPLEMENTED": "مُنفَّذ" },
+    "crPriorityLabel": "أولوية {{priority}}",
+    "crWorkflow": {
+      "heading": "سير عمل طلب التغيير",
+      "draft": "مسودة", "submitted": "مُقدَّم", "underReview": "قيد المراجعة", "decided": "معتمد / مرفوض", "implemented": "مُنفَّذ"
+    },
+    "crFilter": {
+      "type": "النوع", "status": "الحالة", "priority": "الأولوية",
+      "allTypes": "كل الأنواع", "allStatuses": "كل الحالات", "allPriorities": "كل الأولويات",
+      "bomChange": "تغيير قائمة المكوّنات", "recipeChange": "تغيير الوصفة", "processChange": "تغيير العملية", "designChange": "تغيير التصميم",
+      "critical": "حرجة", "high": "عالية", "medium": "متوسطة", "low": "منخفضة"
+    },
+    "crRecordCount_one": "سجل واحد", "crRecordCount_other": "{{count}} سجل",
+    "crCol": { "crNumber": "رقم الطلب", "title": "العنوان", "type": "النوع", "priority": "الأولوية", "affectedProduct": "المنتج المتأثر", "status": "الحالة", "requestedBy": "مقدّم الطلب", "targetDate": "التاريخ المستهدف", "actions": "إجراءات" },
+    "crAction": { "view": "عرض", "approve": "اعتماد", "reject": "رفض", "startReview": "بدء المراجعة", "implement": "تنفيذ", "close": "إغلاق" },
+    "crDist": "توزيع طلبات التغيير حسب النوع",
+    "crDetail": { "description": "الوصف", "reason": "السبب / المبرر", "affectedProduct": "المنتج المتأثر", "requestedBy": "مقدّم الطلب", "reviewedBy": "راجعه", "created": "تاريخ الإنشاء", "targetDate": "التاريخ المستهدف" },
+    "crToast": { "submitted": "تم تقديم طلب التغيير {{crNumber}} للمراجعة", "transition": "{{crNumber}} → {{status}}", "opFailed": "فشلت العملية" }
   },
   "notifications": {
     "title": "الإشعارات",
@@ -175,8 +282,40 @@
     "severity": "الخطورة", "category": "الفئة", "unreadOnly": "غير المقروء فقط", "clearFilters": "مسح الفلاتر",
     "loading": "جارٍ تحميل الإشعارات…", "noMatch": "لا توجد إشعارات مطابقة للفلاتر", "noYet": "لا توجد إشعارات بعد",
     "noMatchHint": "جرّب مسح الفلاتر لعرض كل الإشعارات.", "noYetHint": "ستظهر أحداث النظام والإنذارات والتنبيهات هنا عند تشغيلها.",
-    "sev": { "all": "الكل", "error": "خطأ", "warning": "تحذير", "info": "معلومة" },
-    "cat": { "all": "الكل", "alarm": "إنذار", "production": "إنتاج", "quality": "جودة", "maintenance": "صيانة", "downtime": "توقف", "energy": "طاقة" }
+    "sev": { "all": "الكل", "error": "خطأ", "warning": "تحذير", "info": "معلومة", "success": "نجاح", "critical": "حرج" },
+    "cat": { "all": "الكل", "alarm": "إنذار", "production": "إنتاج", "quality": "جودة", "maintenance": "صيانة", "downtime": "توقف", "energy": "طاقة", "inventory": "مخزون", "system": "النظام" },
+    "prefs": {
+      "subtitle": "اختر كيف تريد أن يتم إشعارك لكل فئة من الأحداث.",
+      "category": "الفئة", "minSeverity": "أدنى خطورة", "loading": "جارٍ تحميل التفضيلات…",
+      "saveFailed": "فشل حفظ التفضيل",
+      "footnote": "تظهر إشعارات داخل التطبيق في الجرس وفي هذه الصفحة. يتطلب البريد الإلكتروني/الرسائل النصية/الإشعارات الفورية تهيئة القناة المعنية من قِبل المسؤول.",
+      "catAlarm": "الإنذارات", "catProduction": "الإنتاج", "catQuality": "الجودة", "catMaintenance": "الصيانة", "catDowntime": "التوقف", "catEnergy": "الطاقة", "catInventory": "المخزون", "catSystem": "النظام",
+      "sevInfo": "معلومة فأعلى", "sevWarning": "تحذير فأعلى", "sevError": "خطأ فأعلى", "sevCritical": "الحرج فقط",
+      "chInApp": "داخل التطبيق", "chEmail": "البريد الإلكتروني", "chSms": "رسالة نصية", "chPush": "إشعار فوري"
+    },
+    "toast": { "allRead": "تم تحديد كل الإشعارات كمقروءة", "allReadFailed": "فشل تحديد الكل كمقروء", "deleted": "تم حذف الإشعار", "deleteFailed": "فشل الحذف", "testSent": "تم إرسال إشعار اختباري", "testFailed": "فشل إرسال الاختبار" },
+    "page": { "prev": "السابق", "next": "التالي", "indicator": "صفحة {{page}} / {{total}}", "summary": "{{total}} إجمالاً · {{unread}} غير مقروء · عرض {{from}}–{{to}}" },
+    "rulesView": {
+      "subtitle": "وجّه الأحداث إلى قنوات وأدوار محددة. تتجاوز القواعد الإعدادات الافتراضية المدمجة.",
+      "newRule": "قاعدة جديدة", "editTitle": "تعديل القاعدة", "createTitle": "قاعدة إشعار جديدة",
+      "ruleName": "اسم القاعدة", "ruleNamePlaceholder": "مثال: تنبيه فريق الجودة عند تقرير عدم مطابقة حرج",
+      "triggerEvent": "الحدث المُشغِّل", "channels": "القنوات", "recipientRoles": "أدوار المستلمين",
+      "rolesHint": "اتركه فارغًا للرجوع إلى المستلمين الافتراضيين المدمجين لهذا الحدث.",
+      "active": "نشط", "defaultRecipients": "المستلمون الافتراضيون",
+      "activeTitle": "نشط — انقر للتعطيل", "disabledTitle": "معطّل — انقر للتفعيل",
+      "noPermission": "لا توجد صلاحية", "noPermissionPre": "تحتاج إلى صلاحية", "noPermissionPost": "لإدارة القواعد.",
+      "loading": "جارٍ تحميل القواعد…", "noRules": "لا توجد قواعد مخصّصة بعد",
+      "noRulesHint": "لا تزال الإعدادات الافتراضية المدمجة سارية. أضف قاعدة لتخصيص القنوات أو المستلمين.",
+      "deleteTitle": "حذف قاعدة الإشعار",
+      "toast": { "saved": "تم حفظ القاعدة", "saveFailed": "فشل حفظ القاعدة", "deleted": "تم حذف القاعدة", "deleteFailed": "فشل حذف القاعدة" },
+      "channel": { "in_app": "داخل التطبيق", "email": "البريد الإلكتروني", "sms": "رسالة نصية", "push": "إشعار فوري" },
+      "event": {
+        "started": "الإنتاج · بدء أمر العمل", "held": "الإنتاج · أمر عمل موقوف",
+        "downtimeUnplanned": "التوقف · توقف غير مخطط", "downtimeAuto": "التوقف · مكتشف تلقائياً",
+        "inspectionFailed": "الجودة · فشل الفحص", "ncrRaised": "الجودة · رفع تقرير عدم مطابقة", "ncrCritical": "الجودة · تقرير عدم مطابقة حرج",
+        "emergencyWo": "الصيانة · أمر عمل طارئ", "breakdown": "الماكينة · عطل"
+      }
+    }
   },
   "alarms": {
     "title": "إدارة الإنذارات",

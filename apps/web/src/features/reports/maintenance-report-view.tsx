@@ -38,29 +38,29 @@ export function MaintenanceReportView() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
             <Calendar size={13} />
-            Date Range
+            {t('reports.maint.dateRange')}
           </Button>
           <Button size="sm" className="gap-1.5 h-8 text-xs">
             <Download size={13} />
-            Export PDF
+            {t('reports.maint.exportPdf')}
           </Button>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KPICard title="MTBF" value={(reportData as any)?.mtbf ?? 0} unit="hrs" isLoading={isLoading} />
-          <KPICard title="MTTR" value={(reportData as any)?.mttr ?? 0} unit="hrs" isLoading={isLoading} />
-          <KPICard title="Work Orders" value={(reportData as any)?.totalWO ?? 0} isLoading={isLoading} />
-          <KPICard title="Completion Rate" value={(reportData as any)?.completionRate ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
+          <KPICard title={t('reports.maint.mtbf')} value={(reportData as any)?.mtbf ?? 0} unit={t('reports.maint.hrs')} isLoading={isLoading} />
+          <KPICard title={t('reports.maint.mttr')} value={(reportData as any)?.mttr ?? 0} unit={t('reports.maint.hrs')} isLoading={isLoading} />
+          <KPICard title={t('reports.maint.workOrders')} value={(reportData as any)?.totalWO ?? 0} isLoading={isLoading} />
+          <KPICard title={t('reports.maint.completionRate')} value={(reportData as any)?.completionRate ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* By status */}
           <div className="industrial-card p-4">
-            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><FileText size={14} className="text-brand-400" /> By Status</h3>
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><FileText size={14} className="text-brand-400" /> {t('reports.maint.byStatus')}</h3>
             {byStatus.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">No work orders in this period</p>
+              <p className="text-xs text-muted-foreground py-6 text-center">{t('reports.maint.noWorkOrders')}</p>
             ) : (
               <div className="space-y-2">
                 {byStatus.sort((a, b) => b[1] - a[1]).map(([s, n]) => (
@@ -75,9 +75,9 @@ export function MaintenanceReportView() {
 
           {/* By type */}
           <div className="industrial-card p-4">
-            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><TrendingUp size={14} className="text-brand-400" /> By Type</h3>
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><TrendingUp size={14} className="text-brand-400" /> {t('reports.maint.byType')}</h3>
             {byType.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">No work orders in this period</p>
+              <p className="text-xs text-muted-foreground py-6 text-center">{t('reports.maint.noWorkOrders')}</p>
             ) : (
               <div className="space-y-2">
                 {byType.sort((a, b) => b[1] - a[1]).map(([t, n]) => (
@@ -92,18 +92,18 @@ export function MaintenanceReportView() {
 
           {/* Cost + reliability */}
           <div className="industrial-card p-4">
-            <h3 className="text-sm font-semibold mb-3">Cost & Reliability</h3>
+            <h3 className="text-sm font-semibold mb-3">{t('reports.maint.costReliability')}</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Total Maintenance Cost</span>
-                <span className="font-semibold tabular-nums text-foreground">{(r?.totalCost ?? 0).toLocaleString()} SAR</span>
+                <span className="text-muted-foreground">{t('reports.maint.totalCost')}</span>
+                <span className="font-semibold tabular-nums text-foreground">{t('reports.maint.sarValue', { value: (r?.totalCost ?? 0).toLocaleString() })}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Failures (corrective + emergency)</span>
+                <span className="text-muted-foreground">{t('reports.maint.failures')}</span>
                 <span className="font-semibold tabular-nums text-foreground">{r?.failures ?? 0}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Completed WOs</span>
+                <span className="text-muted-foreground">{t('reports.maint.completedWos')}</span>
                 <span className="font-semibold tabular-nums text-foreground">{r?.completedWO ?? 0} / {r?.totalWO ?? 0}</span>
               </div>
             </div>

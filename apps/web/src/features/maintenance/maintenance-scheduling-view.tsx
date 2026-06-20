@@ -73,32 +73,32 @@ interface MaintenanceKPIs {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const TYPE_CONFIG: Record<WOType, { label: string; color: string; bgClass: string; chipClass: string }> = {
-  PREVENTIVE:      { label: 'Preventive',      color: 'text-blue-400',   bgClass: 'bg-blue-400/10 border-blue-400/30',   chipClass: 'bg-blue-500' },
-  CORRECTIVE:      { label: 'Corrective',      color: 'text-red-400',    bgClass: 'bg-red-400/10 border-red-400/30',     chipClass: 'bg-red-500' },
-  PREDICTIVE:      { label: 'Predictive',      color: 'text-purple-400', bgClass: 'bg-purple-400/10 border-purple-400/30', chipClass: 'bg-purple-500' },
-  CONDITION_BASED: { label: 'Condition Based', color: 'text-green-400',  bgClass: 'bg-green-400/10 border-green-400/30',  chipClass: 'bg-green-500' },
+const TYPE_CONFIG: Record<WOType, { labelKey: string; color: string; bgClass: string; chipClass: string }> = {
+  PREVENTIVE:      { labelKey: 'schedView.type.PREVENTIVE',      color: 'text-blue-400',   bgClass: 'bg-blue-400/10 border-blue-400/30',   chipClass: 'bg-blue-500' },
+  CORRECTIVE:      { labelKey: 'schedView.type.CORRECTIVE',      color: 'text-red-400',    bgClass: 'bg-red-400/10 border-red-400/30',     chipClass: 'bg-red-500' },
+  PREDICTIVE:      { labelKey: 'schedView.type.PREDICTIVE',      color: 'text-purple-400', bgClass: 'bg-purple-400/10 border-purple-400/30', chipClass: 'bg-purple-500' },
+  CONDITION_BASED: { labelKey: 'schedView.type.CONDITION_BASED', color: 'text-green-400',  bgClass: 'bg-green-400/10 border-green-400/30',  chipClass: 'bg-green-500' },
 };
 
-const PRIORITY_CONFIG: Record<WOPriority, { label: string; color: string; badgeClass: string }> = {
-  CRITICAL: { label: 'Critical', color: 'text-red-400',    badgeClass: 'bg-red-500/15 text-red-400 border-red-400/30' },
-  HIGH:     { label: 'High',     color: 'text-orange-400', badgeClass: 'bg-orange-500/15 text-orange-400 border-orange-400/30' },
-  MEDIUM:   { label: 'Medium',   color: 'text-yellow-400', badgeClass: 'bg-yellow-500/15 text-yellow-400 border-yellow-400/30' },
-  LOW:      { label: 'Low',      color: 'text-gray-400',   badgeClass: 'bg-gray-500/15 text-gray-400 border-gray-400/30' },
+const PRIORITY_CONFIG: Record<WOPriority, { labelKey: string; color: string; badgeClass: string }> = {
+  CRITICAL: { labelKey: 'schedView.priority.CRITICAL', color: 'text-red-400',    badgeClass: 'bg-red-500/15 text-red-400 border-red-400/30' },
+  HIGH:     { labelKey: 'schedView.priority.HIGH',     color: 'text-orange-400', badgeClass: 'bg-orange-500/15 text-orange-400 border-orange-400/30' },
+  MEDIUM:   { labelKey: 'schedView.priority.MEDIUM',   color: 'text-yellow-400', badgeClass: 'bg-yellow-500/15 text-yellow-400 border-yellow-400/30' },
+  LOW:      { labelKey: 'schedView.priority.LOW',      color: 'text-gray-400',   badgeClass: 'bg-gray-500/15 text-gray-400 border-gray-400/30' },
 };
 
-const STATUS_CONFIG: Record<WOStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  PLANNED:     { label: 'Planned',     variant: 'outline' },
-  ASSIGNED:    { label: 'Assigned',    variant: 'secondary' },
-  IN_PROGRESS: { label: 'In Progress', variant: 'default' },
-  ON_HOLD:     { label: 'On Hold',     variant: 'outline' },
-  COMPLETED:   { label: 'Completed',   variant: 'default' },
-  CANCELLED:   { label: 'Cancelled',   variant: 'destructive' },
+const STATUS_CONFIG: Record<WOStatus, { labelKey: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  PLANNED:     { labelKey: 'schedView.status.PLANNED',     variant: 'outline' },
+  ASSIGNED:    { labelKey: 'schedView.status.ASSIGNED',    variant: 'secondary' },
+  IN_PROGRESS: { labelKey: 'schedView.status.IN_PROGRESS', variant: 'default' },
+  ON_HOLD:     { labelKey: 'schedView.status.ON_HOLD',     variant: 'outline' },
+  COMPLETED:   { labelKey: 'schedView.status.COMPLETED',   variant: 'default' },
+  CANCELLED:   { labelKey: 'schedView.status.CANCELLED',   variant: 'destructive' },
 };
 
 const DONE_STATUSES: WOStatus[] = ['COMPLETED', 'CANCELLED'];
 
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -154,19 +154,21 @@ function durationLabel(minutes: number | null): string {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function TypeBadge({ type }: { type: WOType }) {
+  const { t } = useTranslation(['maintenance', 'common']);
   const cfg = TYPE_CONFIG[type];
   return (
     <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium', cfg.color, cfg.bgClass)}>
-      {cfg.label}
+      {t(`schedView.type.${type}`, { defaultValue: t(cfg.labelKey) })}
     </span>
   );
 }
 
 function PriorityBadge({ priority }: { priority: WOPriority }) {
+  const { t } = useTranslation(['maintenance', 'common']);
   const cfg = PRIORITY_CONFIG[priority];
   return (
     <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold', cfg.badgeClass)}>
-      {cfg.label}
+      {t(`common:priority.${priority}`, { defaultValue: t(cfg.labelKey) })}
     </span>
   );
 }
@@ -324,7 +326,7 @@ export default function MaintenanceSchedulingView() {
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
               )}
             >
-              <Filter size={12} />List
+              <Filter size={12} />{t('schedView.list')}
             </button>
             <button
               onClick={() => setViewMode('calendar')}
@@ -335,12 +337,12 @@ export default function MaintenanceSchedulingView() {
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
               )}
             >
-              <Calendar size={12} />Calendar
+              <Calendar size={12} />{t('schedView.calendar')}
             </button>
           </div>
           <Button size="sm" className="h-8 text-xs gap-1.5" asChild>
             <Link href="/maintenance/work-orders">
-              <Wrench size={12} />New Work Order
+              <Wrench size={12} />{t('schedView.newWorkOrder')}
             </Link>
           </Button>
         </div>
@@ -350,13 +352,13 @@ export default function MaintenanceSchedulingView() {
         {/* ── KPI Strip ────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <KpiCard
-            label="Open WOs"
+            label={t('schedView.kpiOpenWOs')}
             value={kpiLoading ? '—' : (kpis?.openWOs ?? 0)}
             icon={Wrench}
             iconClass="text-brand-400"
           />
           <KpiCard
-            label="Overdue"
+            label={t('schedView.kpiOverdue')}
             value={kpiLoading ? '—' : overdueCount}
             icon={AlertTriangle}
             iconClass={overdueCount > 0 ? 'text-red-400' : 'text-muted-foreground'}
@@ -367,19 +369,19 @@ export default function MaintenanceSchedulingView() {
             }
           />
           <KpiCard
-            label="MTTR (hrs)"
+            label={t('schedView.kpiMttr')}
             value={kpiLoading ? '—' : kpis?.mttr != null ? Number(kpis.mttr).toFixed(1) : '—'}
             icon={Clock}
             iconClass="text-amber-400"
           />
           <KpiCard
-            label="MTBF (hrs)"
+            label={t('schedView.kpiMtbf')}
             value={kpiLoading ? '—' : kpis?.mtbf != null ? Number(kpis.mtbf).toFixed(1) : '—'}
             icon={CheckCircle2}
             iconClass="text-green-400"
           />
           <KpiCard
-            label="PM Compliance"
+            label={t('schedView.kpiPmCompliance')}
             value={kpiLoading ? '—' : kpis?.pmCompliance != null ? `${Number(kpis.pmCompliance).toFixed(1)}%` : '—'}
             icon={Calendar}
             iconClass="text-purple-400"
@@ -395,7 +397,7 @@ export default function MaintenanceSchedulingView() {
           >
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle size={14} className="text-red-400 shrink-0" />
-              <span className="text-sm font-semibold text-red-400">{overdueCount} overdue work order{overdueCount !== 1 ? 's' : ''}</span>
+              <span className="text-sm font-semibold text-red-400">{t('schedView.overdueCount', { count: overdueCount })}</span>
             </div>
             <div className="space-y-1.5">
               {overdueWOs.slice(0, 5).map(wo => (
@@ -407,7 +409,7 @@ export default function MaintenanceSchedulingView() {
                 </div>
               ))}
               {overdueWOs.length > 5 && (
-                <p className="text-xs text-red-400/70 mt-1">+{overdueWOs.length - 5} more overdue items</p>
+                <p className="text-xs text-red-400/70 mt-1">{t('schedView.moreOverdue', { count: overdueWOs.length - 5 })}</p>
               )}
             </div>
           </motion.div>
@@ -425,13 +427,13 @@ export default function MaintenanceSchedulingView() {
             <div className="flex items-center gap-1 flex-wrap">
               {(
                 [
-                  { key: 'ALL',        label: 'All' },
-                  { key: 'TODAY',      label: 'Today' },
-                  { key: 'THIS_WEEK',  label: 'This Week' },
-                  { key: 'OVERDUE',    label: 'Overdue' },
-                  { key: 'PREVENTIVE', label: 'Preventive' },
-                  { key: 'CORRECTIVE', label: 'Corrective' },
-                ] as { key: FilterTab; label: string }[]
+                  { key: 'ALL',        labelKey: 'schedView.tabs.all' },
+                  { key: 'TODAY',      labelKey: 'schedView.tabs.today' },
+                  { key: 'THIS_WEEK',  labelKey: 'schedView.tabs.thisWeek' },
+                  { key: 'OVERDUE',    labelKey: 'schedView.tabs.overdue' },
+                  { key: 'PREVENTIVE', labelKey: 'schedView.tabs.preventive' },
+                  { key: 'CORRECTIVE', labelKey: 'schedView.tabs.corrective' },
+                ] as { key: FilterTab; labelKey: string }[]
               ).map(tab => (
                 <button
                   key={tab.key}
@@ -443,7 +445,7 @@ export default function MaintenanceSchedulingView() {
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/40 border border-transparent'
                   )}
                 >
-                  {tab.label}
+                  {t(tab.labelKey)}
                 </button>
               ))}
 
@@ -452,27 +454,27 @@ export default function MaintenanceSchedulingView() {
                 <SelectMenu
                   value={priorityFilter}
                   onValueChange={setPriorityFilter}
-                  menuLabel="Priority"
+                  menuLabel={t('schedView.priorityMenu')}
                   options={[
-                    { value: 'ALL', label: 'All Priority' },
-                    { value: 'CRITICAL', label: 'Critical' },
-                    { value: 'HIGH', label: 'High' },
-                    { value: 'MEDIUM', label: 'Medium' },
-                    { value: 'LOW', label: 'Low' },
+                    { value: 'ALL', label: t('schedView.allPriority') },
+                    { value: 'CRITICAL', label: t('schedView.priority.CRITICAL') },
+                    { value: 'HIGH', label: t('schedView.priority.HIGH') },
+                    { value: 'MEDIUM', label: t('schedView.priority.MEDIUM') },
+                    { value: 'LOW', label: t('schedView.priority.LOW') },
                   ]}
                 />
                 <SelectMenu
                   value={statusFilter}
                   onValueChange={setStatusFilter}
-                  menuLabel="Status"
+                  menuLabel={t('schedView.statusMenu')}
                   options={[
-                    { value: 'ALL', label: 'All Status' },
-                    { value: 'PLANNED', label: 'Planned' },
-                    { value: 'ASSIGNED', label: 'Assigned' },
-                    { value: 'IN_PROGRESS', label: 'In Progress' },
-                    { value: 'ON_HOLD', label: 'On Hold' },
-                    { value: 'COMPLETED', label: 'Completed' },
-                    { value: 'CANCELLED', label: 'Cancelled' },
+                    { value: 'ALL', label: t('schedView.allStatus') },
+                    { value: 'PLANNED', label: t('schedView.status.PLANNED') },
+                    { value: 'ASSIGNED', label: t('schedView.status.ASSIGNED') },
+                    { value: 'IN_PROGRESS', label: t('schedView.status.IN_PROGRESS') },
+                    { value: 'ON_HOLD', label: t('schedView.status.ON_HOLD') },
+                    { value: 'COMPLETED', label: t('schedView.status.COMPLETED') },
+                    { value: 'CANCELLED', label: t('schedView.status.CANCELLED') },
                   ]}
                 />
               </div>
@@ -485,10 +487,10 @@ export default function MaintenanceSchedulingView() {
                   <thead>
                     <tr className="border-b border-border/30 bg-muted/30">
                       {[
-                        'WO #', 'Title', 'Type', 'Priority', 'Machine',
-                        'Assigned To', 'Scheduled', 'Due Date', 'Status', 'Duration', 'Actions',
-                      ].map(h => (
-                        <th key={h} className="text-left px-3 py-2.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
+                        t('schedView.col.wo'), t('schedView.col.title'), t('schedView.col.type'), t('schedView.col.priority'), t('schedView.col.machine'),
+                        t('schedView.col.assignedTo'), t('schedView.col.scheduled'), t('schedView.col.dueDate'), t('schedView.col.status'), t('schedView.col.duration'), t('schedView.col.actions'),
+                      ].map((h, i) => (
+                        <th key={i} className="text-left px-3 py-2.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -507,7 +509,7 @@ export default function MaintenanceSchedulingView() {
                         ? (
                           <tr>
                             <td colSpan={11} className="px-3 py-10 text-center text-muted-foreground">
-                              No work orders found for this filter.
+                              {t('schedView.noWOsForFilter')}
                             </td>
                           </tr>
                         )
@@ -530,11 +532,11 @@ export default function MaintenanceSchedulingView() {
                                   <div className="font-medium truncate">{wo.title}</div>
                                   {overdue && (
                                     <span className="text-[10px] text-red-400 flex items-center gap-0.5">
-                                      <AlertTriangle size={9} />Overdue
+                                      <AlertTriangle size={9} />{t('schedView.overdueTag')}
                                     </span>
                                   )}
                                   {todayRow && !overdue && (
-                                    <span className="text-[10px] text-yellow-400">Today</span>
+                                    <span className="text-[10px] text-yellow-400">{t('schedView.todayTag')}</span>
                                   )}
                                 </td>
                                 <td className="px-3 py-2.5 whitespace-nowrap">
@@ -552,7 +554,7 @@ export default function MaintenanceSchedulingView() {
                                 <td className="px-3 py-2.5 whitespace-nowrap">
                                   {wo.assignedTo
                                     ? <span>{wo.assignedTo.firstName} {wo.assignedTo.lastName}</span>
-                                    : <span className="text-muted-foreground">Unassigned</span>
+                                    : <span className="text-muted-foreground">{t('schedView.unassigned')}</span>
                                   }
                                 </td>
                                 <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">
@@ -563,7 +565,7 @@ export default function MaintenanceSchedulingView() {
                                 </td>
                                 <td className="px-3 py-2.5 whitespace-nowrap">
                                   <Badge variant={STATUS_CONFIG[wo.status]?.variant ?? 'outline'} className="text-[10px] h-5">
-                                    {STATUS_CONFIG[wo.status]?.label ?? wo.status}
+                                    {t(`schedView.status.${wo.status}`, { defaultValue: wo.status })}
                                   </Badge>
                                 </td>
                                 <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">
@@ -571,7 +573,7 @@ export default function MaintenanceSchedulingView() {
                                 </td>
                                 <td className="px-3 py-2.5 whitespace-nowrap">
                                   <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" asChild>
-                                    <Link href="/maintenance/work-orders">View</Link>
+                                    <Link href="/maintenance/work-orders">{t('schedView.view')}</Link>
                                   </Button>
                                 </td>
                               </tr>
@@ -583,7 +585,7 @@ export default function MaintenanceSchedulingView() {
               </div>
               {!woLoading && filteredWOs.length > 0 && (
                 <div className="px-3 py-2 border-t border-border/20 text-[11px] text-muted-foreground">
-                  {filteredWOs.length} work order{filteredWOs.length !== 1 ? 's' : ''}
+                  {t('schedView.woCount', { count: filteredWOs.length })}
                 </div>
               )}
             </div>
@@ -620,9 +622,9 @@ export default function MaintenanceSchedulingView() {
 
               {/* Weekday headers */}
               <div className="grid grid-cols-7 gap-1 mb-1">
-                {WEEKDAY_LABELS.map(d => (
+                {WEEKDAY_KEYS.map(d => (
                   <div key={d} className="text-center text-[11px] font-semibold text-muted-foreground py-1">
-                    {d}
+                    {t(`schedView.weekdays.${d}`)}
                   </div>
                 ))}
               </div>
@@ -675,7 +677,7 @@ export default function MaintenanceSchedulingView() {
                           </div>
                         ))}
                         {dayWOs.length > 3 && (
-                          <span className="text-[9px] text-muted-foreground px-1">+{dayWOs.length - 3} more</span>
+                          <span className="text-[9px] text-muted-foreground px-1">{t('schedView.moreItems', { count: dayWOs.length - 3 })}</span>
                         )}
                       </div>
                     </button>
@@ -692,13 +694,13 @@ export default function MaintenanceSchedulingView() {
                 className="industrial-card rounded-lg p-4"
               >
                 <h3 className="text-sm font-semibold mb-3">
-                  {monthName} {selectedDay}, {currentYear}
+                  {t('schedView.selectedDayTitle', { month: monthName, day: selectedDay, year: currentYear })}
                   <span className="ml-2 text-xs text-muted-foreground font-normal">
-                    {selectedDayWOs.length} work order{selectedDayWOs.length !== 1 ? 's' : ''}
+                    {t('schedView.selectedDayWOs', { count: selectedDayWOs.length })}
                   </span>
                 </h3>
                 {selectedDayWOs.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-2">No work orders scheduled for this day.</p>
+                  <p className="text-xs text-muted-foreground py-2">{t('schedView.noWOsForDay')}</p>
                 ) : (
                   <div className="space-y-2">
                     {selectedDayWOs.map(wo => (
@@ -713,7 +715,7 @@ export default function MaintenanceSchedulingView() {
                             <TypeBadge type={wo.type} />
                             <PriorityBadge priority={wo.priority} />
                             <Badge variant={STATUS_CONFIG[wo.status]?.variant ?? 'outline'} className="text-[10px] h-5">
-                              {STATUS_CONFIG[wo.status]?.label ?? wo.status}
+                              {t(`schedView.status.${wo.status}`, { defaultValue: wo.status })}
                             </Badge>
                           </div>
                           <div className="text-xs font-medium truncate">{wo.title}</div>
@@ -730,7 +732,7 @@ export default function MaintenanceSchedulingView() {
                           </div>
                         </div>
                         <Button variant="outline" size="sm" className="h-6 text-[10px] px-2 shrink-0" asChild>
-                          <Link href="/maintenance/work-orders">View</Link>
+                          <Link href="/maintenance/work-orders">{t('schedView.view')}</Link>
                         </Button>
                       </div>
                     ))}
@@ -746,8 +748,8 @@ export default function MaintenanceSchedulingView() {
           <div className="industrial-card rounded-lg p-4">
             <div className="flex items-center gap-2 mb-3">
               <Calendar size={14} className="text-brand-400" />
-              <h3 className="text-sm font-semibold">Next 7 Days</h3>
-              <span className="text-xs text-muted-foreground">({next7WOs.length} work orders)</span>
+              <h3 className="text-sm font-semibold">{t('schedView.next7Days')}</h3>
+              <span className="text-xs text-muted-foreground">{t('schedView.next7Count', { count: next7WOs.length })}</span>
             </div>
             <div className="space-y-1.5">
               {next7WOs.map(wo => (
@@ -763,7 +765,7 @@ export default function MaintenanceSchedulingView() {
                   <TypeBadge type={wo.type} />
                   <PriorityBadge priority={wo.priority} />
                   <Badge variant={STATUS_CONFIG[wo.status]?.variant ?? 'outline'} className="text-[10px] h-5 shrink-0">
-                    {STATUS_CONFIG[wo.status]?.label ?? wo.status}
+                    {t(`schedView.status.${wo.status}`, { defaultValue: wo.status })}
                   </Badge>
                 </div>
               ))}

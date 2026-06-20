@@ -92,25 +92,25 @@ interface NcrResponse {
 
 const INSPECTION_TYPE_CONFIG: Record<
   InspectionType,
-  { label: string; className: string }
+  { labelKey: string; className: string }
 > = {
   IN_PROCESS: {
-    label: 'In-Process',
+    labelKey: 'recordsView.type.IN_PROCESS',
     className:
       'bg-blue-500/15 text-blue-400 border-blue-500/30',
   },
   INCOMING: {
-    label: 'Incoming',
+    labelKey: 'recordsView.type.INCOMING',
     className:
       'bg-purple-500/15 text-purple-400 border-purple-500/30',
   },
   FINAL: {
-    label: 'Final',
+    labelKey: 'recordsView.type.FINAL',
     className:
       'bg-green-500/15 text-green-400 border-green-500/30',
   },
   AUDIT: {
-    label: 'Audit',
+    labelKey: 'recordsView.type.AUDIT',
     className:
       'bg-orange-500/15 text-orange-400 border-orange-500/30',
   },
@@ -118,22 +118,22 @@ const INSPECTION_TYPE_CONFIG: Record<
 
 const RESULT_CONFIG: Record<
   InspectionResult,
-  { label: string; className: string; icon: React.ElementType }
+  { labelKey: string; className: string; icon: React.ElementType }
 > = {
   PASS: {
-    label: 'Pass',
+    labelKey: 'recordsView.result.PASS',
     className:
       'bg-green-500/15 text-green-400 border-green-500/30',
     icon: CheckCircle2,
   },
   FAIL: {
-    label: 'Fail',
+    labelKey: 'recordsView.result.FAIL',
     className:
       'bg-red-500/15 text-red-400 border-red-500/30',
     icon: XCircle,
   },
   CONDITIONAL: {
-    label: 'Conditional',
+    labelKey: 'recordsView.result.CONDITIONAL',
     className:
       'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
     icon: AlertTriangle,
@@ -142,58 +142,58 @@ const RESULT_CONFIG: Record<
 
 const INSPECTION_STATUS_CONFIG: Record<
   InspectionStatus,
-  { label: string; className: string }
+  { labelKey: string; className: string }
 > = {
   PLANNED: {
-    label: 'Planned',
+    labelKey: 'recordsView.status.PLANNED',
     className: 'bg-muted/50 text-muted-foreground border-border/40',
   },
   IN_PROGRESS: {
-    label: 'In Progress',
+    labelKey: 'recordsView.status.IN_PROGRESS',
     className: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
   },
   COMPLETED: {
-    label: 'Completed',
+    labelKey: 'recordsView.status.COMPLETED',
     className: 'bg-green-500/15 text-green-400 border-green-500/30',
   },
   CANCELLED: {
-    label: 'Cancelled',
+    labelKey: 'recordsView.status.CANCELLED',
     className: 'bg-muted/30 text-muted-foreground/60 border-border/30',
   },
 };
 
 const NCR_SEVERITY_CONFIG: Record<
   NcrSeverity,
-  { label: string; className: string }
+  { labelKey: string; className: string }
 > = {
   MINOR: {
-    label: 'Minor',
+    labelKey: 'recordsView.ncrSeverity.MINOR',
     className: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
   },
   MAJOR: {
-    label: 'Major',
+    labelKey: 'recordsView.ncrSeverity.MAJOR',
     className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
   },
   CRITICAL: {
-    label: 'Critical',
+    labelKey: 'recordsView.ncrSeverity.CRITICAL',
     className: 'bg-red-500/15 text-red-400 border-red-500/30',
   },
 };
 
 const NCR_STATUS_CONFIG: Record<
   NcrStatus,
-  { label: string; className: string }
+  { labelKey: string; className: string }
 > = {
   OPEN: {
-    label: 'Open',
+    labelKey: 'recordsView.ncrStatus.OPEN',
     className: 'bg-red-500/15 text-red-400 border-red-500/30',
   },
   UNDER_REVIEW: {
-    label: 'Under Review',
+    labelKey: 'recordsView.ncrStatus.UNDER_REVIEW',
     className: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
   },
   CLOSED: {
-    label: 'Closed',
+    labelKey: 'recordsView.ncrStatus.CLOSED',
     className: 'bg-green-500/15 text-green-400 border-green-500/30',
   },
 };
@@ -201,23 +201,24 @@ const NCR_STATUS_CONFIG: Record<
 // ─── Small helpers ────────────────────────────────────────────────────────────
 
 function InspectionTypeBadge({ type }: { type: InspectionType }) {
-  const cfg = INSPECTION_TYPE_CONFIG[type] ?? {
-    label: type,
-    className: 'bg-muted/30 text-muted-foreground border-border/30',
-  };
+  const { t } = useTranslation('quality');
+  const cfg = INSPECTION_TYPE_CONFIG[type];
+  const label = cfg ? t(cfg.labelKey) : type;
+  const className = cfg?.className ?? 'bg-muted/30 text-muted-foreground border-border/30';
   return (
     <span
       className={cn(
         'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border',
-        cfg.className,
+        className,
       )}
     >
-      {cfg.label}
+      {label}
     </span>
   );
 }
 
 function ResultBadge({ result }: { result: InspectionResult }) {
+  const { t } = useTranslation('quality');
   const cfg = RESULT_CONFIG[result];
   if (!cfg) return <span className="text-xs text-muted-foreground">—</span>;
   const Icon = cfg.icon;
@@ -229,58 +230,58 @@ function ResultBadge({ result }: { result: InspectionResult }) {
       )}
     >
       <Icon size={10} />
-      {cfg.label}
+      {t(cfg.labelKey)}
     </span>
   );
 }
 
 function InspectionStatusBadge({ status }: { status: InspectionStatus }) {
-  const cfg = INSPECTION_STATUS_CONFIG[status] ?? {
-    label: status,
-    className: 'bg-muted/30 text-muted-foreground border-border/30',
-  };
+  const { t } = useTranslation('quality');
+  const cfg = INSPECTION_STATUS_CONFIG[status];
+  const label = cfg ? t(cfg.labelKey) : status;
+  const className = cfg?.className ?? 'bg-muted/30 text-muted-foreground border-border/30';
   return (
     <span
       className={cn(
         'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border',
-        cfg.className,
+        className,
       )}
     >
-      {cfg.label}
+      {label}
     </span>
   );
 }
 
 function NcrSeverityBadge({ severity }: { severity: NcrSeverity }) {
-  const cfg = NCR_SEVERITY_CONFIG[severity] ?? {
-    label: severity,
-    className: 'bg-muted/30 text-muted-foreground border-border/30',
-  };
+  const { t } = useTranslation('quality');
+  const cfg = NCR_SEVERITY_CONFIG[severity];
+  const label = cfg ? t(cfg.labelKey) : severity;
+  const className = cfg?.className ?? 'bg-muted/30 text-muted-foreground border-border/30';
   return (
     <span
       className={cn(
         'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border',
-        cfg.className,
+        className,
       )}
     >
-      {cfg.label}
+      {label}
     </span>
   );
 }
 
 function NcrStatusBadge({ status }: { status: NcrStatus }) {
-  const cfg = NCR_STATUS_CONFIG[status] ?? {
-    label: status,
-    className: 'bg-muted/30 text-muted-foreground border-border/30',
-  };
+  const { t } = useTranslation('quality');
+  const cfg = NCR_STATUS_CONFIG[status];
+  const label = cfg ? t(cfg.labelKey) : status;
+  const className = cfg?.className ?? 'bg-muted/30 text-muted-foreground border-border/30';
   return (
     <span
       className={cn(
         'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border',
-        cfg.className,
+        className,
       )}
     >
-      {cfg.label}
+      {label}
     </span>
   );
 }
@@ -403,7 +404,7 @@ function FilterBar({
       )}
 
       <div className="flex items-center gap-1.5">
-        <span className="text-[11px] text-muted-foreground">From</span>
+        <span className="text-[11px] text-muted-foreground">{t('common.from')}</span>
         <Input
           type="date"
           value={filters.dateFrom}
@@ -412,7 +413,7 @@ function FilterBar({
         />
       </div>
       <div className="flex items-center gap-1.5">
-        <span className="text-[11px] text-muted-foreground">To</span>
+        <span className="text-[11px] text-muted-foreground">{t('common.to')}</span>
         <Input
           type="date"
           value={filters.dateTo}
@@ -432,7 +433,7 @@ function FilterBar({
           className="h-8 text-xs text-muted-foreground"
           onClick={() => onChange(INITIAL_FILTERS)}
         >
-          Clear
+          {t('common.clear')}
         </Button>
       )}
     </div>
@@ -452,6 +453,7 @@ function Pagination({
   pageSize: number;
   onPageChange: (p: number) => void;
 }) {
+  const { t } = useTranslation('quality');
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const start = Math.min((page - 1) * pageSize + 1, total);
   const end = Math.min(page * pageSize, total);
@@ -459,7 +461,7 @@ function Pagination({
   return (
     <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
       <span className="text-xs text-muted-foreground">
-        Showing {total === 0 ? 0 : start}–{end} of {total} records
+        {t('recordsView.showing', { start: total === 0 ? 0 : start, end, total })}
       </span>
       <div className="flex items-center gap-1">
         <Button
@@ -527,22 +529,23 @@ function InspectionsTable({
   page: number;
   onPageChange: (p: number) => void;
 }) {
+  const { t } = useTranslation('quality');
   return (
     <>
       <div className="rounded-lg border border-border/30 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-border/30">
-              <TableHead className="text-[11px] font-semibold">Inspection #</TableHead>
-              <TableHead className="text-[11px] font-semibold">Type</TableHead>
-              <TableHead className="text-[11px] font-semibold">Product</TableHead>
-              <TableHead className="text-[11px] font-semibold">Batch</TableHead>
-              <TableHead className="text-[11px] font-semibold">Result</TableHead>
-              <TableHead className="text-[11px] font-semibold">Pass/Total</TableHead>
-              <TableHead className="text-[11px] font-semibold">Inspector</TableHead>
-              <TableHead className="text-[11px] font-semibold">Date</TableHead>
-              <TableHead className="text-[11px] font-semibold">Status</TableHead>
-              <TableHead className="text-[11px] font-semibold">Actions</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colInspection')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colType')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colProduct')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colBatch')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colResult')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colPassTotal')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colInspector')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colDate')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colStatus')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colActions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -554,7 +557,7 @@ function InspectionsTable({
                   colSpan={10}
                   className="text-center py-10 text-muted-foreground text-sm"
                 >
-                  No inspections found
+                  {t('recordsView.noInspections')}
                 </TableCell>
               </TableRow>
             ) : (
@@ -603,7 +606,7 @@ function InspectionsTable({
                         size="sm"
                         className="h-7 text-xs px-2"
                       >
-                        View
+                        {t('common.view')}
                       </Button>
                     </Link>
                   </TableCell>
@@ -638,19 +641,20 @@ function NcrTable({
   page: number;
   onPageChange: (p: number) => void;
 }) {
+  const { t } = useTranslation('quality');
   return (
     <>
       <div className="rounded-lg border border-border/30 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-border/30">
-              <TableHead className="text-[11px] font-semibold">NCR #</TableHead>
-              <TableHead className="text-[11px] font-semibold">Title</TableHead>
-              <TableHead className="text-[11px] font-semibold">Severity</TableHead>
-              <TableHead className="text-[11px] font-semibold">Product</TableHead>
-              <TableHead className="text-[11px] font-semibold">Status</TableHead>
-              <TableHead className="text-[11px] font-semibold">Detected</TableHead>
-              <TableHead className="text-[11px] font-semibold">Actions</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colNcr')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colTitle')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colSeverity')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colProduct')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colStatus')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colDetected')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colActions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -662,7 +666,7 @@ function NcrTable({
                   colSpan={7}
                   className="text-center py-10 text-muted-foreground text-sm"
                 >
-                  No NCRs found
+                  {t('recordsView.noNcrs')}
                 </TableCell>
               </TableRow>
             ) : (
@@ -704,7 +708,7 @@ function NcrTable({
                         size="sm"
                         className="h-7 text-xs px-2"
                       >
-                        View
+                        {t('common.view')}
                       </Button>
                     </Link>
                   </TableCell>
@@ -743,20 +747,21 @@ function AllRecordsTable({
   page: number;
   onPageChange: (p: number) => void;
 }) {
+  const { t } = useTranslation('quality');
   return (
     <>
       <div className="rounded-lg border border-border/30 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-border/30">
-              <TableHead className="text-[11px] font-semibold">Record Type</TableHead>
-              <TableHead className="text-[11px] font-semibold">Number</TableHead>
-              <TableHead className="text-[11px] font-semibold">Details</TableHead>
-              <TableHead className="text-[11px] font-semibold">Type / Severity</TableHead>
-              <TableHead className="text-[11px] font-semibold">Result / Status</TableHead>
-              <TableHead className="text-[11px] font-semibold">Product</TableHead>
-              <TableHead className="text-[11px] font-semibold">Date</TableHead>
-              <TableHead className="text-[11px] font-semibold">Actions</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colRecordType')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colNumber')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colDetails')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colTypeSeverity')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colResultStatus')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colProduct')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colDate')}</TableHead>
+              <TableHead className="text-[11px] font-semibold">{t('recordsView.colActions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -768,7 +773,7 @@ function AllRecordsTable({
                   colSpan={8}
                   className="text-center py-10 text-muted-foreground text-sm"
                 >
-                  No records found
+                  {t('recordsView.noRecords')}
                 </TableCell>
               </TableRow>
             ) : (
@@ -782,14 +787,14 @@ function AllRecordsTable({
                     >
                       <TableCell>
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-blue-500/15 text-blue-400 border-blue-500/30">
-                          Inspection
+                          {t('recordsView.kindInspection')}
                         </span>
                       </TableCell>
                       <TableCell className="font-mono text-xs font-semibold text-primary">
                         {ins.inspectionNumber}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        Batch: {ins.batch?.batchNumber ?? '—'}
+                        {t('recordsView.batchPrefix', { value: ins.batch?.batchNumber ?? '—' })}
                       </TableCell>
                       <TableCell>
                         <InspectionTypeBadge type={ins.type} />
@@ -810,7 +815,7 @@ function AllRecordsTable({
                             size="sm"
                             className="h-7 text-xs px-2"
                           >
-                            View
+                            {t('common.view')}
                           </Button>
                         </Link>
                       </TableCell>
@@ -826,7 +831,7 @@ function AllRecordsTable({
                   >
                     <TableCell>
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-red-500/15 text-red-400 border-red-500/30">
-                        NCR
+                        {t('recordsView.kindNcr')}
                       </span>
                     </TableCell>
                     <TableCell className="font-mono text-xs font-semibold text-primary">
@@ -854,7 +859,7 @@ function AllRecordsTable({
                           size="sm"
                           className="h-7 text-xs px-2"
                         >
-                          View
+                          {t('common.view')}
                         </Button>
                       </Link>
                     </TableCell>
@@ -1058,13 +1063,13 @@ export default function QualityRecordsView() {
           <Link href="/quality/inspections?new=1">
             <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
               <ClipboardCheck size={13} />
-              New Inspection
+              {t('recordsView.newInspection')}
             </Button>
           </Link>
           <Link href="/quality/ncr?new=1">
             <Button size="sm" className="h-8 text-xs gap-1.5">
               <AlertTriangle size={13} />
-              New NCR
+              {t('recordsView.newNcr')}
             </Button>
           </Link>
         </div>
@@ -1074,15 +1079,15 @@ export default function QualityRecordsView() {
         {/* KPI row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <KpiCard
-            label="Total Inspections"
+            label={t('recordsView.totalInspections')}
             value={totalInspections}
-            sub="across all types"
+            sub={t('recordsView.totalInspectionsSub')}
             delay={0}
           />
           <KpiCard
-            label="Pass Rate"
+            label={t('recordsView.passRate')}
             value={`${passRate}%`}
-            sub="pass qty / total qty"
+            sub={t('recordsView.passRateSub')}
             valueClassName={
               passRate >= 95
                 ? 'text-green-400'
@@ -1093,16 +1098,16 @@ export default function QualityRecordsView() {
             delay={0.05}
           />
           <KpiCard
-            label="Open NCRs"
+            label={t('recordsView.openNcrs')}
             value={openNcrs}
-            sub="requires attention"
+            sub={t('recordsView.openNcrsSub')}
             valueClassName={openNcrs > 0 ? 'text-red-400' : undefined}
             delay={0.1}
           />
           <KpiCard
-            label="Pending Inspections"
+            label={t('recordsView.pendingInspections')}
             value={pendingInspections}
-            sub="planned or in-progress"
+            sub={t('recordsView.pendingInspectionsSub')}
             valueClassName={pendingInspections > 0 ? 'text-amber-400' : undefined}
             delay={0.15}
           />
@@ -1118,10 +1123,10 @@ export default function QualityRecordsView() {
         >
           <TabsList className="h-8">
             <TabsTrigger value="all" className="text-xs h-7 px-3">
-              All Records
+              {t('recordsView.tabAll')}
             </TabsTrigger>
             <TabsTrigger value="inspections" className="text-xs h-7 px-3">
-              Inspections
+              {t('recordsView.tabInspections')}
               {filteredInspections.length > 0 && (
                 <span className="ml-1.5 bg-primary/20 text-primary text-[10px] px-1.5 py-0.5 rounded-full tabular-nums">
                   {filteredInspections.length}
@@ -1129,7 +1134,7 @@ export default function QualityRecordsView() {
               )}
             </TabsTrigger>
             <TabsTrigger value="ncrs" className="text-xs h-7 px-3">
-              NCRs
+              {t('recordsView.tabNcrs')}
               {filteredNcrs.length > 0 && (
                 <span className="ml-1.5 bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded-full tabular-nums">
                   {filteredNcrs.length}

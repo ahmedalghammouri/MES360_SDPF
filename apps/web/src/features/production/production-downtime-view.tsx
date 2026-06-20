@@ -154,7 +154,7 @@ export function CauseTreeSelect({
   value,
   machineId,
   onChange,
-  placeholder = 'Select specific cause...',
+  placeholder,
   className,
 }: {
   reasonTree: ReasonNode[];
@@ -164,6 +164,8 @@ export function CauseTreeSelect({
   placeholder?: string;
   className?: string;
 }) {
+  const { t } = useTranslation(['production', 'common']);
+  const ph = placeholder ?? t('dcause.placeholder');
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [expandedL1, setExpandedL1] = useState<Set<string>>(() => new Set());
@@ -238,12 +240,12 @@ export function CauseTreeSelect({
             </div>
             {selected.machineId && (
               <Badge variant="outline" className="text-[9px] h-4 shrink-0 text-primary border-primary/30">
-                <Cpu size={8} className="mr-0.5" />Machine-specific
+                <Cpu size={8} className="mr-0.5" />{t('dcause.machineSpecific')}
               </Badge>
             )}
           </div>
         ) : (
-          <span className="flex-1 text-muted-foreground">{placeholder}</span>
+          <span className="flex-1 text-muted-foreground">{ph}</span>
         )}
         <div className="flex items-center gap-1 shrink-0">
           {selected && (
@@ -270,7 +272,7 @@ export function CauseTreeSelect({
                 ref={searchRef}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search causes..."
+                placeholder={t('dcause.searchCauses')}
                 className="w-full h-8 pl-8 pr-3 text-sm bg-muted/30 border border-border rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-colors"
               />
               {search && (
@@ -286,7 +288,7 @@ export function CauseTreeSelect({
             {searchMatches !== null ? (
               /* Search results: flat list with breadcrumb */
               searchMatches.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">No matching causes found.</p>
+                <p className="text-xs text-muted-foreground text-center py-6">{t('dcause.noCauses')}</p>
               ) : (
                 searchMatches.map(leaf => (
                   <button
@@ -301,7 +303,7 @@ export function CauseTreeSelect({
                     <div className="flex items-center gap-1.5 mb-0.5">
                       <L3_ICON size={11} className="text-emerald-400 shrink-0" />
                       <span className="text-sm font-medium">{leaf.l3Name}</span>
-                      {leaf.machineId && <Badge variant="outline" className="text-[9px] h-3.5 text-primary border-primary/30"><Cpu size={7} className="mr-0.5" />Specific</Badge>}
+                      {leaf.machineId && <Badge variant="outline" className="text-[9px] h-3.5 text-primary border-primary/30"><Cpu size={7} className="mr-0.5" />{t('dcause.specific')}</Badge>}
                     </div>
                     <span className="text-[10px] text-muted-foreground ml-5">{leaf.l1Name} › {leaf.l2Name}</span>
                   </button>
@@ -358,7 +360,7 @@ export function CauseTreeSelect({
                             >
                               <L3_ICON size={10} className={cn('shrink-0', value === leaf.id ? 'text-primary' : 'text-emerald-400')} />
                               <span className={cn('text-sm flex-1', value === leaf.id ? 'text-primary font-medium' : '')}>{leaf.l3Name}</span>
-                              {leaf.machineId && <Badge variant="outline" className="text-[9px] h-3.5 text-primary border-primary/30 shrink-0"><Cpu size={7} className="mr-0.5" />Specific</Badge>}
+                              {leaf.machineId && <Badge variant="outline" className="text-[9px] h-3.5 text-primary border-primary/30 shrink-0"><Cpu size={7} className="mr-0.5" />{t('dcause.specific')}</Badge>}
                               {value === leaf.id && <CheckCircle2 size={12} className="text-primary shrink-0" />}
                             </button>
                           ))}
@@ -373,10 +375,10 @@ export function CauseTreeSelect({
 
           {/* Footer hint */}
           <div className="border-t border-border px-3 py-1.5 flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">{flatLeaves.length} causes available{machineId ? ' for selected machine' : ''}</span>
+            <span className="text-[10px] text-muted-foreground">{t('dcause.causesAvailable', { count: flatLeaves.length })}{machineId ? t('dcause.forSelectedMachine') : ''}</span>
             {value && (
               <button type="button" onClick={clear} className="text-[10px] text-muted-foreground hover:text-destructive transition-colors flex items-center gap-0.5">
-                <X size={10} />Clear selection
+                <X size={10} />{t('dcause.clearSelection')}
               </button>
             )}
           </div>
@@ -707,15 +709,15 @@ function TreeTab({ machines }: { machines: Machine[] }) {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               className="bg-background border rounded-xl shadow-2xl w-full max-w-sm p-6">
-              <h3 className="font-semibold mb-2">Delete Reason Node?</h3>
+              <h3 className="font-semibold mb-2">{t('dnode.deleteTitle')}</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                <strong>"{deleteTarget.name}"</strong> will be permanently removed. This will fail if any downtime events reference it — deactivate it instead.
+                <strong>"{deleteTarget.name}"</strong> {t('dnode.deletePre')}
               </p>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+                <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>{t('dnode.cancel')}</Button>
                 <Button variant="destructive" size="sm" disabled={deleteMut.isPending}
                   onClick={() => deleteMut.mutate(deleteTarget.id)}>
-                  {deleteMut.isPending ? 'Deleting...' : 'Delete'}
+                  {deleteMut.isPending ? t('dnode.deleting') : t('dnode.delete')}
                 </Button>
               </div>
             </motion.div>
@@ -1237,7 +1239,7 @@ function LiveTab({ machines, reasonTree }: { machines: Machine[]; reasonTree: Re
     mutationFn: (dto: any) => api.post('/production/downtime/events', dto),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['downtime-live'] }); setCreateOpen(false); resetForm(); },
     onError: (err: any) => {
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to log downtime event.';
+      const msg = err?.response?.data?.message ?? err?.message ?? t('dlogfail');
       setApiError(Array.isArray(msg) ? msg.join(', ') : String(msg));
     },
   });
@@ -1585,13 +1587,13 @@ function HistoryTab({ machines }: { machines: Machine[] }) {
           <Input type="date" value={filters.dateTo} onChange={e => setFilters(p => ({ ...p, dateTo: e.target.value }))} className="h-8 text-xs w-36" />
         </div>
         <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilters({ machineId: '', dateFrom: '', dateTo: '', search: '' }); setPage(1); }}>
-          <X size={12} className="mr-1" />Clear
+          <X size={12} className="mr-1" />{t('downtime.clear')}
         </Button>
-        <span className="ml-auto text-xs text-muted-foreground">{total} records</span>
+        <span className="ml-auto text-xs text-muted-foreground">{t('downtime.recordsCount', { count: total })}</span>
       </div>
 
       {isLoading ? (
-        <div className="text-sm text-muted-foreground p-10 text-center">Loading history...</div>
+        <div className="text-sm text-muted-foreground p-10 text-center">{t('downtime.loadingHistory')}</div>
       ) : filtered.length === 0 ? (
         <div className="border rounded-xl p-12 text-center text-sm text-muted-foreground">{t('downtime.noRecords')}</div>
       ) : (
@@ -1628,6 +1630,7 @@ function HistoryTab({ machines }: { machines: Machine[] }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function AnalyticsTab() {
+  const { t } = useTranslation(['production', 'common']);
   const { filter, key } = useScope();
   const [range, setRange] = useState({ from: new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10), to: new Date().toISOString().slice(0, 10) });
 
@@ -1652,7 +1655,7 @@ function AnalyticsTab() {
 
   const CHART_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
 
-  if (isLoading) return <div className="text-sm text-muted-foreground p-10 text-center">Loading analytics...</div>;
+  if (isLoading) return <div className="text-sm text-muted-foreground p-10 text-center">{t('danalytics.loading')}</div>;
 
   return (
     <div className="flex flex-col gap-6">
@@ -1667,15 +1670,15 @@ function AnalyticsTab() {
       {/* KPI Cards */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: 'Total Events',     value: sum?.totalEvents ?? 0,                   sub: 'events',    color: 'text-foreground' },
-          { label: 'Total Downtime',   value: fmtDur(sum?.totalMinutes),               sub: 'duration',  color: 'text-red-400' },
-          { label: 'OEE Impact',       value: fmtDur(sum?.oeeImpactMinutes),           sub: 'avail loss', color: 'text-orange-400' },
-          { label: 'Planned Stops',    value: fmtDur(sum?.plannedMinutes),             sub: 'planned',   color: 'text-blue-400' },
+          { labelKey: 'danalytics.kpi.totalEvents',   value: sum?.totalEvents ?? 0,         subKey: 'danalytics.kpi.events',    color: 'text-foreground' },
+          { labelKey: 'danalytics.kpi.totalDowntime', value: fmtDur(sum?.totalMinutes),     subKey: 'danalytics.kpi.duration',  color: 'text-red-400' },
+          { labelKey: 'danalytics.kpi.oeeImpact',     value: fmtDur(sum?.oeeImpactMinutes), subKey: 'danalytics.kpi.availLoss', color: 'text-orange-400' },
+          { labelKey: 'danalytics.kpi.plannedStops',  value: fmtDur(sum?.plannedMinutes),   subKey: 'danalytics.kpi.planned',   color: 'text-blue-400' },
         ].map(k => (
-          <div key={k.label} className="border rounded-xl p-4 bg-card">
-            <p className="text-xs text-muted-foreground">{k.label}</p>
+          <div key={k.labelKey} className="border rounded-xl p-4 bg-card">
+            <p className="text-xs text-muted-foreground">{t(k.labelKey)}</p>
             <p className={cn('text-2xl font-bold mt-1', k.color)}>{k.value}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{k.sub}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t(k.subKey)}</p>
           </div>
         ))}
       </div>
@@ -1683,15 +1686,15 @@ function AnalyticsTab() {
       <div className="grid grid-cols-2 gap-4">
         {/* Downtime by Machine */}
         <div className="border rounded-xl p-4">
-          <p className="text-sm font-semibold mb-3">Downtime by Machine (min)</p>
+          <p className="text-sm font-semibold mb-3">{t('danalytics.byMachine')}</p>
           {byMachineData.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-6">No data</p>
+            <p className="text-xs text-muted-foreground text-center py-6">{t('danalytics.noData')}</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={byMachineData} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
                 <XAxis type="number" tick={{ fontSize: 10 }} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
-                <Tooltip formatter={(v: number) => [`${v} min`]} contentStyle={{ fontSize: 11, background: '#0f1117', border: '1px solid #1e2030' }} />
+                <Tooltip formatter={(v: number) => [t('danalytics.minSuffix', { count: v })]} contentStyle={{ fontSize: 11, background: '#0f1117', border: '1px solid #1e2030' }} />
                 <Bar dataKey="mins" radius={3}>
                   {byMachineData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                 </Bar>
@@ -1702,15 +1705,15 @@ function AnalyticsTab() {
 
         {/* Downtime by Category (Pareto) */}
         <div className="border rounded-xl p-4">
-          <p className="text-sm font-semibold mb-3">By Category — Pareto (min)</p>
+          <p className="text-sm font-semibold mb-3">{t('danalytics.byCategoryPareto')}</p>
           {byCategoryData.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-6">No data</p>
+            <p className="text-xs text-muted-foreground text-center py-6">{t('danalytics.noData')}</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={byCategoryData} margin={{ left: 8, right: 16, top: 4, bottom: 40 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-35} textAnchor="end" interval={0} />
                 <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v: number) => [`${v} min`]} contentStyle={{ fontSize: 11, background: '#0f1117', border: '1px solid #1e2030' }} />
+                <Tooltip formatter={(v: number) => [t('danalytics.minSuffix', { count: v })]} contentStyle={{ fontSize: 11, background: '#0f1117', border: '1px solid #1e2030' }} />
                 <Bar dataKey="mins" radius={3}>
                   {byCategoryData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                 </Bar>
@@ -1723,7 +1726,7 @@ function AnalyticsTab() {
       {/* Top 5 Causes */}
       {paretoData.length > 0 && (
         <div className="border rounded-xl p-4">
-          <p className="text-sm font-semibold mb-3">Top 5 Root Causes (min)</p>
+          <p className="text-sm font-semibold mb-3">{t('danalytics.topCauses')}</p>
           <div className="flex flex-col gap-2">
             {paretoData.map((item, i) => {
               const maxMins = paretoData[0]?.mins ?? 1;
@@ -1734,7 +1737,7 @@ function AnalyticsTab() {
                   <div className="flex-1">
                     <div className="flex items-center justify-between text-xs mb-0.5">
                       <span>{item.name}</span>
-                      <span className="font-mono text-muted-foreground">{item.mins} min</span>
+                      <span className="font-mono text-muted-foreground">{t('danalytics.minSuffix', { count: item.mins })}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                       <div className="h-full rounded-full" style={{ width: `${pct}%`, background: CHART_COLORS[i] }} />
@@ -1772,12 +1775,12 @@ export function ProductionDowntimeView() {
 
   const machines: Machine[] = (machinesData as any)?.data ?? (Array.isArray(machinesData) ? machinesData : []);
 
-  const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'live',      label: 'Live Events',       icon: AlertTriangle },
-    { id: 'history',   label: 'History',           icon: ListFilter },
-    { id: 'planned',   label: 'Planned Downtime',  icon: CalendarClock },
-    { id: 'tree',      label: 'Reason Tree',       icon: Network },
-    { id: 'analytics', label: 'Analytics',         icon: BarChart3 },
+  const TABS: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
+    { id: 'live',      labelKey: 'dtabs.live',      icon: AlertTriangle },
+    { id: 'history',   labelKey: 'dtabs.history',   icon: ListFilter },
+    { id: 'planned',   labelKey: 'dtabs.planned',   icon: CalendarClock },
+    { id: 'tree',      labelKey: 'dtabs.tree',      icon: Network },
+    { id: 'analytics', labelKey: 'dtabs.analytics', icon: BarChart3 },
   ];
 
   return (
@@ -1794,29 +1797,27 @@ export function ProductionDowntimeView() {
       <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
         <Info size={14} className="mt-0.5 text-primary shrink-0" />
         <span>
-          Downtime threshold: <strong className="text-foreground">1 minute</strong> (NCC spec) ·
-          OEE Availability loss excludes <strong className="text-foreground">Planned Maintenance</strong> and <strong className="text-foreground">External</strong> stops ·
-          The <strong className="text-foreground">Reason Tree</strong> tab follows the NCC 3-level standard: Category → Sub-category → Specific Reason
+          {t('dinfo.thresholdPre')}<strong className="text-foreground">{t('dinfo.thresholdValue')}</strong>{t('dinfo.thresholdMid')}<strong className="text-foreground">{t('dinfo.plannedMaintenance')}</strong>{t('dinfo.andExternal')}<strong className="text-foreground">{t('dinfo.external')}</strong>{t('dinfo.stopsMid')}<strong className="text-foreground">{t('dinfo.reasonTree')}</strong>{t('dinfo.tabPost')}
         </span>
       </div>
 
       {/* Tab nav */}
       <div className="flex items-center gap-1 border-b pb-0">
-        {TABS.map(t => {
-          const Icon = t.icon;
+        {TABS.map(tabItem => {
+          const Icon = tabItem.icon;
           return (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tabItem.id}
+              onClick={() => setTab(tabItem.id)}
               className={cn(
                 'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-                tab === t.id
+                tab === tabItem.id
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
               <Icon size={14} />
-              {t.label}
+              {t(tabItem.labelKey)}
             </button>
           );
         })}

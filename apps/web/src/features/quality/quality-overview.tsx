@@ -82,9 +82,9 @@ interface SPCMeasurement {
 }
 
 const NCR_SEVERITY = {
-  MINOR: { label: 'Minor', color: 'text-brand-400', bg: 'bg-brand-500/10' },
-  MAJOR: { label: 'Major', color: 'text-warning-400', bg: 'bg-warning-500/10' },
-  CRITICAL: { label: 'Critical', color: 'text-danger-400', bg: 'bg-danger-500/10' },
+  MINOR: { labelKey: 'ncr.severity.MINOR', color: 'text-brand-400', bg: 'bg-brand-500/10' },
+  MAJOR: { labelKey: 'ncr.severity.MAJOR', color: 'text-warning-400', bg: 'bg-warning-500/10' },
+  CRITICAL: { labelKey: 'ncr.severity.CRITICAL', color: 'text-danger-400', bg: 'bg-danger-500/10' },
 };
 
 const NCR_STATUS = {
@@ -96,9 +96,9 @@ const NCR_STATUS = {
 } as const;
 
 const INSPECTION_RESULT = {
-  PASS: { label: 'Pass', color: 'text-success-400' },
-  FAIL: { label: 'Fail', color: 'text-danger-400' },
-  CONDITIONAL: { label: 'Conditional', color: 'text-warning-400' },
+  PASS: { labelKey: 'inspections.result.PASS', color: 'text-success-400' },
+  FAIL: { labelKey: 'inspections.result.FAIL', color: 'text-danger-400' },
+  CONDITIONAL: { labelKey: 'inspections.result.CONDITIONAL', color: 'text-warning-400' },
 };
 
 export function QualityOverview() {
@@ -181,11 +181,11 @@ export function QualityOverview() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
             <Download size={13} />
-            Export
+            {t('common.export')}
           </Button>
           <Button size="sm" className="gap-1.5 h-8 text-xs">
             <Plus size={13} />
-            New NCR
+            {t('ovw.newNcr')}
           </Button>
         </div>
       </div>
@@ -193,17 +193,17 @@ export function QualityOverview() {
       <div className="flex-1 overflow-auto p-6 space-y-5">
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
-          <KPICard title="First Pass Yield" value={kpis?.fpy ?? 0} unit="%" trend={kpis?.fpyTrend} target={99} colorMode="oee" isLoading={kpisLoading} icon={<ShieldCheck size={16} />} />
-          <KPICard title="Rework Rate" value={kpis?.reworkRate ?? 0} unit="%" isLoading={kpisLoading} />
-          <KPICard title="Scrap Rate" value={kpis?.scrapRate ?? 0} unit="%" colorMode="alarm" isLoading={kpisLoading} />
-          <KPICard title="Open NCRs" value={kpis?.openNCRs ?? 0} colorMode="alarm" subtitle={`${kpis?.criticalNCRs ?? 0} critical`} isLoading={kpisLoading} icon={<AlertTriangle size={16} />} />
+          <KPICard title={t('ovw.fpy')} value={kpis?.fpy ?? 0} unit="%" trend={kpis?.fpyTrend} target={99} colorMode="oee" isLoading={kpisLoading} icon={<ShieldCheck size={16} />} />
+          <KPICard title={t('ovw.reworkRate')} value={kpis?.reworkRate ?? 0} unit="%" isLoading={kpisLoading} />
+          <KPICard title={t('ovw.scrapRate')} value={kpis?.scrapRate ?? 0} unit="%" colorMode="alarm" isLoading={kpisLoading} />
+          <KPICard title={t('ovw.openNcrs')} value={kpis?.openNCRs ?? 0} colorMode="alarm" subtitle={t('ovw.criticalSub', { count: kpis?.criticalNCRs ?? 0 })} isLoading={kpisLoading} icon={<AlertTriangle size={16} />} />
         </div>
 
         {/* SPC Chart */}
         <SPCChart
           title={activeParam
             ? `SPC — ${activeParam.parameterName}${activeParam.unit ? ` (${activeParam.unit})` : ''}`
-            : 'Statistical Process Control (X-Bar Chart)'}
+            : t('ovw.spcDefaultTitle')}
           data={spcData}
           mean={latestSpc?.cl ?? activeParam?.mean ?? undefined}
           ucl={latestSpc?.ucl ?? activeParam?.ucl ?? undefined}
@@ -217,7 +217,7 @@ export function QualityOverview() {
             <TabsList>
               <TabsTrigger value="ncr" className="text-xs gap-1.5">
                 <AlertTriangle size={12} />
-                NCR Management
+                {t('ovw.tabNcr')}
                 {(kpis?.openNCRs ?? 0) > 0 && (
                   <Badge variant="destructive" className="text-[9px] h-4 min-w-4 px-1">
                     {kpis?.openNCRs}
@@ -226,17 +226,17 @@ export function QualityOverview() {
               </TabsTrigger>
               <TabsTrigger value="inspections" className="text-xs gap-1.5">
                 <ClipboardList size={12} />
-                Inspections
+                {t('ovw.tabInspections')}
               </TabsTrigger>
               <TabsTrigger value="capa" className="text-xs gap-1.5">
                 <ShieldCheck size={12} />
-                CAPA
+                {t('ovw.tabCapa')}
               </TabsTrigger>
             </TabsList>
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search..."
+                placeholder={t('ovw.search')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-8 pl-7 w-44 text-xs"
@@ -251,14 +251,14 @@ export function QualityOverview() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent border-border/30">
-                      <TableHead className="text-[11px]">NCR #</TableHead>
-                      <TableHead className="text-[11px]">Title</TableHead>
-                      <TableHead className="text-[11px]">Severity</TableHead>
-                      <TableHead className="text-[11px]">Status</TableHead>
-                      <TableHead className="text-[11px]">Product</TableHead>
-                      <TableHead className="text-[11px]">Batch</TableHead>
-                      <TableHead className="text-[11px]">Detected</TableHead>
-                      <TableHead className="text-[11px]">Due Date</TableHead>
+                      <TableHead className="text-[11px]">{t('ovw.colNcr')}</TableHead>
+                      <TableHead className="text-[11px]">{t('ovw.colTitle')}</TableHead>
+                      <TableHead className="text-[11px]">{t('ovw.colSeverity')}</TableHead>
+                      <TableHead className="text-[11px]">{t('ovw.colStatus')}</TableHead>
+                      <TableHead className="text-[11px]">{t('ovw.colProduct')}</TableHead>
+                      <TableHead className="text-[11px]">{t('ovw.colBatch')}</TableHead>
+                      <TableHead className="text-[11px]">{t('ovw.colDetected')}</TableHead>
+                      <TableHead className="text-[11px]">{t('ovw.colDueDate')}</TableHead>
                       <TableHead />
                     </TableRow>
                   </TableHeader>
@@ -281,12 +281,12 @@ export function QualityOverview() {
                           </TableCell>
                           <TableCell>
                             <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold', sev.bg, sev.color)}>
-                              {sev.label}
+                              {t(sev.labelKey)}
                             </span>
                           </TableCell>
                           <TableCell>
                             <Badge variant={NCR_STATUS[ncr.status]} className="text-[10px] h-5">
-                              {ncr.status.replace('_', ' ')}
+                              {t(`ncr.status.${ncr.status}`, { defaultValue: ncr.status.replace('_', ' ') })}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">{ncr.product}</TableCell>
@@ -315,14 +315,14 @@ export function QualityOverview() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-border/30">
-                    <TableHead className="text-[11px]">Inspection #</TableHead>
-                    <TableHead className="text-[11px]">Type</TableHead>
-                    <TableHead className="text-[11px]">Product</TableHead>
-                    <TableHead className="text-[11px]">Batch</TableHead>
-                    <TableHead className="text-[11px]">Result</TableHead>
-                    <TableHead className="text-[11px]">Pass/Total</TableHead>
-                    <TableHead className="text-[11px]">Inspector</TableHead>
-                    <TableHead className="text-[11px]">Date</TableHead>
+                    <TableHead className="text-[11px]">{t('ovw.colInspection')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ovw.colType')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ovw.colProduct')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ovw.colBatch')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ovw.colResult')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ovw.colPassTotal')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ovw.colInspector')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ovw.colDate')}</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
@@ -341,12 +341,12 @@ export function QualityOverview() {
                       <TableRow key={ins.id} className="border-border/20 hover:bg-muted/20 cursor-pointer">
                         <TableCell className="font-mono text-xs font-semibold text-primary">{ins.inspectionNumber}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="text-[10px] h-5">{ins.type}</Badge>
+                          <Badge variant="secondary" className="text-[10px] h-5">{t(`inspections.type.${ins.type}`, { defaultValue: ins.type })}</Badge>
                         </TableCell>
                         <TableCell className="text-xs">{ins.product}</TableCell>
                         <TableCell className="text-xs font-mono">{ins.batchNumber}</TableCell>
                         <TableCell>
-                          <span className={cn('text-xs font-semibold', res.color)}>{res.label}</span>
+                          <span className={cn('text-xs font-semibold', res.color)}>{t(res.labelKey)}</span>
                         </TableCell>
                         <TableCell className="text-xs">
                           <span className="text-success-400 font-medium">{ins.passQty}</span>
@@ -372,8 +372,8 @@ export function QualityOverview() {
             <div className="flex items-center justify-center h-40 industrial-card rounded-lg">
               <div className="text-center">
                 <ShieldCheck size={32} className="text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">CAPA Management module</p>
-                <p className="text-xs text-muted-foreground/60">Corrective and Preventive Actions</p>
+                <p className="text-sm text-muted-foreground">{t('ovw.capaModule')}</p>
+                <p className="text-xs text-muted-foreground/60">{t('ovw.capaModuleSub')}</p>
               </div>
             </div>
           </TabsContent>

@@ -55,11 +55,11 @@ interface PendingPartsResponse {
 
 // ── Constants ────────────────────────────────────────────────
 
-const PRIORITY_CONFIG: Record<string, { label: string; bg: string; text: string; border: string }> = {
-  CRITICAL: { label: 'Critical', bg: 'bg-red-500/10',  text: 'text-red-400',  border: 'border-red-500/30'  },
-  HIGH:     { label: 'High',     bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30' },
-  MEDIUM:   { label: 'Medium',  bg: 'bg-blue-500/10',  text: 'text-blue-400',  border: 'border-blue-500/30'  },
-  LOW:      { label: 'Low',     bg: 'bg-muted/20',     text: 'text-muted-foreground', border: 'border-border' },
+const PRIORITY_CONFIG: Record<string, { labelKey: string; bg: string; text: string; border: string }> = {
+  CRITICAL: { labelKey: 'spareRequestsView.priority.critical', bg: 'bg-red-500/10',  text: 'text-red-400',  border: 'border-red-500/30'  },
+  HIGH:     { labelKey: 'spareRequestsView.priority.high',     bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30' },
+  MEDIUM:   { labelKey: 'spareRequestsView.priority.medium',  bg: 'bg-blue-500/10',  text: 'text-blue-400',  border: 'border-blue-500/30'  },
+  LOW:      { labelKey: 'spareRequestsView.priority.low',     bg: 'bg-muted/20',     text: 'text-muted-foreground', border: 'border-border' },
 };
 
 const PRIORITY_ORDER: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
@@ -113,12 +113,12 @@ export function SparePartsRequestsView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'pending-parts'] });
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Parts issued successfully', variant: 'success' });
+      toast({ title: t('spareRequestsView.issuedSuccess'), variant: 'success' });
       handleCloseIssueDialog();
     },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      toast({ title: 'Failed to issue parts', description: msg, variant: 'destructive' });
+      toast({ title: t('spareRequestsView.issueFailed'), description: msg, variant: 'destructive' });
     },
   });
 
@@ -173,31 +173,31 @@ export function SparePartsRequestsView() {
         <div className="grid grid-cols-3 gap-3">
           <div className="glass-card p-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-muted-foreground">Total Pending</span>
+              <span className="text-xs text-muted-foreground">{t('spareRequestsView.kpi.totalPending')}</span>
               <Package size={14} className="text-brand-400" />
             </div>
             <p className="text-2xl font-bold text-brand-400">{total}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">requests awaiting issue</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('spareRequestsView.awaitingIssue')}</p>
           </div>
           <div className={cn('glass-card p-4', insufficientCount > 0 && 'border-red-500/30')}>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-muted-foreground">Insufficient Stock</span>
+              <span className="text-xs text-muted-foreground">{t('spareRequestsView.kpi.insufficientStock')}</span>
               <AlertCircle size={14} className={insufficientCount > 0 ? 'text-red-400' : 'text-muted-foreground'} />
             </div>
             <p className={cn('text-2xl font-bold', insufficientCount > 0 ? 'text-red-400' : 'text-muted-foreground')}>
               {insufficientCount}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">parts below required stock</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('spareRequestsView.belowRequired')}</p>
           </div>
           <div className={cn('glass-card p-4', criticalHighCount > 0 && 'border-amber-500/30')}>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-muted-foreground">High / Critical Priority</span>
+              <span className="text-xs text-muted-foreground">{t('spareRequestsView.kpi.highCritical')}</span>
               <AlertTriangle size={14} className={criticalHighCount > 0 ? 'text-amber-400' : 'text-muted-foreground'} />
             </div>
             <p className={cn('text-2xl font-bold', criticalHighCount > 0 ? 'text-amber-400' : 'text-muted-foreground')}>
               {criticalHighCount}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">urgent work orders waiting</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('spareRequestsView.urgentWaiting')}</p>
           </div>
         </div>
 
@@ -219,15 +219,15 @@ export function SparePartsRequestsView() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
                     <Filter size={12} />
-                    {priorityFilter ? PRIORITY_CONFIG[priorityFilter]?.label : 'All Priorities'}
+                    {priorityFilter && PRIORITY_CONFIG[priorityFilter] ? t(PRIORITY_CONFIG[priorityFilter].labelKey) : t('spareRequestsView.allPriorities')}
                     <ChevronDown size={11} />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => { setPriorityFilter(null); setPage(1); }}>All Priorities</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setPriorityFilter(null); setPage(1); }}>{t('spareRequestsView.allPriorities')}</DropdownMenuItem>
                   {Object.entries(PRIORITY_CONFIG).map(([k, v]) => (
                     <DropdownMenuItem key={k} onClick={() => { setPriorityFilter(k); setPage(1); }}>
-                      <span className={v.text}>{v.label}</span>
+                      <span className={v.text}>{t(v.labelKey)}</span>
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -257,8 +257,8 @@ export function SparePartsRequestsView() {
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
                       <Package size={32} className="mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No pending spare part requests</p>
-                      <p className="text-xs mt-1">All requests have been fulfilled or none exist yet</p>
+                      <p className="text-sm">{t('spareRequestsView.noPending')}</p>
+                      <p className="text-xs mt-1">{t('spareRequestsView.noPendingHint')}</p>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -285,7 +285,7 @@ export function SparePartsRequestsView() {
                             'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border',
                             priority.text, priority.bg, priority.border,
                           )}>
-                            {priority.label}
+                            {t(priority.labelKey)}
                           </span>
                         </TableCell>
 
@@ -306,7 +306,7 @@ export function SparePartsRequestsView() {
                         <TableCell>
                           <span className="text-xs font-semibold tabular-nums">{remaining}</span>
                           {req.quantityIssued > 0 && (
-                            <div className="text-[10px] text-muted-foreground">{req.quantityIssued} already issued</div>
+                            <div className="text-[10px] text-muted-foreground">{t('spareRequestsView.alreadyIssued', { count: req.quantityIssued })}</div>
                           )}
                         </TableCell>
 
@@ -321,11 +321,11 @@ export function SparePartsRequestsView() {
                             </span>
                             {req.insufficientStock && (
                               <span className="flex items-center gap-0.5 text-[10px] text-red-400 bg-red-500/10 border border-red-500/30 rounded-full px-1.5 py-0.5 whitespace-nowrap">
-                                <AlertTriangle size={8} />Short
+                                <AlertTriangle size={8} />{t('spareRequestsView.short')}
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">min {req.minStockQty}</div>
+                          <div className="text-[10px] text-muted-foreground">{t('spareRequestsView.min', { count: req.minStockQty })}</div>
                         </TableCell>
 
                         {/* Storage location */}
@@ -360,7 +360,7 @@ export function SparePartsRequestsView() {
                             onClick={() => handleOpenIssue(req)}
                             disabled={req.stockQty <= 0}
                           >
-                            <PackageCheck size={11} />Issue
+                            <PackageCheck size={11} />{t('spareRequestsView.issue')}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -382,11 +382,11 @@ export function SparePartsRequestsView() {
           icon={PackageCheck}
           iconClassName="text-green-400"
           iconWrapClassName="bg-green-500/15"
-          title="Issue Parts to Work Order"
-          description={`Issuing ${issueDialog.partName} for work order ${issueDialog.woNumber}`}
+          title={t('spareRequestsView.issueTitle')}
+          description={t('spareRequestsView.issueDesc', { part: issueDialog.partName, wo: issueDialog.woNumber })}
           footer={(
             <>
-              <Button variant="outline" size="sm" onClick={handleCloseIssueDialog}>Cancel</Button>
+              <Button variant="outline" size="sm" onClick={handleCloseIssueDialog}>{t('spareRequestsView.cancel')}</Button>
               <Button
                 size="sm"
                 className="gap-1.5"
@@ -394,7 +394,7 @@ export function SparePartsRequestsView() {
                 onClick={handleConfirmIssue}
               >
                 <PackageCheck size={12} />
-                {issueMutation.isPending ? 'Issuing…' : 'Confirm Issue'}
+                {issueMutation.isPending ? t('spareRequestsView.issuing') : t('spareRequestsView.confirmIssue')}
               </Button>
             </>
           )}
@@ -403,13 +403,13 @@ export function SparePartsRequestsView() {
               {/* Part & WO summary */}
               <div className="glass-card rounded-lg p-3 space-y-1.5">
                 {[
-                  { label: 'Part Number',       value: issueDialog.partNumber },
-                  { label: 'Machine',           value: issueDialog.machine.name },
-                  { label: 'Priority',          value: PRIORITY_CONFIG[issueDialog.woPriority]?.label ?? issueDialog.woPriority },
-                  { label: 'Qty Requested',     value: `${issueDialog.quantityRequested - issueDialog.quantityIssued} units remaining` },
-                  { label: 'Available in Stock', value: `${issueDialog.stockQty} units` },
-                  ...(issueDialog.storageLocation ? [{ label: 'Storage Location', value: issueDialog.storageLocation }] : []),
-                  ...(issueDialog.unitCost ? [{ label: 'Unit Cost', value: `${issueDialog.unitCost.toFixed(2)} SAR` }] : []),
+                  { label: t('spareRequestsView.summary.partNumber'),       value: issueDialog.partNumber },
+                  { label: t('spareRequestsView.summary.machine'),           value: issueDialog.machine.name },
+                  { label: t('spareRequestsView.summary.priority'),          value: PRIORITY_CONFIG[issueDialog.woPriority] ? t(PRIORITY_CONFIG[issueDialog.woPriority].labelKey) : issueDialog.woPriority },
+                  { label: t('spareRequestsView.summary.qtyRequested'),     value: t('spareRequestsView.unitsRemaining', { count: issueDialog.quantityRequested - issueDialog.quantityIssued }) },
+                  { label: t('spareRequestsView.summary.availableInStock'), value: t('spareRequestsView.units', { count: issueDialog.stockQty }) },
+                  ...(issueDialog.storageLocation ? [{ label: t('spareRequestsView.summary.storageLocation'), value: issueDialog.storageLocation }] : []),
+                  ...(issueDialog.unitCost ? [{ label: t('spareRequestsView.summary.unitCost'), value: `${issueDialog.unitCost.toFixed(2)} SAR` }] : []),
                 ].map(r => (
                   <div key={r.label} className="flex justify-between text-xs">
                     <span className="text-muted-foreground">{r.label}</span>
@@ -421,14 +421,14 @@ export function SparePartsRequestsView() {
               {issueDialog.insufficientStock && (
                 <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
                   <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                  <span>Stock is below requested quantity. You can only issue up to {issueDialog.stockQty} units.</span>
+                  <span>{t('spareRequestsView.insufficientWarn', { count: issueDialog.stockQty })}</span>
                 </div>
               )}
 
               <div className="space-y-1.5">
                 <Label className="text-xs">
-                  Quantity to Issue <span className="text-destructive">*</span>
-                  <span className="font-normal text-muted-foreground ml-1">(max {Math.min(issueDialog.stockQty, issueDialog.quantityRequested - issueDialog.quantityIssued)})</span>
+                  {t('spareRequestsView.quantityToIssue')} <span className="text-destructive">*</span>
+                  <span className="font-normal text-muted-foreground ml-1">{t('spareRequestsView.max', { count: Math.min(issueDialog.stockQty, issueDialog.quantityRequested - issueDialog.quantityIssued) })}</span>
                 </Label>
                 <Input
                   type="number"
@@ -440,19 +440,19 @@ export function SparePartsRequestsView() {
                   autoFocus
                 />
                 {issueQtyExceedsStock && (
-                  <p className="text-[11px] text-red-400">Exceeds available stock ({issueDialog.stockQty} units)</p>
+                  <p className="text-[11px] text-red-400">{t('spareRequestsView.exceedsStock', { count: issueDialog.stockQty })}</p>
                 )}
                 {!issueQtyExceedsStock && issueQtyExceedsRequested && (
-                  <p className="text-[11px] text-amber-400">Exceeds requested quantity — partial over-issue</p>
+                  <p className="text-[11px] text-amber-400">{t('spareRequestsView.exceedsRequested')}</p>
                 )}
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs">Notes (optional)</Label>
+                <Label className="text-xs">{t('spareRequestsView.notesOptional')}</Label>
                 <Input
                   value={issueNotes}
                   onChange={e => setIssueNotes(e.target.value)}
-                  placeholder="e.g. Issued from Bin A-12, Shelf 3…"
+                  placeholder={t('spareRequestsView.notesPlaceholder')}
                   className="h-9"
                 />
               </div>

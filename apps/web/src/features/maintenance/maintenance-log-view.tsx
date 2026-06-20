@@ -22,20 +22,17 @@ import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
 import { exportRecordToPDF } from '@/lib/export-utils';
 
-const STATUS_CFG: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; tone: string }> = {
-  OPEN:           { label: 'Open',           variant: 'destructive', tone: 'text-red-400' },
-  ASSIGNED:       { label: 'Assigned',       variant: 'secondary',   tone: 'text-blue-400' },
-  IN_PROGRESS:    { label: 'In Progress',    variant: 'default',     tone: 'text-amber-400' },
-  ON_HOLD:        { label: 'On Hold',        variant: 'outline',     tone: 'text-orange-400' },
-  AWAITING_PARTS: { label: 'Awaiting Parts', variant: 'outline',     tone: 'text-purple-400' },
-  COMPLETED:      { label: 'Completed',      variant: 'secondary',   tone: 'text-green-400' },
-  CANCELLED:      { label: 'Cancelled',      variant: 'outline',     tone: 'text-muted-foreground' },
+const STATUS_CFG: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; tone: string }> = {
+  OPEN:           { variant: 'destructive', tone: 'text-red-400' },
+  ASSIGNED:       { variant: 'secondary',   tone: 'text-blue-400' },
+  IN_PROGRESS:    { variant: 'default',     tone: 'text-amber-400' },
+  ON_HOLD:        { variant: 'outline',     tone: 'text-orange-400' },
+  AWAITING_PARTS: { variant: 'outline',     tone: 'text-purple-400' },
+  COMPLETED:      { variant: 'secondary',   tone: 'text-green-400' },
+  CANCELLED:      { variant: 'outline',     tone: 'text-muted-foreground' },
 };
 
-const TYPE_LABELS: Record<string, string> = {
-  PREVENTIVE: 'Preventive', CORRECTIVE: 'Corrective', EMERGENCY: 'Emergency',
-  PREDICTIVE: 'Predictive', INSPECTION: 'Inspection', LUBRICATION: 'Lubrication',
-};
+const TYPE_KEYS = ['PREVENTIVE', 'CORRECTIVE', 'EMERGENCY', 'PREDICTIVE', 'INSPECTION', 'LUBRICATION'];
 
 const PRIORITY_TONE: Record<string, string> = {
   LOW: 'text-muted-foreground', MEDIUM: 'text-blue-400', HIGH: 'text-amber-400', CRITICAL: 'text-red-400',
@@ -99,22 +96,22 @@ export function MaintenanceLogView() {
         </div>
         <ExportMenu
           filename="maintenance-log"
-          title="Maintenance Log"
+          title={t('logView.exportTitle')}
           rows={rows}
           columns={[
-            { key: 'woNumber', label: 'WO #' },
-            { key: 'title', label: 'Title' },
-            { key: 'type', label: 'Type' },
-            { key: 'asset', label: 'Machine' },
-            { key: 'status', label: 'Status' },
-            { key: 'assignedTo', label: 'Assigned', value: (r: any) => r.assignedTo ?? '' },
-            { key: 'requestedBy', label: 'Requested By', value: (r: any) => r.requestedBy ?? '' },
-            { key: 'createdAt', label: 'Created', value: (r: any) => r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '' },
-            { key: 'dueDate', label: 'Due', value: (r: any) => r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '' },
-            { key: 'completedAt', label: 'Completed', value: (r: any) => r.completedAt ? new Date(r.completedAt).toLocaleDateString() : '' },
-            { key: 'estimatedHours', label: 'Est. Hrs', value: (r: any) => r.estimatedHours ?? '' },
-            { key: 'actualHours', label: 'Actual Hrs', value: (r: any) => r.actualHours ?? '' },
-            { key: 'totalCost', label: 'Total Cost', value: (r: any) => r.totalCost ?? '' },
+            { key: 'woNumber', label: t('mlog.col.wo') },
+            { key: 'title', label: t('mlog.col.title') },
+            { key: 'type', label: t('mlog.col.type') },
+            { key: 'asset', label: t('mlog.col.machine') },
+            { key: 'status', label: t('mlog.col.status') },
+            { key: 'assignedTo', label: t('mlog.col.assigned'), value: (r: any) => r.assignedTo ?? '' },
+            { key: 'requestedBy', label: t('detail2.requestedBy'), value: (r: any) => r.requestedBy ?? '' },
+            { key: 'createdAt', label: t('mlog.col.created'), value: (r: any) => r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '' },
+            { key: 'dueDate', label: t('col.due'), value: (r: any) => r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '' },
+            { key: 'completedAt', label: t('mlog.col.completed'), value: (r: any) => r.completedAt ? new Date(r.completedAt).toLocaleDateString() : '' },
+            { key: 'estimatedHours', label: t('detail.estHours'), value: (r: any) => r.estimatedHours ?? '' },
+            { key: 'actualHours', label: t('detail.actualHours'), value: (r: any) => r.actualHours ?? '' },
+            { key: 'totalCost', label: t('detail.totalCost'), value: (r: any) => r.totalCost ?? '' },
           ]}
         />
       </div>
@@ -122,10 +119,10 @@ export function MaintenanceLogView() {
       <div className="flex-1 overflow-auto p-6 space-y-5">
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KPICard title="Open Work Orders" value={(kpis as any)?.openWOs ?? 0} colorMode="alarm" />
-          <KPICard title="Overdue" value={(kpis as any)?.overdueWOs ?? 0} colorMode="alarm" />
-          <KPICard title="Completion Rate" value={`${(kpis as any)?.completionRate ?? 0}%`} />
-          <KPICard title="MTTR (hrs)" value={(kpis as any)?.mttr ?? 0} />
+          <KPICard title={t('logView.kpiOpenWOs')} value={(kpis as any)?.openWOs ?? 0} colorMode="alarm" />
+          <KPICard title={t('logView.kpiOverdue')} value={(kpis as any)?.overdueWOs ?? 0} colorMode="alarm" />
+          <KPICard title={t('logView.kpiCompletionRate')} value={`${(kpis as any)?.completionRate ?? 0}%`} />
+          <KPICard title={t('logView.kpiMttr')} value={(kpis as any)?.mttr ?? 0} />
         </div>
 
         {/* Filters */}
@@ -141,14 +138,14 @@ export function MaintenanceLogView() {
               <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder={t('col.status')} /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">{t('mlog.allStatuses')}</SelectItem>
-                {Object.keys(STATUS_CFG).map(s => <SelectItem key={s} value={s}>{t(`woStatus.${s}`, { defaultValue: STATUS_CFG[s].label })}</SelectItem>)}
+                {Object.keys(STATUS_CFG).map(s => <SelectItem key={s} value={s}>{t(`woStatus.${s}`)}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={type} onValueChange={(v) => { setType(v); setPage(1); }}>
               <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder={t('col.type')} /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">{t('mlog.allTypes')}</SelectItem>
-                {Object.keys(TYPE_LABELS).map(k => <SelectItem key={k} value={k}>{t(`type.${k}`, { defaultValue: TYPE_LABELS[k] })}</SelectItem>)}
+                {TYPE_KEYS.map(k => <SelectItem key={k} value={k}>{t(`type.${k}`)}</SelectItem>)}
               </SelectContent>
             </Select>
             <div className="w-52">
@@ -188,13 +185,13 @@ export function MaintenanceLogView() {
                     <TableRow key={wo.id} className="border-border/20 hover:bg-muted/20 cursor-pointer" onClick={() => setDetailId(wo.id)}>
                       <TableCell className="text-xs font-mono">{wo.woNumber}</TableCell>
                       <TableCell className="text-xs font-medium max-w-[200px] truncate">{wo.title}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{TYPE_LABELS[wo.type] ?? wo.type}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{t(`type.${wo.type}`, { defaultValue: wo.type })}</TableCell>
                       <TableCell className="text-xs">{wo.asset}</TableCell>
                       <TableCell>
                         <Badge variant={STATUS_CFG[wo.status]?.variant ?? 'outline'} className="text-[10px] h-5">
-                          {STATUS_CFG[wo.status]?.label ?? wo.status}
+                          {t(`woStatus.${wo.status}`, { defaultValue: wo.status })}
                         </Badge>
-                        {wo.isOverdue && <span className="ml-1 text-[10px] text-red-400">overdue</span>}
+                        {wo.isOverdue && <span className="ml-1 text-[10px] text-red-400">{t('logView.overdueTag')}</span>}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{wo.assignedTo ?? '—'}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{fmtDate(wo.createdAt)}</TableCell>
@@ -219,6 +216,7 @@ export function MaintenanceLogView() {
 }
 
 function MaintenanceLogDetail({ id, onClose }: { id: string | null; onClose: () => void }) {
+  const { t } = useTranslation(['maintenance', 'common']);
   const { data, isLoading } = useQuery({
     queryKey: ['maintenance', 'work-order', id],
     queryFn: () => api.get<any>(`/maintenance/work-orders/${id}`),
@@ -227,38 +225,38 @@ function MaintenanceLogDetail({ id, onClose }: { id: string | null; onClose: () 
 
   const wo = data as any;
 
-  const exportPdf = () => exportRecordToPDF(`Maintenance Order ${wo.woNumber}`, wo.title ?? '', [
-    { heading: 'Summary', fields: [
-      { label: 'WO #', value: wo.woNumber }, { label: 'Title', value: wo.title },
-      { label: 'Type', value: TYPE_LABELS[wo.type] ?? wo.type }, { label: 'Priority', value: wo.priority },
-      { label: 'Status', value: STATUS_CFG[wo.status]?.label ?? wo.status }, { label: 'Description', value: wo.description ?? '—' },
+  const exportPdf = () => exportRecordToPDF(`${t('logView.exportTitle')} ${wo.woNumber}`, wo.title ?? '', [
+    { heading: t('detail2.summary'), fields: [
+      { label: t('mlog.col.wo'), value: wo.woNumber }, { label: t('col.title'), value: wo.title },
+      { label: t('detail.type'), value: t(`type.${wo.type}`, { defaultValue: wo.type }) }, { label: t('detail.priority'), value: t(`common:priority.${wo.priority}`, { defaultValue: wo.priority }) },
+      { label: t('col.status'), value: t(`woStatus.${wo.status}`, { defaultValue: wo.status }) }, { label: t('detail2.description'), value: wo.description ?? '—' },
     ]},
-    { heading: 'Context', fields: [
-      { label: 'Machine', value: wo.machine ? `${wo.machine.name} (${wo.machine.code})` : '—' },
-      { label: 'Requested By', value: wo.requestedBy?.name ?? '—' }, { label: 'Assigned To', value: wo.assignedTo?.name ?? '—' },
-      { label: 'Production WO', value: wo.productionWO?.orderNumber ?? '—' },
+    { heading: t('detail2.context'), fields: [
+      { label: t('detail.machine'), value: wo.machine ? `${wo.machine.name} (${wo.machine.code})` : '—' },
+      { label: t('detail2.requestedBy'), value: wo.requestedBy?.name ?? '—' }, { label: t('detail.assignedTo'), value: wo.assignedTo?.name ?? '—' },
+      { label: t('detail2.productionWO'), value: wo.productionWO?.orderNumber ?? '—' },
     ]},
-    { heading: 'Timeline', fields: [
-      { label: 'Created', value: fmt(wo.createdAt) }, { label: 'Due', value: fmt(wo.dueDate) },
-      { label: 'Started', value: fmt(wo.startedAt) }, { label: 'Completed', value: fmt(wo.completedAt) },
+    { heading: t('detail2.timeline'), fields: [
+      { label: t('detail.created'), value: fmt(wo.createdAt) }, { label: t('detail2.due'), value: fmt(wo.dueDate) },
+      { label: t('detail.started'), value: fmt(wo.startedAt) }, { label: t('detail.completed'), value: fmt(wo.completedAt) },
     ]},
-    { heading: 'Effort & Cost', fields: [
-      { label: 'Estimated Hours', value: wo.estimatedHours != null ? String(wo.estimatedHours) : '—' },
-      { label: 'Actual Hours', value: wo.actualHours != null ? String(wo.actualHours) : '—' },
-      { label: 'Labor Cost', value: money(wo.laborCost) }, { label: 'Parts Cost', value: money(wo.partsCost) },
-      { label: 'Total Cost', value: money(wo.totalCost) },
+    { heading: t('detail2.effortCost'), fields: [
+      { label: t('detail.estHours'), value: wo.estimatedHours != null ? String(wo.estimatedHours) : '—' },
+      { label: t('detail.actualHours'), value: wo.actualHours != null ? String(wo.actualHours) : '—' },
+      { label: t('detail2.laborCost'), value: money(wo.laborCost) }, { label: t('detail2.partsCost'), value: money(wo.partsCost) },
+      { label: t('detail.totalCost'), value: money(wo.totalCost) },
     ]},
-    { heading: 'Spare Parts', fields: (Array.isArray(wo.sparesUsed) && wo.sparesUsed.length)
-      ? wo.sparesUsed.map((s: any, i: number) => ({ label: `Part ${i + 1}`, value: `${s.sparePart?.name ?? s.sparePart?.partNumber ?? '—'} — req ${s.quantityRequested}, issued ${s.quantityIssued} (${s.status})` }))
-      : [{ label: 'Parts', value: 'None' }] },
-    ...(wo.notes ? [{ heading: 'Notes', fields: [{ label: 'Notes', value: wo.notes }] }] : []),
+    { heading: t('detail2.spareParts'), fields: (Array.isArray(wo.sparesUsed) && wo.sparesUsed.length)
+      ? wo.sparesUsed.map((s: any, i: number) => ({ label: t('detail2.partLabel', { n: i + 1 }), value: `${s.sparePart?.name ?? s.sparePart?.partNumber ?? '—'} — ${t('woView.requested')} ${s.quantityRequested}, ${t('woView.issued')} ${s.quantityIssued} (${t(`woView.spareStatus.${s.status}`, { defaultValue: s.status })})` }))
+      : [{ label: t('col.parts'), value: t('detail2.partsNone') }] },
+    ...(wo.notes ? [{ heading: t('detail2.notes'), fields: [{ label: t('detail2.notes'), value: wo.notes }] }] : []),
   ]);
 
   return (
     <Dialog open={!!id} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         {isLoading || !wo ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">Loading…</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">{t('loading')}</div>
         ) : (
           <>
             <DialogHeader>
@@ -266,7 +264,7 @@ function MaintenanceLogDetail({ id, onClose }: { id: string | null; onClose: () 
                 <Wrench size={17} className="text-primary" />
                 <span className="font-mono">{wo.woNumber}</span>
                 <Badge variant={STATUS_CFG[wo.status]?.variant ?? 'outline'} className="text-[10px] h-5">
-                  {STATUS_CFG[wo.status]?.label ?? wo.status}
+                  {t(`woStatus.${wo.status}`, { defaultValue: wo.status })}
                 </Badge>
                 <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 ml-auto mr-6" onClick={exportPdf}>
                   <Download size={12} /> PDF
@@ -281,49 +279,49 @@ function MaintenanceLogDetail({ id, onClose }: { id: string | null; onClose: () 
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Detail icon={Wrench} label="Type" value={TYPE_LABELS[wo.type] ?? wo.type} />
-                <Detail icon={AlertTriangle} label="Priority" value={wo.priority} tone={PRIORITY_TONE[wo.priority]} />
-                <Detail icon={Factory} label="Machine" value={wo.machine ? `${wo.machine.name} (${wo.machine.code})` : '—'} />
-                <Detail icon={User} label="Requested By" value={wo.requestedBy?.name} />
-                <Detail icon={User} label="Assigned To" value={wo.assignedTo?.name} />
-                <Detail icon={Package} label="Production WO" value={wo.productionWO?.orderNumber} />
+                <Detail icon={Wrench} label={t('detail.type')} value={t(`type.${wo.type}`, { defaultValue: wo.type })} />
+                <Detail icon={AlertTriangle} label={t('detail.priority')} value={t(`common:priority.${wo.priority}`, { defaultValue: wo.priority })} tone={PRIORITY_TONE[wo.priority]} />
+                <Detail icon={Factory} label={t('detail.machine')} value={wo.machine ? `${wo.machine.name} (${wo.machine.code})` : '—'} />
+                <Detail icon={User} label={t('detail2.requestedBy')} value={wo.requestedBy?.name} />
+                <Detail icon={User} label={t('detail.assignedTo')} value={wo.assignedTo?.name} />
+                <Detail icon={Package} label={t('detail2.productionWO')} value={wo.productionWO?.orderNumber} />
               </div>
 
               {/* Timeline */}
               <div className="rounded-lg border border-border/60 p-3">
-                <h3 className="text-xs font-semibold mb-2 flex items-center gap-1.5"><Calendar size={12} className="text-primary" /> Timeline</h3>
+                <h3 className="text-xs font-semibold mb-2 flex items-center gap-1.5"><Calendar size={12} className="text-primary" /> {t('detail2.timeline')}</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                  <Detail icon={Calendar} label="Created" value={fmt(wo.createdAt)} />
-                  <Detail icon={Clock} label="Due" value={fmt(wo.dueDate)} />
-                  <Detail icon={Timer} label="Started" value={fmt(wo.startedAt)} />
-                  <Detail icon={CheckCircle2} label="Completed" value={fmt(wo.completedAt)} />
+                  <Detail icon={Calendar} label={t('detail.created')} value={fmt(wo.createdAt)} />
+                  <Detail icon={Clock} label={t('detail2.due')} value={fmt(wo.dueDate)} />
+                  <Detail icon={Timer} label={t('detail.started')} value={fmt(wo.startedAt)} />
+                  <Detail icon={CheckCircle2} label={t('detail.completed')} value={fmt(wo.completedAt)} />
                 </div>
               </div>
 
               {/* Effort & cost */}
               <div className="rounded-lg border border-border/60 p-3">
-                <h3 className="text-xs font-semibold mb-2 flex items-center gap-1.5"><DollarSign size={12} className="text-primary" /> Effort &amp; Cost</h3>
+                <h3 className="text-xs font-semibold mb-2 flex items-center gap-1.5"><DollarSign size={12} className="text-primary" /> {t('detail2.effortCost')}</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                  <Detail icon={Timer} label="Est. Hours" value={wo.estimatedHours != null ? String(wo.estimatedHours) : '—'} />
-                  <Detail icon={Timer} label="Actual Hours" value={wo.actualHours != null ? String(wo.actualHours) : '—'} />
-                  <Detail icon={DollarSign} label="Labor Cost" value={money(wo.laborCost)} />
-                  <Detail icon={DollarSign} label="Parts Cost" value={money(wo.partsCost)} />
-                  <Detail icon={DollarSign} label="Total Cost" value={money(wo.totalCost)} />
-                  {wo.runtimeHoursAtService != null && <Detail icon={Timer} label="Runtime @ Service" value={String(wo.runtimeHoursAtService)} />}
+                  <Detail icon={Timer} label={t('detail.estHours')} value={wo.estimatedHours != null ? String(wo.estimatedHours) : '—'} />
+                  <Detail icon={Timer} label={t('detail.actualHours')} value={wo.actualHours != null ? String(wo.actualHours) : '—'} />
+                  <Detail icon={DollarSign} label={t('detail2.laborCost')} value={money(wo.laborCost)} />
+                  <Detail icon={DollarSign} label={t('detail2.partsCost')} value={money(wo.partsCost)} />
+                  <Detail icon={DollarSign} label={t('detail.totalCost')} value={money(wo.totalCost)} />
+                  {wo.runtimeHoursAtService != null && <Detail icon={Timer} label={t('detail2.runtimeAtService')} value={String(wo.runtimeHoursAtService)} />}
                 </div>
               </div>
 
               {/* Spare parts */}
               {Array.isArray(wo.sparesUsed) && wo.sparesUsed.length > 0 && (
                 <div className="rounded-lg border border-border/60 p-3">
-                  <h3 className="text-xs font-semibold mb-2 flex items-center gap-1.5"><Package size={12} className="text-primary" /> Spare Parts ({wo.sparesUsed.length})</h3>
+                  <h3 className="text-xs font-semibold mb-2 flex items-center gap-1.5"><Package size={12} className="text-primary" /> {t('detail2.spareParts')} ({wo.sparesUsed.length})</h3>
                   <table className="w-full text-xs">
                     <thead className="text-muted-foreground">
                       <tr>
-                        <th className="text-left py-1">Part</th>
-                        <th className="text-right py-1">Req.</th>
-                        <th className="text-right py-1">Issued</th>
-                        <th className="text-right py-1">Status</th>
+                        <th className="text-left py-1">{t('mlog.partsCol.part')}</th>
+                        <th className="text-right py-1">{t('mlog.partsCol.req')}</th>
+                        <th className="text-right py-1">{t('mlog.partsCol.issued')}</th>
+                        <th className="text-right py-1">{t('mlog.partsCol.status')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -332,7 +330,7 @@ function MaintenanceLogDetail({ id, onClose }: { id: string | null; onClose: () 
                           <td className="py-1">{s.sparePart?.name ?? s.sparePart?.partNumber ?? '—'}</td>
                           <td className="py-1 text-right">{s.quantityRequested}</td>
                           <td className="py-1 text-right">{s.quantityIssued}</td>
-                          <td className="py-1 text-right">{s.status}</td>
+                          <td className="py-1 text-right">{t(`woView.spareStatus.${s.status}`, { defaultValue: s.status })}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -342,7 +340,7 @@ function MaintenanceLogDetail({ id, onClose }: { id: string | null; onClose: () 
 
               {wo.notes && (
                 <div className="rounded-lg border border-border/60 p-3">
-                  <h3 className="text-xs font-semibold mb-1 flex items-center gap-1.5"><FileText size={12} className="text-primary" /> Notes</h3>
+                  <h3 className="text-xs font-semibold mb-1 flex items-center gap-1.5"><FileText size={12} className="text-primary" /> {t('detail2.notes')}</h3>
                   <p className="text-xs text-muted-foreground whitespace-pre-wrap">{wo.notes}</p>
                 </div>
               )}

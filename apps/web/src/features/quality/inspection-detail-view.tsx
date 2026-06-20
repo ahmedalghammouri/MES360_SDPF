@@ -14,15 +14,15 @@ import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
 import { exportRecordToPDF } from '@/lib/export-utils';
 
-const RESULT_CONFIG: Record<string, { label: string; color: string; icon: any; bg: string }> = {
-  PASS:        { label: 'Pass',        color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30',  icon: CheckCircle2 },
-  FAIL:        { label: 'Fail',        color: 'text-red-400',   bg: 'bg-red-500/10 border-red-500/30',      icon: XCircle      },
-  CONDITIONAL: { label: 'Conditional', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30',  icon: AlertCircle  },
-  PENDING:     { label: 'Pending',     color: 'text-blue-400',  bg: 'bg-blue-500/10 border-blue-500/30',    icon: AlertCircle  },
+const RESULT_CONFIG: Record<string, { labelKey: string; color: string; icon: any; bg: string }> = {
+  PASS:        { labelKey: 'inspDetail.result.PASS',        color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30',  icon: CheckCircle2 },
+  FAIL:        { labelKey: 'inspDetail.result.FAIL',        color: 'text-red-400',   bg: 'bg-red-500/10 border-red-500/30',      icon: XCircle      },
+  CONDITIONAL: { labelKey: 'inspDetail.result.CONDITIONAL', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30',  icon: AlertCircle  },
+  PENDING:     { labelKey: 'inspDetail.result.PENDING',     color: 'text-blue-400',  bg: 'bg-blue-500/10 border-blue-500/30',    icon: AlertCircle  },
 };
 
-const TYPE_LABELS: Record<string, string> = {
-  INCOMING: 'Incoming', IN_PROCESS: 'In-Process', FINAL: 'Final', PATROL: 'Patrol', AUDIT: 'Audit', SPC: 'SPC',
+const TYPE_LABEL_KEYS: Record<string, string> = {
+  INCOMING: 'inspDetail.type.INCOMING', IN_PROCESS: 'inspDetail.type.IN_PROCESS', FINAL: 'inspDetail.type.FINAL', PATROL: 'inspDetail.type.PATROL', AUDIT: 'inspDetail.type.AUDIT', SPC: 'inspDetail.type.SPC',
 };
 
 function fmtDateTime(iso?: string | null): string {
@@ -49,19 +49,20 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
   });
 
   if (isLoading) {
-    return <div className="p-6 text-sm text-muted-foreground">Loading inspection…</div>;
+    return <div className="p-6 text-sm text-muted-foreground">{t('inspDetail.loading')}</div>;
   }
   if (isError || !data) {
     return (
       <div className="p-6 space-y-4">
-        <Link href="/quality/records"><Button variant="outline" size="sm"><ArrowLeft size={14} className="mr-1.5" /> Back to records</Button></Link>
-        <div className="text-sm text-red-400">Inspection not found or failed to load.</div>
+        <Link href="/quality/records"><Button variant="outline" size="sm"><ArrowLeft size={14} className="mr-1.5" /> {t('inspDetail.backToRecords')}</Button></Link>
+        <div className="text-sm text-red-400">{t('inspDetail.notFound')}</div>
       </div>
     );
   }
 
   const insp = data;
   const cfg = RESULT_CONFIG[insp.result] ?? RESULT_CONFIG.PENDING;
+  const typeLabel = (ty: string) => (TYPE_LABEL_KEYS[ty] ? t(TYPE_LABEL_KEYS[ty]) : ty);
   const measurements: Measurement[] = Array.isArray(insp.measurements) ? insp.measurements : [];
   const params: Param[] = insp.plan?.parameters ?? [];
   const fpy = insp.totalQty > 0 ? Math.round((insp.passQty / insp.totalQty) * 1000) / 10 : 0;
@@ -72,15 +73,15 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="space-y-1">
           <Link href="/quality/records" className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground">
-            <ArrowLeft size={13} className="mr-1" /> Back to Quality Records
+            <ArrowLeft size={13} className="mr-1" /> {t('inspDetail.backToQualityRecords')}
           </Link>
           <h1 className="text-2xl font-bold flex items-center gap-2 font-mono">
             <ClipboardList size={20} className="text-primary" /> {insp.inspectionNumber}
           </h1>
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline">{TYPE_LABELS[insp.type] ?? insp.type}</Badge>
+            <Badge variant="outline">{typeLabel(insp.type)}</Badge>
             <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border', cfg.bg, cfg.color)}>
-              <cfg.icon size={13} /> {cfg.label}
+              <cfg.icon size={13} /> {t(cfg.labelKey)}
             </span>
           </div>
         </div>
@@ -88,22 +89,22 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
           `Inspection ${insp.inspectionNumber}`,
           insp.plan?.name ?? '',
           [
-            { heading: 'Summary', fields: [
-              { label: 'Inspection #', value: insp.inspectionNumber }, { label: 'Type', value: TYPE_LABELS[insp.type] ?? insp.type },
-              { label: 'Result', value: cfg.label }, { label: 'Total / Pass / Fail', value: `${insp.totalQty} / ${insp.passQty} / ${insp.failQty}` },
-              { label: 'First-Pass Yield', value: `${fpy}%` },
+            { heading: t('pdf.summary'), fields: [
+              { label: t('inspections.col.inspection'), value: insp.inspectionNumber }, { label: t('iform.type'), value: typeLabel(insp.type) },
+              { label: t('inspDetail.colResult'), value: t(cfg.labelKey) }, { label: t('pdf.totalPassFail'), value: `${insp.totalQty} / ${insp.passQty} / ${insp.failQty}` },
+              { label: t('qd.fpy'), value: `${fpy}%` },
             ]},
-            { heading: 'Context', fields: [
-              { label: 'Work Order', value: insp.workOrder?.orderNumber ?? '—' },
-              { label: 'Machine', value: insp.machine ? `${insp.machine.name} (${insp.machine.code})` : '—' },
-              { label: 'Batch / Lot', value: insp.batchRecord?.batchNumber ?? '—' },
-              { label: 'Quality Plan', value: insp.plan ? `${insp.plan.name} (${insp.plan.code})` : '—' },
-              { label: 'Inspector', value: insp.inspector?.name ?? '—' }, { label: 'Inspected At', value: fmtDateTime(insp.inspectedAt) },
+            { heading: t('inspDetail.context'), fields: [
+              { label: t('qd.workOrder'), value: insp.workOrder?.orderNumber ?? '—' },
+              { label: t('qd.machine'), value: insp.machine ? `${insp.machine.name} (${insp.machine.code})` : '—' },
+              { label: t('qd.batchLot'), value: insp.batchRecord?.batchNumber ?? '—' },
+              { label: t('qd.qualityPlan'), value: insp.plan ? `${insp.plan.name} (${insp.plan.code})` : '—' },
+              { label: t('qd.inspector'), value: insp.inspector?.name ?? '—' }, { label: t('qd.inspectedAt'), value: fmtDateTime(insp.inspectedAt) },
             ]},
-            { heading: 'Quality Check Points', fields: measurements.length
-              ? measurements.map((m, i) => ({ label: m.parameterName ?? `Param ${i + 1}`, value: `${m.value ?? '—'}${m.unit ? ' ' + m.unit : ''} — ${m.pass === true ? 'Pass' : m.pass === false ? 'Fail' : '—'}${m.notes ? ` (${m.notes})` : ''}` }))
-              : [{ label: 'Measurements', value: 'None' }] },
-            ...(insp.notes ? [{ heading: 'Notes', fields: [{ label: 'Notes', value: insp.notes }] }] : []),
+            { heading: t('inspDetail.checkPoints'), fields: measurements.length
+              ? measurements.map((m, i) => ({ label: m.parameterName ?? t('pdf.paramN', { n: i + 1 }), value: `${m.value ?? '—'}${m.unit ? ' ' + m.unit : ''} — ${m.pass === true ? t('inspDetail.pass') : m.pass === false ? t('inspDetail.fail') : '—'}${m.notes ? ` (${m.notes})` : ''}` }))
+              : [{ label: t('pdf.measurements'), value: t('common.none') }] },
+            ...(insp.notes ? [{ heading: t('inspDetail.notes'), fields: [{ label: t('inspDetail.notes'), value: insp.notes }] }] : []),
           ],
         )}>
           <Download size={13} /> PDF
@@ -120,7 +121,7 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
 
       {/* Context */}
       <div className="rounded-xl border border-border/60 p-4">
-        <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5"><Link2 size={14} className="text-primary" /> Context</h2>
+        <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5"><Link2 size={14} className="text-primary" /> {t('inspDetail.context')}</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
           <Field icon={Link2} label={t('qd.workOrder')} value={insp.workOrder?.orderNumber}
             href={insp.workOrder?.id ? `/production/orders` : undefined} />
@@ -137,7 +138,7 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
       {/* Measurements */}
       <div className="rounded-xl border border-border/60 p-4">
         <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
-          <FlaskConical size={14} className="text-primary" /> Quality Check Points
+          <FlaskConical size={14} className="text-primary" /> {t('inspDetail.checkPoints')}
           {measurements.length > 0 && <span className="text-xs font-normal text-muted-foreground">({measurements.length})</span>}
         </h2>
         {measurements.length === 0 ? (
@@ -147,11 +148,11 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
             <table className="w-full text-sm">
               <thead className="bg-muted/40">
                 <tr>
-                  <th className="text-left p-2.5 font-medium text-muted-foreground">Parameter</th>
-                  <th className="text-left p-2.5 font-medium text-muted-foreground">Spec</th>
-                  <th className="text-left p-2.5 font-medium text-muted-foreground">Measured</th>
-                  <th className="text-center p-2.5 font-medium text-muted-foreground">Result</th>
-                  <th className="text-left p-2.5 font-medium text-muted-foreground">Notes</th>
+                  <th className="text-left p-2.5 font-medium text-muted-foreground">{t('inspDetail.colParameter')}</th>
+                  <th className="text-left p-2.5 font-medium text-muted-foreground">{t('inspDetail.colSpec')}</th>
+                  <th className="text-left p-2.5 font-medium text-muted-foreground">{t('inspDetail.colMeasured')}</th>
+                  <th className="text-center p-2.5 font-medium text-muted-foreground">{t('inspDetail.colResult')}</th>
+                  <th className="text-left p-2.5 font-medium text-muted-foreground">{t('inspDetail.colNotes')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,7 +160,7 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
                   const p = params.find(x => x.id === m.parameterId);
                   const spec = p && (p.lsl != null || p.usl != null)
                     ? `[${p.lsl ?? '—'}, ${p.usl ?? '—'}]${p.unit ? ` ${p.unit}` : ''}`
-                    : p?.nominalValue != null ? `Nominal ${p.nominalValue}${p.unit ? ` ${p.unit}` : ''}` : '—';
+                    : p?.nominalValue != null ? `${t('inspDetail.nominalLabel')} ${p.nominalValue}${p.unit ? ` ${p.unit}` : ''}` : '—';
                   return (
                     <tr key={i} className="border-t">
                       <td className="p-2.5">
@@ -170,9 +171,9 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
                       <td className="p-2.5 font-mono">{m.value ?? '—'}{m.unit ? ` ${m.unit}` : ''}</td>
                       <td className="p-2.5 text-center">
                         {m.pass === true ? (
-                          <span className="inline-flex items-center gap-1 text-green-400 text-xs"><CheckCircle2 size={13} /> Pass</span>
+                          <span className="inline-flex items-center gap-1 text-green-400 text-xs"><CheckCircle2 size={13} /> {t('inspDetail.pass')}</span>
                         ) : m.pass === false ? (
-                          <span className="inline-flex items-center gap-1 text-red-400 text-xs"><XCircle size={13} /> Fail</span>
+                          <span className="inline-flex items-center gap-1 text-red-400 text-xs"><XCircle size={13} /> {t('inspDetail.fail')}</span>
                         ) : <span className="text-muted-foreground text-xs">—</span>}
                       </td>
                       <td className="p-2.5 text-muted-foreground text-xs">{m.notes || '—'}</td>
@@ -185,7 +186,7 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
         )}
         {measurements.length > 0 && (
           <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-            <Gauge size={12} /> {measurements.filter(m => m.pass === true).length}/{measurements.length} parameters passing
+            <Gauge size={12} /> {t('inspDetail.paramsPassing', { passing: measurements.filter(m => m.pass === true).length, total: measurements.length })}
           </p>
         )}
       </div>
@@ -193,7 +194,7 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
       {/* Notes */}
       {insp.notes && (
         <div className="rounded-xl border border-border/60 p-4">
-          <h2 className="text-sm font-semibold mb-2 flex items-center gap-1.5"><FileText size={14} className="text-primary" /> Notes</h2>
+          <h2 className="text-sm font-semibold mb-2 flex items-center gap-1.5"><FileText size={14} className="text-primary" /> {t('inspDetail.notes')}</h2>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{insp.notes}</p>
         </div>
       )}

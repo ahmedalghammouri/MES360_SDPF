@@ -343,9 +343,21 @@
     "colNotes": "Notes",
     "pass": "Pass",
     "fail": "Fail",
+    "nominalLabel": "Nominal",
     "paramsPassing": "{{passing}}/{{total}} parameters passing",
     "notes": "Notes",
+    "result": { "PASS": "Pass", "FAIL": "Fail", "CONDITIONAL": "Conditional", "PENDING": "Pending" },
     "type": { "INCOMING": "Incoming", "IN_PROCESS": "In-Process", "FINAL": "Final", "PATROL": "Patrol", "AUDIT": "Audit", "SPC": "SPC" }
+  },
+  "pdf": {
+    "summary": "Summary",
+    "ownership": "Ownership",
+    "verifiedAt": "Verified At",
+    "actionPlan": "Action Plan",
+    "actionN": "Action {{n}}",
+    "totalPassFail": "Total / Pass / Fail",
+    "paramN": "Param {{n}}",
+    "measurements": "Measurements"
   },
   "ncrDetail": {
     "loading": "Loading NCR…",
@@ -367,6 +379,7 @@
     "noData": "No measurement data for this parameter",
     "sample": "Sample",
     "valueLabel": "Value",
+    "mean": "Mean",
     "status": { "IN_CONTROL": "In Control", "WARNING": "Warning", "OUT_OF_CONTROL": "Out of Control" }
   },
   "reports": {

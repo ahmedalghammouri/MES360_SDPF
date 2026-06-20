@@ -45,30 +45,22 @@ const STATUS_COLORS: Record<string, 'secondary' | 'default' | 'outline' | 'destr
   OPEN: 'secondary', AWAITING_PARTS: 'outline', ASSIGNED: 'outline',
   IN_PROGRESS: 'default', ON_HOLD: 'outline', COMPLETED: 'default', CANCELLED: 'destructive',
 };
-const STATUS_LABELS: Record<string, string> = {
-  OPEN: 'Open', AWAITING_PARTS: 'Awaiting Parts', ASSIGNED: 'Assigned',
-  IN_PROGRESS: 'In Progress', ON_HOLD: 'On Hold', COMPLETED: 'Completed', CANCELLED: 'Cancelled',
-};
 const STATUS_EXTRA_CLS: Record<string, string> = {
   AWAITING_PARTS: 'text-amber-400 border-amber-400/30 bg-amber-400/10',
 };
-const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
-  LOW: { label: 'Low', color: 'text-muted-foreground' },
-  MEDIUM: { label: 'Medium', color: 'text-brand-400' },
-  HIGH: { label: 'High', color: 'text-amber-400' },
-  CRITICAL: { label: 'Critical', color: 'text-red-400' },
+const PRIORITY_CONFIG: Record<string, { labelKey: string; color: string }> = {
+  LOW: { labelKey: 'common:priority.LOW', color: 'text-muted-foreground' },
+  MEDIUM: { labelKey: 'common:priority.MEDIUM', color: 'text-brand-400' },
+  HIGH: { labelKey: 'common:priority.HIGH', color: 'text-amber-400' },
+  CRITICAL: { labelKey: 'common:priority.CRITICAL', color: 'text-red-400' },
 };
-const TYPE_LABELS: Record<string, string> = {
-  CORRECTIVE: 'Corrective', PREVENTIVE: 'Preventive',
-  PREDICTIVE: 'Predictive', EMERGENCY: 'Emergency',
-  INSPECTION: 'Inspection', LUBRICATION: 'Lubrication',
-};
+const TYPE_KEYS = ['CORRECTIVE', 'PREVENTIVE', 'PREDICTIVE', 'EMERGENCY', 'INSPECTION', 'LUBRICATION'];
 
-const SPARE_STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; cls: string }> = {
-  PENDING:   { label: 'Pending',   icon: Clock,         cls: 'text-amber-400 border-amber-400/30 bg-amber-400/10' },
-  ISSUED:    { label: 'Issued',    icon: PackageCheck,  cls: 'text-green-400 border-green-400/30 bg-green-400/10' },
-  PARTIAL:   { label: 'Partial',   icon: PackageMinus,  cls: 'text-blue-400  border-blue-400/30  bg-blue-400/10'  },
-  CANCELLED: { label: 'Cancelled', icon: PackageX,      cls: 'text-muted-foreground border-border bg-muted/20'   },
+const SPARE_STATUS_CONFIG: Record<string, { labelKey: string; icon: React.ElementType; cls: string }> = {
+  PENDING:   { labelKey: 'woView.spareStatus.PENDING',   icon: Clock,         cls: 'text-amber-400 border-amber-400/30 bg-amber-400/10' },
+  ISSUED:    { labelKey: 'woView.spareStatus.ISSUED',    icon: PackageCheck,  cls: 'text-green-400 border-green-400/30 bg-green-400/10' },
+  PARTIAL:   { labelKey: 'woView.spareStatus.PARTIAL',   icon: PackageMinus,  cls: 'text-blue-400  border-blue-400/30  bg-blue-400/10'  },
+  CANCELLED: { labelKey: 'woView.spareStatus.CANCELLED', icon: PackageX,      cls: 'text-muted-foreground border-border bg-muted/20'   },
 };
 
 interface MaintWO {
@@ -106,9 +98,9 @@ interface SpareLineItem {
 }
 
 const SUMMARY_CARDS = [
-  { label: 'Open Orders', key: 'OPEN',        icon: AlertTriangle, color: 'text-amber-400' },
-  { label: 'In Progress', key: 'IN_PROGRESS',  icon: Wrench,        color: 'text-brand-400' },
-  { label: 'Completed',   key: 'COMPLETED',    icon: CheckCircle,   color: 'text-green-400' },
+  { labelKey: 'woView.summary.open',       key: 'OPEN',        icon: AlertTriangle, color: 'text-amber-400' },
+  { labelKey: 'woView.summary.inProgress', key: 'IN_PROGRESS',  icon: Wrench,        color: 'text-brand-400' },
+  { labelKey: 'woView.summary.completed',  key: 'COMPLETED',    icon: CheckCircle,   color: 'text-green-400' },
 ];
 
 const EMPTY_FORM = {
@@ -393,29 +385,29 @@ export function MaintenanceWorkOrdersView() {
   const exportWoPdf = (wo: MaintWO) => {
     const money = (v?: number | null) => (v != null ? `$${v.toLocaleString()}` : '—');
     const dt = (v?: string | null) => (v ? new Date(v).toLocaleString() : '—');
-    exportRecordToPDF(`Maintenance Order ${wo.woNumber}`, wo.title ?? '', [
-      { heading: 'Summary', fields: [
-        { label: 'MO #', value: wo.woNumber }, { label: 'Title', value: wo.title },
-        { label: 'Type', value: TYPE_LABELS[wo.type] ?? wo.type }, { label: 'Priority', value: PRIORITY_CONFIG[wo.priority]?.label ?? wo.priority },
-        { label: 'Status', value: STATUS_LABELS[wo.status] ?? wo.status }, { label: 'Description', value: wo.description ?? '—' },
+    exportRecordToPDF(`${t('woView.exportTitle')} ${wo.woNumber}`, wo.title ?? '', [
+      { heading: t('detail2.summary'), fields: [
+        { label: t('col.mo'), value: wo.woNumber }, { label: t('col.title'), value: wo.title },
+        { label: t('detail.type'), value: t(`type.${wo.type}`, { defaultValue: wo.type }) }, { label: t('detail.priority'), value: t(`common:priority.${wo.priority}`, { defaultValue: wo.priority }) },
+        { label: t('col.status'), value: t(`woStatus.${wo.status}`, { defaultValue: wo.status }) }, { label: t('detail2.description'), value: wo.description ?? '—' },
       ]},
-      { heading: 'Context', fields: [
-        { label: 'Machine', value: wo.asset ?? '—' }, { label: 'Requested By', value: wo.requestedBy ?? '—' },
-        { label: 'Assigned To', value: wo.assignedTo ?? '—' },
+      { heading: t('detail2.context'), fields: [
+        { label: t('detail.machine'), value: wo.asset ?? '—' }, { label: t('detail2.requestedBy'), value: wo.requestedBy ?? '—' },
+        { label: t('detail.assignedTo'), value: wo.assignedTo ?? '—' },
       ]},
-      { heading: 'Timeline', fields: [
-        { label: 'Created', value: dt(wo.createdAt) }, { label: 'Due', value: dt(wo.dueDate) },
-        { label: 'Started', value: dt(wo.startedAt) }, { label: 'Completed', value: dt(wo.completedAt) },
+      { heading: t('detail2.timeline'), fields: [
+        { label: t('detail.created'), value: dt(wo.createdAt) }, { label: t('detail2.due'), value: dt(wo.dueDate) },
+        { label: t('detail.started'), value: dt(wo.startedAt) }, { label: t('detail.completed'), value: dt(wo.completedAt) },
       ]},
-      { heading: 'Effort & Cost', fields: [
-        { label: 'Estimated Hours', value: wo.estimatedHours != null ? String(wo.estimatedHours) : '—' },
-        { label: 'Actual Hours', value: wo.actualHours != null ? String(wo.actualHours) : '—' },
-        { label: 'Total Cost', value: money(wo.totalCost) },
+      { heading: t('detail2.effortCost'), fields: [
+        { label: t('detail.estHours'), value: wo.estimatedHours != null ? String(wo.estimatedHours) : '—' },
+        { label: t('detail.actualHours'), value: wo.actualHours != null ? String(wo.actualHours) : '—' },
+        { label: t('detail.totalCost'), value: money(wo.totalCost) },
       ]},
-      { heading: 'Spare Parts', fields: woSpareParts.length
-        ? woSpareParts.map((s, i) => ({ label: `Part ${i + 1}`, value: `${s.sparePart?.name ?? '—'} — req ${s.quantityRequested}, issued ${s.quantityIssued} (${s.status})` }))
-        : [{ label: 'Parts', value: 'None' }] },
-      ...(wo.notes ? [{ heading: 'Notes', fields: [{ label: 'Notes', value: wo.notes }] }] : []),
+      { heading: t('detail2.spareParts'), fields: woSpareParts.length
+        ? woSpareParts.map((s, i) => ({ label: t('detail2.partLabel', { n: i + 1 }), value: `${s.sparePart?.name ?? '—'} — ${t('woView.requested')} ${s.quantityRequested}, ${t('woView.issued')} ${s.quantityIssued} (${t(`woView.spareStatus.${s.status}`, { defaultValue: s.status })})` }))
+        : [{ label: t('col.parts'), value: t('detail2.partsNone') }] },
+      ...(wo.notes ? [{ heading: t('detail2.notes'), fields: [{ label: t('detail2.notes'), value: wo.notes }] }] : []),
     ]);
   };
 
@@ -511,14 +503,14 @@ export function MaintenanceWorkOrdersView() {
             title={t('woView.exportTitle')}
             rows={orders}
             columns={[
-              { key: 'woNumber', label: 'WO #' },
-              { key: 'title', label: 'Title' },
-              { key: 'type', label: 'Type' },
-              { key: 'priority', label: 'Priority' },
-              { key: 'status', label: 'Status' },
-              { key: 'asset', label: 'Machine', value: (r: any) => r.asset ?? r.machine?.name ?? '' },
-              { key: 'assignedTo', label: 'Assigned', value: (r: any) => r.assignedTo ?? '' },
-              { key: 'dueDate', label: 'Due', value: (r: any) => r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '' },
+              { key: 'woNumber', label: t('col.mo') },
+              { key: 'title', label: t('col.title') },
+              { key: 'type', label: t('col.type') },
+              { key: 'priority', label: t('col.priority') },
+              { key: 'status', label: t('col.status') },
+              { key: 'asset', label: t('col.machine'), value: (r: any) => r.asset ?? r.machine?.name ?? '' },
+              { key: 'assignedTo', label: t('col.assignedTo'), value: (r: any) => r.assignedTo ?? '' },
+              { key: 'dueDate', label: t('col.due'), value: (r: any) => r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '' },
             ]}
           />
           <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={handleOpenCreate}>
@@ -532,10 +524,10 @@ export function MaintenanceWorkOrdersView() {
 
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-3">
-          {SUMMARY_CARDS.map(({ label, key, icon: Icon, color }) => (
+          {SUMMARY_CARDS.map(({ labelKey, key, icon: Icon, color }) => (
             <div key={key} className="industrial-card p-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">{label}</span>
+                <span className="text-xs text-muted-foreground">{t(labelKey)}</span>
                 <Icon size={14} className={color} />
               </div>
               <p className={cn('text-2xl font-bold mt-1', color)}>{counts[key] ?? 0}</p>
@@ -562,7 +554,7 @@ export function MaintenanceWorkOrdersView() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   <DropdownMenuItem onClick={() => { setStatusFilter(null); setPage(1); }}>{t('allStatus')}</DropdownMenuItem>
-                  {Object.keys(STATUS_LABELS).map((k) => (
+                  {Object.keys(STATUS_COLORS).map((k) => (
                     <DropdownMenuItem key={k} onClick={() => { setStatusFilter(k); setPage(1); }}>{t(`woStatus.${k}`)}</DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -729,8 +721,8 @@ export function MaintenanceWorkOrdersView() {
                   <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {Object.entries(TYPE_LABELS).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>{t(`type.${k}`, { defaultValue: v })}</SelectItem>
+                      {TYPE_KEYS.map((k) => (
+                        <SelectItem key={k} value={k}>{t(`type.${k}`)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -740,8 +732,8 @@ export function MaintenanceWorkOrdersView() {
                   <Select value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v }))}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {Object.entries(PRIORITY_CONFIG).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>{t(`common:priority.${k}`, { defaultValue: v.label })}</SelectItem>
+                      {Object.keys(PRIORITY_CONFIG).map((k) => (
+                        <SelectItem key={k} value={k}>{t(`common:priority.${k}`)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1143,7 +1135,7 @@ export function MaintenanceWorkOrdersView() {
                               )}
                             </div>
                             <span className={cn('flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border shrink-0', cfg.cls)}>
-                              <Icon size={9} />{t(`woView.spareStatus.${req.status}`, { defaultValue: cfg.label })}
+                              <Icon size={9} />{t(`woView.spareStatus.${req.status}`, { defaultValue: t(cfg.labelKey) })}
                             </span>
                           </div>
 
@@ -1272,26 +1264,26 @@ export function MaintenanceWorkOrdersView() {
                 {viewWO.status === 'ON_HOLD' && (
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5"
                     onClick={() => { resumeMutation.mutate(viewWO.id); }}>
-                    <Play size={11} />Resume
+                    <Play size={11} />{t('woView.resume')}
                   </Button>
                 )}
                 {/* Cancel — not for COMPLETED/CANCELLED */}
                 {!['COMPLETED', 'CANCELLED'].includes(viewWO.status) && (
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10 ml-auto"
                     onClick={() => { setCancelDialog({ wo: viewWO }); setCancelReason(''); }}>
-                    <Ban size={11} />Cancel Order
+                    <Ban size={11} />{t('woView.cancelOrder')}
                   </Button>
                 )}
                 {/* Archive / Restore */}
                 {(viewWO as any).archivedAt ? (
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5"
                     onClick={() => { restoreWO.mutate(viewWO.id); setViewWO(null); }}>
-                    <RotateCcw size={11} />Restore
+                    <RotateCcw size={11} />{t('woView.restore')}
                   </Button>
                 ) : (
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5"
                     onClick={() => { archiveWO.mutate(viewWO.id); setViewWO(null); }}>
-                    <ArchiveIcon size={11} />Archive
+                    <ArchiveIcon size={11} />{t('woView.archive')}
                   </Button>
                 )}
               </div>
@@ -1307,10 +1299,10 @@ export function MaintenanceWorkOrdersView() {
             <DialogHeader>
               <DialogTitle className="text-sm flex items-center gap-2">
                 <PackageCheck size={14} className="text-green-400" />
-                Issue Parts from Inventory
+                {t('woView.issueDialogTitle')}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Confirm delivery of <span className="font-medium text-foreground">{issueDialog.request.sparePart.name}</span> to the maintenance team.
+                {t('woView.issueDialogDescPre', { defaultValue: 'Confirm delivery of' })} <span className="font-medium text-foreground">{issueDialog.request.sparePart.name}</span> {t('woView.issueDialogDescPost', { defaultValue: 'to the maintenance team.' })}
               </DialogDescription>
             </DialogHeader>
 
@@ -1318,10 +1310,10 @@ export function MaintenanceWorkOrdersView() {
               {/* Summary */}
               <div className="industrial-card rounded-lg px-3 py-2 space-y-1.5">
                 {[
-                  { label: 'Part #',     value: issueDialog.request.sparePart.partNumber },
-                  { label: 'Requested',  value: `${issueDialog.request.quantityRequested} units` },
-                  { label: 'Previously Issued', value: `${issueDialog.request.quantityIssued} units` },
-                  { label: 'Available Stock', value: `${issueDialog.request.sparePart.stockQty} units` },
+                  { label: t('woView.issuePartNumber'),  value: issueDialog.request.sparePart.partNumber },
+                  { label: t('woView.issueRequested'),   value: t('woView.unitsSuffix', { count: issueDialog.request.quantityRequested }) },
+                  { label: t('woView.issuePrevIssued'),  value: t('woView.unitsSuffix', { count: issueDialog.request.quantityIssued }) },
+                  { label: t('woView.issueAvailable'),   value: t('woView.unitsSuffix', { count: issueDialog.request.sparePart.stockQty }) },
                 ].map(r => (
                   <div key={r.label} className="flex justify-between text-xs">
                     <span className="text-muted-foreground">{r.label}</span>
@@ -1331,7 +1323,7 @@ export function MaintenanceWorkOrdersView() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs">Quantity to Issue <span className="text-destructive">*</span></Label>
+                <Label className="text-xs">{t('woView.qtyToIssue')} <span className="text-destructive">*</span></Label>
                 <Input
                   type="number"
                   min={1}
@@ -1342,23 +1334,23 @@ export function MaintenanceWorkOrdersView() {
                   autoFocus
                 />
                 {parseInt(issueQty) > issueDialog.request.sparePart.stockQty && (
-                  <p className="text-[11px] text-red-400">Exceeds available stock ({issueDialog.request.sparePart.stockQty})</p>
+                  <p className="text-[11px] text-red-400">{t('woView.exceedsAvailable', { count: issueDialog.request.sparePart.stockQty })}</p>
                 )}
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs">Notes (optional)</Label>
+                <Label className="text-xs">{t('woView.notesOptional')}</Label>
                 <Input
                   value={issueNotes}
                   onChange={e => setIssueNotes(e.target.value)}
-                  placeholder="e.g. Issued from Bin A-12…"
+                  placeholder={t('woView.issueNotesPlaceholder')}
                   className="h-9"
                 />
               </div>
             </div>
 
             <DialogFooter className="gap-2">
-              <Button variant="outline" size="sm" onClick={() => setIssueDialog(null)}>Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => setIssueDialog(null)}>{t('woView.cancel')}</Button>
               <Button
                 size="sm"
                 className="gap-1.5"
@@ -1381,7 +1373,7 @@ export function MaintenanceWorkOrdersView() {
                 }}
               >
                 <PackageCheck size={12} />
-                {issueMutation.isPending ? 'Issuing…' : 'Confirm Issue'}
+                {issueMutation.isPending ? t('woView.issuing') : t('woView.confirmIssue')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1394,15 +1386,15 @@ export function MaintenanceWorkOrdersView() {
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
               <DialogTitle className="text-sm flex items-center gap-2">
-                <User size={14} className="text-blue-400" />Assign Technician
+                <User size={14} className="text-blue-400" />{t('woView.assignDialogTitle')}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Assigning <span className="font-mono font-medium text-foreground">{assignDialog.wo.woNumber}</span>
+                {t('woView.assigningWO', { wo: assignDialog.wo.woNumber })}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-1">
               <div className="space-y-1.5">
-                <Label className="text-xs">Technician <span className="text-destructive">*</span></Label>
+                <Label className="text-xs">{t('woView.technician')} <span className="text-destructive">*</span></Label>
                 <EntityPicker
                   items={technicianOptions}
                   value={assignUserId || null}
@@ -1416,15 +1408,15 @@ export function MaintenanceWorkOrdersView() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Notes (optional)</Label>
-                <Input value={assignNotes} onChange={e => setAssignNotes(e.target.value)} placeholder="Instructions for technician…" className="h-9" />
+                <Label className="text-xs">{t('woView.notesOptional')}</Label>
+                <Input value={assignNotes} onChange={e => setAssignNotes(e.target.value)} placeholder={t('woView.assignNotesPlaceholder')} className="h-9" />
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" size="sm" onClick={() => setAssignDialog(null)}>Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => setAssignDialog(null)}>{t('woView.cancel')}</Button>
               <Button size="sm" disabled={!assignUserId || assignMutation.isPending}
                 onClick={() => assignMutation.mutate({ woId: assignDialog.wo.id, dto: { assignedToId: assignUserId, notes: assignNotes || undefined } })}>
-                {assignMutation.isPending ? 'Assigning…' : 'Assign'}
+                {assignMutation.isPending ? t('woView.assigning') : t('woView.assign')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1437,43 +1429,43 @@ export function MaintenanceWorkOrdersView() {
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
               <DialogTitle className="text-sm flex items-center gap-2">
-                <CheckCircle size={14} className="text-green-400" />Complete Maintenance Order
+                <CheckCircle size={14} className="text-green-400" />{t('woView.completeDialogTitle')}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Completing <span className="font-mono font-medium text-foreground">{completeDialog.wo.woNumber}</span>. Machine will return to IDLE.
+                {t('woView.completingWO', { wo: completeDialog.wo.woNumber })}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-1">
               <div className="space-y-1.5">
-                <Label className="text-xs">Actual Hours Worked <span className="text-destructive">*</span></Label>
+                <Label className="text-xs">{t('woView.actualHoursWorked')} <span className="text-destructive">*</span></Label>
                 <Input type="number" min="0" step="0.5" value={completeForm.actualHours}
                   onChange={e => setCompleteForm(f => ({ ...f, actualHours: e.target.value }))} placeholder="0.0" className="h-9" />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Labor Cost (SAR)</Label>
+                  <Label className="text-xs">{t('woView.laborCostSar')}</Label>
                   <Input type="number" min="0" step="0.01" value={completeForm.laborCost}
                     onChange={e => setCompleteForm(f => ({ ...f, laborCost: e.target.value }))} placeholder="0.00" className="h-9" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Parts Cost (SAR)</Label>
+                  <Label className="text-xs">{t('woView.partsCostSar')}</Label>
                   <Input type="number" min="0" step="0.01" value={completeForm.partsCost}
                     onChange={e => setCompleteForm(f => ({ ...f, partsCost: e.target.value }))} placeholder="0.00" className="h-9" />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Runtime Hours at Service <span className="text-[10px] font-normal text-muted-foreground">(machine meter)</span></Label>
+                <Label className="text-xs">{t('woView.runtimeAtService')} <span className="text-[10px] font-normal text-muted-foreground">{t('woView.machineMeter')}</span></Label>
                 <Input type="number" min="0" step="1" value={completeForm.runtimeHoursAtService}
                   onChange={e => setCompleteForm(f => ({ ...f, runtimeHoursAtService: e.target.value }))} placeholder="e.g. 4200" className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Completion Notes</Label>
+                <Label className="text-xs">{t('woView.completionNotes')}</Label>
                 <Input value={completeForm.notes} onChange={e => setCompleteForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="What was done, root cause, etc." className="h-9" />
+                  placeholder={t('woView.completionNotesPlaceholder')} className="h-9" />
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" size="sm" onClick={() => setCompleteDialog(null)}>Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => setCompleteDialog(null)}>{t('woView.cancel')}</Button>
               <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white gap-1.5"
                 disabled={!completeForm.actualHours || completeMutation.isPending}
                 onClick={() => completeMutation.mutate({
@@ -1486,7 +1478,7 @@ export function MaintenanceWorkOrdersView() {
                     notes: completeForm.notes || undefined,
                   },
                 })}>
-                <CheckCircle size={12} />{completeMutation.isPending ? 'Completing…' : 'Mark Complete'}
+                <CheckCircle size={12} />{completeMutation.isPending ? t('woView.completing') : t('woView.markComplete')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1499,25 +1491,25 @@ export function MaintenanceWorkOrdersView() {
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
               <DialogTitle className="text-sm flex items-center gap-2">
-                <Clock size={14} className="text-amber-400" />Put On Hold
+                <Clock size={14} className="text-amber-400" />{t('woView.holdDialogTitle')}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Pausing <span className="font-mono font-medium text-foreground">{holdDialog.wo.woNumber}</span>
+                {t('woView.pausingWO', { wo: holdDialog.wo.woNumber })}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-1">
               <div className="space-y-1.5">
-                <Label className="text-xs">Reason (optional)</Label>
+                <Label className="text-xs">{t('woView.reasonOptional')}</Label>
                 <Input value={holdReason} onChange={e => setHoldReason(e.target.value)}
-                  placeholder="e.g. Waiting for parts, shift end…" className="h-9" />
+                  placeholder={t('woView.holdReasonPlaceholder')} className="h-9" />
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" size="sm" onClick={() => setHoldDialog(null)}>Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => setHoldDialog(null)}>{t('woView.cancel')}</Button>
               <Button size="sm" variant="outline" className="gap-1.5 text-amber-400 border-amber-400/30 hover:bg-amber-400/10"
                 disabled={holdMutation.isPending}
                 onClick={() => holdMutation.mutate({ woId: holdDialog.wo.id, dto: { reason: holdReason || undefined } })}>
-                <Clock size={12} />{holdMutation.isPending ? 'Holding…' : 'Confirm Hold'}
+                <Clock size={12} />{holdMutation.isPending ? t('woView.holding') : t('woView.confirmHold')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1530,25 +1522,25 @@ export function MaintenanceWorkOrdersView() {
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
               <DialogTitle className="text-sm flex items-center gap-2 text-destructive">
-                <Ban size={14} />Cancel Maintenance Order
+                <Ban size={14} />{t('woView.cancelDialogTitle')}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Cancelling <span className="font-mono font-medium text-foreground">{cancelDialog.wo.woNumber}</span>. This cannot be undone.
+                {t('woView.cancellingWO', { wo: cancelDialog.wo.woNumber })}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-1">
               <div className="space-y-1.5">
-                <Label className="text-xs">Reason <span className="text-destructive">*</span></Label>
+                <Label className="text-xs">{t('woView.reason')} <span className="text-destructive">*</span></Label>
                 <Input value={cancelReason} onChange={e => setCancelReason(e.target.value)}
-                  placeholder="Reason for cancellation (min 5 chars)" className="h-9" />
+                  placeholder={t('woView.cancelReasonPlaceholder')} className="h-9" />
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" size="sm" onClick={() => setCancelDialog(null)}>Back</Button>
+              <Button variant="outline" size="sm" onClick={() => setCancelDialog(null)}>{t('woView.back')}</Button>
               <Button size="sm" variant="destructive" className="gap-1.5"
                 disabled={cancelReason.trim().length < 5 || cancelMutation.isPending}
                 onClick={() => cancelMutation.mutate({ woId: cancelDialog.wo.id, reason: cancelReason.trim() })}>
-                <Ban size={12} />{cancelMutation.isPending ? 'Cancelling…' : 'Confirm Cancel'}
+                <Ban size={12} />{cancelMutation.isPending ? t('woView.cancelling') : t('woView.confirmCancel')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1559,8 +1551,8 @@ export function MaintenanceWorkOrdersView() {
         open={!!deleteDialog}
         onClose={() => setDeleteDialog(null)}
         onConfirm={() => deleteDialog && deleteMutation.mutate(deleteDialog.id)}
-        title={`Delete maintenance order ${deleteDialog?.woNumber}?`}
-        description="This will permanently delete this maintenance order."
+        title={t('woView.deleteTitle', { wo: deleteDialog?.woNumber })}
+        description={t('woView.deleteDesc')}
         isDeleting={deleteMutation.isPending}
       />
 
@@ -1568,8 +1560,8 @@ export function MaintenanceWorkOrdersView() {
         count={sel.count}
         onClear={sel.clear}
         actions={archived === 'archived'
-          ? [{ label: 'Restore', icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
-          : [{ label: 'Archive', icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
+          ? [{ label: t('woView.restore'), icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
+          : [{ label: t('woView.archive'), icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
       />
     </div>
   );

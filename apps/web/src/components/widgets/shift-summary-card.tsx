@@ -38,7 +38,7 @@ export function ShiftSummaryCard({ data, isLoading }: ShiftSummaryCardProps) {
         </div>
         <div className="flex items-center gap-1.5 text-xs text-success-400">
           <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" />
-          Active
+          {t('widgets.active')}
         </div>
       </div>
 
@@ -58,17 +58,17 @@ export function ShiftSummaryCard({ data, isLoading }: ShiftSummaryCardProps) {
             </div>
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <Clock size={12} />
-              <span>{data?.elapsed ? formatDuration(data.elapsed) : '—'} elapsed</span>
+              <span>{data?.elapsed ? formatDuration(data.elapsed) : '—'} {t('widgets.elapsed')}</span>
             </div>
           </div>
 
           {/* Output progress */}
           <div>
             <div className="flex justify-between text-xs mb-1.5">
-              <span className="text-muted-foreground">Output Progress{data?.unit ? ` · ${data.unit}` : ''}</span>
+              <span className="text-muted-foreground">{t('widgets.outputProgress')}{data?.unit ? ` · ${data.unit}` : ''}</span>
               <span className="font-semibold text-foreground">
                 {data?.output?.toLocaleString() ?? 0} / {data?.target != null ? data.target.toLocaleString() : '—'}
-                {(data?.inProcess ?? 0) > 0 && <span className="text-sky-400 font-normal"> · +{data!.inProcess!.toLocaleString()} WIP</span>}
+                {(data?.inProcess ?? 0) > 0 && <span className="text-sky-400 font-normal"> · +{data!.inProcess!.toLocaleString()} {t('widgets.wip')}</span>}
               </span>
             </div>
             <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -81,16 +81,16 @@ export function ShiftSummaryCard({ data, isLoading }: ShiftSummaryCardProps) {
               />
             </div>
             <div className="text-[10px] text-muted-foreground mt-1 text-right">
-              {data?.target ? `${formatPercent(outputPct)} of target` : 'no target set'}
+              {data?.target ? t('widgets.ofTarget', { value: formatPercent(outputPct) }) : t('widgets.noTargetSet')}
             </div>
           </div>
 
           {/* Stats grid */}
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label: 'OEE', value: data?.oee != null ? formatPercent(data.oee) : '—', color: (data?.oee ?? 0) >= 85 ? 'text-success-400' : 'text-warning-400' },
-              { label: 'Downtime', value: formatDuration(data?.downtime ?? 0), color: 'text-warning-400' },
-              { label: 'Defects', value: String(data?.defects ?? 0), color: (data?.defects ?? 0) > 0 ? 'text-danger-400' : 'text-success-400' },
+              { label: t('charts.oee'), value: data?.oee != null ? formatPercent(data.oee) : '—', color: (data?.oee ?? 0) >= 85 ? 'text-success-400' : 'text-warning-400' },
+              { label: t('widgets.downtime'), value: formatDuration(data?.downtime ?? 0), color: 'text-warning-400' },
+              { label: t('widgets.defects'), value: String(data?.defects ?? 0), color: (data?.defects ?? 0) > 0 ? 'text-danger-400' : 'text-success-400' },
             ].map(({ label, value, color }) => (
               <div key={label} className="text-center p-2 rounded-lg bg-muted/20">
                 <div className={cn('text-sm font-bold', color)}>{value}</div>

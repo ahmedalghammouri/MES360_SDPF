@@ -55,7 +55,7 @@ export function TableRowActions({
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="h-7 w-7 data-[state=open]:bg-muted" onClick={e => e.stopPropagation()}>
           <MoreHorizontal size={14} />
-          <span className="sr-only">Row actions</span>
+          <span className="sr-only">{t('rowActions.label')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">

@@ -52,35 +52,37 @@ interface TreeNode {
 }
 
 // ── Time ranges ───────────────────────────────────────────────────
-const RANGES: { label: string; ms: number; everyMin: number }[] = [
-  { label: 'Last 15 min', ms: 15 * 60_000, everyMin: 0 },
-  { label: 'Last 1 hour', ms: 60 * 60_000, everyMin: 0 },
-  { label: 'Last 8 hours', ms: 8 * 3600_000, everyMin: 1 },
-  { label: 'Last 24 hours', ms: 24 * 3600_000, everyMin: 5 },
-  { label: 'Last 7 days', ms: 7 * 24 * 3600_000, everyMin: 30 },
+const RANGES: { labelKey: string; ms: number; everyMin: number }[] = [
+  { labelKey: 'historian.rangeLast15Min', ms: 15 * 60_000, everyMin: 0 },
+  { labelKey: 'historian.rangeLast1Hour', ms: 60 * 60_000, everyMin: 0 },
+  { labelKey: 'historian.rangeLast8Hours', ms: 8 * 3600_000, everyMin: 1 },
+  { labelKey: 'historian.rangeLast24Hours', ms: 24 * 3600_000, everyMin: 5 },
+  { labelKey: 'historian.rangeLast7Days', ms: 7 * 24 * 3600_000, everyMin: 30 },
 ];
 
 const PALETTE = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7', '#ec4899', '#84cc16'];
 
 // OEE / KPI metric leaves offered per machine.
-const KPI_METRICS: { field: string; label: string; unit: string; kind: 'oee' | 'prod' }[] = [
-  { field: 'oee',            label: 'OEE',                  unit: '%',    kind: 'oee' },
-  { field: 'oeeTb',          label: 'OEE (Time-Based)',     unit: '%',    kind: 'oee' },
-  { field: 'availability',   label: 'Availability',         unit: '%',    kind: 'oee' },
-  { field: 'availabilityTb', label: 'Availability (Time-Based)', unit: '%', kind: 'oee' },
-  { field: 'performance',    label: 'Performance',          unit: '%',    kind: 'oee' },
-  { field: 'quality',        label: 'Quality',              unit: '%',    kind: 'oee' },
-  { field: 'good',           label: 'Good (cum.)',          unit: 'pcs',  kind: 'prod' },
-  { field: 'rejected',       label: 'Rejected (cum.)',      unit: 'pcs',  kind: 'prod' },
-  { field: 'rate',           label: 'Production Rate',      unit: '/hr',  kind: 'prod' },
+const KPI_METRICS: { field: string; labelKey: string; unit: string; kind: 'oee' | 'prod' }[] = [
+  { field: 'oee',            labelKey: 'historian.mOee',            unit: '%',    kind: 'oee' },
+  { field: 'oeeTb',          labelKey: 'historian.mOeeTb',          unit: '%',    kind: 'oee' },
+  { field: 'availability',   labelKey: 'historian.mAvailability',   unit: '%',    kind: 'oee' },
+  { field: 'availabilityTb', labelKey: 'historian.mAvailabilityTb', unit: '%', kind: 'oee' },
+  { field: 'performance',    labelKey: 'historian.mPerformance',    unit: '%',    kind: 'oee' },
+  { field: 'quality',        labelKey: 'historian.mQuality',        unit: '%',    kind: 'oee' },
+  { field: 'good',           labelKey: 'historian.mGood',           unit: 'pcs',  kind: 'prod' },
+  { field: 'rejected',       labelKey: 'historian.mRejected',       unit: 'pcs',  kind: 'prod' },
+  { field: 'rate',           labelKey: 'historian.mRate',           unit: '/hr',  kind: 'prod' },
 ];
 
+type TFunc = (key: string) => string;
+
 // ── Tree builders ─────────────────────────────────────────────────
-function buildTagTree(tags: TagDef[]): TreeNode {
+function buildTagTree(tags: TagDef[], tr: TFunc): TreeNode {
   const root = new Map<string, TreeNode>();
   for (const t of tags) {
-    const area = t.area?.name ?? 'default';
-    const sub = t.machine?.name ?? t.line?.name ?? t.device?.name ?? 'io';
+    const area = t.area?.name ?? tr('historian.defaultArea');
+    const sub = t.machine?.name ?? t.line?.name ?? t.device?.name ?? tr('historian.ioGroup');
     let areaNode = root.get(area);
     if (!areaNode) { areaNode = { key: `tag/a:${area}`, label: area, icon: 'folder', children: [] }; root.set(area, areaNode); }
     let subNode = areaNode.children.find((c) => c.label === sub);
@@ -95,10 +97,10 @@ function buildTagTree(tags: TagDef[]): TreeNode {
   const arr = [...root.values()];
   const sortRec = (nodes: TreeNode[]) => { nodes.sort((a, b) => a.label.localeCompare(b.label)); nodes.forEach((n) => sortRec(n.children)); };
   sortRec(arr);
-  return { key: 'root:tags', label: 'Edge Historian — Tags', icon: 'folder', children: arr };
+  return { key: 'root:tags', label: tr('historian.rootTags'), icon: 'folder', children: arr };
 }
 
-function buildKpiTree(machines: Machine[]): TreeNode {
+function buildKpiTree(machines: Machine[], tr: TFunc): TreeNode {
   const children = machines
     .slice()
     .sort((a, b) => a.code.localeCompare(b.code))
@@ -106,21 +108,24 @@ function buildKpiTree(machines: Machine[]): TreeNode {
       key: `kpi/m:${m.id}`,
       label: `${m.name} (${m.code})`,
       icon: 'machine',
-      children: KPI_METRICS.map((metric) => ({
-        key: `${metric.kind}:${m.id}:${metric.field}`,
-        label: metric.label,
-        series: {
+      children: KPI_METRICS.map((metric) => {
+        const metricLabel = tr(metric.labelKey);
+        return {
           key: `${metric.kind}:${m.id}:${metric.field}`,
-          label: `${m.code} ${metric.label}`,
-          unit: metric.unit,
-          kind: metric.kind,
-          machineId: m.id,
-          field: metric.field,
-        },
-        children: [],
-      })),
+          label: metricLabel,
+          series: {
+            key: `${metric.kind}:${m.id}:${metric.field}`,
+            label: `${m.code} ${metricLabel}`,
+            unit: metric.unit,
+            kind: metric.kind,
+            machineId: m.id,
+            field: metric.field,
+          },
+          children: [],
+        };
+      }),
     }));
-  return { key: 'root:kpi', label: 'OEE & KPIs', icon: 'folder', children };
+  return { key: 'root:kpi', label: tr('historian.rootKpi'), icon: 'folder', children };
 }
 
 function filterTree(node: TreeNode, q: string): TreeNode | null {
@@ -213,9 +218,10 @@ export function HistorianTrendView() {
   const machines: Machine[] = Array.isArray(machinesResp) ? machinesResp : ((machinesResp as any)?.data ?? []);
 
   const roots = useMemo(() => {
-    const t = filterTree(buildKpiTree(machines), search);
-    const g = filterTree(buildTagTree(allTags), search);
-    return [t, g].filter(Boolean) as TreeNode[];
+    const k = filterTree(buildKpiTree(machines, t), search);
+    const g = filterTree(buildTagTree(allTags, t), search);
+    return [k, g].filter(Boolean) as TreeNode[];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTags, machines, search]);
 
   const selectedKeys = useMemo(() => selected.map((s) => s.key), [selected]);
@@ -353,12 +359,12 @@ export function HistorianTrendView() {
         <div className="flex items-center gap-2">
           <Badge variant={isConnected ? 'default' : 'secondary'} className="gap-1 text-[10px] h-6">
             <Radio size={11} className={cn(isConnected && 'animate-pulse')} />
-            {isConnected ? 'Live' : 'Offline'}
+            {isConnected ? t('historian.live') : t('historian.offline')}
           </Badge>
           <Select value={String(rangeIdx)} onValueChange={(v) => setRangeIdx(Number(v))}>
             <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {RANGES.map((r, i) => <SelectItem key={r.label} value={String(i)}>{r.label}</SelectItem>)}
+              {RANGES.map((r, i) => <SelectItem key={r.labelKey} value={String(i)}>{t(r.labelKey)}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -370,14 +376,14 @@ export function HistorianTrendView() {
         <div className="flex flex-col border-r border-border/50 overflow-hidden">
           <div className="p-3 border-b border-border/40 space-y-2 shrink-0">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold">Browse Tags</span>
+              <span className="text-xs font-semibold">{t('historian.browseTags')}</span>
               <button onClick={() => setExpandedAll((e) => !e)} className="text-[10px] text-muted-foreground hover:text-foreground">
-                {expandedAll ? 'Collapse all' : 'Expand all'}
+                {expandedAll ? t('historian.collapseAll') : t('historian.expandAll')}
               </button>
             </div>
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search tags / KPIs..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 pl-7 text-xs" />
+              <Input placeholder={t('historian.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 pl-7 text-xs" />
             </div>
           </div>
 
@@ -385,7 +391,7 @@ export function HistorianTrendView() {
             {isLoading ? (
               <div className="space-y-2 p-2">{Array.from({ length: 10 }).map((_, i) => <div key={i} className="shimmer h-4 rounded w-full" />)}</div>
             ) : roots.length === 0 ? (
-              <p className="text-center text-xs text-muted-foreground py-8">No tags found</p>
+              <p className="text-center text-xs text-muted-foreground py-8">{t('historian.noTags')}</p>
             ) : (
               roots.map((n) => <TreeRow key={n.key} node={n} depth={0} checked={checked} onToggle={toggleCheck} expandedAll={expandedAll} />)
             )}
@@ -394,7 +400,7 @@ export function HistorianTrendView() {
           <div className="p-3 border-t border-border/40 shrink-0">
             <Button size="sm" className="w-full gap-1.5 h-8 text-xs" disabled={checked.size === 0} onClick={addSelected}>
               <Plus size={13} />
-              Add Selected Tags{checked.size > 0 ? ` (${checked.size})` : ''}
+              {checked.size > 0 ? t('historian.addSelectedCount', { count: checked.size }) : t('historian.addSelected')}
             </Button>
           </div>
         </div>
@@ -404,14 +410,14 @@ export function HistorianTrendView() {
           <div className="flex items-center gap-2 mb-3 shrink-0 flex-wrap">
             <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={() => setLive((l) => !l)}>
               {live ? <Pause size={13} /> : <Play size={13} />}
-              {live ? 'Pause Live' : 'Resume Live'}
+              {live ? t('historian.pauseLive') : t('historian.resumeLive')}
             </Button>
-            <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={() => setReloadKey((k) => k + 1)} title="Reload history">
+            <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={() => setReloadKey((k) => k + 1)} title={t('historian.reloadHistory')}>
               <RefreshCw size={13} />
             </Button>
             {selected.length > 0 && (
               <Button size="sm" variant="ghost" className="gap-1.5 h-8 text-xs text-destructive ml-auto" onClick={clearAll}>
-                <Trash2 size={13} /> Clear
+                <Trash2 size={13} /> {t('historian.clear')}
               </Button>
             )}
           </div>
@@ -433,8 +439,8 @@ export function HistorianTrendView() {
             {selected.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
                 <Activity size={36} className="mb-3 opacity-40" />
-                <p className="text-sm font-medium">No Trend Data Source available.</p>
-                <p className="text-xs mt-1">Select tags or KPIs from the tree and click “Add Selected Tags”.</p>
+                <p className="text-sm font-medium">{t('historian.noSource')}</p>
+                <p className="text-xs mt-1">{t('historian.noSourceHint')}</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">

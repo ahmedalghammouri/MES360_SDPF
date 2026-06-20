@@ -8,6 +8,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   ChevronRight, ChevronDown, Factory, LayoutGrid, GitBranch, Cpu, PanelLeftClose, PanelLeftOpen, Filter, Check,
@@ -68,6 +69,7 @@ function Node({ node, depth }: { node: TreeNode; depth: number }) {
 }
 
 export function ScopePanel() {
+  const { t } = useTranslation('common');
   const { scope, setScope, collapsed, toggleCollapsed } = useScopeStore();
 
   const { data } = useQuery({
@@ -83,7 +85,7 @@ export function ScopePanel() {
   if (collapsed) {
     return (
       <div className="shrink-0 border-r border-border/60 bg-card/40 flex flex-col items-center py-3 w-9">
-        <button onClick={toggleCollapsed} title="Show scope" className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground">
+        <button onClick={toggleCollapsed} title={t('scope.showScope')} className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground">
           <PanelLeftOpen size={16} />
         </button>
         <Filter size={14} className="text-muted-foreground mt-2" />
@@ -95,8 +97,8 @@ export function ScopePanel() {
     <div className="shrink-0 w-56 border-r border-border/60 bg-card/40 flex flex-col">
       <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-border/60">
         <Filter size={13} className="text-primary" />
-        <span className="text-xs font-semibold flex-1">Scope</span>
-        <button onClick={toggleCollapsed} title="Collapse" className="p-1 rounded-md hover:bg-muted/60 text-muted-foreground">
+        <span className="text-xs font-semibold flex-1">{t('scope.title')}</span>
+        <button onClick={toggleCollapsed} title={t('scope.collapse')} className="p-1 rounded-md hover:bg-muted/60 text-muted-foreground">
           <PanelLeftClose size={15} />
         </button>
       </div>
@@ -108,19 +110,19 @@ export function ScopePanel() {
           !scope || scope.type === 'FACTORY' ? 'bg-primary/15 text-primary' : 'hover:bg-muted/50 text-muted-foreground',
         )}
       >
-        <Factory size={12} /> Whole factory
+        <Factory size={12} /> {t('scope.wholeFactory')}
         {(!scope || scope.type === 'FACTORY') && <Check size={11} className="ml-auto" />}
       </button>
 
       <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
         {tree.length === 0 ? (
-          <div className="text-[11px] text-muted-foreground text-center py-6">No hierarchy</div>
+          <div className="text-[11px] text-muted-foreground text-center py-6">{t('scope.noHierarchy')}</div>
         ) : tree.map(root => <Node key={root.id} node={root} depth={0} />)}
       </div>
 
       {scope && scope.type !== 'FACTORY' && (
         <div className="px-3 py-2 border-t border-border/60 text-[10px] text-muted-foreground">
-          Scoped to <span className="font-semibold text-foreground">{scope.name}</span> <span className="uppercase opacity-70">({scope.type})</span>
+          {t('scope.scopedTo')} <span className="font-semibold text-foreground">{scope.name}</span> <span className="uppercase opacity-70">({scope.type})</span>
         </div>
       )}
     </div>

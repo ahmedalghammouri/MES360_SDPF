@@ -30,9 +30,9 @@ import { api } from '@/services/api.client';
 
 interface ReportTypeConfig {
   id: string;
-  label: string;
+  labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
-  description: string;
+  descKey: string;
   endpoint: string | null;
   color: string;
   comingSoon?: boolean;
@@ -52,57 +52,57 @@ interface RecentReport {
 const REPORT_TYPES: ReportTypeConfig[] = [
   {
     id: 'production',
-    label: 'Production Performance',
+    labelKey: 'reports.builder.type.production.label',
     icon: Factory,
-    description: 'WO completion, throughput, output trends',
+    descKey: 'reports.builder.type.production.desc',
     endpoint: '/reports/production',
     color: 'blue',
   },
   {
     id: 'quality',
-    label: 'Quality Metrics',
+    labelKey: 'reports.builder.type.quality.label',
     icon: ShieldCheck,
-    description: 'Inspections, NCRs, pass rates',
+    descKey: 'reports.builder.type.quality.desc',
     endpoint: '/reports/quality',
     color: 'green',
   },
   {
     id: 'maintenance',
-    label: 'Maintenance Summary',
+    labelKey: 'reports.builder.type.maintenance.label',
     icon: Wrench,
-    description: 'MWO history, MTTR, MTBF, PM compliance',
+    descKey: 'reports.builder.type.maintenance.desc',
     endpoint: '/reports/maintenance',
     color: 'orange',
   },
   {
     id: 'oee',
-    label: 'OEE Analysis',
+    labelKey: 'reports.builder.type.oee.label',
     icon: Gauge,
-    description: 'Equipment effectiveness by machine and time',
+    descKey: 'reports.builder.type.oee.desc',
     endpoint: '/production/oee-records?limit=200',
     color: 'purple',
   },
   {
     id: 'scrap',
-    label: 'Scrap and Waste',
+    labelKey: 'reports.builder.type.scrap.label',
     icon: Trash2,
-    description: 'Scrap events by category, product, operator',
+    descKey: 'reports.builder.type.scrap.desc',
     endpoint: '/production/scrap-logs?limit=200',
     color: 'red',
   },
   {
     id: 'inventory',
-    label: 'Inventory Status',
+    labelKey: 'reports.builder.type.inventory.label',
     icon: Package,
-    description: 'Stock levels, movements, BOM requirements',
+    descKey: 'reports.builder.type.inventory.desc',
     endpoint: '/inventory/overview',
     color: 'teal',
   },
   {
     id: 'energy',
-    label: 'Energy Consumption',
+    labelKey: 'reports.builder.type.energy.label',
     icon: Zap,
-    description: 'Energy monitoring and cost analysis',
+    descKey: 'reports.builder.type.energy.desc',
     endpoint: null,
     color: 'yellow',
     comingSoon: true,
@@ -229,11 +229,12 @@ interface DataTableProps {
 }
 
 function DataTable({ rows, totalCount }: DataTableProps) {
+  const { t } = useTranslation('modules');
   if (rows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
         <BarChart3 className="h-8 w-8 opacity-40" />
-        <p className="text-sm">No data returned for the selected filters.</p>
+        <p className="text-sm">{t('reports.builder.noData')}</p>
       </div>
     );
   }
@@ -245,10 +246,10 @@ function DataTable({ rows, totalCount }: DataTableProps) {
     <div className="space-y-2">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>
-          Showing {preview.length} of {totalCount} rows
+          {t('reports.builder.showingRows', { shown: preview.length, total: totalCount })}
         </span>
         {totalCount > 20 && (
-          <span className="text-xs opacity-60">Export CSV to view all rows</span>
+          <span className="text-xs opacity-60">{t('reports.builder.exportToViewAll')}</span>
         )}
       </div>
       <div className="overflow-x-auto rounded-lg border border-foreground/10">
@@ -361,7 +362,7 @@ export default function ReportsBuilderView() {
       const rows = normalizeRows(fetchedData);
       const entry: RecentReport = {
         type: selectedConfig.id,
-        label: selectedConfig.label,
+        label: t(selectedConfig.labelKey),
         generatedAt: new Date().toISOString(),
         rowCount: rows.length,
       };
@@ -441,7 +442,7 @@ export default function ReportsBuilderView() {
             {/* Select Report Type */}
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                Select Report Type
+                {t('reports.builder.selectType')}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {REPORT_TYPES.map((rt) => {
@@ -469,7 +470,7 @@ export default function ReportsBuilderView() {
                     >
                       {rt.comingSoon && (
                         <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-yellow-500/20 text-yellow-400 rounded px-1">
-                          Soon
+                          {t('reports.builder.soon')}
                         </span>
                       )}
                       <Icon
@@ -484,10 +485,10 @@ export default function ReportsBuilderView() {
                           isSelected ? 'text-foreground' : 'text-foreground/70'
                         )}
                       >
-                        {rt.label}
+                        {t(rt.labelKey)}
                       </p>
                       <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight line-clamp-2">
-                        {rt.description}
+                        {t(rt.descKey)}
                       </p>
                     </button>
                   );
@@ -498,11 +499,11 @@ export default function ReportsBuilderView() {
             {/* Date Range */}
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                Date Range
+                {t('reports.builder.dateRange')}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground font-medium">From</label>
+                  <label className="text-[10px] text-muted-foreground font-medium">{t('reports.builder.from')}</label>
                   <input
                     type="date"
                     value={dateFrom}
@@ -514,7 +515,7 @@ export default function ReportsBuilderView() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground font-medium">To</label>
+                  <label className="text-[10px] text-muted-foreground font-medium">{t('reports.builder.to')}</label>
                   <input
                     type="date"
                     value={dateTo}
@@ -536,7 +537,7 @@ export default function ReportsBuilderView() {
                 disabled={!selectedType}
               >
                 <BarChart3 className="h-4 w-4 mr-2" />
-                Generate Report
+                {t('reports.builder.generateReport')}
               </Button>
 
               <Button
@@ -546,7 +547,7 @@ export default function ReportsBuilderView() {
                 disabled={!canExport}
               >
                 <Download className="h-4 w-4 mr-2" />
-                Export CSV
+                {t('reports.builder.exportCsv')}
               </Button>
 
               <Button
@@ -555,7 +556,7 @@ export default function ReportsBuilderView() {
                 onClick={handleSchedule}
               >
                 <Clock className="h-4 w-4 mr-2" />
-                Schedule Report
+                {t('reports.builder.scheduleReport')}
               </Button>
 
               {scheduleMsg && (
@@ -565,7 +566,7 @@ export default function ReportsBuilderView() {
                   className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
-                  Scheduling coming soon
+                  {t('reports.builder.schedulingSoon')}
                 </motion.div>
               )}
             </div>
@@ -582,7 +583,7 @@ export default function ReportsBuilderView() {
           <div className="rounded-xl border border-foreground/10 bg-card/60 backdrop-blur-sm p-4 min-h-[400px]">
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Report Preview
+                {t('reports.builder.preview')}
               </p>
               {isGenerated && selectedConfig && !isLoading && (
                 <Button
@@ -592,7 +593,7 @@ export default function ReportsBuilderView() {
                   className="h-7 text-xs gap-1.5"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
-                  Refresh
+                  {t('reports.builder.refresh')}
                 </Button>
               )}
             </div>
@@ -601,9 +602,9 @@ export default function ReportsBuilderView() {
             {!selectedType && (
               <div className="flex flex-col items-center justify-center h-72 text-muted-foreground gap-3">
                 <FileText className="h-12 w-12 opacity-20" />
-                <p className="text-sm font-medium">Select a report type to get started</p>
+                <p className="text-sm font-medium">{t('reports.builder.emptyTitle')}</p>
                 <p className="text-xs opacity-60">
-                  Choose from the configuration panel on the left
+                  {t('reports.builder.emptyDesc')}
                 </p>
               </div>
             )}
@@ -612,9 +613,9 @@ export default function ReportsBuilderView() {
             {selectedType === 'energy' && (
               <div className="flex flex-col items-center justify-center h-72 text-muted-foreground gap-3">
                 <Zap className="h-12 w-12 text-yellow-400 opacity-40" />
-                <p className="text-sm font-medium">Energy reporting coming soon.</p>
+                <p className="text-sm font-medium">{t('reports.builder.energySoon')}</p>
                 <p className="text-xs opacity-60">
-                  Connect energy meters to start.
+                  {t('reports.builder.energySoonDesc')}
                 </p>
               </div>
             )}
@@ -627,9 +628,9 @@ export default function ReportsBuilderView() {
                     <selectedConfig.icon
                       className={cn('h-12 w-12 opacity-20', colorText[selectedConfig.color])}
                     />
-                    <p className="text-sm font-medium">{selectedConfig.label}</p>
+                    <p className="text-sm font-medium">{t(selectedConfig.labelKey)}</p>
                     <p className="text-xs opacity-60">
-                      Configure your filters and click Generate Report
+                      {t('reports.builder.configureHint')}
                     </p>
                   </>
                 )}
@@ -646,13 +647,13 @@ export default function ReportsBuilderView() {
             {/* Error */}
             {isGenerated && isError && !isLoading && (
               <div className="flex flex-col items-center justify-center h-60 text-muted-foreground gap-3">
-                <p className="text-sm text-red-400 font-medium">Failed to load report data</p>
+                <p className="text-sm text-red-400 font-medium">{t('reports.builder.loadFailed')}</p>
                 <p className="text-xs opacity-60">
-                  {error instanceof Error ? error.message : 'An unknown error occurred'}
+                  {error instanceof Error ? error.message : t('reports.builder.unknownError')}
                 </p>
                 <Button variant="outline" size="sm" onClick={() => refetch()}>
                   <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                  Retry
+                  {t('reports.builder.retry')}
                 </Button>
               </div>
             )}
@@ -670,7 +671,7 @@ export default function ReportsBuilderView() {
                       className={cn('h-4 w-4', colorText[selectedConfig.color])}
                     />
                     <span className="text-sm font-semibold text-foreground">
-                      {selectedConfig.label}
+                      {t(selectedConfig.labelKey)}
                     </span>
                     <span
                       className={cn(
@@ -678,7 +679,7 @@ export default function ReportsBuilderView() {
                         colorBadgeBg[selectedConfig.color]
                       )}
                     >
-                      {rows.length} rows
+                      {t('reports.builder.rowsCount', { count: rows.length })}
                     </span>
                   </div>
                 )}
@@ -700,7 +701,7 @@ export default function ReportsBuilderView() {
           <div className="flex items-center gap-2 mb-4">
             <Clock className="h-4 w-4 text-muted-foreground" />
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Recent Reports
+              {t('reports.builder.recentReports')}
             </p>
           </div>
           <div className="space-y-2">
@@ -738,7 +739,7 @@ export default function ReportsBuilderView() {
                         colorBadgeBg[color]
                       )}
                     >
-                      {report.rowCount} rows
+                      {t('reports.builder.rowsCount', { count: report.rowCount })}
                     </span>
                     <Button
                       variant="ghost"
@@ -747,7 +748,7 @@ export default function ReportsBuilderView() {
                       className="h-7 text-xs gap-1.5"
                     >
                       <RefreshCw className="h-3 w-3" />
-                      Re-run
+                      {t('reports.builder.rerun')}
                     </Button>
                   </div>
                 </div>

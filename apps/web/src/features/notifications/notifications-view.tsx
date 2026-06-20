@@ -146,9 +146,9 @@ export function NotificationsView() {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       wsMarkAllRead();
       setUnreadCount(0);
-      toast({ title: 'All notifications marked as read', variant: 'success' });
+      toast({ title: t('notifications.toast.allRead'), variant: 'success' });
     },
-    onError: () => toast({ title: 'Failed to mark all read', variant: 'destructive' }),
+    onError: () => toast({ title: t('notifications.toast.allReadFailed'), variant: 'destructive' }),
   });
 
   const markOneMutation = useMutation({
@@ -160,18 +160,18 @@ export function NotificationsView() {
     mutationFn: (id: string) => api.delete(`/notifications/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      toast({ title: 'Notification deleted' });
+      toast({ title: t('notifications.toast.deleted') });
     },
-    onError: () => toast({ title: 'Failed to delete', variant: 'destructive' }),
+    onError: () => toast({ title: t('notifications.toast.deleteFailed'), variant: 'destructive' }),
   });
 
   const testMutation = useMutation({
     mutationFn: () => api.post('/notifications/test'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      toast({ title: 'Test notification sent', variant: 'success' });
+      toast({ title: t('notifications.toast.testSent'), variant: 'success' });
     },
-    onError: () => toast({ title: 'Failed to send test', variant: 'destructive' }),
+    onError: () => toast({ title: t('notifications.toast.testFailed'), variant: 'destructive' }),
   });
 
   function clearFilters() {
@@ -349,10 +349,10 @@ export function NotificationsView() {
 
                       <div className="flex items-center gap-2 mt-1.5">
                         <Badge className={cn('text-[10px] py-0 px-1.5 h-4 border', CATEGORY_COLORS[notif.category] ?? '')}>
-                          {notif.category}
+                          {t(`notifications.cat.${notif.category}`, { defaultValue: notif.category })}
                         </Badge>
                         <Badge variant="outline" className={cn('text-[10px] py-0 px-1.5 h-4', cfg.color)}>
-                          {notif.severity}
+                          {t(`notifications.sev.${notif.severity}`, { defaultValue: notif.severity })}
                         </Badge>
                       </div>
                     </div>
@@ -378,7 +378,7 @@ export function NotificationsView() {
       {total > 0 && (
         <div className="flex items-center justify-between gap-4 shrink-0 text-xs text-muted-foreground">
           <span>
-            {total} total · {unreadCount} unread · showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}
+            {t('notifications.page.summary', { total, unread: unreadCount, from: (page - 1) * PAGE_SIZE + 1, to: Math.min(page * PAGE_SIZE, total) })}
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -389,9 +389,9 @@ export function NotificationsView() {
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
               <ChevronLeft className="w-3.5 h-3.5" />
-              Prev
+              {t('notifications.page.prev')}
             </Button>
-            <span className="px-1 font-medium text-foreground/80">Page {page} / {totalPages}</span>
+            <span className="px-1 font-medium text-foreground/80">{t('notifications.page.indicator', { page, total: totalPages })}</span>
             <Button
               variant="outline"
               size="sm"
@@ -399,7 +399,7 @@ export function NotificationsView() {
               disabled={page >= totalPages || isFetching}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
-              Next
+              {t('notifications.page.next')}
               <ChevronRight className="w-3.5 h-3.5" />
             </Button>
           </div>

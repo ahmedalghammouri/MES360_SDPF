@@ -131,14 +131,15 @@ function Breadcrumb() {
 }
 
 function ThemeSwitcher() {
+  const { t } = useTranslation('common');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   const options = [
-    { value: 'light', icon: Sun, label: 'Light' },
-    { value: 'dark', icon: Moon, label: 'Dark' },
-    { value: 'system', icon: Monitor, label: 'System' },
+    { value: 'light', icon: Sun, label: t('topbar.light') },
+    { value: 'dark', icon: Moon, label: t('topbar.dark') },
+    { value: 'system', icon: Monitor, label: t('topbar.system') },
   ];
 
   return (
@@ -306,7 +307,7 @@ export function Topbar() {
                 </AvatarFallback>
               </Avatar>
               <span className="text-sm font-medium hidden sm:block max-w-[120px] truncate">
-                {user?.name || 'User'}
+                {user?.name || t('topbar.user', { ns: 'common' })}
               </span>
               <ChevronDown size={12} className="text-muted-foreground" />
             </button>

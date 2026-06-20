@@ -101,7 +101,7 @@ function SKURow({ sku, index, onDelete, onEdit, onArchive, onRestore, selected, 
         onClick={() => hasBOM && setExpanded(v => !v)}
       >
         <td className="p-3" onClick={(e) => e.stopPropagation()}>
-          <Checkbox checked={selected} onCheckedChange={onToggle} aria-label="Select row" />
+          <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={t('productsView.selectRow')} />
         </td>
         <td className="p-3 text-xs">
           {hasBOM ? (
@@ -143,7 +143,7 @@ function SKURow({ sku, index, onDelete, onEdit, onArchive, onRestore, selected, 
         </td>
         <td className="p-3 text-xs text-center">
           {hasBOM ? (
-            <Badge variant="secondary" className="text-[10px]">{sku.bomComponents.length} items</Badge>
+            <Badge variant="secondary" className="text-[10px]">{t('productsView.items', { count: sku.bomComponents.length })}</Badge>
           ) : (
             <span className="text-muted-foreground text-[10px]">—</span>
           )}
@@ -163,19 +163,19 @@ function SKURow({ sku, index, onDelete, onEdit, onArchive, onRestore, selected, 
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem className="gap-2 text-xs" onClick={(e) => { e.stopPropagation(); onEdit(sku); }}>
-                <Edit3 className="w-3 h-3" /> Edit
+                <Edit3 className="w-3 h-3" /> {t('productsView.edit')}
               </DropdownMenuItem>
               {(sku as any).archivedAt ? (
                 <DropdownMenuItem className="gap-2 text-xs" onClick={(e) => { e.stopPropagation(); onRestore(sku.id); }}>
-                  <RotateCcw className="w-3 h-3" /> Restore
+                  <RotateCcw className="w-3 h-3" /> {t('productsView.restore')}
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem className="gap-2 text-xs" onClick={(e) => { e.stopPropagation(); onArchive(sku.id); }}>
-                  <ArchiveIcon className="w-3 h-3" /> Archive
+                  <ArchiveIcon className="w-3 h-3" /> {t('productsView.archive')}
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem className="gap-2 text-xs text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(sku.id); }}>
-                <Trash2 className="w-3 h-3" /> Delete
+                <Trash2 className="w-3 h-3" /> {t('productsView.delete')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -184,7 +184,7 @@ function SKURow({ sku, index, onDelete, onEdit, onArchive, onRestore, selected, 
       {expanded && hasBOM && (
         <tr className="bg-foreground/2 border-b border-border/20">
           <td colSpan={14} className="px-6 py-3">
-            <div className="text-xs font-semibold text-muted-foreground mb-2">Bill of Materials</div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">{t('productsView.bomTitle')}</div>
             <table className="w-full text-xs">
               <thead>
                 <tr>
@@ -280,30 +280,30 @@ export function ProductsView() {
     mutationFn: (dto: any) => api.post('/inventory/products', dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'products'] });
-      toast({ title: 'Product created successfully' });
+      toast({ title: t('productsView.createdSuccess') });
       setFormOpen(false);
       setFormData(EMPTY_CREATE);
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to create product', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('rawMaterialsView.toast.error'), description: e?.response?.data?.message ?? t('productsView.createError'), variant: 'destructive' }),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: any }) => api.patch(`/inventory/products/${id}`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'products'] });
-      toast({ title: 'Product updated successfully' });
+      toast({ title: t('productsView.updatedSuccess') });
       setEditTarget(null);
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to update product', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('rawMaterialsView.toast.error'), description: e?.response?.data?.message ?? t('productsView.updateError'), variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/inventory/products/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'products'] });
-      toast({ title: 'Product deleted successfully' });
+      toast({ title: t('productsView.deletedSuccess') });
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to delete product', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('rawMaterialsView.toast.error'), description: e?.response?.data?.message ?? t('productsView.deleteError'), variant: 'destructive' }),
   });
 
   const handleOpenEdit = (sku: SKU) => {
@@ -364,7 +364,7 @@ export function ProductsView() {
           <p className="text-muted-foreground text-sm mt-1">{t('productsCount', { count: total })}</p>
         </div>
         <Button size="sm" onClick={() => setFormOpen(true)}>
-          <Plus className="w-4 h-4 mr-1" />Add Product
+          <Plus className="w-4 h-4 mr-1" />{t('productsView.addProduct')}
         </Button>
       </div>
 
@@ -767,8 +767,8 @@ export function ProductsView() {
         count={sel.count}
         onClear={sel.clear}
         actions={archived === 'archived'
-          ? [{ label: 'Restore', icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
-          : [{ label: 'Archive', icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
+          ? [{ label: t('productsView.restore'), icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
+          : [{ label: t('productsView.archive'), icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
       />
     </div>
   );

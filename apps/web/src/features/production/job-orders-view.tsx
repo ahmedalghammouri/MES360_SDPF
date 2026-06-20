@@ -75,20 +75,20 @@ interface JobOrder {
   joOEE?: number;
 }
 
-const JO_STATUS: Record<JOStatus, { label: string; color: string; dot: string }> = {
-  SCHEDULED: { label: 'Scheduled', color: 'text-slate-400 bg-slate-400/10 border-slate-400/30', dot: 'bg-slate-400' },
-  READY:     { label: 'Ready',     color: 'text-blue-400  bg-blue-400/10  border-blue-400/30',  dot: 'bg-blue-400' },
-  EXECUTING: { label: 'Executing', color: 'text-green-400 bg-green-400/10 border-green-400/30', dot: 'bg-green-400' },
-  PAUSED:    { label: 'Paused',    color: 'text-amber-400 bg-amber-400/10 border-amber-400/30', dot: 'bg-amber-400' },
-  COMPLETE:  { label: 'Complete',  color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30', dot: 'bg-emerald-400' },
-  CANCELLED: { label: 'Cancelled', color: 'text-red-400   bg-red-400/10   border-red-400/30',   dot: 'bg-red-400' },
+const JO_STATUS: Record<JOStatus, { labelKey: string; color: string; dot: string }> = {
+  SCHEDULED: { labelKey: 'jo.status.SCHEDULED', color: 'text-slate-400 bg-slate-400/10 border-slate-400/30', dot: 'bg-slate-400' },
+  READY:     { labelKey: 'jo.status.READY',     color: 'text-blue-400  bg-blue-400/10  border-blue-400/30',  dot: 'bg-blue-400' },
+  EXECUTING: { labelKey: 'jo.status.EXECUTING', color: 'text-green-400 bg-green-400/10 border-green-400/30', dot: 'bg-green-400' },
+  PAUSED:    { labelKey: 'jo.status.PAUSED',    color: 'text-amber-400 bg-amber-400/10 border-amber-400/30', dot: 'bg-amber-400' },
+  COMPLETE:  { labelKey: 'jo.status.COMPLETE',  color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30', dot: 'bg-emerald-400' },
+  CANCELLED: { labelKey: 'jo.status.CANCELLED', color: 'text-red-400   bg-red-400/10   border-red-400/30',   dot: 'bg-red-400' },
 };
 
-const DEP_CONFIG: Record<string, { short: string; label: string; color: string; icon: React.ReactNode; description: string }> = {
-  FINISH_TO_START:  { short: 'FS', label: 'Finish → Start',  color: 'text-slate-400 bg-slate-400/10 border-slate-400/20', icon: <ArrowDownCircle className="w-2.5 h-2.5" />, description: 'B starts after A finishes' },
-  START_TO_START:   { short: 'SS', label: 'Start ‖ Start',   color: 'text-cyan-400  bg-cyan-400/10  border-cyan-400/20',   icon: <GitBranch     className="w-2.5 h-2.5" />, description: 'B starts when A starts (parallel)' },
-  START_TO_FINISH:  { short: 'SF', label: 'Start → Finish',  color: 'text-orange-400 bg-orange-400/10 border-orange-400/20', icon: <Shuffle      className="w-2.5 h-2.5" />, description: 'B must finish before A starts' },
-  FINISH_TO_FINISH: { short: 'FF', label: 'Finish ‖ Finish', color: 'text-purple-400 bg-purple-400/10 border-purple-400/20', icon: <GitMerge    className="w-2.5 h-2.5" />, description: 'B finishes when A finishes' },
+const DEP_CONFIG: Record<string, { short: string; labelKey: string; color: string; icon: React.ReactNode; descKey: string }> = {
+  FINISH_TO_START:  { short: 'FS', labelKey: 'jo.dep.FINISH_TO_START.label',  color: 'text-slate-400 bg-slate-400/10 border-slate-400/20', icon: <ArrowDownCircle className="w-2.5 h-2.5" />, descKey: 'jo.dep.FINISH_TO_START.desc' },
+  START_TO_START:   { short: 'SS', labelKey: 'jo.dep.START_TO_START.label',   color: 'text-cyan-400  bg-cyan-400/10  border-cyan-400/20',   icon: <GitBranch     className="w-2.5 h-2.5" />, descKey: 'jo.dep.START_TO_START.desc' },
+  START_TO_FINISH:  { short: 'SF', labelKey: 'jo.dep.START_TO_FINISH.label',  color: 'text-orange-400 bg-orange-400/10 border-orange-400/20', icon: <Shuffle      className="w-2.5 h-2.5" />, descKey: 'jo.dep.START_TO_FINISH.desc' },
+  FINISH_TO_FINISH: { short: 'FF', labelKey: 'jo.dep.FINISH_TO_FINISH.label', color: 'text-purple-400 bg-purple-400/10 border-purple-400/20', icon: <GitMerge    className="w-2.5 h-2.5" />, descKey: 'jo.dep.FINISH_TO_FINISH.desc' },
 };
 
 const VALID_NEXT: Record<JOStatus, JOStatus[]> = {
@@ -113,22 +113,24 @@ const UNIT_CONFIG: Record<string, { color: string; icon: React.ReactNode; label:
 // ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: JOStatus }) {
+  const { t } = useTranslation(['production', 'common']);
   const c = JO_STATUS[status];
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${c.color}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-      {c.label}
+      {t(c.labelKey)}
     </span>
   );
 }
 
 function DepBadge({ type }: { type: DepType }) {
+  const { t } = useTranslation(['production', 'common']);
   if (!type) return null;
   const d = DEP_CONFIG[type];
   if (!d) return null;
   return (
     <span
-      title={`${d.label}: ${d.description}`}
+      title={`${t(d.labelKey)}: ${t(d.descKey)}`}
       className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold border tracking-wide ${d.color}`}
     >
       {d.icon}{d.short}
@@ -170,6 +172,7 @@ function JoPdmDiagram({ jobs, onStart, onComplete, pending }: {
   onComplete: (jo: JobOrder) => void;
   pending: boolean;
 }) {
+  const { t } = useTranslation(['production', 'common']);
   const sorted = [...jobs].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
   const byId = new Map(sorted.map(j => [j.id, j]));
 
@@ -278,14 +281,14 @@ function JoPdmDiagram({ jobs, onStart, onComplete, pending }: {
                 <g className="cursor-pointer" opacity={pending ? 0.4 : 1} onClick={() => !pending && onStart(jo.id)}>
                   <circle cx={pos.x + PDM_BOX_W - 18} cy={pos.y + PDM_BOX_H - 16} r="10" fill="rgba(34,197,94,0.15)" stroke="#22c55e" strokeWidth="1" />
                   <path d={`M ${pos.x + PDM_BOX_W - 21.5} ${pos.y + PDM_BOX_H - 21} L ${pos.x + PDM_BOX_W - 21.5} ${pos.y + PDM_BOX_H - 11} L ${pos.x + PDM_BOX_W - 12.5} ${pos.y + PDM_BOX_H - 16} Z`} fill="#22c55e" />
-                  <title>Start this step</title>
+                  <title>{t('jo.startStep')}</title>
                 </g>
               )}
               {jo.status === 'EXECUTING' && (
                 <g className="cursor-pointer" opacity={pending ? 0.4 : 1} onClick={() => !pending && onComplete(jo)}>
                   <circle cx={pos.x + PDM_BOX_W - 18} cy={pos.y + PDM_BOX_H - 16} r="10" fill="rgba(16,185,129,0.15)" stroke="#10b981" strokeWidth="1" />
                   <path d={`M ${pos.x + PDM_BOX_W - 23} ${pos.y + PDM_BOX_H - 16} l 3.5 3.5 l 6 -7`} fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <title>Complete this step (planned qty)</title>
+                  <title>{t('jo.completeStepNode')}</title>
                 </g>
               )}
             </g>
@@ -323,6 +326,7 @@ function WOCard({
   pending: boolean;
   mode: 'list' | 'pdm';
 }) {
+  const { t } = useTranslation(['production', 'common']);
   const [completingId,   setCompletingId]   = useState<string | null>(null);
   const [completeQty,    setCompleteQty]    = useState<string>('');
   const [loggingId,      setLoggingId]      = useState<string | null>(null);
@@ -473,7 +477,7 @@ function WOCard({
                         onBlur={() => setAssigningOpId(null)}
                         className="text-[10px] bg-background border border-brand-400/40 rounded px-1 py-0.5 focus:outline-none max-w-[140px]"
                       >
-                        <option value="">— Unassign —</option>
+                        <option value="">{t('jo.unassign')}</option>
                         {users.map((u) => (
                           <option key={u.id} value={u.id}>{u.name}</option>
                         ))}
@@ -482,7 +486,7 @@ function WOCard({
                       <button
                         onClick={() => setAssigningOpId(jo.id)}
                         className="text-[10px] text-muted-foreground hover:text-brand-400 transition-colors truncate max-w-[120px]"
-                        title="Click to change operator"
+                        title={t('jo.changeOperatorTitle')}
                       >
                         {jo.operator.name}
                       </button>
@@ -491,7 +495,7 @@ function WOCard({
                         onClick={() => setAssigningOpId(jo.id)}
                         className="text-[10px] text-muted-foreground/40 hover:text-brand-400 transition-colors italic"
                       >
-                        assign operator
+                        {t('jo.assignOperator')}
                       </button>
                     )}
                   </div>
@@ -506,7 +510,7 @@ function WOCard({
                   {canLog && (
                     <button
                       onClick={() => loggingId === jo.id ? setLoggingId(null) : openLog(jo)}
-                      title="Log good / scrap count"
+                      title={t('jo.logCountTitle')}
                       className={`w-5 h-5 rounded flex items-center justify-center transition-colors
                         ${loggingId === jo.id ? 'text-brand-400 bg-brand-400/15' : 'text-muted-foreground hover:text-brand-400 hover:bg-brand-400/10'}`}
                     >
@@ -517,7 +521,7 @@ function WOCard({
                     <button
                       disabled={pending}
                       onClick={() => onTransition(jo.id, 'EXECUTING')}
-                      title="Start"
+                      title={t('jo.startTitle')}
                       className="w-5 h-5 rounded flex items-center justify-center text-green-400 hover:bg-green-400/15 disabled:opacity-40 transition-colors"
                     >
                       <Play className="w-3 h-3 fill-current" />
@@ -527,7 +531,7 @@ function WOCard({
                     <button
                       disabled={pending}
                       onClick={() => onTransition(jo.id, 'PAUSED')}
-                      title="Pause"
+                      title={t('jo.pauseTitle')}
                       className="w-5 h-5 rounded flex items-center justify-center text-amber-400 hover:bg-amber-400/15 disabled:opacity-40 transition-colors"
                     >
                       <Pause className="w-3 h-3" />
@@ -579,7 +583,7 @@ function WOCard({
                         setCompleteQty(String(Math.round(jo.plannedQtyOut ?? jo.plannedQtyIn ?? 0) || ''));
                         setLoggingId(null);
                       }}
-                      title={`Complete — enter actual output qty (${jo.outputUnit ?? ''})`}
+                      title={t('jo.completeTitle', { unit: jo.outputUnit ?? '' })}
                       className="w-5 h-5 rounded flex items-center justify-center text-emerald-400 hover:bg-emerald-400/15 disabled:opacity-40 transition-colors"
                     >
                       <CheckSquare className="w-3 h-3" />
@@ -595,17 +599,17 @@ function WOCard({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52">
                       <DropdownMenuLabel className="text-[10px] font-mono text-muted-foreground">
-                        {jo.sequenceOrder}. {jo.operationName} · {JO_STATUS[jo.status].label}
+                        {jo.sequenceOrder}. {jo.operationName} · {t(JO_STATUS[jo.status].labelKey)}
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       {next.includes('EXECUTING') && (
                         <DropdownMenuItem disabled={pending} onClick={() => onTransition(jo.id, 'EXECUTING')}>
-                          <Play size={13} className="mr-2 text-green-400" />{jo.status === 'PAUSED' ? 'Resume' : 'Start'} step
+                          <Play size={13} className="mr-2 text-green-400" />{jo.status === 'PAUSED' ? t('jo.resumeStep') : t('jo.startStepMenu')} {t('jo.stepSuffix')}
                         </DropdownMenuItem>
                       )}
                       {next.includes('PAUSED') && (
                         <DropdownMenuItem disabled={pending} onClick={() => onTransition(jo.id, 'PAUSED')}>
-                          <Pause size={13} className="mr-2 text-amber-400" />Pause step
+                          <Pause size={13} className="mr-2 text-amber-400" />{t('jo.pauseStep')}
                         </DropdownMenuItem>
                       )}
                       {next.includes('COMPLETE') && (
@@ -617,24 +621,24 @@ function WOCard({
                             setLoggingId(null);
                           }}
                         >
-                          <CheckSquare size={13} className="mr-2 text-emerald-400" />Complete… (enter qty)
+                          <CheckSquare size={13} className="mr-2 text-emerald-400" />{t('jo.completeMenu')}
                         </DropdownMenuItem>
                       )}
                       {canLog && (
                         <DropdownMenuItem onClick={() => openLog(jo)}>
-                          <BarChart2 size={13} className="mr-2 text-brand-400" />Log good / scrap count
+                          <BarChart2 size={13} className="mr-2 text-brand-400" />{t('jo.logMenu')}
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={() => setAssigningOpId(jo.id)}>
-                        <UserPlus size={13} className="mr-2 text-sky-400" />{jo.operator ? 'Change operator' : 'Assign operator'}
+                        <UserPlus size={13} className="mr-2 text-sky-400" />{jo.operator ? t('jo.changeOperator') : t('jo.assignOperatorMenu')}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => window.open('/shop-floor', '_blank')}>
-                        <Monitor size={13} className="mr-2 text-muted-foreground" />Open on Shop Floor
+                        <Monitor size={13} className="mr-2 text-muted-foreground" />{t('jo.openShopFloor')}
                       </DropdownMenuItem>
                       {jo.actualQtyRejected > 0 && (
                         <DropdownMenuItem onClick={() => window.open('/production/scrap-log', '_blank')}>
-                          <AlertTriangle size={13} className="mr-2 text-red-400" />View scrap log
+                          <AlertTriangle size={13} className="mr-2 text-red-400" />{t('jo.viewScrapLog')}
                         </DropdownMenuItem>
                       )}
                       {next.includes('CANCELLED') && (
@@ -645,7 +649,7 @@ function WOCard({
                             className="text-destructive focus:text-destructive"
                             onClick={() => onTransition(jo.id, 'CANCELLED')}
                           >
-                            <Ban size={13} className="mr-2" />Cancel step
+                            <Ban size={13} className="mr-2" />{t('jo.cancelStep')}
                           </DropdownMenuItem>
                         </>
                       )}
@@ -660,7 +664,7 @@ function WOCard({
                   <div className="flex items-center gap-2">
                     <div className="flex-1 space-y-1">
                       <label className="text-[10px] text-green-400 font-medium flex items-center gap-0.5">
-                        <Check className="w-2.5 h-2.5" />Good count
+                        <Check className="w-2.5 h-2.5" />{t('jo.goodCount')}
                       </label>
                       <input
                         type="number" min={0}
@@ -671,7 +675,7 @@ function WOCard({
                     </div>
                     <div className="flex-1 space-y-1">
                       <label className="text-[10px] text-red-400 font-medium flex items-center gap-0.5">
-                        <X className="w-2.5 h-2.5" />Scrap count
+                        <X className="w-2.5 h-2.5" />{t('jo.scrapCount')}
                       </label>
                       <input
                         type="number" min={0}
@@ -694,7 +698,7 @@ function WOCard({
                       </select>
                       <input
                         type="text"
-                        placeholder="Scrap reason…"
+                        placeholder={t('jo.scrapReason')}
                         value={logReason}
                         onChange={(e) => setLogReason(e.target.value)}
                         className="w-full h-7 text-xs bg-background/60 border border-border rounded px-2 focus:outline-none focus:border-brand-400 placeholder:text-muted-foreground/40"
@@ -710,7 +714,7 @@ function WOCard({
                       }}
                       className="flex-1 h-7 text-xs font-medium rounded bg-brand-500/20 hover:bg-brand-500/30 border border-brand-400/30 text-brand-400 flex items-center justify-center gap-1 disabled:opacity-40 transition-colors"
                     >
-                      <Check className="w-3 h-3" />Save
+                      <Check className="w-3 h-3" />{t('jo.save')}
                     </button>
                     <button
                       onClick={() => setLoggingId(null)}
@@ -794,13 +798,14 @@ function Pagination({
 // ─────────────────────────────────────────────────────────────
 
 function DepLegend() {
+  const { t } = useTranslation(['production', 'common']);
   return (
     <div className="flex items-center gap-3 flex-wrap text-[10px]">
-      <span className="text-muted-foreground">Dependency types:</span>
+      <span className="text-muted-foreground">{t('jo.dependencyTypes')}</span>
       {Object.entries(DEP_CONFIG).map(([, d]) => (
         <span
           key={d.short}
-          title={`${d.label}: ${d.description}`}
+          title={`${t(d.labelKey)}: ${t(d.descKey)}`}
           className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border font-bold tracking-wide cursor-help ${d.color}`}
         >
           {d.icon}{d.short}
@@ -866,12 +871,12 @@ export function JobOrdersView() {
       qc.invalidateQueries({ queryKey: ['job-orders'] });
       qc.invalidateQueries({ queryKey: ['production', 'work-orders'] });
       qc.invalidateQueries({ queryKey: ['production', 'kpis'] });
-      toast({ title: `Job order → ${JO_STATUS[status]?.label ?? status}` });
+      toast({ title: t('jo.toast.joArrow', { status: JO_STATUS[status] ? t(JO_STATUS[status].labelKey) : status }) });
     },
     onError: (e: any) => toast({
       variant: 'destructive',
-      title: 'Transition failed',
-      description: e?.response?.data?.message ?? 'Dependency constraint not met',
+      title: t('jo.toast.transitionFailed'),
+      description: e?.response?.data?.message ?? t('jo.toast.depNotMet'),
     }),
   });
 
@@ -887,11 +892,11 @@ export function JobOrdersView() {
       qc.invalidateQueries({ queryKey: ['job-orders'] });
       qc.invalidateQueries({ queryKey: ['production', 'work-orders'] });
       qc.invalidateQueries({ queryKey: ['production', 'kpis'] });
-      toast({ title: 'Count saved' });
+      toast({ title: t('jo.toast.countSaved') });
     },
     onError: (e: any) => toast({
       variant: 'destructive',
-      title: 'Failed to save count',
+      title: t('jo.toast.failedSaveCount'),
       description: e?.response?.data?.message,
     }),
   });
@@ -902,7 +907,7 @@ export function JobOrdersView() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['job-orders'] }),
     onError: (e: any) => toast({
       variant: 'destructive',
-      title: 'Failed to assign operator',
+      title: t('jo.toast.failedAssign'),
       description: e?.response?.data?.message,
     }),
   });
@@ -959,7 +964,7 @@ export function JobOrdersView() {
             onClick={() => window.open('/shop-floor', '_blank')}
             className="text-brand-400 border-brand-400/30 hover:bg-brand-400/10"
           >
-            <Monitor className="w-3.5 h-3.5 mr-1.5" />Shop Floor
+            <Monitor className="w-3.5 h-3.5 mr-1.5" />{t('jo.shopFloor')}
           </Button>
           <Button
             variant="outline"
@@ -968,11 +973,11 @@ export function JobOrdersView() {
             className="text-red-400 border-red-400/30 hover:bg-red-400/10"
           >
             <a href="/production/scrap-log">
-              <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />Scrap Log
+              <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />{t('jo.scrapLog')}
             </a>
           </Button>
           <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ['job-orders'] })}>
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />Refresh
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />{t('jo.refresh')}
           </Button>
         </div>
       </div>
@@ -980,15 +985,15 @@ export function JobOrdersView() {
       {/* KPI strip */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Executing', value: executing, color: 'text-green-400',   icon: <Play className="w-4 h-4 fill-current" /> },
-          { label: 'Ready',     value: ready,     color: 'text-blue-400',    icon: <Clock className="w-4 h-4" /> },
-          { label: 'Completed', value: complete,  color: 'text-emerald-400', icon: <CheckSquare className="w-4 h-4" /> },
+          { labelKey: 'jo.kpi.executing', value: executing, color: 'text-green-400',   icon: <Play className="w-4 h-4 fill-current" /> },
+          { labelKey: 'jo.kpi.ready',     value: ready,     color: 'text-blue-400',    icon: <Clock className="w-4 h-4" /> },
+          { labelKey: 'jo.kpi.completed', value: complete,  color: 'text-emerald-400', icon: <CheckSquare className="w-4 h-4" /> },
         ].map((k) => (
-          <div key={k.label} className="glass-card rounded-xl p-3 flex items-center gap-3">
+          <div key={k.labelKey} className="glass-card rounded-xl p-3 flex items-center gap-3">
             <div className={`${k.color} opacity-80`}>{k.icon}</div>
             <div>
               <div className={`text-2xl font-bold ${k.color}`}>{k.value}</div>
-              <div className="text-xs text-muted-foreground">{k.label}</div>
+              <div className="text-xs text-muted-foreground">{t(k.labelKey)}</div>
             </div>
           </div>
         ))}
@@ -1011,9 +1016,9 @@ export function JobOrdersView() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">All statuses</SelectItem>
+            <SelectItem value="ALL">{t('jo.allStatuses')}</SelectItem>
             {Object.entries(JO_STATUS).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+              <SelectItem key={k} value={k}>{t(v.labelKey)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -1025,16 +1030,16 @@ export function JobOrdersView() {
               viewMode === 'list' ? 'bg-brand-500/15 text-brand-400' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <List className="w-3.5 h-3.5" />List
+            <List className="w-3.5 h-3.5" />{t('jo.list')}
           </button>
           <button
             onClick={() => setViewMode('pdm')}
-            title="Precedence Diagram Method — steps as nodes, typed dependency arrows"
+            title={t('jo.pdmTitle')}
             className={`h-9 px-3 text-xs font-medium flex items-center gap-1.5 border-l border-border transition-colors ${
               viewMode === 'pdm' ? 'bg-brand-500/15 text-brand-400' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Workflow className="w-3.5 h-3.5" />PDM Flow
+            <Workflow className="w-3.5 h-3.5" />{t('jo.pdmFlow')}
           </button>
         </div>
         <DepLegend />
@@ -1052,7 +1057,7 @@ export function JobOrdersView() {
           <ClipboardList className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
           <p className="text-sm text-muted-foreground">{t('jobOrders.noJobOrders')}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            Generate a work order from a Production Order to create the dispatch list.
+            {t('jo.generateHint')}
           </p>
         </div>
       ) : (
@@ -1076,10 +1081,10 @@ export function JobOrdersView() {
           {/* Summary + pagination */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <p className="text-xs text-muted-foreground">
-              Showing <span className="font-medium text-foreground">{paginated.length}</span> of{' '}
-              <span className="font-medium text-foreground">{entries.length}</span> work orders
+              {t('jo.showingPre')} <span className="font-medium text-foreground">{paginated.length}</span> {t('common:of', { defaultValue: 'of' })}{' '}
+              <span className="font-medium text-foreground">{entries.length}</span> {t('jo.ofWos')}
               {' '}·{' '}
-              <span className="font-medium text-foreground">{filtered.length}</span> job orders total
+              <span className="font-medium text-foreground">{filtered.length}</span> {t('jo.joTotal')}
             </p>
             <TablePagination
               page={page}

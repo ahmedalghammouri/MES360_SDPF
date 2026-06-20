@@ -2,7 +2,8 @@
   "picker": {
     "searchMachines": "ابحث عن الماكينات...", "noMachines": "لا توجد ماكينات",
     "searchWorkCenters": "ابحث عن مراكز العمل...", "noResults": "لا توجد نتائج",
-    "manage": "إدارة {{label}}", "noneDefined": "لا يوجد {{label}} معرّف بعد."
+    "manage": "إدارة {{label}}", "noneDefined": "لا يوجد {{label}} معرّف بعد.",
+    "select": "اختر…", "search": "بحث…", "noMatches": "لا توجد تطابقات"
   },
   "charts": {
     "currentShift": "الوردية الحالية", "activeAlarms": "الإنذارات النشطة", "noActiveAlarms": "لا توجد إنذارات نشطة", "allNormal": "جميع الأنظمة تعمل بشكل طبيعي",
@@ -13,6 +14,86 @@
     "availability": "الجاهزية", "performance": "الأداء", "quality": "الجودة",
     "mttrMtbf": "متوسط زمن الإصلاح مقابل متوسط الزمن بين الأعطال", "downtimePareto": "باريتو التوقفات", "downtimeParetoSub": "أهم أسباب التوقف (تحليل باريتو)", "mttrMtbfTitle": "اتجاهات MTTR و MTBF",
     "gRows": "الصفوف", "gTimeScale": "المقياس الزمني", "gActions": "إجراءات", "gOrders": "الأوامر", "gResources": "الموارد", "gSupply": "العرض", "gDemand": "الطلب"
+  },
+  "gantt": {
+    "view": "عرض المخطط",
+    "orderTree": "شجرة الأوامر (أمر إنتاج ← أمر عمل ← أمر تشغيل)",
+    "machines": "الماكينات",
+    "expandAll": "توسيع الكل",
+    "collapseAll": "طي الكل",
+    "dependencyLinks": "روابط التبعية",
+    "nonWorkingShading": "تظليل أيام العطل",
+    "links": "الروابط",
+    "insights": "رؤى",
+    "ctp": "القدرة على الوعد",
+    "filter": "تصفية",
+    "hidden": "({{count}} مخفي)",
+    "today": "اليوم",
+    "zoomOut": "تصغير",
+    "zoomIn": "تكبير",
+    "orderStep": "الأمر / الخطوة",
+    "machine": "الماكينة",
+    "scheduledTasks": "المهام المجدولة",
+    "hiddenCount": "مخفي",
+    "rows": "الصفوف",
+    "resources": "الموارد",
+    "orders": "الأوامر",
+    "zoom30min": "30 دقيقة",
+    "zoomHour": "ساعة واحدة",
+    "zoomDay": "يوم",
+    "zoomWeek": "أسبوع",
+    "zoomMonth": "شهر"
+  },
+  "timeRange": {
+    "today": "اليوم",
+    "shift": "الوردية",
+    "week": "الأسبوع",
+    "month": "الشهر",
+    "custom": "مخصص",
+    "from": "من",
+    "to": "إلى",
+    "applyRange": "تطبيق النطاق"
+  },
+  "widgets": {
+    "runningLines": "الخطوط العاملة",
+    "activeOrders": "الأوامر النشطة",
+    "completedToday": "المكتمل اليوم",
+    "outputEfficiency": "كفاءة الإنتاج",
+    "active": "نشطة",
+    "elapsed": "منقضية",
+    "outputProgress": "تقدم الإنتاج",
+    "ofTarget": "{{value}} من المستهدف",
+    "noTargetSet": "لم يُحدد مستهدف",
+    "wip": "تحت التشغيل",
+    "downtime": "وقت التوقف",
+    "defects": "العيوب",
+    "openAnalytics": "فتح التحليلات المتعمقة لهذه الماكينة",
+    "order": "الأمر"
+  },
+  "scope": {
+    "title": "النطاق",
+    "showScope": "إظهار النطاق",
+    "collapse": "طي",
+    "wholeFactory": "المصنع بالكامل",
+    "noHierarchy": "لا يوجد هيكل",
+    "scopedTo": "محصور في"
+  },
+  "rowActions": {
+    "label": "إجراءات الصف"
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "new": "({{count}} جديد)",
+    "markAll": "تعليم الكل",
+    "allCaughtUp": "لقد اطّلعت على كل شيء",
+    "viewAll": "عرض كل الإشعارات",
+    "settings": "إعدادات الإشعارات"
+  },
+  "topbar": {
+    "light": "فاتح",
+    "dark": "داكن",
+    "system": "النظام",
+    "user": "مستخدم"
   },
   "actions": {
     "save": "حفظ",

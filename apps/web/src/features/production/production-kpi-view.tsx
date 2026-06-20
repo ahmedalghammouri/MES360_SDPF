@@ -168,6 +168,7 @@ function PrimaryKpiCard({
   icon,
   benchmarkNote,
 }: PrimaryKpiCardProps) {
+  const { t } = useTranslation(['production', 'common']);
   const pct = Math.min(100, (value / target) * 100);
   const gap = value - target;
 
@@ -199,7 +200,7 @@ function PrimaryKpiCard({
       {/* Target progress bar */}
       <div className="space-y-1">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>vs Target {target}{unit}</span>
+          <span>{t('kpiv.vsTarget', { target, unit })}</span>
           <span className={cn('font-medium', gap >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
             {gap >= 0 ? '+' : ''}
             {gap.toFixed(1)}{unit}
@@ -329,22 +330,22 @@ export default function ProductionKpiView() {
   const radarData = useMemo(
     () => [
       {
-        subject: 'Availability',
+        subject: t('cards.availability'),
         Actual: summary.availability,
         'World Class': 90,
       },
       {
-        subject: 'Performance',
+        subject: t('cards.performance'),
         Actual: summary.performance,
         'World Class': 95,
       },
       {
-        subject: 'Quality',
+        subject: t('cards.quality'),
         Actual: summary.quality,
         'World Class': 99,
       },
     ],
-    [summary],
+    [summary, t],
   );
 
   // --- KPI target table rows ---
@@ -352,31 +353,31 @@ export default function ProductionKpiView() {
   const kpiRows = useMemo(
     () => [
       {
-        metric: 'OEE',
+        metric: t('cards.oee'),
         actual: summary.oee,
         target: 85,
         unit: '%',
       },
       {
-        metric: 'First Pass Yield',
+        metric: t('cards.firstPassYield'),
         actual: firstPassYield,
         target: 99,
         unit: '%',
       },
       {
-        metric: 'Output',
+        metric: t('kpiv.metricOutput'),
         actual: summary.totalOutput,
         target: plannedOutput,
-        unit: ' units',
+        unit: t('kpiv.unitsSuffix'),
       },
       {
-        metric: 'Completion Rate',
+        metric: t('kpiv.metricCompletionRate'),
         actual: completionRate,
         target: 95,
         unit: '%',
       },
     ],
-    [summary, firstPassYield, completionRate, plannedOutput],
+    [summary, firstPassYield, completionRate, plannedOutput, t],
   );
 
   // --- Production volume by week (BarChart) ---
@@ -456,17 +457,17 @@ export default function ProductionKpiView() {
             size="sm"
             value={poFilter}
             onValueChange={(v) => { setPoFilter(v); setWoFilter(''); }}
-            options={[{ value: '', label: 'All POs' }, ...productionOrders.map((p: any) => ({ value: p.orderNumber, label: p.orderNumber }))]}
+            options={[{ value: '', label: t('sf.allPos') }, ...productionOrders.map((p: any) => ({ value: p.orderNumber, label: p.orderNumber }))]}
           />
           <SelectMenu
             size="sm"
             value={woFilter}
             onValueChange={setWoFilter}
-            options={[{ value: '', label: 'All WOs' }, ...woOptions]}
+            options={[{ value: '', label: t('sf.allWos') }, ...woOptions]}
           />
           {(poFilter || woFilter) && (
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setPoFilter(''); setWoFilter(''); }}>
-              Clear
+              {t('downtime.clear')}
             </Button>
           )}
           <TimeRangeFilter />
@@ -475,7 +476,7 @@ export default function ProductionKpiView() {
             onClick={() => {
               const recs = oeeRecords ?? [];
               const rows = [
-                ['Date', 'Machine', 'OEE %', 'Availability %', 'Performance %', 'Quality %', 'Output'],
+                [t('kpiv.csv.date'), t('kpiv.csv.machine'), t('kpiv.csv.oee'), t('kpiv.csv.availability'), t('kpiv.csv.performance'), t('kpiv.csv.quality'), t('kpiv.csv.output')],
                 ...recs.map((r: any) => [
                   (r.recordDate ?? r.createdAt ?? '').slice(0, 10),
                   r.machine?.name ?? r.machineId ?? '—',
@@ -493,7 +494,7 @@ export default function ProductionKpiView() {
             }}
           >
             <Download size={13} />
-            Export
+            {t('common:actions.export')}
           </Button>
         </div>
       </div>
@@ -510,7 +511,7 @@ export default function ProductionKpiView() {
             trend={kpis?.oeeTrend ?? 0}
             target={85}
             icon={<Gauge size={16} />}
-            benchmarkNote="World-class benchmark: 85%"
+            benchmarkNote={t('kpiv.benchWorldClass')}
           />
           <PrimaryKpiCard
             title={t('cards.firstPassYield')}
@@ -519,7 +520,7 @@ export default function ProductionKpiView() {
             trend={kpis?.qualityTrend ?? 0}
             target={99}
             icon={<Award size={16} />}
-            benchmarkNote="Six Sigma benchmark: 99%"
+            benchmarkNote={t('kpiv.benchSixSigma')}
           />
           <PrimaryKpiCard
             title={t('cards.totalOutput')}
@@ -528,7 +529,7 @@ export default function ProductionKpiView() {
             trend={kpis?.outputTrend ?? 0}
             target={plannedOutput}
             icon={<Factory size={16} />}
-            benchmarkNote={`Scrap: ${totalScrap.toLocaleString()} units`}
+            benchmarkNote={t('kpiv.benchScrap', { qty: totalScrap.toLocaleString() })}
           />
           <PrimaryKpiCard
             title={t('cards.orderCompletion')}
@@ -537,15 +538,15 @@ export default function ProductionKpiView() {
             trend={0}
             target={95}
             icon={<CheckCircle2 size={16} />}
-            benchmarkNote={`${completedWOs.length} / ${totalWOs} work orders`}
+            benchmarkNote={t('kpiv.benchWorkOrders', { done: completedWOs.length, total: totalWOs })}
           />
         </div>
 
         {/* Time-Based (AT-OEE) — standardized backend metric, beside the schedule-based KPIs above */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground -mt-3 px-1">
-          <span>Time-Based OEE (AT-OEE): <b className="text-foreground">{(kpis?.oeeTb ?? 0).toFixed(1)}%</b></span>
-          <span>Availability (Time-Based): <b className="text-foreground">{(kpis?.availabilityTb ?? 0).toFixed(1)}%</b></span>
-          <span className="opacity-70">Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)</span>
+          <span>{t('atOee')}: <b className="text-foreground">{(kpis?.oeeTb ?? 0).toFixed(1)}%</b></span>
+          <span>{t('availabilityTb')}: <b className="text-foreground">{(kpis?.availabilityTb ?? 0).toFixed(1)}%</b></span>
+          <span className="opacity-70">{t('kpiv.atOeeHint')}</span>
         </div>
 
         {/* 2. OEE Components — Radar + Target table */}
@@ -554,7 +555,7 @@ export default function ProductionKpiView() {
           <div className="lg:col-span-2 bg-card border border-border/50 rounded-xl p-5">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 size={15} className="text-brand-400" />
-              <h2 className="text-sm font-semibold">OEE Components vs World Class</h2>
+              <h2 className="text-sm font-semibold">{t('kpiv.oeeComponents')}</h2>
             </div>
             <ResponsiveContainer width="100%" height={280}>
               <RadarChart data={radarData}>
@@ -564,7 +565,7 @@ export default function ProductionKpiView() {
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                 />
                 <Radar
-                  name="Actual"
+                  name={t('kpiv.seriesActual')}
                   dataKey="Actual"
                   stroke="#6366f1"
                   fill="#6366f1"
@@ -572,7 +573,7 @@ export default function ProductionKpiView() {
                   dot={{ r: 3, fill: '#6366f1' }}
                 />
                 <Radar
-                  name="World Class"
+                  name={t('kpiv.seriesWorldClass')}
                   dataKey="World Class"
                   stroke="#10b981"
                   fill="#10b981"
@@ -600,18 +601,24 @@ export default function ProductionKpiView() {
           <div className="bg-card border border-border/50 rounded-xl p-5">
             <div className="flex items-center gap-2 mb-4">
               <Target size={15} className="text-brand-400" />
-              <h2 className="text-sm font-semibold">KPI Targets</h2>
+              <h2 className="text-sm font-semibold">{t('kpiv.kpiTargets')}</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border/50">
-                    {['Metric', 'Actual', 'Target', 'Gap', 'Status'].map((h) => (
+                    {[
+                      { key: 'metric', label: t('kpiv.colMetric') },
+                      { key: 'actual', label: t('kpiv.colActual') },
+                      { key: 'target', label: t('kpiv.colTarget') },
+                      { key: 'gap', label: t('kpiv.colGap') },
+                      { key: 'status', label: t('po.col.status') },
+                    ].map((h) => (
                       <th
-                        key={h}
+                        key={h.key}
                         className="text-left pb-2 font-medium text-muted-foreground pr-2 last:pr-0"
                       >
-                        {h}
+                        {h.label}
                       </th>
                     ))}
                   </tr>
@@ -651,8 +658,8 @@ export default function ProductionKpiView() {
         <div className="bg-card border border-border/50 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 size={15} className="text-brand-400" />
-            <h2 className="text-sm font-semibold">Production Volume by Week</h2>
-            <span className="ml-auto text-xs text-muted-foreground">Planned vs Actual Output</span>
+            <h2 className="text-sm font-semibold">{t('kpiv.volumeByWeek')}</h2>
+            <span className="ml-auto text-xs text-muted-foreground">{t('kpiv.plannedVsActual')}</span>
           </div>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={volumeByWeek} barGap={4} barCategoryGap="25%">
@@ -682,8 +689,8 @@ export default function ProductionKpiView() {
                 }}
               />
               <Legend wrapperStyle={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }} />
-              <Bar dataKey="planned" name="Planned" fill="#6366f1" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="actual" name="Actual" fill="#10b981" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="planned" name={t('kpiv.seriesPlanned')} fill="#6366f1" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="actual" name={t('kpiv.seriesActual')} fill="#10b981" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -692,8 +699,8 @@ export default function ProductionKpiView() {
         <div className="bg-card border border-border/50 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp size={15} className="text-brand-400" />
-            <h2 className="text-sm font-semibold">Quality Trend (OEE Records)</h2>
-            <span className="ml-auto text-xs text-muted-foreground">Last 90 records</span>
+            <h2 className="text-sm font-semibold">{t('kpiv.qualityTrend')}</h2>
+            <span className="ml-auto text-xs text-muted-foreground">{t('kpiv.last90')}</span>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={qualityTrend}>
@@ -724,13 +731,13 @@ export default function ProductionKpiView() {
                   borderRadius: 8,
                   fontSize: 12,
                 }}
-                formatter={(val: number) => [`${val.toFixed(1)}%`, 'Quality']}
+                formatter={(val: number) => [`${val.toFixed(1)}%`, t('cards.quality')]}
               />
-              <ReferenceLine y={99} stroke="#10b981" strokeDasharray="4 2" label={{ value: 'Target', fontSize: 10, fill: '#10b981' }} />
+              <ReferenceLine y={99} stroke="#10b981" strokeDasharray="4 2" label={{ value: t('kpiv.targetLabel'), fontSize: 10, fill: '#10b981' }} />
               <Line
                 type="monotone"
                 dataKey="quality"
-                name="Quality"
+                name={t('cards.quality')}
                 stroke="#6366f1"
                 strokeWidth={2}
                 dot={false}
@@ -744,19 +751,26 @@ export default function ProductionKpiView() {
         <div className="bg-card border border-border/50 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <Award size={15} className="text-brand-400" />
-            <h2 className="text-sm font-semibold">Top Performing Work Orders</h2>
-            <span className="ml-auto text-xs text-muted-foreground">Top 10 by First Pass Yield</span>
+            <h2 className="text-sm font-semibold">{t('kpiv.topWos')}</h2>
+            <span className="ml-auto text-xs text-muted-foreground">{t('kpiv.top10Fpy')}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border/50">
-                  {['WO #', 'Product (SKU)', 'Planned', 'Output', 'FPY', 'Status'].map((h) => (
+                  {[
+                    { key: 'wo', label: t('kpiv.colWo') },
+                    { key: 'product', label: t('kpiv.colProductSku') },
+                    { key: 'planned', label: t('kpiv.colPlanned') },
+                    { key: 'output', label: t('kpiv.colOutput') },
+                    { key: 'fpy', label: t('kpiv.colFpy') },
+                    { key: 'status', label: t('po.col.status') },
+                  ].map((h) => (
                     <th
-                      key={h}
+                      key={h.key}
                       className="text-left pb-2 font-medium text-muted-foreground pr-3 last:pr-0"
                     >
-                      {h}
+                      {h.label}
                     </th>
                   ))}
                 </tr>
@@ -811,7 +825,7 @@ export default function ProductionKpiView() {
                           w.status === 'IN_PROGRESS' && 'bg-brand-500/20 text-brand-400 border-brand-500/30',
                         )}
                       >
-                        {w.status.replace('_', ' ')}
+                        {t(`po.status.${w.status}`, { defaultValue: w.status.replace('_', ' ') })}
                       </Badge>
                     </td>
                   </motion.tr>
@@ -819,7 +833,7 @@ export default function ProductionKpiView() {
                 {topWOs.length === 0 && (
                   <tr>
                     <td colSpan={6} className="text-center py-8 text-muted-foreground">
-                      {isLoading ? 'Loading work orders…' : 'No work orders found'}
+                      {isLoading ? t('kpiv.loadingWos') : t('kpiv.noWos')}
                     </td>
                   </tr>
                 )}

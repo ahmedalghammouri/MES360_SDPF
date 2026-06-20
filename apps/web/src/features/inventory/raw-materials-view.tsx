@@ -146,11 +146,11 @@ const EMPTY_FORM: MaterialFormState = {
   supplierName: '', leadTimeDays: '',
 };
 
-function getStockStatus(material: RawMaterial): { label: string; cls: string } {
-  if (material.isLowStock) return { label: 'Low Stock', cls: 'text-amber-400 border-amber-400/30 bg-amber-400/10' };
+function getStockStatus(material: RawMaterial): { labelKey: string; cls: string } {
+  if (material.isLowStock) return { labelKey: 'rawMaterialsView.status.lowStock', cls: 'text-amber-400 border-amber-400/30 bg-amber-400/10' };
   if (material.reorderPoint && material.availableStock <= material.reorderPoint)
-    return { label: 'Reorder', cls: 'text-orange-400 border-orange-400/30 bg-orange-400/10' };
-  return { label: 'Normal', cls: 'text-green-400 border-green-400/30 bg-green-400/10' };
+    return { labelKey: 'rawMaterialsView.status.reorder', cls: 'text-orange-400 border-orange-400/30 bg-orange-400/10' };
+  return { labelKey: 'rawMaterialsView.status.normal', cls: 'text-green-400 border-green-400/30 bg-green-400/10' };
 }
 
 // ── Component ────────────────────────────────────────────────
@@ -231,11 +231,11 @@ export function RawMaterialsView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'raw-materials'] });
       queryClient.invalidateQueries({ queryKey: ['archive'] });
-      toast({ title: 'Raw material archived', description: 'Hidden from active list — switch the filter to "Archived" to restore.', variant: 'success' });
+      toast({ title: t('rawMaterialsView.toast.archived'), description: t('rawMaterialsView.toast.archivedDesc'), variant: 'success' });
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to archive';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t('rawMaterialsView.toast.failArchive');
+      toast({ title: t('rawMaterialsView.toast.error'), description: msg, variant: 'destructive' });
     },
   });
 
@@ -244,11 +244,11 @@ export function RawMaterialsView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'raw-materials'] });
       queryClient.invalidateQueries({ queryKey: ['archive'] });
-      toast({ title: 'Raw material restored', variant: 'success' });
+      toast({ title: t('rawMaterialsView.toast.restored'), variant: 'success' });
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to restore';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t('rawMaterialsView.toast.failRestore');
+      toast({ title: t('rawMaterialsView.toast.error'), description: msg, variant: 'destructive' });
     },
   });
 
@@ -256,12 +256,12 @@ export function RawMaterialsView() {
     mutationFn: (dto: Record<string, unknown>) => api.post('/inventory/raw-materials', dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'raw-materials'] });
-      toast({ title: 'Raw material created successfully', variant: 'success' });
+      toast({ title: t('rawMaterialsView.toast.created'), variant: 'success' });
       handleCloseForm();
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to create material';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t('rawMaterialsView.toast.failCreate');
+      toast({ title: t('rawMaterialsView.toast.error'), description: msg, variant: 'destructive' });
     },
   });
 
@@ -270,12 +270,12 @@ export function RawMaterialsView() {
       api.patch(`/inventory/raw-materials/${id}`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'raw-materials'] });
-      toast({ title: 'Raw material updated', variant: 'success' });
+      toast({ title: t('rawMaterialsView.toast.updated'), variant: 'success' });
       handleCloseForm();
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to update material';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t('rawMaterialsView.toast.failUpdate');
+      toast({ title: t('rawMaterialsView.toast.error'), description: msg, variant: 'destructive' });
     },
   });
 
@@ -283,12 +283,12 @@ export function RawMaterialsView() {
     mutationFn: (id: string) => api.delete(`/inventory/raw-materials/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'raw-materials'] });
-      toast({ title: 'Raw material deleted' });
+      toast({ title: t('rawMaterialsView.toast.deleted') });
       setDeleteDialog(null);
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to delete material';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t('rawMaterialsView.toast.failDelete');
+      toast({ title: t('rawMaterialsView.toast.error'), description: msg, variant: 'destructive' });
     },
   });
 
@@ -297,12 +297,12 @@ export function RawMaterialsView() {
       api.post(`/inventory/raw-materials/${id}/adjust`, { quantity, reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'raw-materials'] });
-      toast({ title: 'Stock adjusted', variant: 'success' });
+      toast({ title: t('rawMaterialsView.toast.stockAdjusted'), variant: 'success' });
       setAdjustMaterial(null);
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to adjust stock';
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t('rawMaterialsView.toast.failAdjust');
+      toast({ title: t('rawMaterialsView.toast.error'), description: msg, variant: 'destructive' });
     },
   });
 
@@ -395,7 +395,7 @@ export function RawMaterialsView() {
           </p>
         </div>
         <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={handleOpenCreate}>
-          <Plus size={13} />Add Material
+          <Plus size={13} />{t('rawMaterialsView.addMaterial')}
         </Button>
       </div>
 
@@ -406,31 +406,31 @@ export function RawMaterialsView() {
         <div className="grid grid-cols-3 gap-3">
           <div className="glass-card p-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-muted-foreground">Total Materials</span>
+              <span className="text-xs text-muted-foreground">{t('rawMaterialsView.kpi.totalMaterials')}</span>
               <Layers3 size={14} className="text-brand-400" />
             </div>
             <p className="text-2xl font-bold text-brand-400">{total}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">active material records</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('rawMaterialsView.activeRecords')}</p>
           </div>
           <div className={cn('glass-card p-4', lowCount > 0 && 'border-amber-500/30')}>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-muted-foreground">Low Stock</span>
+              <span className="text-xs text-muted-foreground">{t('rawMaterialsView.kpi.lowStock')}</span>
               <TrendingDown size={14} className={lowCount > 0 ? 'text-amber-400' : 'text-muted-foreground'} />
             </div>
             <p className={cn('text-2xl font-bold', lowCount > 0 ? 'text-amber-400' : 'text-muted-foreground')}>
               {lowCount}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">materials below minimum</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('rawMaterialsView.belowMinimum')}</p>
           </div>
           <div className="glass-card p-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-muted-foreground">Total Stock Value</span>
+              <span className="text-xs text-muted-foreground">{t('rawMaterialsView.kpi.totalStockValue')}</span>
               <DollarSign size={14} className="text-green-400" />
             </div>
             <p className="text-2xl font-bold text-green-400">
               {totalStockValue.toLocaleString('en-SA', { maximumFractionDigits: 0 })}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">SAR across all materials</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('rawMaterialsView.sarAcross')}</p>
           </div>
         </div>
 
@@ -494,7 +494,7 @@ export function RawMaterialsView() {
                       <td colSpan={13} className="p-12 text-center text-muted-foreground">
                         <Package size={32} className="mx-auto mb-2 opacity-30" />
                         <p className="text-sm">{t('rawMaterials.noMaterials')}</p>
-                        <p className="text-xs mt-1">Add your first material using the button above</p>
+                        <p className="text-xs mt-1">{t('rawMaterialsView.addFirstHint')}</p>
                       </td>
                     </tr>
                   ) : (
@@ -508,7 +508,7 @@ export function RawMaterialsView() {
                           transition={{ delay: i * 0.02 }}
                           className={cn('border-b border-border/20 hover:bg-muted/20 transition-colors', m.isLowStock && 'bg-amber-500/5', sel.isSelected(m.id) && 'bg-primary/5')}
                         >
-                          <td className="p-3"><Checkbox checked={sel.isSelected(m.id)} onCheckedChange={() => sel.toggle(m.id)} aria-label="Select row" /></td>
+                          <td className="p-3"><Checkbox checked={sel.isSelected(m.id)} onCheckedChange={() => sel.toggle(m.id)} aria-label={t('rawMaterialsView.selectRow')} /></td>
                           <td className="p-3 text-xs font-mono text-muted-foreground whitespace-nowrap">{m.code}</td>
                           <td className="p-3 text-xs font-medium">
                             <div className="max-w-[160px] truncate">{m.name}</div>
@@ -553,7 +553,7 @@ export function RawMaterialsView() {
                               'text-[10px] font-medium px-2 py-0.5 rounded-full border',
                               status.cls,
                             )}>
-                              {status.label}
+                              {t(status.labelKey)}
                             </span>
                           </td>
                           <td className="p-3 text-center">
@@ -565,33 +565,33 @@ export function RawMaterialsView() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => handleOpenAdjust(m)}>
-                                  <SlidersHorizontal size={12} />Adjust Stock
+                                  <SlidersHorizontal size={12} />{t('rawMaterialsView.menu.adjustStock')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => setLotsMaterial(m)}>
-                                  <Boxes size={12} />View Lots
+                                  <Boxes size={12} />{t('rawMaterialsView.menu.viewLots')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => setHistoryMaterial(m)}>
-                                  <History size={12} />History
+                                  <History size={12} />{t('rawMaterialsView.menu.history')}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => handleOpenEdit(m)}>
-                                  <Pencil size={12} />Edit
+                                  <Pencil size={12} />{t('rawMaterialsView.menu.edit')}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 {m.archivedAt ? (
                                   <DropdownMenuItem className="gap-2 text-xs" onClick={() => restoreMutation.mutate(m.id)}>
-                                    <RotateCcw size={12} />Restore
+                                    <RotateCcw size={12} />{t('rawMaterialsView.menu.restore')}
                                   </DropdownMenuItem>
                                 ) : (
                                   <DropdownMenuItem className="gap-2 text-xs" onClick={() => archiveMutation.mutate(m.id)}>
-                                    <ArchiveIcon size={12} />Archive
+                                    <ArchiveIcon size={12} />{t('rawMaterialsView.menu.archive')}
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem
                                   className="gap-2 text-xs text-destructive"
                                   onClick={() => setDeleteDialog({ id: m.id, name: m.name })}
                                 >
-                                  <Trash2 size={12} />Delete
+                                  <Trash2 size={12} />{t('rawMaterialsView.menu.delete')}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -878,7 +878,7 @@ export function RawMaterialsView() {
             ) : movements.length === 0 ? (
               <div className="py-12 text-center text-muted-foreground">
                 <History size={32} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No stock movements yet</p>
+                <p className="text-sm">{t('rawMaterialsView.noMovementsYet')}</p>
               </div>
             ) : (
               movements.map((mv) => {
@@ -897,7 +897,7 @@ export function RawMaterialsView() {
                           {isIn ? '+' : ''}{mv.quantity.toLocaleString()}
                         </span>
                         {mv.stockAfter != null && (
-                          <span className="text-[10px] text-muted-foreground">→ {mv.stockAfter.toLocaleString()} on hand</span>
+                          <span className="text-[10px] text-muted-foreground">→ {mv.stockAfter.toLocaleString()} {t('rawMaterialsView.onHand')}</span>
                         )}
                       </div>
                       {mv.notes && <p className="text-[11px] text-muted-foreground mt-1">{mv.notes}</p>}
@@ -920,7 +920,7 @@ export function RawMaterialsView() {
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2 text-base">
-              <Boxes size={16} />Material Lots
+              <Boxes size={16} />{t('rawMaterialsView.materialLots')}
             </SheetTitle>
             <SheetDescription>
               {lotsMaterial ? `${lotsMaterial.name} (${lotsMaterial.code})` : ''}
@@ -933,8 +933,8 @@ export function RawMaterialsView() {
             ) : lots.length === 0 ? (
               <div className="py-12 text-center text-muted-foreground">
                 <Boxes size={32} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No lots received for this material</p>
-                <p className="text-xs mt-1">Receive a lot from the Material Lots page.</p>
+                <p className="text-sm">{t('rawMaterialsView.noLotsReceived')}</p>
+                <p className="text-xs mt-1">{t('rawMaterialsView.receiveFromLots')}</p>
               </div>
             ) : (
               lots.map((lot) => (
@@ -946,11 +946,11 @@ export function RawMaterialsView() {
                     </Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mt-2 text-[11px] text-muted-foreground">
-                    <div>Qty: <span className="text-foreground tabular-nums">{lot.quantity.toLocaleString()} {lot.unit}</span></div>
-                    <div>Remaining: <span className="text-foreground font-semibold tabular-nums">{lot.remainingQty.toLocaleString()} {lot.unit}</span></div>
-                    <div>Received: <span className="text-foreground">{lot.receivedAt.slice(0, 10)}</span></div>
+                    <div>{t('rawMaterialsView.lot.qty')}: <span className="text-foreground tabular-nums">{lot.quantity.toLocaleString()} {lot.unit}</span></div>
+                    <div>{t('rawMaterialsView.lot.remaining')}: <span className="text-foreground font-semibold tabular-nums">{lot.remainingQty.toLocaleString()} {lot.unit}</span></div>
+                    <div>{t('rawMaterialsView.lot.received')}: <span className="text-foreground">{lot.receivedAt.slice(0, 10)}</span></div>
                     <div>
-                      Expiry:{' '}
+                      {t('rawMaterialsView.lot.expiry')}:{' '}
                       {lot.expiryDate ? (
                         <span className={lot.isExpired ? 'text-red-400 font-semibold' : 'text-foreground'}>
                           {lot.isExpired && <AlertTriangle className="w-3 h-3 inline mr-0.5" />}
@@ -958,14 +958,14 @@ export function RawMaterialsView() {
                         </span>
                       ) : '—'}
                     </div>
-                    {lot.supplierName && <div className="col-span-2">Supplier: <span className="text-foreground">{lot.supplierName}</span></div>}
-                    {lot.storageLocation && <div className="col-span-2">Location: <span className="text-foreground">{lot.storageLocation}</span></div>}
+                    {lot.supplierName && <div className="col-span-2">{t('rawMaterialsView.lot.supplier')}: <span className="text-foreground">{lot.supplierName}</span></div>}
+                    {lot.storageLocation && <div className="col-span-2">{t('rawMaterialsView.lot.location')}: <span className="text-foreground">{lot.storageLocation}</span></div>}
                   </div>
                   <div className="mt-2 flex items-center gap-1.5">
                     <div className="flex-1 h-1.5 bg-foreground/10 rounded-full overflow-hidden">
                       <div className="h-full bg-brand-500 rounded-full" style={{ width: `${lot.utilizationPct}%` }} />
                     </div>
-                    <span className="text-[10px] text-muted-foreground">{lot.utilizationPct}% used</span>
+                    <span className="text-[10px] text-muted-foreground">{lot.utilizationPct}% {t('rawMaterialsView.lot.used')}</span>
                   </div>
                 </div>
               ))
@@ -979,8 +979,8 @@ export function RawMaterialsView() {
         open={!!deleteDialog}
         onClose={() => setDeleteDialog(null)}
         onConfirm={() => deleteDialog && deleteMutation.mutate(deleteDialog.id)}
-        title={`Delete "${deleteDialog?.name}"?`}
-        description="This will permanently remove this raw material from inventory. This action cannot be undone."
+        title={t('rawMaterialsView.deleteTitle', { name: deleteDialog?.name ?? '' })}
+        description={t('rawMaterialsView.deleteDesc')}
         isDeleting={deleteMutation.isPending}
       />
 
@@ -989,8 +989,8 @@ export function RawMaterialsView() {
         count={sel.count}
         onClear={sel.clear}
         actions={archived === 'archived'
-          ? [{ label: 'Restore', icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
-          : [{ label: 'Archive', icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
+          ? [{ label: t('rawMaterialsView.menu.restore'), icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
+          : [{ label: t('rawMaterialsView.menu.archive'), icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
       />
     </div>
   );

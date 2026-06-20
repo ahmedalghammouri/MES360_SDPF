@@ -538,7 +538,7 @@ export function QualityNcrView() {
               getSecondary={s => s.code}
               searchText={s => `${s.name} ${s.code}`}
               placeholder={t('nform.linkProduct')}
-              searchPlaceholder="Search products…"
+              searchPlaceholder={t('nform.searchProducts')}
               className="mt-1"
             />
           </div>
@@ -553,7 +553,7 @@ export function QualityNcrView() {
               getSecondary={() => ''}
               searchText={b => b.batchNumber}
               placeholder={t('nform.linkBatch')}
-              searchPlaceholder="Search batches…"
+              searchPlaceholder={t('nform.searchBatches')}
               className="mt-1"
             />
           </div>
@@ -579,7 +579,7 @@ export function QualityNcrView() {
               rows={3}
               className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
             />
-            <p className="text-[10px] text-muted-foreground mt-0.5">{form.description.length} / 5000 chars</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{t('nform.descChars', { count: form.description.length })}</p>
           </div>
 
           {/* Investigation — only meaningful once the NCR exists (post-detection analysis) */}
@@ -627,8 +627,8 @@ export function QualityNcrView() {
         open={!!deleteDialog}
         onClose={() => setDeleteDialog(null)}
         onConfirm={() => deleteDialog && deleteMutation.mutate(deleteDialog.id)}
-        title={`Delete NCR ${deleteDialog?.ncrNumber}?`}
-        description="This will permanently delete this non-conformance report."
+        title={t('ncr.deleteTitle', { number: deleteDialog?.ncrNumber })}
+        description={t('ncr.deleteDescription')}
         isDeleting={deleteMutation.isPending}
       />
 
@@ -636,8 +636,8 @@ export function QualityNcrView() {
         count={sel.count}
         onClear={sel.clear}
         actions={archived === 'archived'
-          ? [{ label: 'Restore', icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
-          : [{ label: 'Archive', icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
+          ? [{ label: t('common.restore'), icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
+          : [{ label: t('common.archive'), icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
       />
     </div>
   )

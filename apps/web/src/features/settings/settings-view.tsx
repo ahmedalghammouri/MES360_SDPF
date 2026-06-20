@@ -360,17 +360,17 @@ export function SettingsView() {
           {activeSection === 'appearance' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold">Appearance</h2>
-                <p className="text-sm text-muted-foreground">Choose how the interface looks</p>
+                <h2 className="text-lg font-semibold">{t('appearance.title')}</h2>
+                <p className="text-sm text-muted-foreground">{t('appearance.subtitle')}</p>
               </div>
               <Separator />
               <div className="space-y-3">
-                <Label>Theme</Label>
+                <Label>{t('appearance.theme')}</Label>
                 <div className="grid grid-cols-3 gap-3 max-w-md">
                   {[
-                    { value: 'light', label: 'Light', icon: Sun },
-                    { value: 'dark', label: 'Dark', icon: Moon },
-                    { value: 'system', label: 'System', icon: Monitor },
+                    { value: 'light', label: t('appearance.light'), icon: Sun },
+                    { value: 'dark', label: t('appearance.dark'), icon: Moon },
+                    { value: 'system', label: t('appearance.system'), icon: Monitor },
                   ].map((opt) => {
                     const Icon = opt.icon;
                     const active = mounted && theme === opt.value;

@@ -97,11 +97,11 @@ export function ProductionReportView() {
 
   const safeNum = (v: number | null | undefined) => Number(v ?? 0);
   const kpis = [
-    { label: 'Avg OEE',          value: `${safeNum(summary.avgOEE).toFixed(1)}%`, icon: Activity,     color: 'text-brand-400',  bg: 'bg-brand-500/20',  up: true },
-    { label: 'Avg OEE (Time-Based)', value: `${safeNum(summary.avgOeeTb).toFixed(1)}%`, icon: Activity, color: 'text-cyan-400',   bg: 'bg-cyan-500/20',   up: true },
-    { label: 'Total Output',     value: safeNum(summary.totalActual).toLocaleString(), icon: BarChart3, color: 'text-green-400',  bg: 'bg-green-500/20',  up: true },
-    { label: 'Downtime (min)',   value: safeNum(summary.totalDowntime).toLocaleString(), icon: Clock,   color: 'text-amber-400',  bg: 'bg-amber-500/20',  up: false },
-    { label: 'First-Pass Yield', value: `${safeNum(summary.quality).toFixed(1)}%`, icon: CheckCircle2, color: 'text-cyan-400',   bg: 'bg-cyan-500/20',   up: true },
+    { label: t('reports.prod.kpiAvgOee'),     value: `${safeNum(summary.avgOEE).toFixed(1)}%`, icon: Activity,     color: 'text-brand-400',  bg: 'bg-brand-500/20',  up: true },
+    { label: t('reports.prod.kpiAvgOeeTb'),   value: `${safeNum(summary.avgOeeTb).toFixed(1)}%`, icon: Activity, color: 'text-cyan-400',   bg: 'bg-cyan-500/20',   up: true },
+    { label: t('reports.prod.kpiTotalOutput'), value: safeNum(summary.totalActual).toLocaleString(), icon: BarChart3, color: 'text-green-400',  bg: 'bg-green-500/20',  up: true },
+    { label: t('reports.prod.kpiDowntime'),   value: safeNum(summary.totalDowntime).toLocaleString(), icon: Clock,   color: 'text-amber-400',  bg: 'bg-amber-500/20',  up: false },
+    { label: t('reports.prod.kpiFpy'),        value: `${safeNum(summary.quality).toFixed(1)}%`, icon: CheckCircle2, color: 'text-cyan-400',   bg: 'bg-cyan-500/20',   up: true },
   ];
 
   return (
@@ -123,8 +123,8 @@ export function ProductionReportView() {
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm"><Filter className="w-4 h-4 mr-1" />Filter</Button>
-          <Button size="sm"><Download className="w-4 h-4 mr-1" />Export</Button>
+          <Button variant="outline" size="sm"><Filter className="w-4 h-4 mr-1" />{t('reports.prod.filter')}</Button>
+          <Button size="sm"><Download className="w-4 h-4 mr-1" />{t('reports.prod.export')}</Button>
         </div>
       </div>
 
@@ -160,13 +160,13 @@ export function ProductionReportView() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="glass-card rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold">OEE Trend</h2>
+            <h2 className="font-semibold">{t('reports.prod.oeeTrend')}</h2>
             <Badge variant="outline" className="text-xs capitalize">{range}</Badge>
           </div>
           {isLoading ? (
             <div className="shimmer h-[220px] rounded" />
           ) : oeeTrend.length === 0 ? (
-            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">No OEE records for this period</div>
+            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">{t('reports.prod.noOeeRecords')}</div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={oeeTrend}>
@@ -177,7 +177,7 @@ export function ProductionReportView() {
                   contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                   formatter={(v: number) => [`${v}%`]}
                 />
-                <Line type="monotone" dataKey="oee" stroke="#6366f1" strokeWidth={2} dot={false} name="OEE" />
+                <Line type="monotone" dataKey="oee" stroke="#6366f1" strokeWidth={2} dot={false} name={t('reports.prod.oee')} />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -185,13 +185,13 @@ export function ProductionReportView() {
 
         <div className="glass-card rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold">Output by Machine</h2>
+            <h2 className="font-semibold">{t('reports.prod.outputByMachine')}</h2>
             <Badge variant="outline" className="text-xs capitalize">{range}</Badge>
           </div>
           {isLoading ? (
             <div className="shimmer h-[220px] rounded" />
           ) : outputByMachine.length === 0 ? (
-            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">No output data for this period</div>
+            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">{t('reports.prod.noOutputData')}</div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={outputByMachine} layout="vertical">
@@ -201,8 +201,8 @@ export function ProductionReportView() {
                 <Tooltip
                   contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                 />
-                <Bar dataKey="planned" fill="rgba(99,102,241,0.2)" name="Target" radius={[0, 4, 4, 0]} />
-                <Bar dataKey="actual"  fill="#6366f1" name="Actual" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="planned" fill="rgba(99,102,241,0.2)" name={t('reports.prod.target')} radius={[0, 4, 4, 0]} />
+                <Bar dataKey="actual"  fill="#6366f1" name={t('reports.prod.actual')} radius={[0, 4, 4, 0]} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </BarChart>
             </ResponsiveContainer>
@@ -214,19 +214,19 @@ export function ProductionReportView() {
       {records.length > 0 && (
         <div className="glass-card rounded-xl overflow-hidden">
           <div className="p-4 border-b border-border/50">
-            <h2 className="font-semibold text-sm">Detail Records ({records.length})</h2>
+            <h2 className="font-semibold text-sm">{t('reports.prod.detailRecords', { count: records.length })}</h2>
           </div>
           <div className="overflow-auto max-h-64">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-background/80 backdrop-blur">
                 <tr className="border-b border-border">
-                  <th className="text-left p-3 text-muted-foreground font-medium text-xs">Date</th>
-                  <th className="text-left p-3 text-muted-foreground font-medium text-xs">Machine</th>
-                  <th className="text-right p-3 text-muted-foreground font-medium text-xs">Planned</th>
-                  <th className="text-right p-3 text-muted-foreground font-medium text-xs">Actual</th>
-                  <th className="text-right p-3 text-muted-foreground font-medium text-xs">Good</th>
-                  <th className="text-right p-3 text-muted-foreground font-medium text-xs">OEE %</th>
-                  <th className="text-right p-3 text-muted-foreground font-medium text-xs">Downtime (min)</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium text-xs">{t('reports.prod.colDate')}</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium text-xs">{t('reports.prod.colMachine')}</th>
+                  <th className="text-right p-3 text-muted-foreground font-medium text-xs">{t('reports.prod.colPlanned')}</th>
+                  <th className="text-right p-3 text-muted-foreground font-medium text-xs">{t('reports.prod.colActual')}</th>
+                  <th className="text-right p-3 text-muted-foreground font-medium text-xs">{t('reports.prod.colGood')}</th>
+                  <th className="text-right p-3 text-muted-foreground font-medium text-xs">{t('reports.prod.colOee')}</th>
+                  <th className="text-right p-3 text-muted-foreground font-medium text-xs">{t('reports.prod.colDowntime')}</th>
                 </tr>
               </thead>
               <tbody>

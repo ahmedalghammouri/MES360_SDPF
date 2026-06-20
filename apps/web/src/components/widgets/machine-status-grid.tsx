@@ -33,7 +33,7 @@ function MachineCard({ machine }: MachineCardProps) {
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter') openAnalytics(); }}
-      title="Open deep analytics for this machine"
+      title={t('widgets.openAnalytics')}
       className="p-3 rounded-xl border border-border/30 bg-card/60 hover:border-primary/40 hover:bg-card transition-all duration-200 group cursor-pointer"
     >
       {/* Header */}
@@ -89,7 +89,7 @@ function MachineCard({ machine }: MachineCardProps) {
 
       {machine.currentOrder && (
         <div className="mt-2 text-[10px] text-muted-foreground truncate">
-          Order: <span className="text-foreground font-medium">{machine.currentOrder}</span>
+          {t('widgets.order')}: <span className="text-foreground font-medium">{machine.currentOrder}</span>
         </div>
       )}
 

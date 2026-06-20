@@ -35,11 +35,11 @@ const ZONES = [
   { value: 'DISPATCH',       label: 'Dispatch / Shipping',    short: 'Dispatch',     icon: Truck,       color: 'text-cyan-400',   bg: 'bg-cyan-500/10 border-cyan-500/20',     bar: 'bg-cyan-400'   },
 ];
 
-const LOT_STATUS_CFG: Record<string, { label: string; cls: string }> = {
-  ACTIVE:     { label: 'Active',     cls: 'bg-green-500/10 text-green-400 border-green-500/20' },
-  EXPIRED:    { label: 'Expired',    cls: 'bg-red-500/10 text-red-400 border-red-500/20'       },
-  QUARANTINE: { label: 'Quarantine', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-  CONSUMED:   { label: 'Consumed',   cls: 'bg-muted text-muted-foreground'                     },
+const LOT_STATUS_CFG: Record<string, { labelKey: string; cls: string }> = {
+  ACTIVE:     { labelKey: 'storageView.lotStatus.ACTIVE',     cls: 'bg-green-500/10 text-green-400 border-green-500/20' },
+  EXPIRED:    { labelKey: 'storageView.lotStatus.EXPIRED',    cls: 'bg-red-500/10 text-red-400 border-red-500/20'       },
+  QUARANTINE: { labelKey: 'storageView.lotStatus.QUARANTINE', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+  CONSUMED:   { labelKey: 'storageView.lotStatus.CONSUMED',   cls: 'bg-muted text-muted-foreground'                     },
 };
 
 type Tab = 'summary' | 'raw' | 'lots' | 'parts' | 'skus';
@@ -711,7 +711,7 @@ function SummaryTab({ contents, zone }: { contents: LocationContents; zone: type
 
 function RawMaterialsTab({ items }: { items: LocationContents['rawMaterials'] }) {
   const { t } = useTranslation(['inventory', 'common']);
-  if (items.length === 0) return <EmptyTab label="No raw materials at this location" />;
+  if (items.length === 0) return <EmptyTab label={t('storageView.noRawAt')} />;
   return (
     <div className="border rounded-xl overflow-hidden">
       <table className="w-full text-sm">
@@ -740,11 +740,11 @@ function RawMaterialsTab({ items }: { items: LocationContents['rawMaterials'] })
               <td className="px-3 py-2.5 text-center">
                 {r.isLowStock ? (
                   <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded px-1.5 py-0.5">
-                    <AlertTriangle size={9} /> Low Stock
+                    <AlertTriangle size={9} /> {t('storageView.lowStock')}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[10px] bg-green-500/10 text-green-400 border border-green-500/20 rounded px-1.5 py-0.5">
-                    <CheckCircle2 size={9} /> OK
+                    <CheckCircle2 size={9} /> {t('storageView.ok')}
                   </span>
                 )}
               </td>
@@ -761,22 +761,25 @@ function RawMaterialsTab({ items }: { items: LocationContents['rawMaterials'] })
 /* ------------------------------------------------------------------ */
 
 function MaterialLotsTab({ items }: { items: LocationContents['materialLots'] }) {
-  if (items.length === 0) return <EmptyTab label="No material lots at this location" />;
+  const { t } = useTranslation(['inventory', 'common']);
+  if (items.length === 0) return <EmptyTab label={t('storageView.noLotsAt')} />;
   return (
     <div className="border rounded-xl overflow-hidden">
       <table className="w-full text-sm">
         <thead className="bg-muted/30 border-b">
           <tr>
-            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Lot / Material</th>
-            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Bin</th>
-            <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">Qty / Remaining</th>
-            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Received</th>
-            <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">Status</th>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.lotsCol.lotMaterial')}</th>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.lotsCol.bin')}</th>
+            <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.lotsCol.qtyRemaining')}</th>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.lotsCol.received')}</th>
+            <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.lotsCol.status')}</th>
           </tr>
         </thead>
         <tbody>
           {items.map((lot, i) => {
-            const cfg = LOT_STATUS_CFG[lot.status] ?? { label: lot.status, cls: 'bg-muted text-muted-foreground' };
+            const cfg = LOT_STATUS_CFG[lot.status];
+            const statusLabel = cfg ? t(cfg.labelKey) : lot.status;
+            const statusCls = cfg ? cfg.cls : 'bg-muted text-muted-foreground';
             const pct = lot.quantity > 0 ? ((lot.remainingQty ?? 0) / lot.quantity) * 100 : 0;
             return (
               <tr key={lot.id} className={cn('border-b last:border-0', i % 2 === 0 ? 'bg-background' : 'bg-muted/10')}>
@@ -795,12 +798,12 @@ function MaterialLotsTab({ items }: { items: LocationContents['materialLots'] })
                   {new Date(lot.receivedAt).toLocaleDateString()}
                   {lot.expiryDate && (
                     <div className={cn('text-[10px]', new Date(lot.expiryDate) < new Date() ? 'text-red-400' : 'text-muted-foreground')}>
-                      Exp: {new Date(lot.expiryDate).toLocaleDateString()}
+                      {t('storageView.lotsCol.exp')}: {new Date(lot.expiryDate).toLocaleDateString()}
                     </div>
                   )}
                 </td>
                 <td className="px-3 py-2.5 text-center">
-                  <span className={cn('inline-block text-[10px] px-1.5 py-0.5 rounded border', cfg.cls)}>{cfg.label}</span>
+                  <span className={cn('inline-block text-[10px] px-1.5 py-0.5 rounded border', statusCls)}>{statusLabel}</span>
                 </td>
               </tr>
             );
@@ -816,17 +819,18 @@ function MaterialLotsTab({ items }: { items: LocationContents['materialLots'] })
 /* ------------------------------------------------------------------ */
 
 function SparePartsTab({ items }: { items: LocationContents['spareParts'] }) {
-  if (items.length === 0) return <EmptyTab label="No spare parts at this location" />;
+  const { t } = useTranslation(['inventory', 'common']);
+  if (items.length === 0) return <EmptyTab label={t('storageView.noPartsAt')} />;
   return (
     <div className="border rounded-xl overflow-hidden">
       <table className="w-full text-sm">
         <thead className="bg-muted/30 border-b">
           <tr>
-            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Part # / Name</th>
-            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Bin / Category</th>
-            <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">Stock Qty</th>
-            <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">Value (SAR)</th>
-            <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">Status</th>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.partsCol.partNameHead')}</th>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.partsCol.binCategory')}</th>
+            <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.partsCol.stockQty')}</th>
+            <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.partsCol.value')}</th>
+            <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.partsCol.status')}</th>
           </tr>
         </thead>
         <tbody>
@@ -845,11 +849,11 @@ function SparePartsTab({ items }: { items: LocationContents['spareParts'] }) {
               <td className="px-3 py-2.5 text-center">
                 {p.isLowStock ? (
                   <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded px-1.5 py-0.5">
-                    <AlertTriangle size={9} /> Low Stock
+                    <AlertTriangle size={9} /> {t('storageView.lowStock')}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[10px] bg-green-500/10 text-green-400 border border-green-500/20 rounded px-1.5 py-0.5">
-                    <CheckCircle2 size={9} /> OK
+                    <CheckCircle2 size={9} /> {t('storageView.ok')}
                   </span>
                 )}
               </td>
@@ -866,16 +870,17 @@ function SparePartsTab({ items }: { items: LocationContents['spareParts'] }) {
 /* ------------------------------------------------------------------ */
 
 function SKUsTab({ items }: { items: LocationContents['skus'] }) {
-  if (items.length === 0) return <EmptyTab label="No products/SKUs assigned to this location" />;
+  const { t } = useTranslation(['inventory', 'common']);
+  if (items.length === 0) return <EmptyTab label={t('storageView.noSkusAt')} />;
   return (
     <div className="border rounded-xl overflow-hidden">
       <table className="w-full text-sm">
         <thead className="bg-muted/30 border-b">
           <tr>
-            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">SKU Code</th>
-            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Name</th>
-            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Item #</th>
-            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Category</th>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.skusCol.skuCode')}</th>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.skusCol.name')}</th>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.skusCol.itemNo')}</th>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.skusCol.category')}</th>
           </tr>
         </thead>
         <tbody>

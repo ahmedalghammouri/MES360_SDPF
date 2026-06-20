@@ -6,6 +6,7 @@ import {
   Bell, CheckCheck, AlertTriangle, Info, CheckCircle, BellOff, Settings,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 
 import { useNotificationStore } from '@/store/notification-store';
 import { api } from '@/services/api.client';
@@ -43,6 +44,7 @@ const SEVERITY_ICON: Record<string, { icon: typeof Info; color: string; bg: stri
 };
 
 export function NotificationBell() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -131,9 +133,9 @@ export function NotificationBell() {
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/60">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Bell size={14} className="text-primary" />
-            Notifications
+            {t('notifications.title')}
             {unreadCount > 0 && (
-              <span className="text-[11px] font-medium text-muted-foreground">({unreadCount} new)</span>
+              <span className="text-[11px] font-medium text-muted-foreground">{t('notifications.new', { count: unreadCount })}</span>
             )}
           </div>
           {unreadCount > 0 && (
@@ -142,7 +144,7 @@ export function NotificationBell() {
               disabled={markAll.isPending}
               className="text-[11px] text-primary hover:underline flex items-center gap-1"
             >
-              <CheckCheck size={12} /> Mark all
+              <CheckCheck size={12} /> {t('notifications.markAll')}
             </button>
           )}
         </div>
@@ -152,7 +154,7 @@ export function NotificationBell() {
           {items.length === 0 ? (
             <div className="py-10 text-center">
               <BellOff className="w-7 h-7 mx-auto mb-2 text-muted-foreground/40" />
-              <div className="text-sm text-muted-foreground">You're all caught up</div>
+              <div className="text-sm text-muted-foreground">{t('notifications.allCaughtUp')}</div>
             </div>
           ) : (
             items.map((item) => {
@@ -194,12 +196,12 @@ export function NotificationBell() {
             onClick={() => { setOpen(false); router.push('/notifications'); }}
             className="text-xs font-medium text-primary hover:underline"
           >
-            View all notifications
+            {t('notifications.viewAll')}
           </button>
           <button
             onClick={() => { setOpen(false); router.push('/notifications/preferences'); }}
             className="text-muted-foreground hover:text-foreground"
-            title="Notification settings"
+            title={t('notifications.settings')}
           >
             <Settings size={13} />
           </button>

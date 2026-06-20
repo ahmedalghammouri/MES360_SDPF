@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import type { TFunction } from 'i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -87,6 +88,7 @@ function MaterialCombobox({
   value: string; // rawMaterialId or '' (free text)
   onSelect: (m: RawMaterialOpt | null) => void;
 }) {
+  const { t } = useTranslation(['production', 'common']);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -131,7 +133,7 @@ function MaterialCombobox({
       >
         <FlaskConical size={11} className={selected ? 'text-emerald-400 shrink-0' : 'text-muted-foreground/50 shrink-0'} />
         <span className={cn('flex-1 truncate', !selected && 'text-muted-foreground')}>
-          {selected ? <><span className="font-mono text-muted-foreground">{selected.code}</span> — {selected.name}</> : 'Search material… (or free text)'}
+          {selected ? <><span className="font-mono text-muted-foreground">{selected.code}</span> — {selected.name}</> : t('procf.materialSearch')}
         </span>
         {selected && (
           <span onClick={e => { e.stopPropagation(); onSelect(null); }} className="p-0.5 rounded hover:bg-muted">
@@ -154,7 +156,7 @@ function MaterialCombobox({
                 autoFocus
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search by code or name…"
+                placeholder={t('procf.searchCodeName')}
                 className="w-full h-7 pl-6 pr-2 text-xs rounded-md border bg-muted/50 outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -164,10 +166,10 @@ function MaterialCombobox({
               onClick={() => { onSelect(null); setOpen(false); setSearch(''); }}
               className="flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer text-xs text-muted-foreground hover:bg-muted"
             >
-              <Pencil size={10} /> Free text (not in raw-materials master)
+              <Pencil size={10} /> {t('procf.freeTextOption')}
             </div>
             {filtered.length === 0 ? (
-              <div className="text-xs text-muted-foreground text-center py-3">No materials match “{search}”</div>
+              <div className="text-xs text-muted-foreground text-center py-3">{t('procf.noMaterialsMatch', { query: search })}</div>
             ) : filtered.map(m => (
               <div
                 key={m.id}
@@ -298,11 +300,11 @@ interface ManufacturingProcess {
 }
 
 /** Human label for what a process applies to. */
-function processScopeLabel(p: ManufacturingProcess): string {
+function processScopeLabel(p: ManufacturingProcess, t: TFunction): string {
   switch (p.scopeType) {
-    case 'CATEGORY': return `Category: ${p.categoryRef?.name ?? '—'}`;
-    case 'BASE_WEIGHT': return `Weight: ${p.baseWeightRef?.label ?? `${p.baseWeightRef?.value ?? '—'} ${p.baseWeightRef?.unit ?? ''}`}`;
-    case 'PRODUCT_LIST': return `${p.skuLinks?.length ?? 0} products`;
+    case 'CATEGORY': return t('procf.scopeCategoryLabel', { name: p.categoryRef?.name ?? '—' });
+    case 'BASE_WEIGHT': return t('procf.scopeWeightLabel', { weight: p.baseWeightRef?.label ?? `${p.baseWeightRef?.value ?? '—'} ${p.baseWeightRef?.unit ?? ''}` });
+    case 'PRODUCT_LIST': return t('procf.appliesToCount', { count: p.skuLinks?.length ?? 0 });
     default: return p.sku?.name ?? '—';
   }
 }
@@ -1256,7 +1258,7 @@ export function ManufacturingProcessesView() {
   useEffect(() => { setPage(1); }, [search]);
 
   const filteredProcesses = sortedData.filter(p =>
-    !search || processScopeLabel(p).toLowerCase().includes(search.toLowerCase()) || p.name.toLowerCase().includes(search.toLowerCase()),
+    !search || processScopeLabel(p, t).toLowerCase().includes(search.toLowerCase()) || p.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   const openEdit = (proc: ManufacturingProcess) => {
@@ -1380,7 +1382,7 @@ export function ManufacturingProcessesView() {
           </p>
         </div>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus size={14} className="mr-1.5" />New Process
+          <Plus size={14} className="mr-1.5" />{t('procf.newProcess')}
         </Button>
       </div>
 
@@ -1388,12 +1390,11 @@ export function ManufacturingProcessesView() {
       <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20 text-sm text-muted-foreground">
         <Info size={15} className="mt-0.5 text-primary shrink-0" />
         <span>
-          The diagram below uses <strong className="text-foreground">PDM (Precedence Diagram Method)</strong> notation.
-          Steps in the same column run <strong className="text-foreground">in parallel</strong> (SS dependency).
-          Arrows are color-coded: <span className="text-blue-400 font-mono font-bold">FS</span> sequential,{' '}
-          <span className="text-violet-400 font-mono font-bold">SS</span> parallel,{' '}
-          <span className="text-emerald-400 font-mono font-bold">FF</span> finish-together,{' '}
-          <span className="text-orange-400 font-mono font-bold">SF</span> rare constraint.
+          {t('procf.pdmInfoPre')}
+          <span className="text-blue-400 font-mono font-bold">FS</span> {t('procf.pdmFs')},{' '}
+          <span className="text-violet-400 font-mono font-bold">SS</span> {t('procf.pdmSs')},{' '}
+          <span className="text-emerald-400 font-mono font-bold">FF</span> {t('procf.pdmFf')},{' '}
+          <span className="text-orange-400 font-mono font-bold">SF</span> {t('procf.pdmSf')}.
         </span>
       </div>
 
@@ -1402,17 +1403,17 @@ export function ManufacturingProcessesView() {
       {/* Search */}
       <div className="relative w-72">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search by product or process name..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+        <Input placeholder={t('procf.searchPlaceholder')} value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
       </div>
 
       {/* Process list */}
       <div className="flex flex-col gap-3">
         {isLoading ? (
-          <div className="text-sm text-muted-foreground p-8 text-center">Loading processes...</div>
+          <div className="text-sm text-muted-foreground p-8 text-center">{t('procf.loadingProcesses')}</div>
         ) : filteredProcesses.length === 0 ? (
           <div className="border rounded-xl p-12 text-center text-sm text-muted-foreground">
             <Workflow size={32} className="mx-auto mb-3 opacity-20" />
-            No manufacturing processes defined yet.
+            {t('procf.noProcesses')}
           </div>
         ) : filteredProcesses.map(proc => (
           <ProcessCard
@@ -1513,14 +1514,13 @@ export function ManufacturingProcessesView() {
             >
               <div className="flex items-center gap-2 mb-2">
                 <RotateCcw size={16} className="text-amber-400" />
-                <h3 className="font-semibold">Revert to Draft?</h3>
+                <h3 className="font-semibold">{t('procf.revertTitle')}</h3>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
-                <strong>{revertTarget.name}</strong> (v{revertTarget.version}) will lose its approval status and become a draft again.
-                It will no longer be the active process for this product until re-approved.
+                <strong>{revertTarget.name}</strong> (v{revertTarget.version}) {t('procf.revertDesc')}
               </p>
               <div className="flex items-center justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setRevertTarget(null)}>Cancel</Button>
+                <Button variant="outline" size="sm" onClick={() => setRevertTarget(null)}>{t('procf.cancel')}</Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -1528,7 +1528,7 @@ export function ManufacturingProcessesView() {
                   onClick={() => revertMutation.mutate(revertTarget.id)}
                   disabled={revertMutation.isPending}
                 >
-                  {revertMutation.isPending ? 'Reverting...' : 'Revert to Draft'}
+                  {revertMutation.isPending ? t('procf.reverting') : t('procf.revertConfirm')}
                 </Button>
               </div>
             </motion.div>
@@ -1550,6 +1550,7 @@ function ProcessCard({ process, isExpanded, onToggle, onApprove, onEdit, onDelet
   onDelete: () => void;
   onRevert: () => void;
 }) {
+  const { t } = useTranslation(['production', 'common']);
   const totalCycleSec = process.routingSteps.reduce(
     (s, r) => s + (r.cycleTimeSec ?? (r.cycleTimeMins != null ? r.cycleTimeMins * 60 : 0)), 0);
   const totalSetup = process.routingSteps.reduce((s, r) => s + (r.setupTimeMins ?? 0), 0);
@@ -1565,60 +1566,60 @@ function ProcessCard({ process, isExpanded, onToggle, onApprove, onEdit, onDelet
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-sm">{process.sku?.itemNumber ?? processScopeLabel(process)}</span>
+            <span className="font-semibold text-sm">{process.sku?.itemNumber ?? processScopeLabel(process, t)}</span>
             {process.sku && <span className="text-xs text-muted-foreground">— {process.sku.name}</span>}
             {process.scopeType && process.scopeType !== 'PRODUCT' && (
               <Badge variant="outline" className="text-[10px] h-4 text-sky-400 border-sky-500/30">
-                {process.scopeType === 'CATEGORY' ? 'Category scope' : process.scopeType === 'BASE_WEIGHT' ? 'Weight scope' : 'Product list'}
+                {process.scopeType === 'CATEGORY' ? t('procf.scopeCategoryBadge') : process.scopeType === 'BASE_WEIGHT' ? t('procf.scopeWeightBadge') : t('procf.scopeListBadge')}
               </Badge>
             )}
             {process.coveredSkuCount != null && (
-              <Badge variant="outline" className="text-[10px] h-4 text-emerald-400 border-emerald-500/30" title="Products this routing applies to (resolved from the scope) — used by BOM, planning and work-order generation">
-                <Boxes size={8} className="mr-1" />{process.coveredSkuCount} product{process.coveredSkuCount !== 1 ? 's' : ''}
+              <Badge variant="outline" className="text-[10px] h-4 text-emerald-400 border-emerald-500/30" title={t('procf.coveredTitle')}>
+                <Boxes size={8} className="mr-1" />{t('procf.appliesToCount', { count: process.coveredSkuCount })}
               </Badge>
             )}
             <Badge variant="outline" className="text-[10px] h-4">v{process.version}</Badge>
             {process.approvedAt ? (
               <Badge className="text-[10px] h-4 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                <CheckCircle2 size={8} className="mr-1" />Approved
+                <CheckCircle2 size={8} className="mr-1" />{t('procf.approved')}
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-[10px] h-4 text-amber-500 border-amber-500/30">Draft</Badge>
+              <Badge variant="outline" className="text-[10px] h-4 text-amber-500 border-amber-500/30">{t('procf.draft')}</Badge>
             )}
             {(() => {
               const cr = process.changeRequests?.[0];
               if (!cr) return null;
               if (['DRAFT', 'SUBMITTED', 'UNDER_REVIEW'].includes(cr.status)) {
                 return (
-                  <Badge variant="outline" className="text-[10px] h-4 text-amber-400 border-amber-500/40" title="Approve this change request in PLM › Change Requests, then approve the process">
-                    <FileClock size={8} className="mr-1" />{cr.crNumber} awaiting PLM approval
+                  <Badge variant="outline" className="text-[10px] h-4 text-amber-400 border-amber-500/40" title={t('procf.crAwaitingTitle')}>
+                    <FileClock size={8} className="mr-1" />{t('procf.crAwaiting', { cr: cr.crNumber })}
                   </Badge>
                 );
               }
               if (cr.status === 'APPROVED') {
                 return (
-                  <Badge variant="outline" className="text-[10px] h-4 text-emerald-400 border-emerald-500/40" title="The change request is approved — the process can now be approved (BOMs regenerate automatically)">
-                    <FileCheck2 size={8} className="mr-1" />{cr.crNumber} approved — ready
+                  <Badge variant="outline" className="text-[10px] h-4 text-emerald-400 border-emerald-500/40" title={t('procf.crApprovedTitle')}>
+                    <FileCheck2 size={8} className="mr-1" />{t('procf.crApproved', { cr: cr.crNumber })}
                   </Badge>
                 );
               }
               if (cr.status === 'REJECTED') {
                 return (
-                  <Badge variant="outline" className="text-[10px] h-4 text-red-400 border-red-500/40" title="The change request was rejected — revise the process to raise a new one">
-                    <X size={8} className="mr-1" />{cr.crNumber} rejected
+                  <Badge variant="outline" className="text-[10px] h-4 text-red-400 border-red-500/40" title={t('procf.crRejectedTitle')}>
+                    <X size={8} className="mr-1" />{t('procf.crRejected', { cr: cr.crNumber })}
                   </Badge>
                 );
               }
               return null;
             })()}
             {hasParallel && (
-              <Badge variant="outline" className="text-[10px] h-4 text-violet-400 border-violet-500/30">Parallel steps</Badge>
+              <Badge variant="outline" className="text-[10px] h-4 text-violet-400 border-violet-500/30">{t('procf.parallelSteps')}</Badge>
             )}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-3">
-            <span>{process.routingSteps.length} steps</span>
-            {totalCycleSec > 0 && <span><Clock size={10} className="inline mr-0.5" />{totalCycleSec.toFixed(0)} sec cycle</span>}
-            {totalSetup > 0 && <span>{totalSetup.toFixed(0)} min setup</span>}
+            <span>{t('procf.stepsCount', { count: process.routingSteps.length })}</span>
+            {totalCycleSec > 0 && <span><Clock size={10} className="inline mr-0.5" />{t('procf.secCycle', { sec: totalCycleSec.toFixed(0) })}</span>}
+            {totalSetup > 0 && <span>{t('procf.minSetup', { min: totalSetup.toFixed(0) })}</span>}
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
@@ -1630,11 +1631,11 @@ function ProcessCard({ process, isExpanded, onToggle, onApprove, onEdit, onDelet
                 size="sm" variant="outline" className="h-7 text-xs"
                 disabled={gated}
                 title={gated
-                  ? `${cr!.crNumber} must be approved in PLM › Change Requests first`
-                  : 'Approve the process — the BOM of every covered product regenerates automatically'}
+                  ? t('procf.approveGatedTitle', { cr: cr!.crNumber })
+                  : t('procf.approveTitle')}
                 onClick={onApprove}
               >
-                <FileCheck2 size={12} className="mr-1" />Approve
+                <FileCheck2 size={12} className="mr-1" />{t('procf.approve')}
               </Button>
             );
           })()}
@@ -1646,13 +1647,13 @@ function ProcessCard({ process, isExpanded, onToggle, onApprove, onEdit, onDelet
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               <DropdownMenuItem onClick={onEdit}>
-                <Pencil size={13} className="mr-2" />Edit
+                <Pencil size={13} className="mr-2" />{t('dtree.edit')}
               </DropdownMenuItem>
               {process.approvedAt && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={onRevert} className="text-amber-400 focus:text-amber-400">
-                    <RotateCcw size={13} className="mr-2" />Revert to Draft
+                    <RotateCcw size={13} className="mr-2" />{t('procf.revertConfirm')}
                   </DropdownMenuItem>
                 </>
               )}
@@ -1662,7 +1663,7 @@ function ProcessCard({ process, isExpanded, onToggle, onApprove, onEdit, onDelet
                 disabled={!!process.approvedAt}
                 className={!process.approvedAt ? 'text-destructive focus:text-destructive' : 'text-muted-foreground'}
               >
-                <Trash2 size={13} className="mr-2" />Delete
+                <Trash2 size={13} className="mr-2" />{t('procf.delete')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -39,38 +39,38 @@ export function IotStreamsView() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
             <Download size={13} />
-            Export
+            {t('common.export')}
           </Button>
           <Button size="sm" className="gap-1.5 h-8 text-xs">
             <Plus size={13} />
-            New Stream
+            {t('common.newStream')}
           </Button>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KPICard title="Total Streams" value={(kpis as any)?.total ?? 0} isLoading={isLoading} />
-          <KPICard title="Active" value={(kpis as any)?.active ?? 0} colorMode="default" isLoading={isLoading} />
-          <KPICard title="Paused" value={(kpis as any)?.paused ?? 0} colorMode="alarm" isLoading={isLoading} />
-          <KPICard title="Messages/sec" value={(kpis as any)?.messagesPerSec ?? 0} isLoading={isLoading} />
+          <KPICard title={t('streams.kpiTotal')} value={(kpis as any)?.total ?? 0} isLoading={isLoading} />
+          <KPICard title={t('streams.kpiActive')} value={(kpis as any)?.active ?? 0} colorMode="default" isLoading={isLoading} />
+          <KPICard title={t('streams.kpiPaused')} value={(kpis as any)?.paused ?? 0} colorMode="alarm" isLoading={isLoading} />
+          <KPICard title={t('streams.kpiMessagesPerSec')} value={(kpis as any)?.messagesPerSec ?? 0} isLoading={isLoading} />
         </div>
 
         <div className="industrial-card p-4">
-          <h3 className="text-sm font-semibold mb-4">Active Streams</h3>
+          <h3 className="text-sm font-semibold mb-4">{t('streams.active')}</h3>
 
           <div className="rounded-lg border border-border/30 overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-border/30">
-                  <TableHead className="text-[11px] font-semibold">Stream Name</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Source</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Destination</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Status</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Messages</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Rate</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Latency</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Actions</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('streams.thName')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('streams.thSource')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('streams.thDestination')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('streams.thStatus')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('streams.thMessages')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('streams.thRate')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('streams.thLatency')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('streams.thActions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -87,7 +87,7 @@ export function IotStreamsView() {
                 ) : streamList.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-sm">
-                      No streams found
+                      {t('streams.noStreams')}
                     </TableCell>
                   </TableRow>
                 ) : (

@@ -89,20 +89,20 @@ export function MaterialsView() {
     mutationFn: (dto: any) => api.post('/inventory/materials', dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['inventory', 'materials'] })
-      toast({ title: 'Material lot created successfully' })
+      toast({ title: t('lotsView.createdSuccess') })
       handleCloseForm()
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to create lot', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('rawMaterialsView.toast.error'), description: e?.response?.data?.message ?? t('lotsView.createError'), variant: 'destructive' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/inventory/materials/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['inventory', 'materials'] })
-      toast({ title: 'Material lot deleted successfully' })
+      toast({ title: t('lotsView.deletedSuccess') })
       setDeleteDialog(null)
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to delete lot', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('rawMaterialsView.toast.error'), description: e?.response?.data?.message ?? t('lotsView.deleteError'), variant: 'destructive' }),
   })
 
   const lots: MaterialLot[] = (data as any)?.data ?? [];
@@ -163,7 +163,7 @@ export function MaterialsView() {
           </p>
         </div>
         <Button size="sm" onClick={handleOpenCreate}>
-          <Plus className="w-4 h-4 mr-1" />Receive Lot
+          <Plus className="w-4 h-4 mr-1" />{t('lotsView.receiveLot')}
         </Button>
       </div>
 
@@ -180,9 +180,9 @@ export function MaterialsView() {
         <SelectMenu
           value={status}
           onValueChange={v => { setStatus(v); setPage(1); }}
-          menuLabel="Status"
+          menuLabel={t('lotsView.statusLabel')}
           options={[
-            { value: '', label: 'All Status' },
+            { value: '', label: t('lotsView.allStatus') },
             ...['ACTIVE', 'COMPLETED', 'RELEASED', 'REJECTED', 'ON_HOLD', 'QUARANTINE'].map(s => ({ value: s, label: s })),
           ]}
         />
@@ -231,7 +231,7 @@ export function MaterialsView() {
                     transition={{ delay: i * 0.02 }}
                     className={cn('border-b border-border/30 hover:bg-foreground/5', lot.isExpired && 'bg-red-500/5', sel.isSelected(lot.id) && 'bg-primary/5')}
                   >
-                    <td className="p-3"><Checkbox checked={sel.isSelected(lot.id)} onCheckedChange={() => sel.toggle(lot.id)} aria-label="Select row" /></td>
+                    <td className="p-3"><Checkbox checked={sel.isSelected(lot.id)} onCheckedChange={() => sel.toggle(lot.id)} aria-label={t('lotsView.selectRow')} /></td>
                     <td className="p-3 text-xs">
                       <div className="font-medium">{lot.materialName}</div>
                       <div className="text-[10px] font-mono text-muted-foreground">{lot.materialCode}</div>
@@ -279,15 +279,15 @@ export function MaterialsView() {
                         <DropdownMenuContent align="end">
                           {(lot as any).archivedAt ? (
                             <DropdownMenuItem onClick={() => restoreLot.mutate(lot.id)}>
-                              <RotateCcw className="w-3.5 h-3.5 mr-2" />Restore
+                              <RotateCcw className="w-3.5 h-3.5 mr-2" />{t('lotsView.restore')}
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem onClick={() => archiveLot.mutate(lot.id)}>
-                              <ArchiveIcon className="w-3.5 h-3.5 mr-2" />Archive
+                              <ArchiveIcon className="w-3.5 h-3.5 mr-2" />{t('lotsView.archive')}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem onClick={() => setDeleteDialog({ id: lot.id, lotNumber: lot.lotNumber })} className="text-destructive">
-                            <Trash2 className="w-3.5 h-3.5 mr-2" />Delete
+                            <Trash2 className="w-3.5 h-3.5 mr-2" />{t('lotsView.delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -304,15 +304,15 @@ export function MaterialsView() {
       <FormDialog
         open={formOpen}
         onClose={handleCloseForm}
-        title="Receive Material Lot"
+        title={t('lotsView.formTitle')}
         onSubmit={handleSubmit}
-        submitLabel="Receive"
+        submitLabel={t('lotsView.receive')}
         isSubmitting={createMutation.isPending}
         isValid={isValid}
       >
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <Label>Raw Material (Master) *</Label>
+            <Label>{t('lotsView.rawMaterialMaster')} *</Label>
             <EntityPicker
               items={rawMaterials}
               value={form.rawMaterialId || null}
@@ -333,33 +333,33 @@ export function MaterialsView() {
               getPrimary={(m: any) => m.name}
               getSecondary={(m: any) => m.code}
               getMeta={(m: any) => <span className="text-muted-foreground">{m.unit}</span>}
-              placeholder="Select raw material..."
-              searchPlaceholder="Search by code or name…"
+              placeholder={t('lotsView.selectRawMaterial')}
+              searchPlaceholder={t('lotsView.searchByCodeName')}
               className="mt-1"
             />
           </div>
           <div>
-            <Label>Lot Number *</Label>
+            <Label>{t('lotsView.lotNumber')} *</Label>
             <Input value={form.lotNumber} onChange={e => setForm(v => ({ ...v, lotNumber: e.target.value }))} className="mt-1" />
           </div>
           <div>
-            <Label>Supplier</Label>
+            <Label>{t('lotsView.supplier')}</Label>
             <Input value={form.supplierName} onChange={e => setForm(v => ({ ...v, supplierName: e.target.value }))} className="mt-1" />
           </div>
           <div>
-            <Label>Quantity *</Label>
+            <Label>{t('lotsView.quantity')} *</Label>
             <Input type="number" value={form.quantity} onChange={e => setForm(v => ({ ...v, quantity: e.target.value }))} className="mt-1" />
           </div>
           <div>
-            <Label>Unit</Label>
+            <Label>{t('lotsView.unit')}</Label>
             <Input value={form.unit} onChange={e => setForm(v => ({ ...v, unit: e.target.value }))} className="mt-1" />
           </div>
           <div>
-            <Label>Expiry Date</Label>
+            <Label>{t('lotsView.expiryDate')}</Label>
             <Input type="date" value={form.expiryDate} onChange={e => setForm(v => ({ ...v, expiryDate: e.target.value }))} className="mt-1" />
           </div>
           <div>
-            <Label>Storage Location</Label>
+            <Label>{t('lotsView.storageLocation')}</Label>
             <EntityPicker
               items={storageLocations}
               value={form.storageLocationId || null}
@@ -367,8 +367,8 @@ export function MaterialsView() {
               getId={loc => loc.id}
               getPrimary={loc => loc.name}
               getSecondary={loc => loc.code}
-              placeholder="Select location…"
-              searchPlaceholder="Search by code or name…"
+              placeholder={t('lotsView.selectLocation')}
+              searchPlaceholder={t('lotsView.searchByCodeName')}
               className="mt-1"
             />
           </div>
@@ -379,8 +379,8 @@ export function MaterialsView() {
         open={!!deleteDialog}
         onClose={() => setDeleteDialog(null)}
         onConfirm={() => deleteDialog && deleteMutation.mutate(deleteDialog.id)}
-        title={`Delete lot ${deleteDialog?.lotNumber}?`}
-        description="This will permanently delete this material lot."
+        title={t('lotsView.deleteTitle', { lot: deleteDialog?.lotNumber })}
+        description={t('lotsView.deleteDesc')}
         isDeleting={deleteMutation.isPending}
       />
 
@@ -388,8 +388,8 @@ export function MaterialsView() {
         count={sel.count}
         onClear={sel.clear}
         actions={archived === 'archived'
-          ? [{ label: 'Restore', icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
-          : [{ label: 'Archive', icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
+          ? [{ label: t('lotsView.restore'), icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
+          : [{ label: t('lotsView.archive'), icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
       />
     </div>
   )

@@ -4,10 +4,80 @@
     "production": { "title": "Production Reports", "subtitle": "OEE trends, output analysis, and machine performance" },
     "quality": { "title": "Quality Reports", "subtitle": "Quality metrics and analysis" },
     "maintenance": { "title": "Maintenance Reports", "subtitle": "Maintenance performance and analytics" },
-    "builder": { "title": "Report Builder", "subtitle": "Configure, preview, and export MES reports" }
+    "builder": {
+      "title": "Report Builder", "subtitle": "Configure, preview, and export MES reports",
+      "selectType": "Select Report Type", "dateRange": "Date Range", "from": "From", "to": "To",
+      "generateReport": "Generate Report", "exportCsv": "Export CSV", "scheduleReport": "Schedule Report",
+      "schedulingSoon": "Scheduling coming soon", "soon": "Soon",
+      "preview": "Report Preview", "refresh": "Refresh",
+      "emptyTitle": "Select a report type to get started", "emptyDesc": "Choose from the configuration panel on the left",
+      "energySoon": "Energy reporting coming soon.", "energySoonDesc": "Connect energy meters to start.",
+      "configureHint": "Configure your filters and click Generate Report",
+      "loadFailed": "Failed to load report data", "unknownError": "An unknown error occurred", "retry": "Retry",
+      "recentReports": "Recent Reports", "rerun": "Re-run",
+      "noData": "No data returned for the selected filters.",
+      "showingRows": "Showing {{shown}} of {{total}} rows", "exportToViewAll": "Export CSV to view all rows",
+      "rowsCount_one": "{{count}} row", "rowsCount_other": "{{count}} rows",
+      "type": {
+        "production": { "label": "Production Performance", "desc": "WO completion, throughput, output trends" },
+        "quality": { "label": "Quality Metrics", "desc": "Inspections, NCRs, pass rates" },
+        "maintenance": { "label": "Maintenance Summary", "desc": "MWO history, MTTR, MTBF, PM compliance" },
+        "oee": { "label": "OEE Analysis", "desc": "Equipment effectiveness by machine and time" },
+        "scrap": { "label": "Scrap and Waste", "desc": "Scrap events by category, product, operator" },
+        "inventory": { "label": "Inventory Status", "desc": "Stock levels, movements, BOM requirements" },
+        "energy": { "label": "Energy Consumption", "desc": "Energy monitoring and cost analysis" }
+      }
+    },
+    "list": {
+      "schedule": "Schedule", "customReport": "Custom Report",
+      "tabTemplates": "Report Templates", "tabScheduled": "Scheduled",
+      "catAll": "All", "cat": { "production": "Production", "quality": "Quality", "maintenance": "Maintenance" },
+      "generate": "Generate", "generating": "Generating...",
+      "scheduledSoon": "Scheduled reports coming soon", "scheduledSoonDesc": "Configure automated report generation and delivery"
+    },
+    "prod": {
+      "kpiAvgOee": "Avg OEE", "kpiAvgOeeTb": "Avg OEE (Time-Based)", "kpiTotalOutput": "Total Output", "kpiDowntime": "Downtime (min)", "kpiFpy": "First-Pass Yield",
+      "filter": "Filter", "export": "Export",
+      "oeeTrend": "OEE Trend", "noOeeRecords": "No OEE records for this period", "oee": "OEE",
+      "outputByMachine": "Output by Machine", "noOutputData": "No output data for this period", "target": "Target", "actual": "Actual",
+      "detailRecords": "Detail Records ({{count}})",
+      "colDate": "Date", "colMachine": "Machine", "colPlanned": "Planned", "colActual": "Actual", "colGood": "Good", "colOee": "OEE %", "colDowntime": "Downtime (min)"
+    },
+    "maint": {
+      "dateRange": "Date Range", "exportPdf": "Export PDF", "hrs": "hrs",
+      "mtbf": "MTBF", "mttr": "MTTR", "workOrders": "Work Orders", "completionRate": "Completion Rate",
+      "byStatus": "By Status", "byType": "By Type", "noWorkOrders": "No work orders in this period",
+      "costReliability": "Cost & Reliability", "totalCost": "Total Maintenance Cost", "sarValue": "{{value}} SAR",
+      "failures": "Failures (corrective + emergency)", "completedWos": "Completed WOs"
+    },
+    "qual": {
+      "dateRange": "Date Range", "exportPdf": "Export PDF",
+      "fpy": "First Pass Yield", "defectRate": "Defect Rate", "inspections": "Inspections", "ncrs": "NCRs",
+      "summary": "Report Summary", "vizSoon": "Quality report visualization coming soon"
+    }
   },
   "scheduling": {
-    "reschedule": { "title": "Reschedule Requests" }
+    "reschedule": {
+      "title": "Reschedule Requests",
+      "subtitle": "Governance for work orders whose smart finish overruns the due date — review & approve before generation proceeds.",
+      "refresh": "Refresh",
+      "kpiActionRequired": "Action required", "kpiApproved": "Approved", "kpiRejected": "Rejected", "kpiAvgOverrun": "Avg overrun",
+      "filterAll": "All",
+      "status": { "PENDING": "Pending", "APPROVED": "Approved", "REJECTED": "Rejected" },
+      "source": { "AUTO_GENERATE": "Auto-Generate WO", "APS_RECALC": "Recalculate Plan" },
+      "emptyNone": "No reschedule requests.", "emptyFiltered": "No {{status}} reschedule requests.",
+      "onTime": "on time", "lateDHM": "{{d}}d {{h}}h late", "lateHM": "{{h}}h {{m}}m late", "lateM": "{{m}}m late",
+      "col": { "productionOrder": "Production Order", "source": "Source", "requestedBy": "Requested by", "proposedWindow": "Proposed window", "due": "Due", "overrun": "Overrun", "status": "Status", "actions": "Actions" },
+      "reject": "Reject", "approve": "Approve", "approveReschedule": "Approve reschedule", "close": "Close",
+      "byReviewer": "by {{name}}",
+      "dialogTitle": "Reschedule — {{order}}",
+      "field": { "proposedStart": "Proposed start", "proposedFinish": "Proposed finish", "dueDate": "Due date", "requested": "Requested", "workContent": "Work content", "plannedStoppage": "Planned stoppage", "total": "Total" },
+      "requestDetails": "Request details", "origin": "Origin", "workOrder": "Work order", "runMakespan": "Run makespan",
+      "planCovers": "Plan covers", "planCoversSuffix": "operation(s) — approving applies these exact times.",
+      "reason": "Reason: ", "reviewedAt": "Reviewed {{when}}{{by}}.",
+      "pendingNote": "Approving accepts the proposed finish as the new work-order window; generation can then proceed with these dates.",
+      "toastApproved": "Reschedule approved", "toastRejected": "Reschedule rejected", "toastError": "Error", "toastFailed": "Failed"
+    }
   },
   "schedule": {
     "view": {
@@ -143,7 +213,25 @@
     "consumption": { "title": "Material Consumption", "subtitle": "Per-step input materials consumed by work orders — the genealogy feed (WO → batch → lot)" },
     "consumptionSearch": "Search material code or name…",
     "noConsumption": "No consumption yet — add input materials to routing steps, then complete a work order.",
-    "consumptionCol": { "consumedAt": "Consumed At", "material": "Material", "planned": "Planned", "actual": "Actual", "unit": "Unit", "workOrder": "Work Order", "outputBatch": "Output Batch", "rawLot": "Raw Lot (FIFO)" }
+    "consumptionCol": { "consumedAt": "Consumed At", "material": "Material", "planned": "Planned", "actual": "Actual", "unit": "Unit", "workOrder": "Work Order", "outputBatch": "Output Batch", "rawLot": "Raw Lot (FIFO)" },
+    "logSubtitle": "Full audit trail across production, maintenance, inventory, and quality",
+    "genealogySubtitle": "Batch ⇄ material lot ancestry — walk every product back to its inputs",
+    "tabEventLog": "Event Log", "tabGenealogy": "Genealogy",
+    "entity": { "MAINT_WO": "Maintenance WO", "PROD_WO": "Production WO", "BATCH": "Batch", "SPARE_PART": "Spare Part", "RAW_MATERIAL": "Raw Material", "MACHINE": "Machine", "PRODUCT": "Product", "fallback": "Entity" },
+    "entityHistory": "{{label}} history",
+    "allEntityTypes": "All Entity Types",
+    "eventType": {
+      "CREATED": "Created", "STATUS_CHANGED": "Status Changed", "PARTS_REQUESTED": "Parts Requested", "PARTS_ISSUED": "Parts Issued", "PARTS_CANCELLED": "Parts Cancelled", "STOCK_ADJUSTED": "Stock Adjusted", "STOCK_RECEIVED": "Stock Received", "COMPLETED": "Completed", "CANCELLED": "Cancelled", "STARTED": "Started", "UPDATED": "Updated", "DELETED": "Deleted", "ASSIGNED": "Assigned", "INSPECTION_PASSED": "Inspection Passed", "INSPECTION_FAILED": "Inspection Failed", "BATCH_RELEASED": "Batch Released", "BATCH_REJECTED": "Batch Rejected", "QUALITY_HOLD": "Quality Hold"
+    },
+    "stat": { "totalEvents": "Total Events", "allTime": "all time", "last24h": "Last 24 Hours", "newEvents": "new events", "last7d": "Last 7 Days", "recentActivity": "recent activity" },
+    "qty": "Qty",
+    "noHistory": "No history found.",
+    "geneTraceBackward": "Backward (FG → Inputs)", "geneTraceForward": "Forward (Material → Outputs)",
+    "geneHintBackward": "Enter a Work Order number (e.g. WO-2026-0001) or output batch number to trace back through each routing step → the exact material lots consumed.",
+    "geneHintForward": "Enter a Material Lot number to trace forward through every Work Order that consumed it and the finished batches produced.",
+    "genePlaceholderBackward": "WO number or batch number…", "genePlaceholderForward": "Material lot number…",
+    "geneTrace": "Trace", "geneError": "Entity not found or no traceability data.",
+    "geneBackwardTitle": "Backward Genealogy", "geneForwardTitle": "Forward Genealogy"
   },
   "plm": {
     "overview": { "title": "Product Lifecycle Management", "subtitle": "Products, BOMs, recipes, and manufacturing processes" },
@@ -164,7 +252,26 @@
     },
     "crkpi": { "open": "Open CRs", "underReview": "Under Review", "approvedMonth": "Approved This Month", "rejected": "Rejected" },
     "design": { "title": "Manufacturing Design", "subtitle": "PLM matrix — BOM, Recipe and Process coverage per product" },
-    "reports": { "title": "PLM Reports", "subtitle": "Product lifecycle management — catalog, BOM, recipes and change history" }
+    "reports": { "title": "PLM Reports", "subtitle": "Product lifecycle management — catalog, BOM, recipes and change history" },
+    "crType": { "BOM_CHANGE": "BOM", "RECIPE_CHANGE": "Recipe", "PROCESS_CHANGE": "Process", "DESIGN_CHANGE": "Design" },
+    "crStatus": { "DRAFT": "Draft", "SUBMITTED": "Submitted", "UNDER_REVIEW": "Under Review", "APPROVED": "Approved", "REJECTED": "Rejected", "IMPLEMENTED": "Implemented" },
+    "crPriorityLabel": "{{priority}} Priority",
+    "crWorkflow": {
+      "heading": "CR Workflow",
+      "draft": "Draft", "submitted": "Submitted", "underReview": "Under Review", "decided": "Approved / Rejected", "implemented": "Implemented"
+    },
+    "crFilter": {
+      "type": "Type", "status": "Status", "priority": "Priority",
+      "allTypes": "All Types", "allStatuses": "All Statuses", "allPriorities": "All Priorities",
+      "bomChange": "BOM Change", "recipeChange": "Recipe Change", "processChange": "Process Change", "designChange": "Design Change",
+      "critical": "Critical", "high": "High", "medium": "Medium", "low": "Low"
+    },
+    "crRecordCount_one": "{{count}} record", "crRecordCount_other": "{{count}} records",
+    "crCol": { "crNumber": "CR #", "title": "Title", "type": "Type", "priority": "Priority", "affectedProduct": "Affected Product", "status": "Status", "requestedBy": "Requested By", "targetDate": "Target Date", "actions": "Actions" },
+    "crAction": { "view": "View", "approve": "Approve", "reject": "Reject", "startReview": "Start Review", "implement": "Implement", "close": "Close" },
+    "crDist": "CR Distribution by Type",
+    "crDetail": { "description": "Description", "reason": "Reason / Justification", "affectedProduct": "Affected Product", "requestedBy": "Requested By", "reviewedBy": "Reviewed By", "created": "Created", "targetDate": "Target Date" },
+    "crToast": { "submitted": "Change request {{crNumber}} submitted for review", "transition": "{{crNumber}} → {{status}}", "opFailed": "Operation failed" }
   },
   "notifications": {
     "title": "Notifications",
@@ -175,8 +282,40 @@
     "severity": "Severity", "category": "Category", "unreadOnly": "Unread only", "clearFilters": "Clear filters",
     "loading": "Loading notifications…", "noMatch": "No notifications match your filters", "noYet": "No notifications yet",
     "noMatchHint": "Try clearing your filters to see all notifications.", "noYetHint": "System events, alarms, and alerts will appear here when triggered.",
-    "sev": { "all": "All", "error": "Error", "warning": "Warning", "info": "Info" },
-    "cat": { "all": "All", "alarm": "Alarm", "production": "Production", "quality": "Quality", "maintenance": "Maintenance", "downtime": "Downtime", "energy": "Energy" }
+    "sev": { "all": "All", "error": "Error", "warning": "Warning", "info": "Info", "success": "Success", "critical": "Critical" },
+    "cat": { "all": "All", "alarm": "Alarm", "production": "Production", "quality": "Quality", "maintenance": "Maintenance", "downtime": "Downtime", "energy": "Energy", "inventory": "Inventory", "system": "System" },
+    "prefs": {
+      "subtitle": "Choose how you want to be notified for each category of event.",
+      "category": "Category", "minSeverity": "Min. severity", "loading": "Loading preferences…",
+      "saveFailed": "Failed to save preference",
+      "footnote": "In-App notifications appear in the bell and on this page. Email/SMS/Push require the relevant channel to be configured by your administrator.",
+      "catAlarm": "Alarms", "catProduction": "Production", "catQuality": "Quality", "catMaintenance": "Maintenance", "catDowntime": "Downtime", "catEnergy": "Energy", "catInventory": "Inventory", "catSystem": "System",
+      "sevInfo": "Info & above", "sevWarning": "Warning & above", "sevError": "Error & above", "sevCritical": "Critical only",
+      "chInApp": "In-App", "chEmail": "Email", "chSms": "SMS", "chPush": "Push"
+    },
+    "toast": { "allRead": "All notifications marked as read", "allReadFailed": "Failed to mark all read", "deleted": "Notification deleted", "deleteFailed": "Failed to delete", "testSent": "Test notification sent", "testFailed": "Failed to send test" },
+    "page": { "prev": "Prev", "next": "Next", "indicator": "Page {{page}} / {{total}}", "summary": "{{total}} total · {{unread}} unread · showing {{from}}–{{to}}" },
+    "rulesView": {
+      "subtitle": "Route events to specific channels and roles. Rules override the built-in defaults.",
+      "newRule": "New Rule", "editTitle": "Edit Rule", "createTitle": "New Notification Rule",
+      "ruleName": "Rule name", "ruleNamePlaceholder": "e.g. Alert quality team on critical NCR",
+      "triggerEvent": "Trigger event", "channels": "Channels", "recipientRoles": "Recipient roles",
+      "rolesHint": "Leave empty to fall back to the built-in default recipients for this event.",
+      "active": "Active", "defaultRecipients": "default recipients",
+      "activeTitle": "Active — click to disable", "disabledTitle": "Disabled — click to enable",
+      "noPermission": "No permission", "noPermissionPre": "You need the", "noPermissionPost": "permission to manage rules.",
+      "loading": "Loading rules…", "noRules": "No custom rules yet",
+      "noRulesHint": "Built-in defaults still apply. Add a rule to customise channels or recipients.",
+      "deleteTitle": "Delete notification rule",
+      "toast": { "saved": "Rule saved", "saveFailed": "Failed to save rule", "deleted": "Rule deleted", "deleteFailed": "Failed to delete rule" },
+      "channel": { "in_app": "In-App", "email": "Email", "sms": "SMS", "push": "Push" },
+      "event": {
+        "started": "Production · Work order started", "held": "Production · Work order on hold",
+        "downtimeUnplanned": "Downtime · Unplanned downtime", "downtimeAuto": "Downtime · Auto-detected",
+        "inspectionFailed": "Quality · Inspection failed", "ncrRaised": "Quality · NCR raised", "ncrCritical": "Quality · Critical NCR",
+        "emergencyWo": "Maintenance · Emergency WO", "breakdown": "Machine · Breakdown"
+      }
+    }
   },
   "alarms": {
     "title": "Alarm Management",

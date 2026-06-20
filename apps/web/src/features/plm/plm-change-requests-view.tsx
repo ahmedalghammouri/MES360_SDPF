@@ -93,13 +93,6 @@ function apiToCr(r: ApiChangeRequest): ChangeRequest {
 
 // ── Config ───────────────────────────────────────────────────────
 
-const TYPE_LABELS: Record<ChangeRequest['type'], string> = {
-  BOM_CHANGE: 'BOM',
-  RECIPE_CHANGE: 'Recipe',
-  PROCESS_CHANGE: 'Process',
-  DESIGN_CHANGE: 'Design',
-};
-
 const TYPE_COLORS: Record<ChangeRequest['type'], string> = {
   BOM_CHANGE: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
   RECIPE_CHANGE: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
@@ -123,23 +116,14 @@ const STATUS_COLORS: Record<ChangeRequest['status'], string> = {
   IMPLEMENTED: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
 };
 
-const STATUS_LABELS: Record<ChangeRequest['status'], string> = {
-  DRAFT: 'Draft',
-  SUBMITTED: 'Submitted',
-  UNDER_REVIEW: 'Under Review',
-  APPROVED: 'Approved',
-  REJECTED: 'Rejected',
-  IMPLEMENTED: 'Implemented',
-};
-
 const PIE_COLORS = ['#3b82f6', '#a855f7', '#f59e0b', '#ec4899'];
 
 const WORKFLOW_STEPS = [
-  { label: 'Draft', color: 'bg-gray-500' },
-  { label: 'Submitted', color: 'bg-blue-500' },
-  { label: 'Under Review', color: 'bg-yellow-500' },
-  { label: 'Approved / Rejected', color: 'bg-green-500' },
-  { label: 'Implemented', color: 'bg-purple-500' },
+  { labelKey: 'plm.crWorkflow.draft', color: 'bg-gray-500' },
+  { labelKey: 'plm.crWorkflow.submitted', color: 'bg-blue-500' },
+  { labelKey: 'plm.crWorkflow.underReview', color: 'bg-yellow-500' },
+  { labelKey: 'plm.crWorkflow.decided', color: 'bg-green-500' },
+  { labelKey: 'plm.crWorkflow.implemented', color: 'bg-purple-500' },
 ];
 
 // ── Toast ─────────────────────────────────────────────────────────
@@ -196,7 +180,7 @@ export default function PlmChangeRequestsView() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
   };
   const errMsg = (e: unknown) =>
-    (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Operation failed';
+    (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t('plm.crToast.opFailed');
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['plm', 'change-requests'] });
 
   // ── Mutations (real workflow on the server) ─────────────────────
@@ -211,7 +195,7 @@ export default function PlmChangeRequestsView() {
       queryClient.invalidateQueries({ queryKey: ['manufacturing-processes'] });
       queryClient.invalidateQueries({ queryKey: ['boms'] });
       queryClient.invalidateQueries({ queryKey: ['production-recipes'] });
-      addToast(`${r.crNumber} → ${STATUS_LABELS[r.status]}`, r.status === 'REJECTED' ? 'error' : 'success');
+      addToast(t('plm.crToast.transition', { crNumber: r.crNumber, status: t(`plm.crStatus.${r.status}`) }), r.status === 'REJECTED' ? 'error' : 'success');
     },
     onError: (e) => addToast(errMsg(e), 'error'),
   });
@@ -232,7 +216,7 @@ export default function PlmChangeRequestsView() {
     },
     onSuccess: (r) => {
       invalidate();
-      addToast(`Change request ${r.crNumber} submitted for review`, 'success');
+      addToast(t('plm.crToast.submitted', { crNumber: r.crNumber }), 'success');
       setForm({ title: '', type: 'BOM_CHANGE', priority: 'MEDIUM', skuId: '', targetDate: '', reason: '' });
       setCreateOpen(false);
     },
@@ -282,9 +266,9 @@ export default function PlmChangeRequestsView() {
   const paged = filtered.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
 
   // ── Pie data ──────────────────────────────────────────────────
-  const typeCounts = (['BOM_CHANGE', 'RECIPE_CHANGE', 'PROCESS_CHANGE', 'DESIGN_CHANGE'] as const).map((t) => ({
-    name: TYPE_LABELS[t],
-    value: crs.filter((c) => c.type === t).length,
+  const typeCounts = (['BOM_CHANGE', 'RECIPE_CHANGE', 'PROCESS_CHANGE', 'DESIGN_CHANGE'] as const).map((ct) => ({
+    name: t(`plm.crType.${ct}`),
+    value: crs.filter((c) => c.type === ct).length,
   }));
 
   // ── Render ────────────────────────────────────────────────────
@@ -463,13 +447,13 @@ export default function PlmChangeRequestsView() {
 
       {/* ── Workflow Banner ──────────────────────────────────────── */}
       <div className="rounded-xl border border-border bg-card px-6 py-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">CR Workflow</p>
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('plm.crWorkflow.heading')}</p>
         <div className="flex flex-wrap items-center gap-2">
           {WORKFLOW_STEPS.map((step, idx) => (
-            <div key={step.label} className="flex items-center gap-2">
+            <div key={step.labelKey} className="flex items-center gap-2">
               <div className="flex items-center gap-2">
                 <span className={cn('h-2.5 w-2.5 rounded-full', step.color)} />
-                <span className="text-sm font-medium text-foreground">{step.label}</span>
+                <span className="text-sm font-medium text-foreground">{t(step.labelKey)}</span>
               </div>
               {idx < WORKFLOW_STEPS.length - 1 && (
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -483,7 +467,7 @@ export default function PlmChangeRequestsView() {
       <div className="flex flex-wrap items-center gap-3">
         <input
           className="h-9 min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
-          placeholder={t('crSearch')}
+          placeholder={t('plm.crSearch')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -491,44 +475,44 @@ export default function PlmChangeRequestsView() {
           size="md"
           value={typeFilter}
           onValueChange={setTypeFilter}
-          menuLabel="Type"
+          menuLabel={t('plm.crFilter.type')}
           options={[
-            { value: 'ALL', label: 'All Types' },
-            { value: 'BOM_CHANGE', label: 'BOM Change' },
-            { value: 'RECIPE_CHANGE', label: 'Recipe Change' },
-            { value: 'PROCESS_CHANGE', label: 'Process Change' },
-            { value: 'DESIGN_CHANGE', label: 'Design Change' },
+            { value: 'ALL', label: t('plm.crFilter.allTypes') },
+            { value: 'BOM_CHANGE', label: t('plm.crFilter.bomChange') },
+            { value: 'RECIPE_CHANGE', label: t('plm.crFilter.recipeChange') },
+            { value: 'PROCESS_CHANGE', label: t('plm.crFilter.processChange') },
+            { value: 'DESIGN_CHANGE', label: t('plm.crFilter.designChange') },
           ]}
         />
         <SelectMenu
           size="md"
           value={statusFilter}
           onValueChange={setStatusFilter}
-          menuLabel="Status"
+          menuLabel={t('plm.crFilter.status')}
           options={[
-            { value: 'ALL', label: 'All Statuses' },
-            { value: 'DRAFT', label: 'Draft' },
-            { value: 'SUBMITTED', label: 'Submitted' },
-            { value: 'UNDER_REVIEW', label: 'Under Review' },
-            { value: 'APPROVED', label: 'Approved' },
-            { value: 'REJECTED', label: 'Rejected' },
-            { value: 'IMPLEMENTED', label: 'Implemented' },
+            { value: 'ALL', label: t('plm.crFilter.allStatuses') },
+            { value: 'DRAFT', label: t('plm.crStatus.DRAFT') },
+            { value: 'SUBMITTED', label: t('plm.crStatus.SUBMITTED') },
+            { value: 'UNDER_REVIEW', label: t('plm.crStatus.UNDER_REVIEW') },
+            { value: 'APPROVED', label: t('plm.crStatus.APPROVED') },
+            { value: 'REJECTED', label: t('plm.crStatus.REJECTED') },
+            { value: 'IMPLEMENTED', label: t('plm.crStatus.IMPLEMENTED') },
           ]}
         />
         <SelectMenu
           size="md"
           value={priorityFilter}
           onValueChange={setPriorityFilter}
-          menuLabel="Priority"
+          menuLabel={t('plm.crFilter.priority')}
           options={[
-            { value: 'ALL', label: 'All Priorities' },
-            { value: 'CRITICAL', label: 'Critical' },
-            { value: 'HIGH', label: 'High' },
-            { value: 'MEDIUM', label: 'Medium' },
-            { value: 'LOW', label: 'Low' },
+            { value: 'ALL', label: t('plm.crFilter.allPriorities') },
+            { value: 'CRITICAL', label: t('plm.crFilter.critical') },
+            { value: 'HIGH', label: t('plm.crFilter.high') },
+            { value: 'MEDIUM', label: t('plm.crFilter.medium') },
+            { value: 'LOW', label: t('plm.crFilter.low') },
           ]}
         />
-        <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs text-muted-foreground">{t('plm.crRecordCount', { count: filtered.length })}</span>
       </div>
 
       {/* ── Table ────────────────────────────────────────────────── */}
@@ -537,13 +521,21 @@ export default function PlmChangeRequestsView() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                {['CR #', 'Title', 'Type', 'Priority', 'Affected Product', 'Status', 'Requested By', 'Target Date', 'Actions'].map(
-                  (h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {h}
-                    </th>
-                  ),
-                )}
+                {[
+                  { key: 'crNumber', label: t('plm.crCol.crNumber') },
+                  { key: 'title', label: t('plm.crCol.title') },
+                  { key: 'type', label: t('plm.crCol.type') },
+                  { key: 'priority', label: t('plm.crCol.priority') },
+                  { key: 'affectedProduct', label: t('plm.crCol.affectedProduct') },
+                  { key: 'status', label: t('plm.crCol.status') },
+                  { key: 'requestedBy', label: t('plm.crCol.requestedBy') },
+                  { key: 'targetDate', label: t('plm.crCol.targetDate') },
+                  { key: 'actions', label: t('plm.crCol.actions') },
+                ].map((h) => (
+                  <th key={h.key} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {h.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -570,7 +562,7 @@ export default function PlmChangeRequestsView() {
                           TYPE_COLORS[cr.type],
                         )}
                       >
-                        {TYPE_LABELS[cr.type]}
+                        {t(`plm.crType.${cr.type}`)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -581,7 +573,7 @@ export default function PlmChangeRequestsView() {
                         )}
                       >
                         {cr.priority === 'CRITICAL' && <AlertTriangle className="h-3 w-3" />}
-                        {cr.priority.charAt(0) + cr.priority.slice(1).toLowerCase()}
+                        {t(`plm.crFilter.${cr.priority.toLowerCase()}`)}
                       </span>
                     </td>
                     <td className="max-w-[180px] px-4 py-3">
@@ -596,7 +588,7 @@ export default function PlmChangeRequestsView() {
                           STATUS_COLORS[cr.status],
                         )}
                       >
-                        {STATUS_LABELS[cr.status]}
+                        {t(`plm.crStatus.${cr.status}`)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{cr.requestedBy}</td>
@@ -610,7 +602,7 @@ export default function PlmChangeRequestsView() {
                           onClick={() => { setDetailCr(cr); setDetailOpen(true); }}
                         >
                           <Eye className="h-3 w-3" />
-                          View
+                          {t('plm.crAction.view')}
                         </Button>
                         {cr.status === 'UNDER_REVIEW' && (
                           <>
@@ -620,7 +612,7 @@ export default function PlmChangeRequestsView() {
                               onClick={() => handleApprove(cr)}
                             >
                               <CheckCircle2 className="h-3 w-3" />
-                              Approve
+                              {t('plm.crAction.approve')}
                             </Button>
                             <Button
                               size="sm"
@@ -629,7 +621,7 @@ export default function PlmChangeRequestsView() {
                               onClick={() => handleReject(cr)}
                             >
                               <XCircle className="h-3 w-3" />
-                              Reject
+                              {t('plm.crAction.reject')}
                             </Button>
                           </>
                         )}
@@ -640,7 +632,7 @@ export default function PlmChangeRequestsView() {
                             onClick={() => handleStartReview(cr)}
                           >
                             <Clock className="h-3 w-3" />
-                            Start Review
+                            {t('plm.crAction.startReview')}
                           </Button>
                         )}
                         {cr.status === 'APPROVED' && (
@@ -650,7 +642,7 @@ export default function PlmChangeRequestsView() {
                             onClick={() => handleImplement(cr)}
                           >
                             <CheckCircle2 className="h-3 w-3" />
-                            Implement
+                            {t('plm.crAction.implement')}
                           </Button>
                         )}
                       </div>
@@ -661,7 +653,7 @@ export default function PlmChangeRequestsView() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
-                    {t('crNoResults')}
+                    {t('plm.crNoResults')}
                   </td>
                 </tr>
               )}
@@ -677,7 +669,7 @@ export default function PlmChangeRequestsView() {
 
       {/* ── Type Distribution Chart ──────────────────────────────── */}
       <div className="rounded-xl border border-border bg-card p-6">
-        <h2 className="mb-4 text-sm font-semibold text-foreground">CR Distribution by Type</h2>
+        <h2 className="mb-4 text-sm font-semibold text-foreground">{t('plm.crDist')}</h2>
         <ResponsiveContainer width="100%" height={260}>
           <PieChart>
             <Pie
@@ -724,33 +716,33 @@ export default function PlmChangeRequestsView() {
               <div className="mt-2 space-y-4">
                 <div className="flex flex-wrap gap-2">
                   <span className={cn('inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold', STATUS_COLORS[detailCr.status])}>
-                    {STATUS_LABELS[detailCr.status]}
+                    {t(`plm.crStatus.${detailCr.status}`)}
                   </span>
                   <span className={cn('inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold', PRIORITY_COLORS[detailCr.priority])}>
-                    {detailCr.priority.charAt(0) + detailCr.priority.slice(1).toLowerCase()} Priority
+                    {t('plm.crPriorityLabel', { priority: t(`plm.crFilter.${detailCr.priority.toLowerCase()}`) })}
                   </span>
                   <span className={cn('inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold', TYPE_COLORS[detailCr.type])}>
-                    {TYPE_LABELS[detailCr.type]}
+                    {t(`plm.crType.${detailCr.type}`)}
                   </span>
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('plm.crDetail.description')}</p>
                   <p className="text-sm text-foreground">{detailCr.description}</p>
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reason / Justification</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('plm.crDetail.reason')}</p>
                   <p className="text-sm text-foreground">{detailCr.reason}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { label: 'Affected Product', value: detailCr.affectedProduct },
-                    { label: 'Requested By', value: detailCr.requestedBy },
-                    { label: 'Reviewed By', value: detailCr.reviewedBy ?? '—' },
-                    { label: 'Created', value: formatDate(detailCr.createdAt) },
-                    { label: 'Target Date', value: formatDate(detailCr.targetDate) },
+                    { label: t('plm.crDetail.affectedProduct'), value: detailCr.affectedProduct },
+                    { label: t('plm.crDetail.requestedBy'), value: detailCr.requestedBy },
+                    { label: t('plm.crDetail.reviewedBy'), value: detailCr.reviewedBy ?? '—' },
+                    { label: t('plm.crDetail.created'), value: formatDate(detailCr.createdAt) },
+                    { label: t('plm.crDetail.targetDate'), value: formatDate(detailCr.targetDate) },
                   ].map((row) => (
                     <div key={row.label} className="space-y-0.5">
                       <p className="text-xs font-medium text-muted-foreground">{row.label}</p>
@@ -767,7 +759,7 @@ export default function PlmChangeRequestsView() {
                       onClick={() => { handleApprove(detailCr); setDetailOpen(false); }}
                     >
                       <CheckCircle2 className="h-4 w-4" />
-                      Approve
+                      {t('plm.crAction.approve')}
                     </Button>
                     <Button
                       variant="destructive"
@@ -775,12 +767,12 @@ export default function PlmChangeRequestsView() {
                       onClick={() => { handleReject(detailCr); setDetailOpen(false); }}
                     >
                       <XCircle className="h-4 w-4" />
-                      Reject
+                      {t('plm.crAction.reject')}
                     </Button>
                   </>
                 )}
                 <Button variant="outline" onClick={() => setDetailOpen(false)}>
-                  Close
+                  {t('plm.crAction.close')}
                 </Button>
               </DialogFooter>
             </>
