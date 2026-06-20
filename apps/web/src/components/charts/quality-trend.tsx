@@ -28,7 +28,7 @@ export function QualityTrendChart({ data, isLoading }: QualityTrendProps) {
         textStyle: { color: isDark ? '#ffffff90' : '#000000', fontSize: 11 },
       },
       legend: {
-        data: ['FPY %', 'Rework %', 'Scrap %'],
+        data: [t('charts.qualityTrendSeries.fpy'), t('charts.qualityTrendSeries.rework'), t('charts.qualityTrendSeries.scrap')],
         textStyle: { color: textColor, fontSize: 10 },
         right: 0, top: 0,
         icon: 'circle',
@@ -52,7 +52,7 @@ export function QualityTrendChart({ data, isLoading }: QualityTrendProps) {
       },
       series: [
         {
-          name: 'FPY %',
+          name: t('charts.qualityTrendSeries.fpy'),
           type: 'line',
           data: data?.map((d) => d.fpy) ?? [],
           lineStyle: { color: '#22c55e', width: 2 },
@@ -64,14 +64,14 @@ export function QualityTrendChart({ data, isLoading }: QualityTrendProps) {
           },
         },
         {
-          name: 'Rework %',
+          name: t('charts.qualityTrendSeries.rework'),
           type: 'line',
           data: data?.map((d) => d.rework) ?? [],
           lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
           symbol: 'none', smooth: true,
         },
         {
-          name: 'Scrap %',
+          name: t('charts.qualityTrendSeries.scrap'),
           type: 'line',
           data: data?.map((d) => d.scrap) ?? [],
           lineStyle: { color: '#f43f5e', width: 2, type: 'dashed' },
@@ -79,7 +79,7 @@ export function QualityTrendChart({ data, isLoading }: QualityTrendProps) {
         },
       ],
     };
-  }, [data, isDark]);
+  }, [data, isDark, t]);
 
   return (
     <div className="industrial-card p-4">

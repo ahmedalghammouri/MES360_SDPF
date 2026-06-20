@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
 export interface GanttItem {
@@ -55,6 +56,7 @@ function packLanes(items: GanttItem[]): { item: GanttItem; lane: number }[] {
 export function GanttChart({
   items, rangeFrom, rangeTo, groupBy = 'type', zoom = 'week', typeLabels = {}, onItemClick,
 }: GanttProps) {
+  const { t } = useTranslation('common');
   const from = useMemo(() => startOfDay(new Date(rangeFrom)), [rangeFrom]);
   const to = useMemo(() => startOfDay(new Date(rangeTo)), [rangeTo]);
   const pxPerDay = PX_PER_DAY[zoom];
@@ -99,7 +101,7 @@ export function GanttChart({
   if (items.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">
-        No scheduled items in this range. Adjust the date range or filters.
+        {t('charts.gantt.noItems')}
       </div>
     );
   }
@@ -112,7 +114,7 @@ export function GanttChart({
           <div className="flex sticky top-0 z-20 bg-card border-b border-border">
             <div className="shrink-0 sticky left-0 z-30 bg-card border-r border-border flex items-center px-3 text-xs font-semibold text-muted-foreground"
               style={{ width: LABEL_W, height: 40 }}>
-              {groupBy === 'type' ? 'Category' : 'Resource'}
+              {groupBy === 'type' ? t('charts.gantt.category') : t('charts.gantt.resource')}
             </div>
             <div className="relative" style={{ width: timelineW, height: 40 }}>
               {days.map((d, i) => (

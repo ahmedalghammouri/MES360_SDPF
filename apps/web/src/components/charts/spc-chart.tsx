@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactECharts from 'echarts-for-react';
 import { useTheme } from 'next-themes';
 
@@ -16,7 +17,7 @@ interface SPCChartProps {
 }
 
 export function SPCChart({
-  title = 'Statistical Process Control (X-Bar Chart)',
+  title,
   data,
   ucl,
   lcl,
@@ -25,8 +26,10 @@ export function SPCChart({
   lsl,
   isLoading,
 }: SPCChartProps) {
+  const { t } = useTranslation('common');
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const resolvedTitle = title ?? t('charts.spc.title');
 
   const chartData = data ?? [];
   const hasData = chartData.length > 0;
@@ -37,7 +40,7 @@ export function SPCChart({
     const values = chartData.map((d) => d.value);
 
     const markLines = [
-      mean != null && { yAxis: mean, name: 'Mean', lineStyle: { color: '#22c55e', type: 'solid' } },
+      mean != null && { yAxis: mean, name: t('charts.spc.mean'), lineStyle: { color: '#22c55e', type: 'solid' } },
       ucl != null && { yAxis: ucl, name: 'UCL', lineStyle: { color: '#f59e0b', type: 'dashed' } },
       lcl != null && { yAxis: lcl, name: 'LCL', lineStyle: { color: '#f59e0b', type: 'dashed' } },
       usl != null && { yAxis: usl, name: 'USL', lineStyle: { color: '#f43f5e', type: 'dotted' } },
@@ -51,7 +54,7 @@ export function SPCChart({
         formatter: (params: Array<{ name: string; value: number }>) => {
           const pt = params[0];
           const isOOC = (ucl != null && pt.value > ucl) || (lcl != null && pt.value < lcl);
-          return `${pt.name}<br/>Value: <b>${pt.value.toFixed(3)}</b>${isOOC ? ' ⚠️ OOC' : ''}`;
+          return `${pt.name}<br/>${t('charts.spc.value')}: <b>${pt.value.toFixed(3)}</b>${isOOC ? ' ⚠️ OOC' : ''}`;
         },
         backgroundColor: isDark ? '#1a1f2e' : '#ffffff',
         borderColor: isDark ? '#ffffff10' : '#00000010',
@@ -100,30 +103,30 @@ export function SPCChart({
         },
       ],
     };
-  }, [chartData, ucl, lcl, mean, usl, lsl, isDark]);
+  }, [chartData, ucl, lcl, mean, usl, lsl, isDark, t]);
 
   return (
     <div className="industrial-card p-4">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <h3 className="text-sm font-semibold text-foreground">{resolvedTitle}</h3>
           <p className="text-xs text-muted-foreground">
             {ucl != null ? `UCL: ${ucl.toFixed(1)}` : 'UCL: —'}
             {' | '}
-            {mean != null ? `Mean: ${mean.toFixed(1)}` : 'Mean: —'}
+            {mean != null ? `${t('charts.spc.mean')}: ${mean.toFixed(1)}` : `${t('charts.spc.mean')}: —`}
             {' | '}
             {lcl != null ? `LCL: ${lcl.toFixed(1)}` : 'LCL: —'}
           </p>
         </div>
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1">
-            <span className="w-3 h-0.5 bg-success-400 inline-block" />Mean
+            <span className="w-3 h-0.5 bg-success-400 inline-block" />{t('charts.spc.mean')}
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-0.5 bg-warning-400 border-dashed inline-block" />Control Limits
+            <span className="w-3 h-0.5 bg-warning-400 border-dashed inline-block" />{t('charts.spc.controlLimits')}
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-0.5 bg-danger-400 inline-block" />Spec Limits
+            <span className="w-3 h-0.5 bg-danger-400 inline-block" />{t('charts.spc.specLimits')}
           </span>
         </div>
       </div>
@@ -131,7 +134,7 @@ export function SPCChart({
         <div className="shimmer h-48 rounded-lg" />
       ) : !hasData ? (
         <div className="flex h-[200px] items-center justify-center text-xs text-muted-foreground">
-          No SPC measurements recorded for this parameter
+          {t('charts.spc.noData')}
         </div>
       ) : (
         <ReactECharts option={option} style={{ height: '200px' }} notMerge />

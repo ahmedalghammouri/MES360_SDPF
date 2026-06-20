@@ -38,22 +38,9 @@ const CATEGORY_COLORS: Record<string, string> = {
   system:      'text-gray-400 bg-gray-500/10 border-gray-500/30',
 };
 
-const SEVERITY_FILTERS = [
-  { label: 'All',     value: 'all'     },
-  { label: 'Error',   value: 'error'   },
-  { label: 'Warning', value: 'warning' },
-  { label: 'Info',    value: 'info'    },
-];
+const SEVERITY_FILTERS = ['all', 'error', 'warning', 'info'];
 
-const CATEGORY_FILTERS = [
-  { label: 'All',         value: 'all'         },
-  { label: 'Alarm',       value: 'alarm'       },
-  { label: 'Production',  value: 'production'  },
-  { label: 'Quality',     value: 'quality'     },
-  { label: 'Maintenance', value: 'maintenance' },
-  { label: 'Downtime',    value: 'downtime'    },
-  { label: 'Energy',      value: 'energy'      },
-];
+const CATEGORY_FILTERS = ['all', 'alarm', 'production', 'quality', 'maintenance', 'downtime', 'energy'];
 
 // No entity has a `/[id]` detail route — notifications link to list pages. Strip any
 // trailing /<uuid> so legacy deep-links (e.g. /production/orders/<id>) navigate to the
@@ -231,13 +218,13 @@ export function NotificationsView() {
           <span className="text-xs font-medium text-muted-foreground w-14 shrink-0">{t('notifications.severity')}</span>
           {SEVERITY_FILTERS.map((f) => (
             <Button
-              key={f.value}
-              variant={severityFilter === f.value ? 'default' : 'outline'}
+              key={f}
+              variant={severityFilter === f ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setSeverityFilter(f.value)}
+              onClick={() => setSeverityFilter(f)}
               className="h-7 text-xs"
             >
-              {t(`notifications.sev.${f.value}`, { defaultValue: f.label })}
+              {t(`notifications.sev.${f}`)}
             </Button>
           ))}
         </div>
@@ -245,13 +232,13 @@ export function NotificationsView() {
           <span className="text-xs font-medium text-muted-foreground w-14 shrink-0">{t('notifications.category')}</span>
           {CATEGORY_FILTERS.map((f) => (
             <Button
-              key={f.value}
-              variant={categoryFilter === f.value ? 'default' : 'outline'}
+              key={f}
+              variant={categoryFilter === f ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setCategoryFilter(f.value)}
+              onClick={() => setCategoryFilter(f)}
               className="h-7 text-xs"
             >
-              {t(`notifications.cat.${f.value}`, { defaultValue: f.label })}
+              {t(`notifications.cat.${f}`)}
             </Button>
           ))}
           <Button

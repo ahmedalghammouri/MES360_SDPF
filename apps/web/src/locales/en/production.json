@@ -306,7 +306,20 @@
     "minSetup": "{{min}} min setup",
     "approveGatedTitle": "{{cr}} must be approved in PLM › Change Requests first",
     "approveTitle": "Approve the process — the BOM of every covered product regenerates automatically",
-    "approve": "Approve"
+    "approve": "Approve",
+    "unitMeta": { "PCS": "Piece", "INNER": "Inner bag", "CARTON": "Carton", "PALLET": "Pallet" },
+    "depDesc": {
+      "FINISH_TO_START": "B starts after A finishes",
+      "START_TO_START": "B starts when A starts (parallel)",
+      "START_TO_FINISH": "B must finish before A starts",
+      "FINISH_TO_FINISH": "B finishes when A finishes"
+    },
+    "pdmCycle": "{{sec}}s cycle",
+    "pdmSetup": "{{min}}m setup",
+    "pdmInputs_one": "{{count}} input",
+    "pdmInputs_other": "{{count}} inputs",
+    "pdmAlt": "{{count}} alt",
+    "pdmOptional": "Optional"
   },
   "autogen": {
     "title": "Auto-Generate Work Order",
@@ -521,6 +534,7 @@
     "notesPlaceholder": "Describe what happened, any immediate actions taken...",
     "footerHint": "* Machine is required. Cause selection is recommended for accurate analytics.",
     "cancel": "Cancel", "logging": "Logging...", "logEvent": "Log Event",
+    "toastLogged": "Downtime logged", "toastLogFailed": "Failed to log downtime",
     "loading": "Loading live events...", "noEvents": "No open downtime events — all machines are running.",
     "col": { "reasonCode": "Reason Code", "cause": "Cause", "machine": "Machine", "workCenter": "Work Center", "start": "Start", "duration": "Duration", "oeeImpact": "OEE Impact", "actions": "Actions" }
   },
@@ -548,6 +562,7 @@
     "search": "Search…", "allMachines": "All machines", "noRecords": "No downtime records found.",
     "searchCauses": "Search causes…", "noCauses": "No matching causes found.",
     "clear": "Clear", "recordsCount": "{{count}} records", "loadingHistory": "Loading history...",
+    "openSuffix": "OPEN",
     "col": { "reasonCode": "Reason Code", "cause": "Cause", "machine": "Machine", "workCenter": "Work Center", "startEnd": "Start / End", "duration": "Duration", "oeeImpact": "OEE Impact", "status": "Status" }
   },
   "dtabs": {
@@ -731,7 +746,9 @@
     "aiAnalysisTitle": "AI Analysis — live insights for this job order", "ruleBasedRealData": "rule-based · real data",
     "oeeBenchmarksTitle": "OEE Industry Benchmarks & Standards",
     "sixBigLossesManufacturing": "The Six Big Losses in Manufacturing",
-    "availabilityMetricsMtt": "Availability Metrics — MTTD · MTTR · MTBF"
+    "availabilityMetricsMtt": "Availability Metrics — MTTD · MTTR · MTBF",
+    "formulaSchedule": "A = Operating Time / Planned Production Time",
+    "formulaTimeBased": "A = Uptime / (Uptime + Downtime)"
   },
   "sched": {
     "summary": {
@@ -822,5 +839,78 @@
     "detailCreated": "Created",
     "editBatch": "Edit Batch",
     "deleteTitle": "Delete Batch?"
+  },
+  "jfb": {
+    "filters": "Filters",
+    "all": "All",
+    "selectedCount": "{{count}} selected",
+    "filterByMachine": "Filter by machine",
+    "clear": "Clear",
+    "clearAll": "Clear all"
+  },
+  "sfv": {
+    "title": "Shop Floor",
+    "realTimeExecution": "Real-time Execution",
+    "refreshLabel": "Refresh: {{time}}",
+    "refresh": "Refresh",
+    "jobsCount": "/ {{count}} jobs",
+    "noJobsToDisplay": "No job orders to display",
+    "noActiveJobs": "No active jobs. Change the filter to see all.",
+    "generateToStart": "Generate job orders from Production Orders to get started.",
+    "first": "First",
+    "prev": "Prev",
+    "next": "Next",
+    "last": "Last",
+    "page": "Page",
+    "cardsCount": "({{count}} cards)",
+    "status": {
+      "SCHEDULED": "Scheduled", "READY": "Ready", "EXECUTING": "Executing",
+      "PAUSED": "Paused", "COMPLETE": "Complete", "CANCELLED": "Cancelled"
+    },
+    "filter": { "active": "Active", "all": "All" },
+    "kpiExecuting": "{{count}} Executing",
+    "kpiReady": "{{count}} Ready",
+    "kpiPaused": "{{count}} Paused",
+    "kpiDone": "{{count}} Done",
+    "openLiveDashboard": "Open live dashboard",
+    "availSchedTooltip": "Availability (schedule-based)",
+    "availTbTooltip": "Availability (time-based)",
+    "oeeSchedTooltip": "OEE (schedule-based)",
+    "oeeTbTooltip": "OEE (time-based)",
+    "target": "Target",
+    "paceLabel": "{{pace}}/hr",
+    "etaLabel": "ETA {{eta}}",
+    "unassignOperator": "Unassign operator",
+    "tapToChange": "tap to change",
+    "tapToAssignOperator": "Tap to assign operator",
+    "recordProduction": "Record Production",
+    "handoverToNext": "Handover to next step",
+    "addGood": "Add Good",
+    "addBadScrap": "Add Bad / Scrap",
+    "newTotals": "New totals:",
+    "goodLower": "good",
+    "badLower": "bad",
+    "qualityArrow": "Quality →",
+    "rejectReasonPlaceholder": "Reject reason (optional)…",
+    "handover": "Handover",
+    "setHandoverQty": "Set handover qty",
+    "record": "Record",
+    "plusGood": "+{{count}} good",
+    "plusBad": "+{{count}} bad",
+    "liveDashboardTooltip": "Open live dashboard",
+    "live": "Live",
+    "requestMaintTooltip": "Request maintenance",
+    "maint": "Maint",
+    "changeStateTooltip": "Change machine state / stop",
+    "stop": "Stop",
+    "raiseAlarmTooltip": "Raise alarm",
+    "alarm": "Alarm",
+    "start": "Start",
+    "complete": "Complete",
+    "resume": "Resume",
+    "completedWith": "Completed — {{qty}} {{unit}}",
+    "waitingForPredecessor": "Waiting for: {{op}}",
+    "toastRecorded": "Recorded",
+    "toastFailedRecord": "Failed to record"
   }
 }

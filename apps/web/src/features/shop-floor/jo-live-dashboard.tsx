@@ -1085,14 +1085,14 @@ export function JOLiveDashboard({ jobOrderId }: { jobOrderId: string }) {
                   <AvailabilityMethod
                     title={t('jolive.scheduleBased')} subtitle={t('jolive.scheduleBasedSub')}
                     value={oee.joAvailability} cls={oee.availabilityClass}
-                    formula="A = Operating Time / Planned Production Time"
+                    formula={t('jolive.formulaSchedule')}
                     oeeValue={oee.joOEE} oeeCls={oee.oeeClass}
                     rows={[[t('jolive.window'), fmtMins(d.window.minutes)], [t('jolive.utilization'), oee.utilizationPct != null ? `${oee.utilizationPct}%` : '—']]}
                   />
                   <AvailabilityMethod
                     title={t('jolive.timeBased')} subtitle={t('jolive.timeBasedSub')}
                     value={oee.availabilityTimeBased} cls={oee.availabilityTimeBasedClass}
-                    formula="A = Uptime / (Uptime + Downtime)"
+                    formula={t('jolive.formulaTimeBased')}
                     oeeValue={oee.oeeTimeBased} oeeCls={oee.oeeTimeBasedClass}
                     rows={[[t('jolive.uptime'), fmtMins(oee.uptimeMins)], [t('jolive.downtime'), fmtMins(oee.downtimeMins)]]}
                     highlight

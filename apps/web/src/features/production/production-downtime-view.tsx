@@ -74,30 +74,30 @@ interface DowntimeEvent {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-export const REASON_CODE_CFG: Record<DowntimeReasonCode, { label: string; color: string; bg: string; icon: React.ElementType }> = {
-  PLANNED_MAINTENANCE:  { label: 'Planned Maintenance', color: 'text-blue-400',   bg: 'bg-blue-500/15 border-blue-500/30',   icon: Wrench },
-  CHANGEOVER:           { label: 'Changeover',          color: 'text-violet-400', bg: 'bg-violet-500/15 border-violet-500/30', icon: RefreshCw },
-  UNPLANNED_BREAKDOWN:  { label: 'Breakdown',           color: 'text-red-400',    bg: 'bg-red-500/15 border-red-500/30',     icon: AlertTriangle },
-  MICRO_STOP:           { label: 'Micro Stop',          color: 'text-orange-400', bg: 'bg-orange-500/15 border-orange-500/30', icon: Clock },
-  STARVED:              { label: 'Starved',             color: 'text-amber-400',  bg: 'bg-amber-500/15 border-amber-500/30', icon: TrendingDown },
-  BLOCKED:              { label: 'Blocked',             color: 'text-yellow-400', bg: 'bg-yellow-500/15 border-yellow-500/30', icon: AlertCircle },
-  EXTERNAL:             { label: 'External',            color: 'text-slate-400',  bg: 'bg-slate-500/15 border-slate-500/30', icon: Zap },
+export const REASON_CODE_CFG: Record<DowntimeReasonCode, { labelKey: string; color: string; bg: string; icon: React.ElementType }> = {
+  PLANNED_MAINTENANCE:  { labelKey: 'event.reasonCfg.PLANNED_MAINTENANCE', color: 'text-blue-400',   bg: 'bg-blue-500/15 border-blue-500/30',   icon: Wrench },
+  CHANGEOVER:           { labelKey: 'event.reasonCfg.CHANGEOVER',          color: 'text-violet-400', bg: 'bg-violet-500/15 border-violet-500/30', icon: RefreshCw },
+  UNPLANNED_BREAKDOWN:  { labelKey: 'event.reasonCfg.UNPLANNED_BREAKDOWN',  color: 'text-red-400',    bg: 'bg-red-500/15 border-red-500/30',     icon: AlertTriangle },
+  MICRO_STOP:           { labelKey: 'event.reasonCfg.MICRO_STOP',          color: 'text-orange-400', bg: 'bg-orange-500/15 border-orange-500/30', icon: Clock },
+  STARVED:              { labelKey: 'event.reasonCfg.STARVED',             color: 'text-amber-400',  bg: 'bg-amber-500/15 border-amber-500/30', icon: TrendingDown },
+  BLOCKED:              { labelKey: 'event.reasonCfg.BLOCKED',             color: 'text-yellow-400', bg: 'bg-yellow-500/15 border-yellow-500/30', icon: AlertCircle },
+  EXTERNAL:             { labelKey: 'event.reasonCfg.EXTERNAL',            color: 'text-slate-400',  bg: 'bg-slate-500/15 border-slate-500/30', icon: Zap },
 };
 
-const CATEGORY_OPTIONS: { value: DowntimeCategory; label: string }[] = [
-  { value: 'MECHANICAL',          label: 'Mechanical' },
-  { value: 'ELECTRICAL',          label: 'Electrical' },
-  { value: 'PROCESS',             label: 'Process' },
-  { value: 'MATERIAL',            label: 'Material' },
-  { value: 'OPERATOR',            label: 'Operator' },
-  { value: 'CHANGEOVER',          label: 'Changeover' },
-  { value: 'UTILITY',             label: 'Utility' },
-  { value: 'QUALITY',             label: 'Quality' },
-  { value: 'PLANNED_MAINTENANCE', label: 'Planned Maintenance' },
-  { value: 'PLANNED_CLEANING',    label: 'Planned Cleaning' },
-  { value: 'PLANNED_BREAK',       label: 'Planned Break' },
-  { value: 'EXTERNAL',            label: 'External' },
-  { value: 'OTHER',               label: 'Other' },
+const CATEGORY_OPTIONS: { value: DowntimeCategory; labelKey: string }[] = [
+  { value: 'MECHANICAL',          labelKey: 'dtree.cat.MECHANICAL' },
+  { value: 'ELECTRICAL',          labelKey: 'dtree.cat.ELECTRICAL' },
+  { value: 'PROCESS',             labelKey: 'dtree.cat.PROCESS' },
+  { value: 'MATERIAL',            labelKey: 'dtree.cat.MATERIAL' },
+  { value: 'OPERATOR',            labelKey: 'dtree.cat.OPERATOR' },
+  { value: 'CHANGEOVER',          labelKey: 'dtree.cat.CHANGEOVER' },
+  { value: 'UTILITY',             labelKey: 'dtree.cat.UTILITY' },
+  { value: 'QUALITY',             labelKey: 'dtree.cat.QUALITY' },
+  { value: 'PLANNED_MAINTENANCE', labelKey: 'dtree.cat.PLANNED_MAINTENANCE' },
+  { value: 'PLANNED_CLEANING',    labelKey: 'dtree.cat.PLANNED_CLEANING' },
+  { value: 'PLANNED_BREAK',       labelKey: 'dtree.cat.PLANNED_BREAK' },
+  { value: 'EXTERNAL',            labelKey: 'dtree.cat.EXTERNAL' },
+  { value: 'OTHER',               labelKey: 'dtree.cat.OTHER' },
 ];
 
 const LEVEL_COLORS = ['', 'text-primary', 'text-violet-400', 'text-emerald-400'];
@@ -456,7 +456,7 @@ function NodeForm({
           <Select value={form.category} onValueChange={v => set('category', v)}>
             <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {CATEGORY_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{t(`dtree.cat.${o.value}`, { defaultValue: o.label })}</SelectItem>)}
+              {CATEGORY_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{t(o.labelKey)}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -731,14 +731,15 @@ function TreeTab({ machines }: { machines: Machine[] }) {
 // ── Live elapsed timer ────────────────────────────────────────────────────────
 
 function LiveElapsed({ startTime }: { startTime: string }) {
+  const { t } = useTranslation('production');
   const [, setTick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 30_000);
+    const id = setInterval(() => setTick(n => n + 1), 30_000);
     return () => clearInterval(id);
   }, []);
   const mins = Math.max(0, Math.floor((Date.now() - new Date(startTime).getTime()) / 60_000));
-  if (mins < 60) return <span className="font-mono text-red-400 font-bold animate-pulse">{mins}m OPEN</span>;
-  return <span className="font-mono text-red-400 font-bold animate-pulse">{Math.floor(mins / 60)}h {mins % 60}m OPEN</span>;
+  if (mins < 60) return <span className="font-mono text-red-400 font-bold animate-pulse">{mins}m {t('downtime.openSuffix')}</span>;
+  return <span className="font-mono text-red-400 font-bold animate-pulse">{Math.floor(mins / 60)}h {mins % 60}m {t('downtime.openSuffix')}</span>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -790,7 +791,7 @@ function EventRow({ event, onAck, onClose, onEdit, onDelete, liveMode }: {
         <td className="px-2 py-2.5">
           <div className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] font-medium', cfg.bg, cfg.color)}>
             <Icon size={10} />
-            {t(`event.reasonCfg.${event.reasonCode}`, { defaultValue: cfg.label })}
+            {t(`event.reasonCfg.${event.reasonCode}`)}
           </div>
         </td>
 
@@ -878,7 +879,7 @@ function EventRow({ event, onAck, onClose, onEdit, onDelete, liveMode }: {
                     <Badge variant="outline" className={cn('text-[10px] h-4 font-mono', WO_STATUS_COLOR[event.workOrder.status] ?? '')}>
                       {event.workOrder.orderNumber}
                     </Badge>
-                    <span className="text-[10px] text-muted-foreground">{t(`podetail.woStatus.${event.workOrder.status}`, { defaultValue: event.workOrder.status })}</span>
+                    <span className="text-[10px] text-muted-foreground">{t(`podetail.woStatus.${event.workOrder.status}`)}</span>
                   </div>
                 ) : <span className="text-muted-foreground">{t('event.row.noLinkedWo')}</span>}
               </div>
@@ -889,7 +890,7 @@ function EventRow({ event, onAck, onClose, onEdit, onDelete, liveMode }: {
                   <Tag size={9} />{t('event.row.category')}
                 </p>
                 <div className="flex items-center gap-1.5">
-                  <Badge variant="outline" className="text-[10px] h-4">{t(`dtree.cat.${event.category}`, { defaultValue: event.category })}</Badge>
+                  <Badge variant="outline" className="text-[10px] h-4">{t(`dtree.cat.${event.category}`)}</Badge>
                   {event.isPlanned && <Badge variant="outline" className="text-[10px] h-4 text-blue-400 border-blue-500/30">{t('event.row.planned')}</Badge>}
                 </div>
               </div>
@@ -985,7 +986,7 @@ function EditEventModal({
                   const Ic = v.icon;
                   return (
                     <SelectItem key={k} value={k}>
-                      <div className="flex items-center gap-2"><Ic size={12} className={v.color} />{t(`event.reasonCfg.${k}`, { defaultValue: v.label })}</div>
+                      <div className="flex items-center gap-2"><Ic size={12} className={v.color} />{t(`event.reasonCfg.${k}`)}</div>
                     </SelectItem>
                   );
                 })}
@@ -1072,7 +1073,7 @@ function DeleteEventDialog({
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">{t('event.reason')}</span>
-            <span>{t(`event.reasonCfg.${event.reasonCode}`, { defaultValue: REASON_CODE_CFG[event.reasonCode]?.label ?? event.reasonCode })}</span>
+            <span>{t(`event.reasonCfg.${event.reasonCode}`)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">{t('event.started')}</span>
@@ -1363,7 +1364,7 @@ function LiveTab({ machines, reasonTree }: { machines: Machine[]; reasonTree: Re
                             <SelectItem key={k} value={k}>
                               <div className="flex items-center gap-2">
                                 <Icon size={12} className={v.color} />
-                                <span>{t(`event.reasonCfg.${k}`, { defaultValue: v.label })}</span>
+                                <span>{t(`event.reasonCfg.${k}`)}</span>
                               </div>
                             </SelectItem>
                           );
@@ -1389,7 +1390,7 @@ function LiveTab({ machines, reasonTree }: { machines: Machine[]; reasonTree: Re
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <Tag size={10} className="text-muted-foreground" />
                       <span className="text-[10px] text-muted-foreground">{t('dlive.categoryAutoSet')}</span>
-                      <Badge variant="outline" className="text-[10px] h-4">{t(`dtree.cat.${form.causeCategory}`, { defaultValue: form.causeCategory })}</Badge>
+                      <Badge variant="outline" className="text-[10px] h-4">{t(`dtree.cat.${form.causeCategory}`)}</Badge>
                       {form.causeIsPlanned && <Badge variant="outline" className="text-[10px] h-4 text-blue-400 border-blue-500/30">{t('dlive.plannedStop')}</Badge>}
                     </div>
                   )}

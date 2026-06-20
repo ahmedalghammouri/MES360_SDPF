@@ -13,7 +13,26 @@
     "oeeAnalysis": "تحليل الكفاءة الكلية", "oeeFull": "الفعالية الكلية للمعدات",
     "availability": "الجاهزية", "performance": "الأداء", "quality": "الجودة",
     "mttrMtbf": "متوسط زمن الإصلاح مقابل متوسط الزمن بين الأعطال", "downtimePareto": "باريتو التوقفات", "downtimeParetoSub": "أهم أسباب التوقف (تحليل باريتو)", "mttrMtbfTitle": "اتجاهات MTTR و MTBF",
-    "gRows": "الصفوف", "gTimeScale": "المقياس الزمني", "gActions": "إجراءات", "gOrders": "الأوامر", "gResources": "الموارد", "gSupply": "العرض", "gDemand": "الطلب"
+    "gRows": "الصفوف", "gTimeScale": "المقياس الزمني", "gActions": "إجراءات", "gOrders": "الأوامر", "gResources": "الموارد", "gSupply": "العرض", "gDemand": "الطلب",
+    "worldClass": "عالمي المستوى",
+    "production": {
+      "actualOutput": "الإنتاج الفعلي", "target": "المستهدف", "efficiencyPct": "الكفاءة ٪", "units": "وحدات"
+    },
+    "qualityTrendSeries": {
+      "fpy": "عائد أول تمرير ٪", "rework": "إعادة العمل ٪", "scrap": "الهدر ٪"
+    },
+    "mttr": {
+      "mttrHours": "متوسط زمن الإصلاح (ساعات)", "mtbfHours": "متوسط الزمن بين الأعطال (ساعات)", "mttrAxis": "م.ز.إ (س)", "mtbfAxis": "م.ز.ب.أ (س)", "noData": "لا توجد بيانات موثوقية متاحة بعد"
+    },
+    "pareto": {
+      "downtimeMin": "وقت التوقف (دقائق)", "cumulativePct": "النسبة التراكمية ٪", "min": "دقائق"
+    },
+    "spc": {
+      "title": "التحكم الإحصائي في العملية (مخطط X-Bar)", "value": "القيمة", "mean": "المتوسط", "controlLimits": "حدود التحكم", "specLimits": "حدود المواصفات", "noData": "لا توجد قياسات تحكم إحصائي مسجلة لهذا البارامتر"
+    },
+    "gantt": {
+      "category": "الفئة", "resource": "المورد", "noItems": "لا توجد عناصر مجدولة في هذا النطاق. عدّل النطاق الزمني أو عوامل التصفية."
+    }
   },
   "gantt": {
     "view": "عرض المخطط",

@@ -649,6 +649,7 @@ function ShopFloorCard({
 // ─────────────────────────────────────────────────────────────
 
 function KpiBar({ jobs }: { jobs: ShopFloorJO[] }) {
+  const { t } = useTranslation('production');
   const executing = jobs.filter((j) => j.status === 'EXECUTING').length;
   const ready     = jobs.filter((j) => j.status === 'READY').length;
   const paused    = jobs.filter((j) => j.status === 'PAUSED').length;
@@ -662,25 +663,25 @@ function KpiBar({ jobs }: { jobs: ShopFloorJO[] }) {
       {executing > 0 && (
         <span className="flex items-center gap-1.5 text-green-400 font-semibold">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          {executing} Executing
+          {t('sfv.kpiExecuting', { count: executing })}
         </span>
       )}
       {ready > 0 && (
         <span className="flex items-center gap-1.5 text-blue-400">
           <span className="w-2 h-2 rounded-full bg-blue-400" />
-          {ready} Ready
+          {t('sfv.kpiReady', { count: ready })}
         </span>
       )}
       {paused > 0 && (
         <span className="flex items-center gap-1.5 text-amber-400">
           <span className="w-2 h-2 rounded-full bg-amber-400" />
-          {paused} Paused
+          {t('sfv.kpiPaused', { count: paused })}
         </span>
       )}
       {complete > 0 && (
         <span className="flex items-center gap-1.5 text-emerald-400">
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          {complete} Done
+          {t('sfv.kpiDone', { count: complete })}
         </span>
       )}
       {(totalGood + totalScrap) > 0 && (
@@ -832,12 +833,12 @@ export function ShopFloorView() {
     onSuccess: (_r, { status }) => {
       qc.invalidateQueries({ queryKey: ['shop-floor-jobs'] });
       qc.invalidateQueries({ queryKey: ['job-orders'] });
-      toast({ title: `→ ${status}` });
+      toast({ title: t('jo.toast.joArrow', { status }) });
     },
     onError: (e: any) => toast({
       variant: 'destructive',
-      title: 'Transition failed',
-      description: e?.response?.data?.message ?? 'Dependency constraint not met',
+      title: t('jo.toast.transitionFailed'),
+      description: e?.response?.data?.message ?? t('jo.toast.depNotMet'),
     }),
   });
 
@@ -855,11 +856,11 @@ export function ShopFloorView() {
       qc.invalidateQueries({ queryKey: ['job-orders'] });
       qc.invalidateQueries({ queryKey: ['work-orders'] });
       qc.invalidateQueries({ queryKey: ['jo-live'] });
-      toast({ title: 'Recorded' });
+      toast({ title: t('sfv.toastRecorded') });
     },
     onError: (e: any) => toast({
       variant: 'destructive',
-      title: 'Failed to record',
+      title: t('sfv.toastFailedRecord'),
       description: e?.response?.data?.message,
     }),
   });
@@ -870,7 +871,7 @@ export function ShopFloorView() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shop-floor-jobs'] }),
     onError: (e: any) => toast({
       variant: 'destructive',
-      title: 'Failed to assign operator',
+      title: t('jo.toast.failedAssign'),
       description: e?.response?.data?.message,
     }),
   });
@@ -890,9 +891,9 @@ export function ShopFloorView() {
               <Factory className="w-5 h-5 text-brand-400" />
             </div>
             <div>
-              <h1 className="text-base font-bold leading-none">Shop Floor</h1>
+              <h1 className="text-base font-bold leading-none">{t('sfv.title')}</h1>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                Real-time Execution · Refresh: {lastRefresh}
+                {t('sfv.realTimeExecution')} · {t('sfv.refreshLabel', { time: lastRefresh })}
               </p>
             </div>
           </div>
@@ -929,7 +930,7 @@ export function ShopFloorView() {
               disabled={isLoading}
             >
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
+              {t('sfv.refresh')}
             </Button>
           </div>
         </div>
@@ -949,7 +950,7 @@ export function ShopFloorView() {
             right={
               <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <span className="font-semibold text-foreground tabular-nums">{filteredJobs.length}</span>
-                <span className="text-muted-foreground/60">/ {allJobs.length} jobs</span>
+                <span className="text-muted-foreground/60">{t('sfv.jobsCount', { count: allJobs.length })}</span>
               </span>
             }
           />
@@ -967,11 +968,11 @@ export function ShopFloorView() {
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 glass-card rounded-2xl">
             <ClipboardList className="w-12 h-12 text-muted-foreground/30 mb-4" />
-            <p className="text-base font-semibold text-muted-foreground">No job orders to display</p>
+            <p className="text-base font-semibold text-muted-foreground">{t('sfv.noJobsToDisplay')}</p>
             <p className="text-sm text-muted-foreground/60 mt-1">
               {statusFilter === 'ACTIVE'
-                ? 'No active jobs. Change the filter to see all.'
-                : 'Generate job orders from Production Orders to get started.'}
+                ? t('sfv.noActiveJobs')
+                : t('sfv.generateToStart')}
             </p>
           </div>
         ) : (
@@ -997,14 +998,14 @@ export function ShopFloorView() {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 pt-2">
-                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(1)}>« First</Button>
-                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>‹ Prev</Button>
+                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(1)}>« {t('sfv.first')}</Button>
+                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>‹ {t('sfv.prev')}</Button>
                 <span className="text-xs text-muted-foreground px-2 tabular-nums">
-                  Page <span className="font-semibold text-foreground">{page}</span> / {totalPages}
-                  <span className="text-muted-foreground/60 ml-2">({sorted.length} cards)</span>
+                  {t('sfv.page')} <span className="font-semibold text-foreground">{page}</span> / {totalPages}
+                  <span className="text-muted-foreground/60 ml-2">{t('sfv.cardsCount', { count: sorted.length })}</span>
                 </span>
-                <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next ›</Button>
-                <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(totalPages)}>Last »</Button>
+                <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>{t('sfv.next')} ›</Button>
+                <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(totalPages)}>{t('sfv.last')} »</Button>
               </div>
             )}
           </>

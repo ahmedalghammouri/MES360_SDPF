@@ -35,7 +35,7 @@ export function ProductionTrendChart({ data, isLoading }: ProductionTrendProps) 
         textStyle: { color: isDark ? '#ffffff90' : '#000000' },
       },
       legend: {
-        data: ['Actual Output', 'Target', 'Efficiency %'],
+        data: [t('charts.production.actualOutput'), t('charts.production.target'), t('charts.production.efficiencyPct')],
         textStyle: { color: textColor, fontSize: 11 },
         icon: 'circle',
         itemWidth: 8,
@@ -60,7 +60,7 @@ export function ProductionTrendChart({ data, isLoading }: ProductionTrendProps) 
       yAxis: [
         {
           type: 'value',
-          name: 'Units',
+          name: t('charts.production.units'),
           nameTextStyle: { color: textColor, fontSize: 10 },
           axisLabel: { color: textColor, fontSize: 10 },
           splitLine: { lineStyle: { color: gridColor } },
@@ -79,7 +79,7 @@ export function ProductionTrendChart({ data, isLoading }: ProductionTrendProps) 
       ],
       series: [
         {
-          name: 'Actual Output',
+          name: t('charts.production.actualOutput'),
           type: 'bar',
           data: actual,
           itemStyle: {
@@ -96,7 +96,7 @@ export function ProductionTrendChart({ data, isLoading }: ProductionTrendProps) 
           barMaxWidth: 32,
         },
         {
-          name: 'Target',
+          name: t('charts.production.target'),
           type: 'line',
           data: target,
           lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
@@ -104,7 +104,7 @@ export function ProductionTrendChart({ data, isLoading }: ProductionTrendProps) 
           smooth: true,
         },
         {
-          name: 'Efficiency %',
+          name: t('charts.production.efficiencyPct'),
           type: 'line',
           yAxisIndex: 1,
           data: efficiency,
@@ -119,7 +119,7 @@ export function ProductionTrendChart({ data, isLoading }: ProductionTrendProps) 
         },
       ],
     };
-  }, [data, isDark]);
+  }, [data, isDark, t]);
 
   return (
     <div className="industrial-card p-4 h-full">

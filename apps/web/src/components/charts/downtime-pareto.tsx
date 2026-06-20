@@ -29,7 +29,7 @@ export function DowntimePareto({ data, isLoading }: DowntimeParetoProps) {
         textStyle: { color: isDark ? '#ffffff90' : '#000000', fontSize: 11 },
       },
       legend: {
-        data: ['Downtime (min)', 'Cumulative %'],
+        data: [t('charts.pareto.downtimeMin'), t('charts.pareto.cumulativePct')],
         textStyle: { color: textColor, fontSize: 10 },
         right: 0, top: 0,
         icon: 'circle',
@@ -45,7 +45,7 @@ export function DowntimePareto({ data, isLoading }: DowntimeParetoProps) {
       yAxis: [
         {
           type: 'value',
-          name: 'Min',
+          name: t('charts.pareto.min'),
           nameTextStyle: { color: textColor, fontSize: 10 },
           axisLabel: { color: textColor, fontSize: 10 },
           splitLine: { lineStyle: { color: gridColor } },
@@ -63,7 +63,7 @@ export function DowntimePareto({ data, isLoading }: DowntimeParetoProps) {
       ],
       series: [
         {
-          name: 'Downtime (min)',
+          name: t('charts.pareto.downtimeMin'),
           type: 'bar',
           data: data?.map((d) => d.duration) ?? [],
           itemStyle: {
@@ -76,7 +76,7 @@ export function DowntimePareto({ data, isLoading }: DowntimeParetoProps) {
           barMaxWidth: 28,
         },
         {
-          name: 'Cumulative %',
+          name: t('charts.pareto.cumulativePct'),
           type: 'line',
           yAxisIndex: 1,
           data: data?.map((d) => d.cumulative) ?? [],
@@ -88,7 +88,7 @@ export function DowntimePareto({ data, isLoading }: DowntimeParetoProps) {
         },
       ],
     };
-  }, [data, isDark]);
+  }, [data, isDark, t]);
 
   return (
     <div className="industrial-card p-4">

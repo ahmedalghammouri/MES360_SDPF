@@ -62,11 +62,11 @@ interface StepForm {
 
 const FLOW_UNITS = ['PCS', 'INNER', 'CARTON', 'PALLET'] as const;
 
-const UNIT_META: Record<string, { icon: React.ElementType; label: string }> = {
-  PCS: { icon: Box, label: 'Piece' },
-  INNER: { icon: Package, label: 'Inner bag' },
-  CARTON: { icon: Boxes, label: 'Carton' },
-  PALLET: { icon: Layers, label: 'Pallet' },
+const UNIT_META: Record<string, { icon: React.ElementType; labelKey: string }> = {
+  PCS: { icon: Box, labelKey: 'procf.unitMeta.PCS' },
+  INNER: { icon: Package, labelKey: 'procf.unitMeta.INNER' },
+  CARTON: { icon: Boxes, labelKey: 'procf.unitMeta.CARTON' },
+  PALLET: { icon: Layers, labelKey: 'procf.unitMeta.PALLET' },
 };
 
 interface RawMaterialOpt {
@@ -206,6 +206,7 @@ function UnitBoxGroup({
   onChange: (v: string) => void;
   autoHint: string;
 }) {
+  const { t } = useTranslation('production');
   const options = ['', ...FLOW_UNITS];
   return (
     <div className="flex gap-1">
@@ -218,7 +219,7 @@ function UnitBoxGroup({
             key={u || 'auto'}
             type="button"
             onClick={() => onChange(u)}
-            title={u ? meta!.label : autoHint}
+            title={u ? t(meta!.labelKey) : autoHint}
             className={cn(
               'flex flex-col items-center justify-center gap-0.5 w-[52px] h-11 rounded-lg border text-[9px] font-semibold tracking-wide transition-all',
               active
@@ -318,11 +319,11 @@ const COMMON_OPERATIONS = [
   'Granulation', 'Compression', 'Coating', 'Assembly', 'Testing',
 ];
 
-const DEP_TYPES: { value: DependencyType; label: string; short: string; color: string; stroke: string; desc: string }[] = [
-  { value: 'FINISH_TO_START',  label: 'Finish → Start',  short: 'FS', color: 'text-blue-400',   stroke: '#60a5fa', desc: 'B starts after A finishes' },
-  { value: 'START_TO_START',   label: 'Start → Start',   short: 'SS', color: 'text-violet-400', stroke: '#a78bfa', desc: 'B starts when A starts (parallel)' },
-  { value: 'START_TO_FINISH',  label: 'Start → Finish',  short: 'SF', color: 'text-orange-400', stroke: '#fb923c', desc: 'B must finish before A starts' },
-  { value: 'FINISH_TO_FINISH', label: 'Finish → Finish', short: 'FF', color: 'text-emerald-400', stroke: '#34d399', desc: 'B finishes when A finishes' },
+const DEP_TYPES: { value: DependencyType; labelKey: string; short: string; color: string; stroke: string; descKey: string }[] = [
+  { value: 'FINISH_TO_START',  labelKey: 'procf.depType.FINISH_TO_START',  short: 'FS', color: 'text-blue-400',   stroke: '#60a5fa', descKey: 'procf.depDesc.FINISH_TO_START' },
+  { value: 'START_TO_START',   labelKey: 'procf.depType.START_TO_START',   short: 'SS', color: 'text-violet-400', stroke: '#a78bfa', descKey: 'procf.depDesc.START_TO_START' },
+  { value: 'START_TO_FINISH',  labelKey: 'procf.depType.START_TO_FINISH',  short: 'SF', color: 'text-orange-400', stroke: '#fb923c', descKey: 'procf.depDesc.START_TO_FINISH' },
+  { value: 'FINISH_TO_FINISH', labelKey: 'procf.depType.FINISH_TO_FINISH', short: 'FF', color: 'text-emerald-400', stroke: '#34d399', descKey: 'procf.depDesc.FINISH_TO_FINISH' },
 ];
 
 const EMPTY_STEP = (): StepForm => ({
@@ -431,6 +432,7 @@ function buildArrowPath(fx: number, fy: number, tx: number, ty: number): string 
 // ── PDM Diagram ───────────────────────────────────────────────
 
 function PdmDiagram({ steps }: { steps: RoutingStep[] }) {
+  const { t } = useTranslation('production');
   if (!steps.length) return null;
   const { positions, svgW, svgH } = computeLayout(steps);
 
@@ -527,10 +529,10 @@ function PdmDiagram({ steps }: { steps: RoutingStep[] }) {
               <text x={pos.x + 10} y={pos.y + 64} fontSize="9" fill="#64748b" fontFamily="sans-serif">
                 {(() => {
                   const sec = step.cycleTimeSec ?? (step.cycleTimeMins != null ? step.cycleTimeMins * 60 : null);
-                  return sec != null ? `⏱ ${sec}s cycle` : '';
+                  return sec != null ? `⏱ ${t('procf.pdmCycle', { sec })}` : '';
                 })()}
                 {(step.cycleTimeSec != null || step.cycleTimeMins != null) && step.setupTimeMins != null ? '  ' : ''}
-                {step.setupTimeMins != null && step.setupTimeMins > 0 ? `⚙ ${step.setupTimeMins}m setup` : ''}
+                {step.setupTimeMins != null && step.setupTimeMins > 0 ? `⚙ ${t('procf.pdmSetup', { min: step.setupTimeMins })}` : ''}
               </text>
               {/* Unit flow + materials + alternative machines */}
               <text x={pos.x + 10} y={pos.y + 80} fontSize="9" fontWeight="600" fill="#7dd3fc" fontFamily="monospace">
@@ -542,7 +544,7 @@ function PdmDiagram({ steps }: { steps: RoutingStep[] }) {
                 <>
                   <rect x={pos.x + 10} y={pos.y + 86} width="46" height="12" rx="4" fill="#1e3a2f" />
                   <text x={pos.x + 33} y={pos.y + 95} textAnchor="middle" fontSize="8" fill="#6ee7b7">
-                    🧪 {step.materials!.length} input{step.materials!.length > 1 ? 's' : ''}
+                    🧪 {t('procf.pdmInputs', { count: step.materials!.length })}
                   </text>
                 </>
               )}
@@ -550,7 +552,7 @@ function PdmDiagram({ steps }: { steps: RoutingStep[] }) {
                 <>
                   <rect x={pos.x + 60} y={pos.y + 86} width="36" height="12" rx="4" fill="#312e51" />
                   <text x={pos.x + 78} y={pos.y + 95} textAnchor="middle" fontSize="8" fill="#a5b4fc">
-                    ⎇ {step.machineOptions!.filter(o => !o.isDefault).length} alt
+                    ⎇ {t('procf.pdmAlt', { count: step.machineOptions!.filter(o => !o.isDefault).length })}
                   </text>
                 </>
               )}
@@ -558,7 +560,7 @@ function PdmDiagram({ steps }: { steps: RoutingStep[] }) {
               {step.isOptional && (
                 <>
                   <rect x={pos.x + BOX_W - 48} y={pos.y + 86} width="40" height="12" rx="4" fill="#374151" />
-                  <text x={pos.x + BOX_W - 28} y={pos.y + 95} textAnchor="middle" fontSize="8" fill="#9ca3af">Optional</text>
+                  <text x={pos.x + BOX_W - 28} y={pos.y + 95} textAnchor="middle" fontSize="8" fill="#9ca3af">{t('procf.pdmOptional')}</text>
                 </>
               )}
               {/* Description tooltip indicator */}
@@ -575,7 +577,7 @@ function PdmDiagram({ steps }: { steps: RoutingStep[] }) {
         {DEP_TYPES.map(dt => (
           <div key={dt.value} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <span className="font-mono font-bold text-xs" style={{ color: dt.stroke }}>{dt.short}</span>
-            <span>{dt.desc}</span>
+            <span>{t(dt.descKey)}</span>
           </div>
         ))}
       </div>
@@ -1136,7 +1138,7 @@ function ProcessForm({
                         <SelectContent>
                           {DEP_TYPES.map(dt => (
                             <SelectItem key={dt.value} value={dt.value}>
-                              <span className={cn('font-mono font-bold me-1.5', dt.color)}>{dt.short}</span>{t(`procf.depType.${dt.value}`, { defaultValue: dt.label })}
+                              <span className={cn('font-mono font-bold me-1.5', dt.color)}>{dt.short}</span>{t(dt.labelKey)}
                             </SelectItem>
                           ))}
                         </SelectContent>

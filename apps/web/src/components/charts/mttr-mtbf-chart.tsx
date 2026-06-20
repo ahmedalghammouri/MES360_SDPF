@@ -48,7 +48,7 @@ export function MTTRMTBFChart({ isLoading }: MTTRMTBFChartProps) {
         textStyle: { color: isDark ? '#ffffff90' : '#000000', fontSize: 11 },
       },
       legend: {
-        data: ['MTTR (hours)', 'MTBF (hours)'],
+        data: [t('charts.mttr.mttrHours'), t('charts.mttr.mtbfHours')],
         textStyle: { color: textColor, fontSize: 10 },
         right: 0, top: 0,
         icon: 'circle',
@@ -64,7 +64,7 @@ export function MTTRMTBFChart({ isLoading }: MTTRMTBFChartProps) {
       yAxis: [
         {
           type: 'value',
-          name: 'MTTR (h)',
+          name: t('charts.mttr.mttrAxis'),
           nameTextStyle: { color: textColor, fontSize: 10 },
           axisLabel: { color: textColor, fontSize: 10 },
           splitLine: { lineStyle: { color: gridColor } },
@@ -72,7 +72,7 @@ export function MTTRMTBFChart({ isLoading }: MTTRMTBFChartProps) {
         },
         {
           type: 'value',
-          name: 'MTBF (h)',
+          name: t('charts.mttr.mtbfAxis'),
           nameTextStyle: { color: textColor, fontSize: 10 },
           axisLabel: { color: textColor, fontSize: 10 },
           splitLine: { show: false },
@@ -81,7 +81,7 @@ export function MTTRMTBFChart({ isLoading }: MTTRMTBFChartProps) {
       ],
       series: [
         {
-          name: 'MTTR (hours)',
+          name: t('charts.mttr.mttrHours'),
           type: 'bar',
           data: points.map((d) => d.mttr),
           itemStyle: {
@@ -92,7 +92,7 @@ export function MTTRMTBFChart({ isLoading }: MTTRMTBFChartProps) {
           barMaxWidth: 28,
         },
         {
-          name: 'MTBF (hours)',
+          name: t('charts.mttr.mtbfHours'),
           type: 'line',
           yAxisIndex: 1,
           data: points.map((d) => d.mtbf),
@@ -107,7 +107,7 @@ export function MTTRMTBFChart({ isLoading }: MTTRMTBFChartProps) {
         },
       ],
     };
-  }, [isDark, points]);
+  }, [isDark, points, t]);
 
   return (
     <div className="industrial-card p-4">
@@ -119,7 +119,7 @@ export function MTTRMTBFChart({ isLoading }: MTTRMTBFChartProps) {
         <div className="shimmer h-40 rounded-lg" />
       ) : points.length === 0 ? (
         <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
-          No reliability data available yet
+          {t('charts.mttr.noData')}
         </div>
       ) : (
         <ReactECharts option={option} style={{ height: '160px' }} notMerge />

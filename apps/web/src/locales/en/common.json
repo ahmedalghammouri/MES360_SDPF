@@ -13,7 +13,26 @@
     "oeeAnalysis": "OEE Analysis", "oeeFull": "Overall Equipment Effectiveness",
     "availability": "Availability", "performance": "Performance", "quality": "Quality",
     "mttrMtbf": "Mean Time to Repair vs Mean Time Between Failures", "downtimePareto": "Downtime Pareto", "downtimeParetoSub": "Top downtime causes (Pareto analysis)", "mttrMtbfTitle": "MTTR & MTBF Trends",
-    "gRows": "Rows", "gTimeScale": "Time scale", "gActions": "Actions", "gOrders": "Orders", "gResources": "Resources", "gSupply": "Supply", "gDemand": "Demand"
+    "gRows": "Rows", "gTimeScale": "Time scale", "gActions": "Actions", "gOrders": "Orders", "gResources": "Resources", "gSupply": "Supply", "gDemand": "Demand",
+    "worldClass": "World Class",
+    "production": {
+      "actualOutput": "Actual Output", "target": "Target", "efficiencyPct": "Efficiency %", "units": "Units"
+    },
+    "qualityTrendSeries": {
+      "fpy": "FPY %", "rework": "Rework %", "scrap": "Scrap %"
+    },
+    "mttr": {
+      "mttrHours": "MTTR (hours)", "mtbfHours": "MTBF (hours)", "mttrAxis": "MTTR (h)", "mtbfAxis": "MTBF (h)", "noData": "No reliability data available yet"
+    },
+    "pareto": {
+      "downtimeMin": "Downtime (min)", "cumulativePct": "Cumulative %", "min": "Min"
+    },
+    "spc": {
+      "title": "Statistical Process Control (X-Bar Chart)", "value": "Value", "mean": "Mean", "controlLimits": "Control Limits", "specLimits": "Spec Limits", "noData": "No SPC measurements recorded for this parameter"
+    },
+    "gantt": {
+      "category": "Category", "resource": "Resource", "noItems": "No scheduled items in this range. Adjust the date range or filters."
+    }
   },
   "gantt": {
     "view": "Gantt View",

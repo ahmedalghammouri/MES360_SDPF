@@ -306,7 +306,20 @@
     "minSetup": "{{min}} دقيقة إعداد",
     "approveGatedTitle": "يجب اعتماد {{cr}} في PLM › طلبات التغيير أولًا",
     "approveTitle": "اعتمد العملية — تُعاد قائمة مواد كل منتج مشمول تلقائيًا",
-    "approve": "اعتماد"
+    "approve": "اعتماد",
+    "unitMeta": { "PCS": "قطعة", "INNER": "كيس داخلي", "CARTON": "كرتون", "PALLET": "منصة" },
+    "depDesc": {
+      "FINISH_TO_START": "تبدأ B بعد انتهاء A",
+      "START_TO_START": "تبدأ B عند بدء A (متوازٍ)",
+      "START_TO_FINISH": "يجب أن تنتهي B قبل بدء A",
+      "FINISH_TO_FINISH": "تنتهي B عند انتهاء A"
+    },
+    "pdmCycle": "{{sec}} ث دورة",
+    "pdmSetup": "{{min}} د إعداد",
+    "pdmInputs_one": "{{count}} مدخل",
+    "pdmInputs_other": "{{count}} مدخلات",
+    "pdmAlt": "{{count}} بديل",
+    "pdmOptional": "اختياري"
   },
   "autogen": {
     "title": "توليد أمر عمل تلقائيًا",
@@ -521,6 +534,7 @@
     "notesPlaceholder": "صِف ما حدث وأي إجراءات فورية اتُّخذت...",
     "footerHint": "* الماكينة مطلوبة. يُنصح باختيار السبب لتحليلات دقيقة.",
     "cancel": "إلغاء", "logging": "جارٍ التسجيل...", "logEvent": "تسجيل الحدث",
+    "toastLogged": "تم تسجيل التوقف", "toastLogFailed": "فشل تسجيل التوقف",
     "loading": "جارٍ تحميل الأحداث المباشرة...", "noEvents": "لا توجد أحداث توقف مفتوحة — كل الماكينات تعمل.",
     "col": { "reasonCode": "رمز السبب", "cause": "السبب", "machine": "الماكينة", "workCenter": "مركز العمل", "start": "البدء", "duration": "المدة", "oeeImpact": "تأثير الكفاءة", "actions": "إجراءات" }
   },
@@ -548,6 +562,7 @@
     "search": "بحث…", "allMachines": "كل الماكينات", "noRecords": "لا توجد سجلات توقف.",
     "searchCauses": "ابحث في الأسباب…", "noCauses": "لا توجد أسباب مطابقة.",
     "clear": "مسح", "recordsCount": "{{count}} سجل", "loadingHistory": "جارٍ تحميل السجل...",
+    "openSuffix": "مفتوح",
     "col": { "reasonCode": "رمز السبب", "cause": "السبب", "machine": "الماكينة", "workCenter": "مركز العمل", "startEnd": "البدء / الانتهاء", "duration": "المدة", "oeeImpact": "تأثير الكفاءة", "status": "الحالة" }
   },
   "dtabs": {
@@ -731,7 +746,9 @@
     "aiAnalysisTitle": "تحليل الذكاء الاصطناعي — رؤى مباشرة لأمر التشغيل هذا", "ruleBasedRealData": "قائم على القواعد · بيانات حقيقية",
     "oeeBenchmarksTitle": "معايير ومقاييس الكفاءة OEE في القطاع",
     "sixBigLossesManufacturing": "الخسائر الست الكبرى في التصنيع",
-    "availabilityMetricsMtt": "مقاييس التوافر — MTTD · MTTR · MTBF"
+    "availabilityMetricsMtt": "مقاييس التوافر — MTTD · MTTR · MTBF",
+    "formulaSchedule": "ا = وقت التشغيل / وقت الإنتاج المخطط",
+    "formulaTimeBased": "ا = وقت التشغيل / (وقت التشغيل + التوقف)"
   },
   "sched": {
     "summary": {
@@ -822,5 +839,78 @@
     "detailCreated": "أُنشئت",
     "editBatch": "تعديل الدفعة",
     "deleteTitle": "حذف الدفعة؟"
+  },
+  "jfb": {
+    "filters": "عوامل التصفية",
+    "all": "الكل",
+    "selectedCount": "{{count}} محدّد",
+    "filterByMachine": "تصفية حسب الماكينة",
+    "clear": "مسح",
+    "clearAll": "مسح الكل"
+  },
+  "sfv": {
+    "title": "صالة الإنتاج",
+    "realTimeExecution": "تنفيذ لحظي",
+    "refreshLabel": "التحديث: {{time}}",
+    "refresh": "تحديث",
+    "jobsCount": "/ {{count}} مهمة",
+    "noJobsToDisplay": "لا توجد أوامر تشغيل للعرض",
+    "noActiveJobs": "لا توجد مهام نشطة. غيّر عامل التصفية لعرض الكل.",
+    "generateToStart": "ولّد أوامر التشغيل من أوامر الإنتاج للبدء.",
+    "first": "الأول",
+    "prev": "السابق",
+    "next": "التالي",
+    "last": "الأخير",
+    "page": "الصفحة",
+    "cardsCount": "({{count}} بطاقة)",
+    "status": {
+      "SCHEDULED": "مجدول", "READY": "جاهز", "EXECUTING": "قيد التشغيل",
+      "PAUSED": "متوقف مؤقتًا", "COMPLETE": "مكتمل", "CANCELLED": "ملغى"
+    },
+    "filter": { "active": "نشط", "all": "الكل" },
+    "kpiExecuting": "{{count}} قيد التشغيل",
+    "kpiReady": "{{count}} جاهز",
+    "kpiPaused": "{{count}} متوقف مؤقتًا",
+    "kpiDone": "{{count}} منجز",
+    "openLiveDashboard": "فتح اللوحة المباشرة",
+    "availSchedTooltip": "التوافر (حسب الجدول)",
+    "availTbTooltip": "التوافر (زمني)",
+    "oeeSchedTooltip": "الكفاءة (حسب الجدول)",
+    "oeeTbTooltip": "الكفاءة (زمني)",
+    "target": "المستهدف",
+    "paceLabel": "{{pace}}/ساعة",
+    "etaLabel": "الوقت المتوقع {{eta}}",
+    "unassignOperator": "إلغاء إسناد المشغّل",
+    "tapToChange": "انقر للتغيير",
+    "tapToAssignOperator": "انقر لإسناد مشغّل",
+    "recordProduction": "تسجيل الإنتاج",
+    "handoverToNext": "التسليم إلى الخطوة التالية",
+    "addGood": "إضافة جيد",
+    "addBadScrap": "إضافة معيب / هالك",
+    "newTotals": "الإجماليات الجديدة:",
+    "goodLower": "جيد",
+    "badLower": "معيب",
+    "qualityArrow": "الجودة ←",
+    "rejectReasonPlaceholder": "سبب الرفض (اختياري)…",
+    "handover": "التسليم",
+    "setHandoverQty": "تعيين كمية التسليم",
+    "record": "تسجيل",
+    "plusGood": "+{{count}} جيد",
+    "plusBad": "+{{count}} معيب",
+    "liveDashboardTooltip": "فتح اللوحة المباشرة",
+    "live": "مباشر",
+    "requestMaintTooltip": "طلب صيانة",
+    "maint": "صيانة",
+    "changeStateTooltip": "تغيير حالة الماكينة / إيقاف",
+    "stop": "إيقاف",
+    "raiseAlarmTooltip": "إطلاق إنذار",
+    "alarm": "إنذار",
+    "start": "بدء",
+    "complete": "إكمال",
+    "resume": "استئناف",
+    "completedWith": "مكتمل — {{qty}} {{unit}}",
+    "waitingForPredecessor": "في انتظار: {{op}}",
+    "toastRecorded": "تم التسجيل",
+    "toastFailedRecord": "فشل التسجيل"
   }
 }

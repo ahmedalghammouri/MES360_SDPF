@@ -128,7 +128,7 @@ export function OEEGauge({ oee, availability, performance, quality, isLoading }:
         </div>
         {oee >= 85 && (
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-success-500/10 text-success-400 border border-success-500/20">
-            World Class
+            {t('charts.worldClass')}
           </span>
         )}
       </div>

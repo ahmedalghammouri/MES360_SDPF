@@ -75,7 +75,7 @@ export function LogDowntimeDialog({
         ...(notes.trim() ? { description: notes.trim() } : {}),
       }),
     onSuccess: () => {
-      toast({ title: 'Downtime logged', description: cause?.l3Name ?? REASON_CODE_CFG[reasonCode as keyof typeof REASON_CODE_CFG]?.label });
+      toast({ title: t('dlive.toastLogged'), description: cause?.l3Name ?? t(`event.reasonCfg.${reasonCode}`) });
       qc.invalidateQueries({ queryKey: ['jo-live'] });
       qc.invalidateQueries({ queryKey: ['shop-floor-jobs'] });
       qc.invalidateQueries({ queryKey: ['downtime'] });
@@ -83,7 +83,7 @@ export function LogDowntimeDialog({
       setCauseId(''); setCause(null); setNotes(''); setStartTime('');
     },
     onError: (e: any) => toast({
-      variant: 'destructive', title: 'Failed to log downtime', description: e?.response?.data?.message,
+      variant: 'destructive', title: t('dlive.toastLogFailed'), description: e?.response?.data?.message,
     }),
   });
 
@@ -112,7 +112,7 @@ export function LogDowntimeDialog({
                     <SelectItem key={k} value={k}>
                       <div className="flex items-center gap-2">
                         <Icon size={12} className={v.color} />
-                        <span>{t(`event.reasonCfg.${k}`, { defaultValue: v.label })}</span>
+                        <span>{t(`event.reasonCfg.${k}`)}</span>
                       </div>
                     </SelectItem>
                   );
@@ -137,7 +137,7 @@ export function LogDowntimeDialog({
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Tag size={10} className="text-muted-foreground" />
                 <span className="text-[10px] text-muted-foreground">{t('dlive.categoryAutoSet')}</span>
-                <Badge variant="outline" className="text-[10px] h-4">{t(`dtree.cat.${cause.category}`, { defaultValue: cause.category })}</Badge>
+                <Badge variant="outline" className="text-[10px] h-4">{t(`dtree.cat.${cause.category}`)}</Badge>
                 {cause.isPlanned && <Badge variant="outline" className="text-[10px] h-4 text-blue-400 border-blue-500/30">{t('dlive.plannedStop')}</Badge>}
               </div>
             )}

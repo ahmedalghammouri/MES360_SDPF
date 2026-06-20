@@ -25,20 +25,6 @@ interface SystemStatus {
 }
 type ResetTarget = { scope: 'production' | 'timeseries'; title: string; danger: string } | null;
 
-const PROD_LABELS: Record<string, string> = {
-  productionOrders: 'Production Orders',
-  workOrders: 'Work Orders',
-  jobOrders: 'Job Orders',
-  productionEvents: 'Production Events',
-  batchRecords: 'Batch Records',
-  materialConsumptions: 'Material Consumptions',
-  jobOrderMaterials: 'Job-Order Materials',
-  scrapLogs: 'Scrap Logs',
-  rescheduleRequests: 'Reschedule Requests',
-  genealogyLinks: 'Genealogy Links',
-  energyWoSummaries: 'Energy WO Summaries',
-};
-
 /** Same-origin API base (behind nginx) with an SSR fallback. */
 function apiBase() {
   return typeof window !== 'undefined' ? `${window.location.origin}/api/v1` : '/api/v1';
@@ -214,7 +200,7 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
           {status && Object.entries(status.production).map(([k, v]) => (
-            <Stat key={k} label={t(`dz.prod.${k}`, { defaultValue: PROD_LABELS[k] ?? k })} value={v} highlight={v > 0} />
+            <Stat key={k} label={t(`dz.prod.${k}`, { defaultValue: k })} value={v} highlight={v > 0} />
           ))}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-2.5">

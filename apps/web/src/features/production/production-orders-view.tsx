@@ -95,22 +95,22 @@ interface JobOrder {
 // Status / Priority config
 // ─────────────────────────────────────────────────────────────
 
-const PO_STATUS: Record<POStatus, { label: string; color: string; bg: string; icon: any }> = {
-  PLANNED:     { label: 'Planned',     color: 'text-slate-400',  bg: 'bg-slate-500/15',  icon: Clock        },
-  RELEASED:    { label: 'Released',    color: 'text-blue-400',   bg: 'bg-blue-500/15',   icon: SendHorizonal },
-  IN_PROGRESS: { label: 'In Progress', color: 'text-brand-400',  bg: 'bg-brand-500/15',  icon: RefreshCw    },
-  COMPLETED:   { label: 'Completed',   color: 'text-green-400',  bg: 'bg-green-500/15',  icon: CheckCircle2 },
-  ON_HOLD:     { label: 'On Hold',     color: 'text-amber-400',  bg: 'bg-amber-500/15',  icon: PauseCircle  },
-  CANCELLED:   { label: 'Cancelled',   color: 'text-red-400',    bg: 'bg-red-500/15',    icon: XCircle      },
+const PO_STATUS: Record<POStatus, { labelKey: string; color: string; bg: string; icon: any }> = {
+  PLANNED:     { labelKey: 'po.status.PLANNED',     color: 'text-slate-400',  bg: 'bg-slate-500/15',  icon: Clock        },
+  RELEASED:    { labelKey: 'po.status.RELEASED',    color: 'text-blue-400',   bg: 'bg-blue-500/15',   icon: SendHorizonal },
+  IN_PROGRESS: { labelKey: 'po.status.IN_PROGRESS', color: 'text-brand-400',  bg: 'bg-brand-500/15',  icon: RefreshCw    },
+  COMPLETED:   { labelKey: 'po.status.COMPLETED',   color: 'text-green-400',  bg: 'bg-green-500/15',  icon: CheckCircle2 },
+  ON_HOLD:     { labelKey: 'po.status.ON_HOLD',     color: 'text-amber-400',  bg: 'bg-amber-500/15',  icon: PauseCircle  },
+  CANCELLED:   { labelKey: 'po.status.CANCELLED',   color: 'text-red-400',    bg: 'bg-red-500/15',    icon: XCircle      },
 };
 
-const WO_STATUS: Record<WOStatus, { label: string; color: string; bar: string }> = {
-  PLANNED:     { label: 'Planned',     color: 'text-slate-400', bar: 'bg-slate-500'  },
-  RELEASED:    { label: 'Released',    color: 'text-blue-400',  bar: 'bg-blue-500'   },
-  IN_PROGRESS: { label: 'Running',     color: 'text-brand-400', bar: 'bg-brand-500'  },
-  COMPLETED:   { label: 'Completed',   color: 'text-green-400', bar: 'bg-green-500'  },
-  ON_HOLD:     { label: 'On Hold',     color: 'text-amber-400', bar: 'bg-amber-500'  },
-  CANCELLED:   { label: 'Cancelled',   color: 'text-red-400',   bar: 'bg-red-500'    },
+const WO_STATUS: Record<WOStatus, { labelKey: string; color: string; bar: string }> = {
+  PLANNED:     { labelKey: 'podetail.woStatus.PLANNED',     color: 'text-slate-400', bar: 'bg-slate-500'  },
+  RELEASED:    { labelKey: 'podetail.woStatus.RELEASED',    color: 'text-blue-400',  bar: 'bg-blue-500'   },
+  IN_PROGRESS: { labelKey: 'podetail.woStatus.IN_PROGRESS', color: 'text-brand-400', bar: 'bg-brand-500'  },
+  COMPLETED:   { labelKey: 'podetail.woStatus.COMPLETED',   color: 'text-green-400', bar: 'bg-green-500'  },
+  ON_HOLD:     { labelKey: 'podetail.woStatus.ON_HOLD',     color: 'text-amber-400', bar: 'bg-amber-500'  },
+  CANCELLED:   { labelKey: 'podetail.woStatus.CANCELLED',   color: 'text-red-400',   bar: 'bg-red-500'    },
 };
 
 const PRI_CLS: Record<Priority, string> = {
@@ -120,13 +120,13 @@ const PRI_CLS: Record<Priority, string> = {
   LOW:      'border-slate-500 text-slate-400',
 };
 
-const JO_STATUS: Record<JOStatus, { label: string; color: string; bg: string; dot: string }> = {
-  SCHEDULED: { label: 'Scheduled', color: 'text-slate-400',  bg: 'bg-slate-500/15',  dot: 'bg-slate-500'  },
-  READY:     { label: 'Ready',     color: 'text-blue-400',   bg: 'bg-blue-500/15',   dot: 'bg-blue-500'   },
-  EXECUTING: { label: 'Running',   color: 'text-brand-400',  bg: 'bg-brand-500/15',  dot: 'bg-brand-500'  },
-  PAUSED:    { label: 'Paused',    color: 'text-amber-400',  bg: 'bg-amber-500/15',  dot: 'bg-amber-500'  },
-  COMPLETE:  { label: 'Complete',  color: 'text-green-400',  bg: 'bg-green-500/15',  dot: 'bg-green-500'  },
-  CANCELLED: { label: 'Cancelled', color: 'text-red-400',    bg: 'bg-red-500/15',    dot: 'bg-red-500'    },
+const JO_STATUS: Record<JOStatus, { labelKey: string; color: string; bg: string; dot: string }> = {
+  SCHEDULED: { labelKey: 'podetail.joStatus.SCHEDULED', color: 'text-slate-400',  bg: 'bg-slate-500/15',  dot: 'bg-slate-500'  },
+  READY:     { labelKey: 'podetail.joStatus.READY',     color: 'text-blue-400',   bg: 'bg-blue-500/15',   dot: 'bg-blue-500'   },
+  EXECUTING: { labelKey: 'podetail.joStatus.EXECUTING', color: 'text-brand-400',  bg: 'bg-brand-500/15',  dot: 'bg-brand-500'  },
+  PAUSED:    { labelKey: 'podetail.joStatus.PAUSED',    color: 'text-amber-400',  bg: 'bg-amber-500/15',  dot: 'bg-amber-500'  },
+  COMPLETE:  { labelKey: 'podetail.joStatus.COMPLETE',  color: 'text-green-400',  bg: 'bg-green-500/15',  dot: 'bg-green-500'  },
+  CANCELLED: { labelKey: 'podetail.joStatus.CANCELLED', color: 'text-red-400',    bg: 'bg-red-500/15',    dot: 'bg-red-500'    },
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -620,7 +620,7 @@ function WOsWithDispatch({ po, actions }: WOsWithDispatchProps) {
                       )} />
                       <span className="font-mono text-xs text-blue-300">{wo.orderNumber}</span>
                     </div>
-                    <span className={cn('text-[10px] font-medium', wcfg.color)}>{t(`podetail.woStatus.${wo.status}`, { defaultValue: wcfg.label })}</span>
+                    <span className={cn('text-[10px] font-medium', wcfg.color)}>{t(`podetail.woStatus.${wo.status}`)}</span>
                   </div>
                   <div className="flex items-center gap-3 text-[10px] text-muted-foreground mb-1.5 ps-5">
                     <span>{wo.plannedQty.toLocaleString()} {t('podetail.unitsSuffix')}</span>
@@ -683,7 +683,7 @@ function PODetailSheet({ po, open, onClose, actions }: PODetailSheetProps) {
             </div>
             <div className="flex items-center gap-2">
               <div className={cn('flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full', cfg.bg, cfg.color)}>
-                <StatusIcon className="w-3.5 h-3.5" /> {t(`po.status.${po.status}`, { defaultValue: cfg.label })}
+                <StatusIcon className="w-3.5 h-3.5" /> {t(`po.status.${po.status}`)}
               </div>
               <POActionMenu po={po} {...actions} />
             </div>
@@ -943,7 +943,7 @@ function DispatchListPanel({ woId, woStatus, plannedStart, plannedEnd }: Dispatc
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className={cn('text-[10px] px-1.5 py-0.5 rounded', cfg.bg, cfg.color)}>
-                      {t(`podetail.joStatus.${jo.status}`, { defaultValue: cfg.label })}
+                      {t(`podetail.joStatus.${jo.status}`)}
                     </span>
                     {canStart && (
                       <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-green-400 hover:bg-green-500/15"
@@ -1057,7 +1057,7 @@ function PORow({ po, idx, onSelect, actions, selected, onToggle }: PORowProps) {
       </td>
       <td className="p-3">
         <div className={cn('flex items-center gap-1.5 text-xs', cfg.color)}>
-          <StatusIcon className="w-3.5 h-3.5" />{t(`po.status.${po.status}`, { defaultValue: cfg.label })}
+          <StatusIcon className="w-3.5 h-3.5" />{t(`po.status.${po.status}`)}
         </div>
       </td>
       <td className="p-3 text-xs text-muted-foreground">{fmt(po.plannedStart)}</td>
@@ -1290,7 +1290,7 @@ export function ProductionOrdersView() {
         <div className="flex gap-1.5 flex-wrap">
           {(['all','PLANNED','RELEASED','IN_PROGRESS','COMPLETED','ON_HOLD','CANCELLED'] as const).map(s => (
             <Button key={s} variant={statusFilter === s ? 'default' : 'outline'} size="sm" className="h-8 text-xs" onClick={() => setStatusFilter(s)}>
-              {s === 'all' ? t('po.all') : t(`po.status.${s}`, { defaultValue: PO_STATUS[s as POStatus]?.label ?? s })}
+              {s === 'all' ? t('po.all') : t(`po.status.${s}`)}
             </Button>
           ))}
         </div>
