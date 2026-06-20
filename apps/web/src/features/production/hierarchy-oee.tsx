@@ -8,6 +8,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { LayoutGrid, GitBranch, Cpu, ChevronRight, ChevronDown, Layers } from 'lucide-react';
 import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
@@ -80,6 +81,7 @@ function NodeRow({ node, depth }: { node: OeeNode; depth: number }) {
 }
 
 export function HierarchyOEE() {
+  const { t } = useTranslation('production');
   const { filter, key } = useScope();
   const { dateFrom, dateTo, key: timeKey } = useTimeRange();
   const { data, isLoading } = useQuery({
@@ -105,11 +107,11 @@ export function HierarchyOEE() {
         <div className="industrial-card rounded-xl p-4 h-full">
           <div className="flex items-center gap-2 mb-3">
             <Layers size={14} className="text-brand-400" />
-            <span className="text-sm font-semibold">OEE by hierarchy</span>
-            <span className="ml-auto text-[11px] text-muted-foreground">Plant <span className={cn('font-bold', oeeText(plant.oee))}>{plant.oee}%</span></span>
+            <span className="text-sm font-semibold">{t('hierOee.byHierarchy')}</span>
+            <span className="ml-auto text-[11px] text-muted-foreground">{t('hierOee.plant')} <span className={cn('font-bold', oeeText(plant.oee))}>{plant.oee}%</span></span>
           </div>
           {tree.length === 0 ? (
-            <div className="text-xs text-muted-foreground text-center py-8">No OEE records in range yet.</div>
+            <div className="text-xs text-muted-foreground text-center py-8">{t('hierOee.noRecords')}</div>
           ) : (
             <div className="space-y-0.5">{tree.map(n => <NodeRow key={n.id} node={n} depth={0} />)}</div>
           )}
@@ -119,17 +121,17 @@ export function HierarchyOEE() {
       {/* Six-loss waterfall + Pareto */}
       <div className="col-span-12 lg:col-span-5 space-y-4">
         <div className="industrial-card rounded-xl p-4">
-          <span className="text-sm font-semibold">Loss breakdown (plant, minutes)</span>
+          <span className="text-sm font-semibold">{t('hierOee.lossBreakdown')}</span>
           <div className="mt-3 space-y-2.5">
             {([
-              ['Availability loss', losses.availabilityLossMin, 'bg-red-500'],
-              ['Performance loss', losses.performanceLossMin, 'bg-amber-500'],
-              ['Quality loss', losses.qualityLossMin, 'bg-violet-500'],
-            ] as const).map(([label, min, bar]) => (
-              <div key={label}>
+              ['hierOee.availabilityLoss', losses.availabilityLossMin, 'bg-red-500'],
+              ['hierOee.performanceLoss', losses.performanceLossMin, 'bg-amber-500'],
+              ['hierOee.qualityLoss', losses.qualityLossMin, 'bg-violet-500'],
+            ] as const).map(([labelKey, min, bar]) => (
+              <div key={labelKey}>
                 <div className="flex items-center justify-between text-[11px] mb-0.5">
-                  <span className="text-muted-foreground">{label}</span>
-                  <span className="font-semibold tabular-nums">{min} min</span>
+                  <span className="text-muted-foreground">{t(labelKey)}</span>
+                  <span className="font-semibold tabular-nums">{t('hierOee.minSuffix', { count: min })}</span>
                 </div>
                 <div className="h-2 rounded-full bg-foreground/10 overflow-hidden">
                   <div className={cn('h-full rounded-full', bar)} style={{ width: `${(min / lossMax) * 100}%` }} />
@@ -140,16 +142,16 @@ export function HierarchyOEE() {
         </div>
 
         <div className="industrial-card rounded-xl p-4">
-          <span className="text-sm font-semibold">Downtime Pareto (unplanned)</span>
+          <span className="text-sm font-semibold">{t('hierOee.downtimePareto')}</span>
           {pareto.length === 0 ? (
-            <div className="text-xs text-muted-foreground text-center py-6">No unplanned downtime in range.</div>
+            <div className="text-xs text-muted-foreground text-center py-6">{t('hierOee.noUnplanned')}</div>
           ) : (
             <div className="mt-3 space-y-2">
               {pareto.slice(0, 7).map(p => (
                 <div key={p.reasonCode}>
                   <div className="flex items-center justify-between text-[11px] mb-0.5">
-                    <span className="text-muted-foreground truncate">{prettyReason(p.reasonCode)} <span className="opacity-60">· {p.events}×</span></span>
-                    <span className="font-semibold tabular-nums shrink-0 ml-2">{p.minutes} min</span>
+                    <span className="text-muted-foreground truncate">{prettyReason(p.reasonCode)} <span className="opacity-60">· {t('hierOee.eventsSuffix', { count: p.events })}</span></span>
+                    <span className="font-semibold tabular-nums shrink-0 ml-2">{t('hierOee.minSuffix', { count: p.minutes })}</span>
                   </div>
                   <div className="h-2 rounded-full bg-foreground/10 overflow-hidden">
                     <div className="h-full rounded-full bg-red-500/70" style={{ width: `${(p.minutes / paretoMax) * 100}%` }} />

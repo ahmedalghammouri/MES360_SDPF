@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 import {
   Play, Pause, CheckSquare, RefreshCw, Factory, Timer,
@@ -65,13 +66,13 @@ interface ShopFloorJO {
 // Constants
 // ─────────────────────────────────────────────────────────────
 
-const JO_STATUS: Record<JOStatus, { label: string; color: string; dot: string; border: string }> = {
-  SCHEDULED: { label: 'Scheduled', color: 'text-slate-400  bg-slate-400/10  border-slate-400/30',  dot: 'bg-slate-400',   border: 'border-l-slate-500/40'  },
-  READY:     { label: 'Ready',     color: 'text-blue-400   bg-blue-400/10   border-blue-400/30',   dot: 'bg-blue-400',    border: 'border-l-blue-500'      },
-  EXECUTING: { label: 'Executing', color: 'text-green-400  bg-green-400/10  border-green-400/30',  dot: 'bg-green-400',   border: 'border-l-green-500'     },
-  PAUSED:    { label: 'Paused',    color: 'text-amber-400  bg-amber-400/10  border-amber-400/30',  dot: 'bg-amber-400',   border: 'border-l-amber-500'     },
-  COMPLETE:  { label: 'Complete',  color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30', dot: 'bg-emerald-400', border: 'border-l-emerald-500' },
-  CANCELLED: { label: 'Cancelled', color: 'text-red-400    bg-red-400/10    border-red-400/30',    dot: 'bg-red-400',     border: 'border-l-red-500/40'    },
+const JO_STATUS: Record<JOStatus, { labelKey: string; color: string; dot: string; border: string }> = {
+  SCHEDULED: { labelKey: 'sfv.status.SCHEDULED', color: 'text-slate-400  bg-slate-400/10  border-slate-400/30',  dot: 'bg-slate-400',   border: 'border-l-slate-500/40'  },
+  READY:     { labelKey: 'sfv.status.READY',     color: 'text-blue-400   bg-blue-400/10   border-blue-400/30',   dot: 'bg-blue-400',    border: 'border-l-blue-500'      },
+  EXECUTING: { labelKey: 'sfv.status.EXECUTING', color: 'text-green-400  bg-green-400/10  border-green-400/30',  dot: 'bg-green-400',   border: 'border-l-green-500'     },
+  PAUSED:    { labelKey: 'sfv.status.PAUSED',    color: 'text-amber-400  bg-amber-400/10  border-amber-400/30',  dot: 'bg-amber-400',   border: 'border-l-amber-500'     },
+  COMPLETE:  { labelKey: 'sfv.status.COMPLETE',  color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30', dot: 'bg-emerald-400', border: 'border-l-emerald-500' },
+  CANCELLED: { labelKey: 'sfv.status.CANCELLED', color: 'text-red-400    bg-red-400/10    border-red-400/30',    dot: 'bg-red-400',     border: 'border-l-red-500/40'    },
 };
 
 const DEP_BADGE: Record<string, { short: string; color: string }> = {
@@ -97,12 +98,12 @@ const VALID_NEXT: Record<JOStatus, JOStatus[]> = {
 };
 
 const STATUS_FILTERS = [
-  { value: 'ACTIVE',     label: 'Active' },
-  { value: 'ALL',        label: 'All' },
-  { value: 'READY',      label: 'Ready' },
-  { value: 'EXECUTING',  label: 'Executing' },
-  { value: 'PAUSED',     label: 'Paused' },
-  { value: 'COMPLETE',   label: 'Complete' },
+  { value: 'ACTIVE',     labelKey: 'sfv.filter.active' },
+  { value: 'ALL',        labelKey: 'sfv.filter.all' },
+  { value: 'READY',      labelKey: 'sfv.status.READY' },
+  { value: 'EXECUTING',  labelKey: 'sfv.status.EXECUTING' },
+  { value: 'PAUSED',     labelKey: 'sfv.status.PAUSED' },
+  { value: 'COMPLETE',   labelKey: 'sfv.status.COMPLETE' },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -121,11 +122,12 @@ function fmtElapsed(seconds: number) {
 // ─────────────────────────────────────────────────────────────
 
 function StatusPill({ status }: { status: JOStatus }) {
+  const { t } = useTranslation('production');
   const c = JO_STATUS[status];
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${c.color}`}>
       <span className={`w-2 h-2 rounded-full ${c.dot} ${status === 'EXECUTING' ? 'animate-pulse' : ''}`} />
-      {c.label}
+      {t(c.labelKey)}
     </span>
   );
 }
@@ -200,6 +202,7 @@ function ShopFloorCard({
   shiftStatus?: any;
   machineShift?: any;
 }) {
+  const { t } = useTranslation('production');
   // Incremental entry — each save ADDS to the running totals (never replaces)
   const [addGood,      setAddGood]      = useState('');
   const [addScrap,     setAddScrap]     = useState('');
@@ -225,7 +228,7 @@ function ShopFloorCard({
       <div
         className="px-5 py-4 flex items-start justify-between gap-3 cursor-pointer hover:bg-brand-500/5 transition-colors"
         onClick={() => onOpenLive(jo)}
-        title="Open live dashboard"
+        title={t('sfv.openLiveDashboard')}
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -278,12 +281,12 @@ function ShopFloorCard({
             </span>
           )}
           {jo.joAvailability != null && (
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border text-yellow-400 bg-yellow-400/10 border-yellow-400/30 tabular-nums" title="Availability — schedule-based (Operating ÷ Planned)">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border text-yellow-400 bg-yellow-400/10 border-yellow-400/30 tabular-nums" title={t('sfv.availSchedTooltip')}>
               A: {jo.joAvailability.toFixed(1)}%
             </span>
           )}
           {jo.joAvailabilityTimeBased != null && (
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-dashed text-yellow-400 bg-yellow-400/10 border-yellow-400/30 tabular-nums" title="Availability — time-based = Uptime ÷ (Uptime + Downtime)">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-dashed text-yellow-400 bg-yellow-400/10 border-yellow-400/30 tabular-nums" title={t('sfv.availTbTooltip')}>
               A·T: {jo.joAvailabilityTimeBased.toFixed(1)}%
             </span>
           )}
@@ -294,7 +297,7 @@ function ShopFloorCard({
                 : jo.joOEE >= 60
                 ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30'
                 : 'text-red-400 bg-red-400/10 border-red-400/30'
-            }`} title="OEE — schedule-based availability">
+            }`} title={t('sfv.oeeSchedTooltip')}>
               OEE: {jo.joOEE.toFixed(1)}%
             </span>
           )}
@@ -305,7 +308,7 @@ function ShopFloorCard({
                 : jo.joOEETimeBased >= 60
                 ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30'
                 : 'text-red-400 bg-red-400/10 border-red-400/30'
-            }`} title="OEE — time-based availability = Uptime / (Uptime + Downtime)">
+            }`} title={t('sfv.oeeTbTooltip')}>
               OEE·T: {jo.joOEETimeBased.toFixed(1)}%
             </span>
           )}
@@ -317,7 +320,7 @@ function ShopFloorCard({
         <div className="px-5 pb-3 space-y-1.5">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
-              Target <span className="text-foreground font-semibold">{jo.plannedQtyOut}</span>
+              {t('sfv.target')} <span className="text-foreground font-semibold">{jo.plannedQtyOut}</span>
             </span>
             <div className="flex items-center gap-2">
               <span className="font-semibold tabular-nums">
@@ -345,9 +348,9 @@ function ShopFloorCard({
             const etaH = pacePerHr > 0 ? remaining / pacePerHr : null;
             return (
               <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
-                <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-brand-400" /> Pace {pacePerHr.toLocaleString()}/hr</span>
+                <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-brand-400" /> {t('sfv.paceLabel', { pace: pacePerHr.toLocaleString() })}</span>
                 {etaH != null && remaining > 0 && (
-                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> ETA {etaH < 1 ? `${Math.round(etaH * 60)}m` : `${etaH.toFixed(1)}h`}</span>
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {t('sfv.etaLabel', { eta: etaH < 1 ? `${Math.round(etaH * 60)}m` : `${etaH.toFixed(1)}h` })}</span>
                 )}
               </div>
             );
@@ -377,7 +380,7 @@ function ShopFloorCard({
               onBlur={() => setShowAssign(false)}
               className="flex-1 text-sm bg-background/80 border border-brand-400/40 rounded-lg px-3 py-1.5 focus:outline-none focus:border-brand-400"
             >
-              <option value="">— Unassign operator —</option>
+              <option value="">{t('sfv.unassignOperator')}</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>{u.name}</option>
               ))}
@@ -392,14 +395,14 @@ function ShopFloorCard({
             className="text-sm text-foreground hover:text-brand-400 transition-colors flex-1 text-left"
           >
             {jo.operator.name}
-            <span className="text-xs text-muted-foreground/50 ml-2">(tap to change)</span>
+            <span className="text-xs text-muted-foreground/50 ml-2">{t('sfv.tapToChange')}</span>
           </button>
         ) : (
           <button
             onClick={() => setShowAssign(true)}
             className="text-sm text-muted-foreground/50 hover:text-brand-400 transition-colors flex-1 text-left italic"
           >
-            Tap to assign operator
+            {t('sfv.tapToAssignOperator')}
           </button>
         )}
       </div>
@@ -427,13 +430,13 @@ function ShopFloorCard({
           <div className="px-5 py-4 border-t border-border/20 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <BarChart2 className="w-3.5 h-3.5" />Record Production
+                <BarChart2 className="w-3.5 h-3.5" />{t('sfv.recordProduction')}
               </p>
               {/* Running totals (read-only) */}
               <span className="text-[10px] text-muted-foreground flex items-center gap-2 tabular-nums">
                 <span className="text-green-400">✓{jo.actualQtyGood}</span>
                 <span className="text-red-400">✗{jo.actualQtyRejected}</span>
-                <span className="text-brand-400" title="Handover to next step">→{jo.handoverQty ?? 0}</span>
+                <span className="text-brand-400" title={t('sfv.handoverToNext')}>→{jo.handoverQty ?? 0}</span>
               </span>
             </div>
 
@@ -441,7 +444,7 @@ function ShopFloorCard({
               {/* Add Good */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-green-400 flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" />Add Good
+                  <Check className="w-3.5 h-3.5" />{t('sfv.addGood')}
                 </label>
                 <input
                   type="number" inputMode="numeric" min={0}
@@ -454,7 +457,7 @@ function ShopFloorCard({
               {/* Add Bad / Scrap */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-red-400 flex items-center gap-1">
-                  <X className="w-3.5 h-3.5" />Add Bad / Scrap
+                  <X className="w-3.5 h-3.5" />{t('sfv.addBadScrap')}
                 </label>
                 <input
                   type="number" inputMode="numeric" min={0}
@@ -469,8 +472,8 @@ function ShopFloorCard({
             {/* Live preview of new totals + quality impact */}
             {(gd > 0 || sd > 0) && (
               <div className="flex items-center justify-between text-[10px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-1.5">
-                <span>New totals: <span className="text-green-400 font-semibold tabular-nums">{newGood}</span> good · <span className="text-red-400 font-semibold tabular-nums">{newRejected}</span> bad</span>
-                <span>Quality → <span className={`font-bold tabular-nums ${newQuality >= 95 ? 'text-green-400' : newQuality >= 85 ? 'text-amber-400' : 'text-red-400'}`}>{newQuality.toFixed(1)}%</span></span>
+                <span>{t('sfv.newTotals')} <span className="text-green-400 font-semibold tabular-nums">{newGood}</span> {t('sfv.goodLower')} · <span className="text-red-400 font-semibold tabular-nums">{newRejected}</span> {t('sfv.badLower')}</span>
+                <span>{t('sfv.qualityArrow')} <span className={`font-bold tabular-nums ${newQuality >= 95 ? 'text-green-400' : newQuality >= 85 ? 'text-amber-400' : 'text-red-400'}`}>{newQuality.toFixed(1)}%</span></span>
               </div>
             )}
 
@@ -488,7 +491,7 @@ function ShopFloorCard({
                 </select>
                 <input
                   type="text"
-                  placeholder="Reject reason (recorded to scrap log)…"
+                  placeholder={t('sfv.rejectReasonPlaceholder')}
                   value={scrapReason}
                   onChange={(e) => setScrapReason(e.target.value)}
                   className="w-full px-3 py-2.5 text-sm bg-red-500/5 border border-red-500/20 rounded-xl focus:outline-none focus:border-red-400 placeholder:text-muted-foreground/40"
@@ -500,7 +503,7 @@ function ShopFloorCard({
             {showHandover ? (
               <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold text-brand-400 flex items-center gap-1 shrink-0">
-                  <ArrowDownCircle className="w-3.5 h-3.5" />Handover
+                  <ArrowDownCircle className="w-3.5 h-3.5" />{t('sfv.handover')}
                 </label>
                 <input
                   type="number" inputMode="numeric" min={0}
@@ -518,7 +521,7 @@ function ShopFloorCard({
                 onClick={() => { setShowHandover(true); setHandoverInput(String(jo.handoverQty ?? '')); }}
                 className="text-[11px] text-brand-400/80 hover:text-brand-400 flex items-center gap-1"
               >
-                <ArrowDownCircle className="w-3.5 h-3.5" />Set handover qty to next step
+                <ArrowDownCircle className="w-3.5 h-3.5" />{t('sfv.setHandoverQty')}
               </button>
             )}
 
@@ -528,7 +531,7 @@ function ShopFloorCard({
               className="w-full h-12 rounded-xl bg-brand-500/20 hover:bg-brand-500/30 border border-brand-400/40 text-brand-400 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-colors"
             >
               <TrendingUp className="w-4 h-4" />
-              Record {gd > 0 && `+${gd} good`}{gd > 0 && sd > 0 && ' · '}{sd > 0 && `+${sd} bad`}
+              {t('sfv.record')} {gd > 0 && t('sfv.plusGood', { count: gd })}{gd > 0 && sd > 0 && ' · '}{sd > 0 && t('sfv.plusBad', { count: sd })}
             </button>
           </div>
         );
@@ -539,32 +542,32 @@ function ShopFloorCard({
         <button
           onClick={() => onOpenLive(jo)}
           className="flex-1 h-9 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-400/30 text-brand-400 transition-colors"
-          title="Live dashboard — KPIs, OEE, downtime, alarms"
+          title={t('sfv.liveDashboardTooltip')}
         >
-          <Activity className="w-3.5 h-3.5" />Live
+          <Activity className="w-3.5 h-3.5" />{t('sfv.live')}
         </button>
         <button
           onClick={() => onAction('maintenance', jo)}
           disabled={!jo.machine}
           className="flex-1 h-9 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/30 text-amber-400 transition-colors disabled:opacity-30"
-          title="Request maintenance for this machine"
+          title={t('sfv.requestMaintTooltip')}
         >
-          <Wrench className="w-3.5 h-3.5" />Maint.
+          <Wrench className="w-3.5 h-3.5" />{t('sfv.maint')}
         </button>
         <button
           onClick={() => onAction('state', jo)}
           disabled={!jo.machine}
           className="flex-1 h-9 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-400/30 text-orange-400 transition-colors disabled:opacity-30"
-          title="Change machine state / log stop reason"
+          title={t('sfv.changeStateTooltip')}
         >
-          <AlertTriangle className="w-3.5 h-3.5" />Stop
+          <AlertTriangle className="w-3.5 h-3.5" />{t('sfv.stop')}
         </button>
         <button
           onClick={() => onAction('alarm', jo)}
           className="flex-1 h-9 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-400/30 text-red-400 transition-colors"
-          title="Raise an alarm"
+          title={t('sfv.raiseAlarmTooltip')}
         >
-          <BellRing className="w-3.5 h-3.5" />Alarm
+          <BellRing className="w-3.5 h-3.5" />{t('sfv.alarm')}
         </button>
       </div>
 
@@ -576,7 +579,7 @@ function ShopFloorCard({
             onClick={() => onTransition(jo.id, 'EXECUTING')}
             className="flex-1 h-14 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-base flex items-center justify-center gap-2 disabled:opacity-40 transition-colors shadow-lg shadow-green-500/20"
           >
-            <Play className="w-5 h-5 fill-current" />START
+            <Play className="w-5 h-5 fill-current" />{t('sfv.start')}
           </button>
         )}
 
@@ -597,7 +600,7 @@ function ShopFloorCard({
               )}
               className="flex-1 h-14 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base flex items-center justify-center gap-2 disabled:opacity-40 transition-colors shadow-lg shadow-emerald-500/20"
             >
-              <CheckSquare className="w-5 h-5" />COMPLETE
+              <CheckSquare className="w-5 h-5" />{t('sfv.complete')}
             </button>
           </>
         )}
@@ -609,7 +612,7 @@ function ShopFloorCard({
               onClick={() => onTransition(jo.id, 'EXECUTING')}
               className="flex-1 h-14 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-base flex items-center justify-center gap-2 disabled:opacity-40 transition-colors shadow-lg shadow-blue-500/20"
             >
-              <Play className="w-5 h-5 fill-current" />RESUME
+              <Play className="w-5 h-5 fill-current" />{t('sfv.resume')}
             </button>
             <button
               disabled={pending}
@@ -619,21 +622,21 @@ function ShopFloorCard({
               )}
               className="flex-1 h-14 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base flex items-center justify-center gap-2 disabled:opacity-40 transition-colors shadow-lg shadow-emerald-500/20"
             >
-              <CheckSquare className="w-5 h-5" />COMPLETE
+              <CheckSquare className="w-5 h-5" />{t('sfv.complete')}
             </button>
           </>
         )}
 
         {jo.status === 'COMPLETE' && (
           <div className="flex-1 h-14 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold text-base flex items-center justify-center gap-2">
-            <CheckSquare className="w-5 h-5" />Completed — {jo.actualQtyGood} {jo.outputUnit ?? ''}
+            <CheckSquare className="w-5 h-5" />{t('sfv.completedWith', { qty: jo.actualQtyGood, unit: jo.outputUnit ?? '' })}
           </div>
         )}
 
         {jo.status === 'SCHEDULED' && (
           <div className="flex-1 h-14 rounded-xl bg-muted/50 border border-border/30 text-muted-foreground font-medium text-sm flex items-center justify-center gap-2">
             <AlertCircle className="w-4 h-4" />
-            Waiting for predecessor: {jo.predecessor?.operationName ?? '—'}
+            {t('sfv.waitingForPredecessor', { op: jo.predecessor?.operationName ?? '—' })}
           </div>
         )}
       </div>
@@ -696,6 +699,7 @@ function KpiBar({ jobs }: { jobs: ShopFloorJO[] }) {
 // ─────────────────────────────────────────────────────────────
 
 export function ShopFloorView() {
+  const { t } = useTranslation('production');
   const { toast } = useToast();
   const qc = useQueryClient();
   const router = useRouter();
@@ -910,7 +914,7 @@ export function ShopFloorView() {
                     : 'bg-muted text-muted-foreground hover:bg-muted/60'
                 }`}
               >
-                {f.label}
+                {t(f.labelKey)}
                 {f.value === 'ACTIVE' && (
                   <span className="ml-1.5 opacity-60">
                     ({allJobs.filter((j) => ['READY', 'EXECUTING', 'PAUSED'].includes(j.status)).length})

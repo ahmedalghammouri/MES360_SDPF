@@ -114,9 +114,9 @@ function EnergyContextPanel() {
   const wcEnergy: WorkCenterEnergy[] = Array.isArray(wcData) ? wcData : [];
 
   const wasteBreakdown = summary ? [
-    { name: 'Running', value: parseFloat((summary.runningKwh ?? 0).toFixed(2)), fill: '#22c55e' },
-    { name: 'Idle Waste', value: parseFloat((summary.idleKwh ?? 0).toFixed(2)), fill: '#f59e0b' },
-    { name: 'Downtime Waste', value: parseFloat((summary.downtimeKwh ?? 0).toFixed(2)), fill: '#ef4444' },
+    { name: t('energy.wasteRunning'), value: parseFloat((summary.runningKwh ?? 0).toFixed(2)), fill: '#22c55e' },
+    { name: t('energy.wasteIdle'), value: parseFloat((summary.idleKwh ?? 0).toFixed(2)), fill: '#f59e0b' },
+    { name: t('energy.wasteDowntime'), value: parseFloat((summary.downtimeKwh ?? 0).toFixed(2)), fill: '#ef4444' },
   ].filter(d => d.value > 0) : [];
 
   return (
@@ -136,7 +136,7 @@ function EnergyContextPanel() {
             onKeyDown={e => { if (e.key === 'Enter' && woId.trim()) setSubmittedWoId(woId.trim()); }}
           />
           <Button size="sm" className="h-8 text-xs shrink-0" onClick={() => setSubmittedWoId(woId.trim())} disabled={!woId.trim()}>
-            Analyse
+            {t('energy.analyse')}
           </Button>
         </div>
 
@@ -147,10 +147,10 @@ function EnergyContextPanel() {
             {/* Key metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: 'Total kWh', value: summary.totalKwh?.toFixed(2) ?? '—', color: 'text-yellow-400', icon: Zap },
-                { label: 'kWh / Unit', value: summary.kwhPerUnit != null ? summary.kwhPerUnit.toFixed(3) : '—', color: 'text-blue-400', icon: Gauge },
-                { label: 'Idle Waste %', value: `${summary.wastePct?.toFixed(1) ?? '—'}%`, color: 'text-red-400', icon: TrendingDown },
-                { label: 'Anomalies', value: String(summary.anomalyCount ?? 0), color: summary.anomalyCount > 0 ? 'text-orange-400' : 'text-muted-foreground', icon: AlertTriangle },
+                { label: t('energy.mTotalKwh'), value: summary.totalKwh?.toFixed(2) ?? '—', color: 'text-yellow-400', icon: Zap },
+                { label: t('energy.mKwhPerUnit'), value: summary.kwhPerUnit != null ? summary.kwhPerUnit.toFixed(3) : '—', color: 'text-blue-400', icon: Gauge },
+                { label: t('energy.mIdleWastePct'), value: `${summary.wastePct?.toFixed(1) ?? '—'}%`, color: 'text-red-400', icon: TrendingDown },
+                { label: t('energy.mAnomalies'), value: String(summary.anomalyCount ?? 0), color: summary.anomalyCount > 0 ? 'text-orange-400' : 'text-muted-foreground', icon: AlertTriangle },
               ].map(({ label, value, color, icon: Icon }) => (
                 <div key={label} className="bg-background/40 rounded-lg border border-border/30 p-3">
                   <div className="flex items-center justify-between mb-1">
@@ -198,14 +198,14 @@ function EnergyContextPanel() {
             {summary.anomalyCount > 0 && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-orange-500/10 border border-orange-500/30 text-xs text-orange-400">
                 <AlertTriangle size={13} />
-                <span>{summary.anomalyCount} anomaly reading{summary.anomalyCount > 1 ? 's' : ''} detected — high power draw during idle/downtime state.</span>
+                <span>{t('energy.anomalyDetected', { count: summary.anomalyCount })}</span>
               </div>
             )}
           </div>
         )}
 
         {!summary && !woLoading && submittedWoId && (
-          <div className="text-center text-muted-foreground text-sm py-4">No energy data found for this WO.</div>
+          <div className="text-center text-muted-foreground text-sm py-4">{t('energy.noWoData')}</div>
         )}
       </div>
 
@@ -213,7 +213,7 @@ function EnergyContextPanel() {
       {wcEnergy.length > 0 && (
         <div className="glass-card rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-sm">Energy by WorkCenter (Last 7 days)</h2>
+            <h2 className="font-semibold text-sm">{t('energy.byWorkCenter')}</h2>
             <Badge variant="outline" className="text-xs">kWh</Badge>
           </div>
           <div className="space-y-2">
@@ -228,7 +228,7 @@ function EnergyContextPanel() {
                       <span className="text-muted-foreground">{wc.workCenter?.name ?? wc.workCenterId.slice(0, 8)}</span>
                       <div className="flex items-center gap-3">
                         {wc.avgPowerKw != null && (
-                          <span className="text-[10px] text-muted-foreground">{wc.avgPowerKw.toFixed(1)} kW avg</span>
+                          <span className="text-[10px] text-muted-foreground">{t('energy.kwAvg', { value: wc.avgPowerKw.toFixed(1) })}</span>
                         )}
                         <span className="font-semibold">{wc.totalKwh.toFixed(1)} kWh</span>
                       </div>
@@ -299,10 +299,10 @@ export function EnergyOverview() {
   );
 
   const kpis = [
-    { label: 'Active Meters', value: ov.meterCount, icon: Gauge, color: 'text-brand-400', bg: 'bg-brand-500/20' },
-    { label: 'Consumption MTD (kWh)', value: ov.totalConsumptionMtd.toLocaleString(), icon: Zap, color: 'text-yellow-400', bg: 'bg-yellow-500/20' },
-    { label: 'Cost MTD (SAR)', value: ov.totalCostMtd.toLocaleString(), icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/20' },
-    { label: "Today's Consumption", value: ov.totalConsumptionToday.toLocaleString(), icon: Activity, color: 'text-cyan-400', bg: 'bg-cyan-500/20' },
+    { label: t('energy.kpiActiveMeters'), value: ov.meterCount, icon: Gauge, color: 'text-brand-400', bg: 'bg-brand-500/20' },
+    { label: t('energy.kpiConsumptionMtd'), value: ov.totalConsumptionMtd.toLocaleString(), icon: Zap, color: 'text-yellow-400', bg: 'bg-yellow-500/20' },
+    { label: t('energy.kpiCostMtd'), value: ov.totalCostMtd.toLocaleString(), icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/20' },
+    { label: t('energy.kpiTodayConsumption'), value: ov.totalConsumptionToday.toLocaleString(), icon: Activity, color: 'text-cyan-400', bg: 'bg-cyan-500/20' },
   ];
 
   return (
@@ -318,14 +318,14 @@ export function EnergyOverview() {
               className={cn('px-4 py-1.5 transition-colors', activeTab === 'overview' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-muted/20')}
               onClick={() => setActiveTab('overview')}
             >
-              Overview
+              {t('energy.tabOverview')}
             </button>
             <button
               className={cn('px-4 py-1.5 flex items-center gap-1.5 transition-colors', activeTab === 'mes' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-muted/20')}
               onClick={() => setActiveTab('mes')}
             >
               <Factory size={11} />
-              MES Context
+              {t('energy.tabMesContext')}
             </button>
           </div>
           <Button variant="outline" size="sm" asChild>

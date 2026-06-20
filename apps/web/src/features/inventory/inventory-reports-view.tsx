@@ -49,50 +49,44 @@ interface LowStockResponse {
 
 const reportCards = [
   {
-    title: 'Stock Levels',
+    key: 'stockLevels',
     href: '/inventory/raw-materials',
     icon: FlaskConical,
-    desc: 'Current stock vs min/max thresholds',
     color: 'text-cyan-400',
     bg: 'bg-cyan-500/20',
   },
   {
-    title: 'Product Inventory',
+    key: 'productInventory',
     href: '/inventory/products',
     icon: BoxesIcon,
-    desc: 'SKU catalog with inventory status',
     color: 'text-blue-400',
     bg: 'bg-blue-500/20',
   },
   {
-    title: 'Spare Parts',
+    key: 'spareParts',
     href: '/inventory/spare-parts',
     icon: PackageSearch,
-    desc: 'Spare parts availability and requests',
     color: 'text-purple-400',
     bg: 'bg-purple-500/20',
   },
   {
-    title: 'Stock Movements',
+    key: 'stockMovements',
     href: '/inventory/materials',
     icon: TrendingUp,
-    desc: 'Receipts, issues, adjustments ledger',
     color: 'text-green-400',
     bg: 'bg-green-500/20',
   },
   {
-    title: 'BOM Requirements',
+    key: 'bomRequirements',
     href: '/inventory/bom',
     icon: GitMerge,
-    desc: 'Material requirements from active BOMs',
     color: 'text-orange-400',
     bg: 'bg-orange-500/20',
   },
   {
-    title: 'Storage Utilization',
+    key: 'storageUtilization',
     href: '/inventory/storage-locations',
     icon: MapPin,
-    desc: 'Location occupancy and organization',
     color: 'text-pink-400',
     bg: 'bg-pink-500/20',
   },
@@ -133,7 +127,7 @@ export default function InventoryReportsView() {
 
   const kpis = [
     {
-      label: 'Total SKUs',
+      key: 'totalSkus',
       value: overview.totalSkus,
       icon: BoxesIcon,
       color: 'text-blue-400',
@@ -141,7 +135,7 @@ export default function InventoryReportsView() {
       alert: false,
     },
     {
-      label: 'Raw Materials',
+      key: 'rawMaterials',
       value: overview.totalRawMaterials,
       icon: FlaskConical,
       color: 'text-cyan-400',
@@ -149,7 +143,7 @@ export default function InventoryReportsView() {
       alert: false,
     },
     {
-      label: 'Low Stock Alerts',
+      key: 'lowStockAlerts',
       value: overview.lowStockItems,
       icon: AlertTriangle,
       color: overview.lowStockItems > 0 ? 'text-red-400' : 'text-muted-foreground',
@@ -157,7 +151,7 @@ export default function InventoryReportsView() {
       alert: overview.lowStockItems > 0,
     },
     {
-      label: 'Storage Locations',
+      key: 'storageLocations',
       value: overview.totalLocations,
       icon: MapPin,
       color: 'text-pink-400',
@@ -187,7 +181,7 @@ export default function InventoryReportsView() {
           const Icon = kpi.icon;
           return (
             <motion.div
-              key={kpi.label}
+              key={kpi.key}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
@@ -209,7 +203,7 @@ export default function InventoryReportsView() {
                     <Icon className={cn('w-5 h-5', kpi.color)} />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[11px] text-muted-foreground">{kpi.label}</div>
+                    <div className="text-[11px] text-muted-foreground">{t(`reports.kpi.${kpi.key}`)}</div>
                     <div
                       className={cn(
                         'text-xl font-bold',
@@ -229,14 +223,14 @@ export default function InventoryReportsView() {
       {/* ── Report Cards Grid ── */}
       <div>
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-          Reports
+          {t('reports.section')}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {reportCards.map((card, i) => {
             const Icon = card.icon;
             return (
               <motion.div
-                key={card.title}
+                key={card.key}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 + i * 0.05 }}
@@ -254,9 +248,9 @@ export default function InventoryReportsView() {
                     <Icon className={cn('w-5 h-5', card.color)} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-sm">{card.title}</div>
+                    <div className="font-semibold text-sm">{t(`reports.cards.${card.key}.title`)}</div>
                     <div className="text-xs text-muted-foreground mt-0.5 leading-snug">
-                      {card.desc}
+                      {t(`reports.cards.${card.key}.desc`)}
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />

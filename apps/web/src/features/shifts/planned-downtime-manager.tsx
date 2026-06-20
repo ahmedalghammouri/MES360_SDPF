@@ -10,6 +10,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { CalendarPlus, Plus, Trash2, ShieldOff, Coffee, Sparkles, Timer } from 'lucide-react';
 
 import { api } from '@/services/api.client';
@@ -37,6 +38,7 @@ const weekRange = () => {
 };
 
 export function PlannedDowntimeManager() {
+  const { t } = useTranslation('production');
   const { data: causes } = usePlannedCauses();
 
   const [pdPage, setPdPage] = useState(1);
@@ -95,21 +97,19 @@ export function PlannedDowntimeManager() {
       <div className="rounded-xl border border-border/60 bg-card p-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="max-w-xl">
-            <h3 className="font-semibold flex items-center gap-2"><ShieldOff size={16} className="text-emerald-400" /> Planned Downtime</h3>
+            <h3 className="font-semibold flex items-center gap-2"><ShieldOff size={16} className="text-emerald-400" /> {t('plannedDowntime.title')}</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Break and cleaning time from each shift is materialised as planned downtime events linked to downtime
-              reason codes. They are <strong>excluded from OEE availability loss</strong> and the unplanned Pareto, but
-              remain visible in the Downtime module.
+              {t('plannedDowntime.description')}
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" onClick={generatePlannedWeek} disabled={plannedGenMut.isPending}>
               <CalendarPlus size={16} className="mr-2" />
-              Generate (this week)
+              {t('plannedDowntime.generateWeek')}
             </Button>
             <Button onClick={openAddPd}>
               <Plus size={16} className="mr-2" />
-              Add Planned Downtime
+              {t('plannedDowntime.addPlanned')}
             </Button>
           </div>
         </div>
@@ -127,7 +127,7 @@ export function PlannedDowntimeManager() {
             );
           })}
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 px-2.5 py-1 text-xs">
-            <Timer size={13} /> {totalPlannedMinutes} planned min logged
+            <Timer size={13} /> {t('plannedDowntime.minLogged', { count: totalPlannedMinutes })}
           </span>
         </div>
       </div>
@@ -137,14 +137,14 @@ export function PlannedDowntimeManager() {
         <SelectMenu
           value={pdMachine}
           onValueChange={setPdMachine}
-          menuLabel="Machine"
+          menuLabel={t('plannedDowntime.machine')}
           options={[
-            { value: 'ALL', label: 'All machines' },
+            { value: 'ALL', label: t('plannedDowntime.allMachines') },
             ...machines.map((m) => ({ value: m.id, label: `${m.code} — ${m.name}` })),
           ]}
         />
         <span className="ml-auto text-xs text-muted-foreground">
-          {(plannedResp as any)?.total ?? plannedEvents.length} event{(((plannedResp as any)?.total ?? plannedEvents.length) !== 1) ? 's' : ''}
+          {t('plannedDowntime.eventsCount', { count: (plannedResp as any)?.total ?? plannedEvents.length })}
         </span>
       </div>
 
@@ -152,18 +152,18 @@ export function PlannedDowntimeManager() {
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-muted-foreground">
             <tr className="text-left">
-              <th className="px-4 py-2 font-medium">Start</th>
-              <th className="px-4 py-2 font-medium">Machine</th>
-              <th className="px-4 py-2 font-medium">Reason</th>
-              <th className="px-4 py-2 font-medium">Type</th>
-              <th className="px-4 py-2 font-medium text-right">Minutes</th>
+              <th className="px-4 py-2 font-medium">{t('plannedDowntime.col.start')}</th>
+              <th className="px-4 py-2 font-medium">{t('plannedDowntime.col.machine')}</th>
+              <th className="px-4 py-2 font-medium">{t('plannedDowntime.col.reason')}</th>
+              <th className="px-4 py-2 font-medium">{t('plannedDowntime.col.type')}</th>
+              <th className="px-4 py-2 font-medium text-right">{t('plannedDowntime.col.minutes')}</th>
               <th className="px-4 py-2 font-medium w-10"></th>
             </tr>
           </thead>
           <tbody>
             {plannedEvents.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                No planned downtime yet. Click <strong>Add Planned Downtime</strong> or <strong>Generate (this week)</strong>.
+                {t('plannedDowntime.noPlanned')}<strong>{t('plannedDowntime.noPlannedAdd')}</strong>{t('plannedDowntime.noPlannedOr')}<strong>{t('plannedDowntime.noPlannedGenerate')}</strong>{t('plannedDowntime.noPlannedEnd')}
               </td></tr>
             ) : plannedEvents.map((e) => {
               const Icon = causeIcon(e.category);
@@ -201,27 +201,27 @@ export function PlannedDowntimeManager() {
       <FormDialog
         open={addPdOpen}
         onClose={() => setAddPdOpen(false)}
-        title="Add Planned Downtime"
+        title={t('plannedDowntime.addTitle')}
         onSubmit={submitPd}
-        submitLabel="Add"
+        submitLabel={t('plannedDowntime.add')}
         isSubmitting={addPlannedMut.isPending}
         isValid={pdValid}
       >
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Reason</Label>
+            <Label>{t('plannedDowntime.reason')}</Label>
             <SelectMenu
               size="md"
               fullWidth
               value={pd.causeId}
               onValueChange={(v) => patchPd({ causeId: v })}
-              placeholder="Select a downtime reason…"
+              placeholder={t('plannedDowntime.selectReason')}
               options={(causes ?? []).map((c) => ({ value: c.id, label: `${c.name} (${c.code})` }))}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label>Apply to (hierarchy scope)</Label>
+            <Label>{t('plannedDowntime.applyTo')}</Label>
             {pd.scope && (
               <div className="text-xs mb-1.5 inline-flex items-center gap-1.5 rounded bg-primary/10 text-primary px-2 py-1">
                 <span className="font-mono uppercase text-[10px]">{pd.scope.type}</span>
@@ -234,29 +234,29 @@ export function PlannedDowntimeManager() {
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <Label>Date</Label>
+              <Label>{t('plannedDowntime.date')}</Label>
               <Input type="date" value={pd.date} onChange={(e) => patchPd({ date: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label>Start time</Label>
+              <Label>{t('plannedDowntime.startTime')}</Label>
               <Input type="time" value={pd.time} onChange={(e) => patchPd({ time: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label>Duration (min)</Label>
+              <Label>{t('plannedDowntime.durationMin')}</Label>
               <Input type="number" value={pd.durationMinutes} onChange={(e) => patchPd({ durationMinutes: e.target.value })} />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Notes (optional)</Label>
-            <Input value={pd.notes} onChange={(e) => patchPd({ notes: e.target.value })} placeholder="e.g. Weekly deep clean" />
+            <Label>{t('plannedDowntime.notesOptional')}</Label>
+            <Input value={pd.notes} onChange={(e) => patchPd({ notes: e.target.value })} placeholder={t('plannedDowntime.notesPlaceholder')} />
           </div>
 
           <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-            Creates planned downtime for{' '}
+            {t('plannedDowntime.createsPre')}
             <strong className="text-foreground">
-              {pd.scope ? (pd.scope.type === 'MACHINE' ? '1 machine' : pd.scope.type === 'LINE' ? 'every machine in the line' : 'every machine in the area') : '…'}
-            </strong>. Excluded from OEE availability loss; visible in the Downtime module.
+              {pd.scope ? (pd.scope.type === 'MACHINE' ? t('plannedDowntime.scopeMachine') : pd.scope.type === 'LINE' ? t('plannedDowntime.scopeLine') : t('plannedDowntime.scopeArea')) : '…'}
+            </strong>{t('plannedDowntime.createsPost')}
           </div>
         </div>
       </FormDialog>

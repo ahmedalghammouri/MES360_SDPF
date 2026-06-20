@@ -33,12 +33,12 @@ const SEVERITY_CONFIG: Record<
 };
 
 const SEVERITY_FILTERS = [
-  { label: 'All',      value: 'all'      },
-  { label: 'Critical', value: 'CRITICAL' },
-  { label: 'High',     value: 'HIGH'     },
-  { label: 'Medium',   value: 'MEDIUM'   },
-  { label: 'Low',      value: 'LOW'      },
-  { label: 'Info',     value: 'INFO'     },
+  { labelKey: 'all',      value: 'all'      },
+  { labelKey: 'critical', value: 'CRITICAL' },
+  { labelKey: 'high',     value: 'HIGH'     },
+  { labelKey: 'medium',   value: 'MEDIUM'   },
+  { labelKey: 'low',      value: 'LOW'      },
+  { labelKey: 'info',     value: 'INFO'     },
 ];
 
 // ── Types ───────────────────────────────────────────────────────
@@ -130,18 +130,18 @@ export function AlarmsView() {
     mutationFn: (id: string) => api.patch(`/alarms/${id}/acknowledge`),
     onSuccess: () => {
       invalidate();
-      toast({ title: 'Alarm acknowledged', variant: 'success' });
+      toast({ title: t('alarms.toast.acknowledged'), variant: 'success' });
     },
-    onError: () => toast({ title: 'Failed to acknowledge alarm', variant: 'destructive' }),
+    onError: () => toast({ title: t('alarms.toast.ackFailed'), variant: 'destructive' }),
   });
 
   const resolveMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/alarms/${id}/resolve`),
     onSuccess: () => {
       invalidate();
-      toast({ title: 'Alarm resolved', variant: 'success' });
+      toast({ title: t('alarms.toast.resolved'), variant: 'success' });
     },
-    onError: () => toast({ title: 'Failed to resolve alarm', variant: 'destructive' }),
+    onError: () => toast({ title: t('alarms.toast.resolveFailed'), variant: 'destructive' }),
   });
 
   const pendingId =
@@ -161,7 +161,7 @@ export function AlarmsView() {
             {t('alarms.title')}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Live equipment &amp; process alarms — acknowledge, resolve, and track resolution time
+            {t('alarms.subtitle')}
           </p>
         </div>
         <Button
@@ -171,24 +171,24 @@ export function AlarmsView() {
           className="gap-1.5 h-8 text-xs"
         >
           <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin')} />
-          Refresh
+          {t('alarms.refresh')}
         </Button>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          <KPICard title="Active" value={kpis?.active ?? 0} colorMode="alarm" isLoading={kpisLoading} icon={<Bell size={16} />} />
-          <KPICard title="Unacknowledged" value={kpis?.unacknowledged ?? 0} colorMode="alarm" isLoading={kpisLoading} icon={<AlertTriangle size={16} />} />
-          <KPICard title="Critical" value={kpis?.critical ?? 0} colorMode="alarm" isLoading={kpisLoading} icon={<AlertOctagon size={16} />} />
-          <KPICard title="Last 24h" value={kpis?.last24h ?? 0} isLoading={kpisLoading} icon={<Clock size={16} />} />
-          <KPICard title="Avg Resolution" value={kpis?.avgResolutionMins ?? 0} unit="min" isLoading={kpisLoading} icon={<Timer size={16} />} />
+          <KPICard title={t('alarms.kpi.active')} value={kpis?.active ?? 0} colorMode="alarm" isLoading={kpisLoading} icon={<Bell size={16} />} />
+          <KPICard title={t('alarms.kpi.unacknowledged')} value={kpis?.unacknowledged ?? 0} colorMode="alarm" isLoading={kpisLoading} icon={<AlertTriangle size={16} />} />
+          <KPICard title={t('alarms.kpi.critical')} value={kpis?.critical ?? 0} colorMode="alarm" isLoading={kpisLoading} icon={<AlertOctagon size={16} />} />
+          <KPICard title={t('alarms.kpi.last24h')} value={kpis?.last24h ?? 0} isLoading={kpisLoading} icon={<Clock size={16} />} />
+          <KPICard title={t('alarms.kpi.avgResolution')} value={kpis?.avgResolutionMins ?? 0} unit="min" isLoading={kpisLoading} icon={<Timer size={16} />} />
         </div>
 
         {/* Filters */}
         <div className="glass-card rounded-xl p-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-medium text-muted-foreground w-16 shrink-0">Severity</span>
+            <span className="text-xs font-medium text-muted-foreground w-16 shrink-0">{t('alarms.col.severity')}</span>
             {SEVERITY_FILTERS.map((f) => (
               <Button
                 key={f.value}
@@ -197,7 +197,7 @@ export function AlarmsView() {
                 onClick={() => setSeverityFilter(f.value)}
                 className="h-7 text-xs"
               >
-                {f.label}
+                {t(`alarms.sevFilter.${f.labelKey}`)}
               </Button>
             ))}
             <Button
@@ -207,7 +207,7 @@ export function AlarmsView() {
               className="h-7 text-xs ml-auto gap-1.5"
             >
               <Filter className="w-3 h-3" />
-              Active only
+              {t('alarms.activeOnly')}
             </Button>
           </div>
         </div>
@@ -216,7 +216,7 @@ export function AlarmsView() {
         {isLoading ? (
           <div className="glass-card rounded-xl p-12 text-center text-muted-foreground">
             <RefreshCw className="w-8 h-8 mx-auto mb-3 opacity-40 animate-spin" />
-            <div className="text-sm">Loading alarms…</div>
+            <div className="text-sm">{t('alarms.loading')}</div>
           </div>
         ) : list.length === 0 ? (
           <div className="glass-card rounded-xl p-16 text-center">
@@ -228,8 +228,8 @@ export function AlarmsView() {
             </div>
             <div className="text-muted-foreground text-sm mt-1.5">
               {severityFilter !== 'all' || activeOnly
-                ? 'Try clearing your filters to see the full history.'
-                : 'Equipment and process alarms will appear here when triggered.'}
+                ? t('alarms.noMatchHint')
+                : t('alarms.noAlarmsHint')}
             </div>
             {(severityFilter !== 'all' || activeOnly) && (
               <Button
@@ -238,7 +238,7 @@ export function AlarmsView() {
                 className="mt-4"
                 onClick={() => { setSeverityFilter('all'); setActiveOnly(false); }}
               >
-                Clear filters
+                {t('alarms.clearFilters')}
               </Button>
             )}
           </div>
@@ -283,7 +283,7 @@ export function AlarmsView() {
                             <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0', cfg.bg)}>
                               <Icon className={cn('w-3.5 h-3.5', cfg.color)} />
                             </div>
-                            <span className={cn('text-xs font-medium', cfg.color)}>{cfg.label}</span>
+                            <span className={cn('text-xs font-medium', cfg.color)}>{t(`alarms.sev.${alarm.severity}`, cfg.label)}</span>
                           </div>
                         </TableCell>
 
@@ -326,15 +326,15 @@ export function AlarmsView() {
                           {state === 'active' && (
                             <Badge variant="destructive" className="text-[10px] gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-white/90 animate-pulse" />
-                              Active
+                              {t('alarms.state.active')}
                             </Badge>
                           )}
                           {state === 'acknowledged' && (
-                            <Badge variant="secondary" className="text-[10px]">Acknowledged</Badge>
+                            <Badge variant="secondary" className="text-[10px]">{t('alarms.state.acknowledged')}</Badge>
                           )}
                           {state === 'resolved' && (
                             <Badge variant="outline" className="text-[10px] text-success-400 border-success-500/30">
-                              Resolved
+                              {t('alarms.state.resolved')}
                             </Badge>
                           )}
                         </TableCell>
@@ -358,7 +358,7 @@ export function AlarmsView() {
                                 onClick={() => ackMutation.mutate(alarm.id)}
                               >
                                 <Check size={12} />
-                                Ack
+                                {t('alarms.ack')}
                               </Button>
                             )}
                             {!alarm.resolvedAt && (
@@ -369,7 +369,7 @@ export function AlarmsView() {
                                 onClick={() => resolveMutation.mutate(alarm.id)}
                               >
                                 <CheckCircle2 size={12} />
-                                Resolve
+                                {t('alarms.resolve')}
                               </Button>
                             )}
                             {alarm.resolvedAt && (
@@ -391,9 +391,9 @@ export function AlarmsView() {
         {/* Footer count */}
         {list.length > 0 && (
           <div className="text-xs text-muted-foreground text-center">
-            {list.length} alarm{list.length === 1 ? '' : 's'}
-            {activeOnly ? ' · active only' : ''}
-            {severityFilter !== 'all' ? ` · ${SEVERITY_CONFIG[severityFilter]?.label ?? severityFilter}` : ''}
+            {t('alarms.count', { count: list.length })}
+            {activeOnly ? ` · ${t('alarms.activeOnly')}` : ''}
+            {severityFilter !== 'all' ? ` · ${t(`alarms.sev.${severityFilter}`, SEVERITY_CONFIG[severityFilter]?.label ?? severityFilter)}` : ''}
           </div>
         )}
       </div>

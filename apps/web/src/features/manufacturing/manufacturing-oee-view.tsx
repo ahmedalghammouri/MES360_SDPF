@@ -323,7 +323,7 @@ export default function ManufacturingOeeView() {
 
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={handleExport}>
             <Download size={13} />
-            Export
+            {t('mfgOee.export')}
           </Button>
         </div>
       </div>
@@ -333,17 +333,17 @@ export default function ManufacturingOeeView() {
 
         {/* 1. Four metric boxes */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <MetricBox label="OEE" value={oeeData?.oee ?? 0} isLoading={isAnyLoading} />
-          <MetricBox label="Availability" value={oeeData?.availability ?? 0} isLoading={isAnyLoading} />
-          <MetricBox label="Performance" value={oeeData?.performance ?? 0} isLoading={isAnyLoading} />
-          <MetricBox label="Quality" value={oeeData?.quality ?? 0} isLoading={isAnyLoading} />
+          <MetricBox label={t('mfgOee.oee')} value={oeeData?.oee ?? 0} isLoading={isAnyLoading} />
+          <MetricBox label={t('mfgOee.availability')} value={oeeData?.availability ?? 0} isLoading={isAnyLoading} />
+          <MetricBox label={t('mfgOee.performance')} value={oeeData?.performance ?? 0} isLoading={isAnyLoading} />
+          <MetricBox label={t('mfgOee.quality')} value={oeeData?.quality ?? 0} isLoading={isAnyLoading} />
         </div>
 
         {/* Time-Based (AT-OEE) — shown beside the schedule-based numbers above */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground px-1">
-          <span>Time-Based OEE (AT-OEE): <b className="text-foreground">{(oeeData?.oeeTb ?? 0).toFixed(1)}%</b></span>
-          <span>Availability (Time-Based): <b className="text-foreground">{(oeeData?.availabilityTb ?? 0).toFixed(1)}%</b></span>
-          <span className="opacity-70">Schedule-based above · time-based = uptime ÷ (uptime + downtime)</span>
+          <span>{t('mfgOee.atOee')}: <b className="text-foreground">{(oeeData?.oeeTb ?? 0).toFixed(1)}%</b></span>
+          <span>{t('mfgOee.availabilityTb')}: <b className="text-foreground">{(oeeData?.availabilityTb ?? 0).toFixed(1)}%</b></span>
+          <span className="opacity-70">{t('mfgOee.scheduleNote')}</span>
         </div>
 
         {/* 2. OEE Waterfall bar chart */}

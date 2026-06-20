@@ -83,11 +83,11 @@ function getOeeBgClass(value: number): string {
   return 'bg-red-500/15 border-red-500/30';
 }
 
-function getOeeLabel(value: number): string {
-  if (value >= 85) return 'World Class';
-  if (value >= 65) return 'Good';
-  if (value >= 45) return 'Acceptable';
-  return 'Poor';
+function getOeeLabelKey(value: number): string {
+  if (value >= 85) return 'bmWorldClass';
+  if (value >= 65) return 'bmGood';
+  if (value >= 45) return 'bmAcceptable';
+  return 'bmPoor';
 }
 
 function getOeeStatusColor(value: number): string {
@@ -110,6 +110,7 @@ interface KpiCardProps {
 }
 
 function KpiCard({ title, value, trend, target, icon, isLoading }: KpiCardProps) {
+  const { t } = useTranslation('modules');
   const trendUp = trend >= 0;
   const gap = value - target;
 
@@ -156,7 +157,7 @@ function KpiCard({ title, value, trend, target, icon, isLoading }: KpiCardProps)
 
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-muted-foreground">
-              Target: <span className="font-semibold text-foreground">{target}%</span>
+              {t('mfgKpi.target')}: <span className="font-semibold text-foreground">{target}%</span>
             </span>
             <span className={cn('font-semibold', gap >= 0 ? 'text-emerald-400' : 'text-red-400')}>
               {gap >= 0 ? '+' : ''}{gap.toFixed(1)}%
@@ -167,7 +168,7 @@ function KpiCard({ title, value, trend, target, icon, isLoading }: KpiCardProps)
             <span
               className={cn('inline-block w-2 h-2 rounded-full', getOeeStatusColor(value))}
             />
-            <span className="text-[11px] text-muted-foreground">{getOeeLabel(value)}</span>
+            <span className="text-[11px] text-muted-foreground">{t(`mfgKpi.${getOeeLabelKey(value)}`)}</span>
           </div>
         </>
       )}
@@ -310,7 +311,7 @@ export default function ManufacturingKpiView() {
           <div>
             <h1 className="text-lg font-bold text-foreground">{t('mfgKpi.title')}</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              OEE monitoring &amp; machine performance
+              {t('mfgKpi.subtitle')}
             </p>
           </div>
         </div>
@@ -324,13 +325,13 @@ export default function ManufacturingKpiView() {
               size="sm"
               onClick={() => setTimeframe(tf)}
               className={cn(
-                'h-7 px-3 text-xs capitalize transition-colors',
+                'h-7 px-3 text-xs transition-colors',
                 timeframe === tf
                   ? 'bg-background text-foreground shadow-sm font-semibold'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              {tf === 'today' ? 'Today' : tf === 'week' ? 'This Week' : 'This Month'}
+              {tf === 'today' ? t('mfgKpi.tfToday') : tf === 'week' ? t('mfgKpi.tfWeek') : t('mfgKpi.tfMonth')}
             </Button>
           ))}
         </div>
@@ -350,7 +351,7 @@ export default function ManufacturingKpiView() {
             className="grid grid-cols-2 xl:grid-cols-4 gap-4"
           >
             <KpiCard
-              title="Overall OEE"
+              title={t('mfgKpi.overallOee')}
               value={kpis?.oee ?? 0}
               trend={kpis?.oeeTrend ?? 0}
               target={85}
@@ -358,7 +359,7 @@ export default function ManufacturingKpiView() {
               isLoading={kpisLoading}
             />
             <KpiCard
-              title="Availability"
+              title={t('mfgKpi.metric.availability')}
               value={kpis?.availability ?? 0}
               trend={kpis?.availabilityTrend ?? 0}
               target={90}
@@ -366,7 +367,7 @@ export default function ManufacturingKpiView() {
               isLoading={kpisLoading}
             />
             <KpiCard
-              title="Performance"
+              title={t('mfgKpi.metric.performance')}
               value={kpis?.performance ?? 0}
               trend={kpis?.performanceTrend ?? 0}
               target={95}
@@ -374,7 +375,7 @@ export default function ManufacturingKpiView() {
               isLoading={kpisLoading}
             />
             <KpiCard
-              title="Quality"
+              title={t('mfgKpi.metric.quality')}
               value={kpis?.quality ?? 0}
               trend={kpis?.qualityTrend ?? 0}
               target={99}
@@ -385,9 +386,9 @@ export default function ManufacturingKpiView() {
 
           {/* Time-Based (AT-OEE) — shown beside the schedule-based KPIs above */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground px-1">
-            <span>Time-Based OEE (AT-OEE): <b className="text-foreground">{(kpis?.oeeTb ?? 0).toFixed(1)}%</b></span>
-            <span>Availability (Time-Based): <b className="text-foreground">{(kpis?.availabilityTb ?? 0).toFixed(1)}%</b></span>
-            <span className="opacity-70">Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)</span>
+            <span>{t('mfgKpi.atOee')}: <b className="text-foreground">{(kpis?.oeeTb ?? 0).toFixed(1)}%</b></span>
+            <span>{t('mfgKpi.availabilityTb')}: <b className="text-foreground">{(kpis?.availabilityTb ?? 0).toFixed(1)}%</b></span>
+            <span className="opacity-70">{t('mfgKpi.scheduleNote')}</span>
           </div>
 
           {/* ── 2. Trend chart + KPI summary table ──────────────────────────── */}
@@ -395,14 +396,14 @@ export default function ManufacturingKpiView() {
             {/* Line chart (2/3) */}
             <div className="col-span-3 lg:col-span-2 industrial-card p-5 rounded-xl border border-border/40">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold">OEE Trend — Last 30 Records</h2>
+                <h2 className="text-sm font-semibold">{t('mfgKpi.trendTitle')}</h2>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                   <span className="inline-block w-2 h-2 rounded-full bg-brand-400" />
-                  OEE
+                  {t('mfgKpi.metric.oee')}
                   <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 ml-2" />
-                  Availability
+                  {t('mfgKpi.metric.availability')}
                   <span className="inline-block w-2 h-2 rounded-full bg-amber-400 ml-2" />
-                  Quality
+                  {t('mfgKpi.metric.quality')}
                 </div>
               </div>
 
@@ -441,7 +442,7 @@ export default function ManufacturingKpiView() {
                       strokeDasharray="5 3"
                       strokeWidth={1.5}
                       label={{
-                        value: 'World Class',
+                        value: t('mfgKpi.bmWorldClass'),
                         fill: '#10b981',
                         fontSize: 10,
                         position: 'insideTopRight',
@@ -450,7 +451,7 @@ export default function ManufacturingKpiView() {
                     <Line
                       type="monotone"
                       dataKey="oee"
-                      name="OEE (Schedule)"
+                      name={t('mfgKpi.oeeSchedule')}
                       stroke="#6366f1"
                       strokeWidth={2}
                       dot={false}
@@ -460,7 +461,7 @@ export default function ManufacturingKpiView() {
                     <Line
                       type="monotone"
                       dataKey="oeeTb"
-                      name="OEE (Time-Based)"
+                      name={t('mfgKpi.oeeTimeBased')}
                       stroke="#22d3ee"
                       strokeWidth={2}
                       strokeDasharray="5 3"
@@ -471,7 +472,7 @@ export default function ManufacturingKpiView() {
                     <Line
                       type="monotone"
                       dataKey="availability"
-                      name="Availability"
+                      name={t('mfgKpi.metric.availability')}
                       stroke="#10b981"
                       strokeWidth={2}
                       dot={false}
@@ -480,7 +481,7 @@ export default function ManufacturingKpiView() {
                     <Line
                       type="monotone"
                       dataKey="quality"
-                      name="Quality"
+                      name={t('mfgKpi.metric.quality')}
                       stroke="#f59e0b"
                       strokeWidth={2}
                       dot={false}
@@ -509,7 +510,7 @@ export default function ManufacturingKpiView() {
                         <th className="text-start py-2 text-muted-foreground font-medium">{t('mfgKpi.colMetric')}</th>
                         <th className="text-end py-2 text-muted-foreground font-medium">{t('mfgKpi.colActual')}</th>
                         <th className="text-end py-2 text-muted-foreground font-medium">{t('mfgKpi.colTarget')}</th>
-                        <th className="text-right py-2 text-muted-foreground font-medium">Gap</th>
+                        <th className="text-right py-2 text-muted-foreground font-medium">{t('mfgKpi.colGap')}</th>
                         <th className="text-end py-2 text-muted-foreground font-medium">{t('mfgKpi.colStatus')}</th>
                       </tr>
                     </thead>
@@ -551,7 +552,7 @@ export default function ManufacturingKpiView() {
                                     : 'bg-red-500/15 text-red-400',
                                 )}
                               >
-                                {met ? 'MET' : 'MISS'}
+                                {met ? t('mfgKpi.met') : t('mfgKpi.miss')}
                               </span>
                             </td>
                           </tr>
@@ -566,7 +567,7 @@ export default function ManufacturingKpiView() {
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">{t('mfgKpi.totalOutput')}</span>
                         <span className="font-semibold tabular-nums">
-                          {kpis.totalOutput.toLocaleString()} units
+                          {t('mfgKpi.unitsValue', { value: kpis.totalOutput.toLocaleString() })}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-xs">
@@ -595,7 +596,7 @@ export default function ManufacturingKpiView() {
                 <h2 className="text-sm font-semibold">{t('mfgKpi.leaderboard')}</h2>
               </div>
               <Badge variant="outline" className="text-[10px]">
-                {leaderboard.length} machines
+                {t('mfgKpi.machinesCount', { count: leaderboard.length })}
               </Badge>
             </div>
 
@@ -607,7 +608,7 @@ export default function ManufacturingKpiView() {
               </div>
             ) : leaderboard.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground text-sm">
-                No OEE records found for this period.
+                {t('mfgKpi.noRecords')}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -616,11 +617,11 @@ export default function ManufacturingKpiView() {
                     <tr className="border-b border-border/40">
                       <th className="text-left py-2 px-2 text-muted-foreground font-medium w-10">#</th>
                       <th className="text-start py-2 px-2 text-muted-foreground font-medium">{t('mfgKpi.colMachine')}</th>
-                      <th className="text-center py-2 px-2 text-muted-foreground font-medium">OEE%</th>
-                      <th className="text-center py-2 px-2 text-muted-foreground font-medium">OEE-TB%</th>
-                      <th className="text-center py-2 px-2 text-muted-foreground font-medium">Avail%</th>
-                      <th className="text-center py-2 px-2 text-muted-foreground font-medium">Perf%</th>
-                      <th className="text-center py-2 px-2 text-muted-foreground font-medium">Quality%</th>
+                      <th className="text-center py-2 px-2 text-muted-foreground font-medium">{t('mfgKpi.colOeePct')}</th>
+                      <th className="text-center py-2 px-2 text-muted-foreground font-medium">{t('mfgKpi.colOeeTbPct')}</th>
+                      <th className="text-center py-2 px-2 text-muted-foreground font-medium">{t('mfgKpi.colAvailPct')}</th>
+                      <th className="text-center py-2 px-2 text-muted-foreground font-medium">{t('mfgKpi.colPerfPct')}</th>
+                      <th className="text-center py-2 px-2 text-muted-foreground font-medium">{t('mfgKpi.colQualityPct')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -710,7 +711,7 @@ export default function ManufacturingKpiView() {
             <div className="flex items-center gap-2 mb-3">
               <Gauge size={14} className="text-muted-foreground" />
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                OEE Classification Breakdown
+                {t('mfgKpi.classificationTitle')}
               </h2>
             </div>
 
@@ -721,9 +722,9 @@ export default function ManufacturingKpiView() {
                 <div>
                   <p className="text-xs text-muted-foreground">{t('mfgKpi.bmWorldClass')}</p>
                   <p className="text-sm font-bold text-emerald-400">
-                    {classifications.worldClass} machine{classifications.worldClass !== 1 ? 's' : ''}
+                    {t('mfgKpi.machinesCount', { count: classifications.worldClass })}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70">OEE &ge; 85%</p>
+                  <p className="text-[10px] text-muted-foreground/70">{t('mfgKpi.rangeWorldClass')}</p>
                 </div>
               </div>
 
@@ -733,9 +734,9 @@ export default function ManufacturingKpiView() {
                 <div>
                   <p className="text-xs text-muted-foreground">{t('mfgKpi.bmGood')}</p>
                   <p className="text-sm font-bold text-sky-400">
-                    {classifications.good} machine{classifications.good !== 1 ? 's' : ''}
+                    {t('mfgKpi.machinesCount', { count: classifications.good })}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70">65% – 84%</p>
+                  <p className="text-[10px] text-muted-foreground/70">{t('mfgKpi.rangeGood')}</p>
                 </div>
               </div>
 
@@ -745,9 +746,9 @@ export default function ManufacturingKpiView() {
                 <div>
                   <p className="text-xs text-muted-foreground">{t('mfgKpi.bmAcceptable')}</p>
                   <p className="text-sm font-bold text-amber-400">
-                    {classifications.acceptable} machine{classifications.acceptable !== 1 ? 's' : ''}
+                    {t('mfgKpi.machinesCount', { count: classifications.acceptable })}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70">45% – 64%</p>
+                  <p className="text-[10px] text-muted-foreground/70">{t('mfgKpi.rangeAcceptable')}</p>
                 </div>
               </div>
 
@@ -757,9 +758,9 @@ export default function ManufacturingKpiView() {
                 <div>
                   <p className="text-xs text-muted-foreground">{t('mfgKpi.bmPoor')}</p>
                   <p className="text-sm font-bold text-red-400">
-                    {classifications.poor} machine{classifications.poor !== 1 ? 's' : ''}
+                    {t('mfgKpi.machinesCount', { count: classifications.poor })}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70">OEE &lt; 45%</p>
+                  <p className="text-[10px] text-muted-foreground/70">{t('mfgKpi.rangePoor')}</p>
                 </div>
               </div>
             </div>

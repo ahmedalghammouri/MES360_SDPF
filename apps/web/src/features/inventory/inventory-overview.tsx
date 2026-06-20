@@ -55,17 +55,17 @@ export function InventoryOverview() {
   const movementsList: any[] = (movements as any)?.data ?? [];
 
   const kpis = [
-    { label: 'Total Inventory Value', value: `${money(o?.totalStockValue)} SAR`, icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/15', href: '/inventory/spare-parts' },
-    { label: 'Low-Stock Alerts', value: (o?.spareParts.lowStock ?? 0) + (o?.rawMaterials.lowStock ?? 0), icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/15', href: '/inventory/raw-materials' },
-    { label: 'Lots Expiring (30d)', value: (o?.materialLots.expiringSoon ?? 0) + (o?.materialLots.expired ?? 0), icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/15', href: '/inventory/materials' },
-    { label: 'Movements (7d)', value: o?.movementsLast7d ?? 0, icon: ArrowLeftRight, color: 'text-blue-400', bg: 'bg-blue-500/15', href: '/inventory/stock-movements' },
+    { label: t('overview.kpi.totalValue'), value: `${money(o?.totalStockValue)} SAR`, icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/15', href: '/inventory/spare-parts' },
+    { label: t('overview.kpi.lowStockAlerts'), value: (o?.spareParts.lowStock ?? 0) + (o?.rawMaterials.lowStock ?? 0), icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/15', href: '/inventory/raw-materials' },
+    { label: t('overview.kpi.lotsExpiring'), value: (o?.materialLots.expiringSoon ?? 0) + (o?.materialLots.expired ?? 0), icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/15', href: '/inventory/materials' },
+    { label: t('overview.kpi.movements7d'), value: o?.movementsLast7d ?? 0, icon: ArrowLeftRight, color: 'text-blue-400', bg: 'bg-blue-500/15', href: '/inventory/stock-movements' },
   ];
 
   const categories = [
-    { label: 'Raw Materials', total: o?.rawMaterials.total ?? 0, low: o?.rawMaterials.lowStock ?? 0, value: o?.rawMaterials.value ?? 0, icon: FlaskConical, color: 'text-cyan-400', href: '/inventory/raw-materials' },
-    { label: 'Spare Parts', total: o?.spareParts.total ?? 0, low: o?.spareParts.lowStock ?? 0, value: o?.spareParts.value ?? 0, icon: Package, color: 'text-brand-400', href: '/inventory/spare-parts' },
-    { label: 'Products / SKUs', total: o?.products.total ?? 0, low: null, value: null, icon: BoxesIcon, color: 'text-blue-400', href: '/inventory/products' },
-    { label: 'Material Lots', total: o?.materialLots.active ?? 0, low: o?.materialLots.expired ?? 0, value: null, icon: Layers3, color: 'text-purple-400', href: '/inventory/materials' },
+    { label: t('overview.cat.rawMaterials'), total: o?.rawMaterials.total ?? 0, low: o?.rawMaterials.lowStock ?? 0, value: o?.rawMaterials.value ?? 0, icon: FlaskConical, color: 'text-cyan-400', href: '/inventory/raw-materials', kind: 'rm' },
+    { label: t('overview.cat.spareParts'), total: o?.spareParts.total ?? 0, low: o?.spareParts.lowStock ?? 0, value: o?.spareParts.value ?? 0, icon: Package, color: 'text-brand-400', href: '/inventory/spare-parts', kind: 'sp' },
+    { label: t('overview.cat.products'), total: o?.products.total ?? 0, low: null, value: null, icon: BoxesIcon, color: 'text-blue-400', href: '/inventory/products', kind: 'pd' },
+    { label: t('overview.cat.materialLots'), total: o?.materialLots.active ?? 0, low: o?.materialLots.expired ?? 0, value: null, icon: Layers3, color: 'text-purple-400', href: '/inventory/materials', kind: 'lot' },
   ];
 
   return (
@@ -119,7 +119,7 @@ export function InventoryOverview() {
               </div>
               <div className="text-2xl font-bold mt-2">{c.total}</div>
               <div className="flex items-center gap-3 mt-1 text-[11px]">
-                {c.low != null && c.low > 0 && <span className="text-red-400 flex items-center gap-1"><TrendingDown size={11} /> {c.low} {c.label === 'Material Lots' ? 'expired' : 'low'}</span>}
+                {c.low != null && c.low > 0 && <span className="text-red-400 flex items-center gap-1"><TrendingDown size={11} /> {c.low} {c.kind === 'lot' ? t('overview.expired') : t('overview.low')}</span>}
                 {c.value != null && <span className="text-muted-foreground">{money(c.value)} SAR</span>}
               </div>
             </Link>
@@ -131,21 +131,21 @@ export function InventoryOverview() {
         {/* Low-stock alerts */}
         <div className="glass-card rounded-xl overflow-hidden">
           <div className="p-4 border-b border-border/50 flex items-center justify-between">
-            <h2 className="font-semibold text-sm flex items-center gap-1.5"><AlertTriangle size={14} className="text-red-400" /> Reorder Alerts</h2>
+            <h2 className="font-semibold text-sm flex items-center gap-1.5"><AlertTriangle size={14} className="text-red-400" /> {t('overview.reorderAlerts')}</h2>
             <Badge variant="outline" className="text-[10px]">{lowRawList.length + lowPartsList.length}</Badge>
           </div>
           <div className="divide-y divide-border/30 max-h-[340px] overflow-auto">
             {lowRawList.length + lowPartsList.length === 0 ? (
-              <div className="p-6 text-center text-sm text-muted-foreground">All stock levels are healthy ✓</div>
+              <div className="p-6 text-center text-sm text-muted-foreground">{t('overview.allHealthy')}</div>
             ) : (
               <>
                 {lowRawList.map((r) => (
                   <ReorderRow key={`rm-${r.id}`} href="/inventory/raw-materials" code={r.code} name={r.name}
-                    stock={r.currentStock} min={r.reorderPoint ?? r.minStock} unit={r.unit} kind="Raw" />
+                    stock={r.currentStock} min={r.reorderPoint ?? r.minStock} unit={r.unit} kind={t('overview.kind.raw')} minLabel={t('overview.min')} />
                 ))}
                 {lowPartsList.map((p) => (
                   <ReorderRow key={`sp-${p.id}`} href="/inventory/spare-parts" code={p.partNumber} name={p.name}
-                    stock={p.stockQty} min={p.minStockQty} unit="" kind="Spare" />
+                    stock={p.stockQty} min={p.minStockQty} unit="" kind={t('overview.kind.spare')} minLabel={t('overview.min')} />
                 ))}
               </>
             )}
@@ -155,7 +155,7 @@ export function InventoryOverview() {
         {/* Recent movements */}
         <div className="glass-card rounded-xl overflow-hidden">
           <div className="p-4 border-b border-border/50 flex items-center justify-between">
-            <h2 className="font-semibold text-sm flex items-center gap-1.5"><ArrowLeftRight size={14} className="text-blue-400" /> Recent Stock Movements</h2>
+            <h2 className="font-semibold text-sm flex items-center gap-1.5"><ArrowLeftRight size={14} className="text-blue-400" /> {t('overview.recentMovements')}</h2>
             <Button size="sm" variant="outline" asChild className="h-7 text-xs"><Link href="/inventory/stock-movements">{t('overview.viewAll')}</Link></Button>
           </div>
           <div className="divide-y divide-border/30 max-h-[340px] overflow-auto">
@@ -165,7 +165,7 @@ export function InventoryOverview() {
               <div key={m.id} className="px-4 py-2.5 flex items-center gap-3 text-xs">
                 <MovementIcon type={m.movementType} />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{m.entityName ?? m.entityType ?? 'Item'}</div>
+                  <div className="font-medium truncate">{m.entityName ?? m.entityType ?? t('overview.item')}</div>
                   <div className="text-[10px] text-muted-foreground">{m.movementType}{m.reference ? ` · ${m.reference}` : ''}</div>
                 </div>
                 <div className={cn('font-mono font-semibold', (m.quantity ?? 0) >= 0 ? 'text-green-400' : 'text-red-400')}>
@@ -181,7 +181,7 @@ export function InventoryOverview() {
   );
 }
 
-function ReorderRow({ href, code, name, stock, min, unit, kind }: { href: string; code: string; name: string; stock: number; min: number; unit: string; kind: string }) {
+function ReorderRow({ href, code, name, stock, min, unit, kind, minLabel }: { href: string; code: string; name: string; stock: number; min: number; unit: string; kind: string; minLabel: string }) {
   return (
     <Link href={href} className="px-4 py-2.5 flex items-center gap-3 hover:bg-foreground/5">
       <span className="text-[9px] px-1.5 py-0.5 rounded border border-border/50 text-muted-foreground shrink-0">{kind}</span>
@@ -191,7 +191,7 @@ function ReorderRow({ href, code, name, stock, min, unit, kind }: { href: string
       </div>
       <div className="text-right">
         <div className="text-xs font-semibold text-red-400">{stock}{unit ? ` ${unit}` : ''}</div>
-        <div className="text-[10px] text-muted-foreground">min {min}</div>
+        <div className="text-[10px] text-muted-foreground">{minLabel} {min}</div>
       </div>
     </Link>
   );

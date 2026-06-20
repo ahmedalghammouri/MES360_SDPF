@@ -165,30 +165,30 @@ export function QualityInspectionsView() {
     mutationFn: (dto: any) => api.post('/quality/inspections', dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['quality', 'inspections'] })
-      toast({ title: 'Inspection created successfully' })
+      toast({ title: t('toast.inspectionCreated') })
       handleCloseForm()
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to create inspection', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.inspectionCreateFailed'), variant: 'destructive' }),
   })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: any }) => api.patch(`/quality/inspections/${id}`, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['quality', 'inspections'] })
-      toast({ title: 'Inspection updated successfully' })
+      toast({ title: t('toast.inspectionUpdated') })
       handleCloseForm()
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to update inspection', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.inspectionUpdateFailed'), variant: 'destructive' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/quality/inspections/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['quality', 'inspections'] })
-      toast({ title: 'Inspection deleted successfully' })
+      toast({ title: t('toast.inspectionDeleted') })
       setDeleteDialog(null)
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to delete inspection', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.inspectionDeleteFailed'), variant: 'destructive' }),
   })
 
   const handleOpenCreate = () => {
@@ -351,23 +351,23 @@ export function QualityInspectionsView() {
         <div className="flex items-center gap-2">
           <ExportMenu
             filename="quality-inspections"
-            title="Quality Inspections"
+            title={t('headers.inspections.title')}
             rows={inspections}
             columns={[
-              { key: 'inspectionNumber', label: 'Inspection #' },
-              { key: 'type', label: 'Type' },
-              { key: 'result', label: 'Result' },
-              { key: 'totalQty', label: 'Total' },
-              { key: 'passQty', label: 'Pass' },
-              { key: 'failQty', label: 'Fail' },
-              { key: 'workOrder', label: 'Work Order', value: (r: any) => r.workOrder?.orderNumber ?? '' },
-              { key: 'plan', label: 'Quality Plan', value: (r: any) => r.planName ?? r.plan?.name ?? '' },
-              { key: 'inspector', label: 'Inspector', value: (r: any) => (typeof r.inspector === 'string' ? r.inspector : r.inspector?.name) ?? '' },
-              { key: 'date', label: 'Date', value: (r: any) => (r.date ?? r.inspectedAt) ? new Date(r.date ?? r.inspectedAt).toLocaleDateString() : '' },
+              { key: 'inspectionNumber', label: t('inspections.col.inspection') },
+              { key: 'type', label: t('inspections.col.type') },
+              { key: 'result', label: t('inspections.col.result') },
+              { key: 'totalQty', label: t('inspections.col.total') },
+              { key: 'passQty', label: t('inspections.col.pass') },
+              { key: 'failQty', label: t('inspections.col.fail') },
+              { key: 'workOrder', label: t('inspections.col.workOrder'), value: (r: any) => r.workOrder?.orderNumber ?? '' },
+              { key: 'plan', label: t('inspections.col.qualityPlan'), value: (r: any) => r.planName ?? r.plan?.name ?? '' },
+              { key: 'inspector', label: t('inspections.col.inspector'), value: (r: any) => (typeof r.inspector === 'string' ? r.inspector : r.inspector?.name) ?? '' },
+              { key: 'date', label: t('inspections.col.date'), value: (r: any) => (r.date ?? r.inspectedAt) ? new Date(r.date ?? r.inspectedAt).toLocaleDateString() : '' },
             ]}
           />
           <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={handleOpenCreate}>
-            <Plus size={13} /> New Inspection
+            <Plus size={13} /> {t('inspections.newInspection')}
           </Button>
         </div>
       </div>
@@ -378,19 +378,19 @@ export function QualityInspectionsView() {
         {/* Summary cards */}
         <div className="grid grid-cols-4 gap-3">
           <div className="industrial-card p-4">
-            <p className="text-xs text-muted-foreground">Total Today</p>
+            <p className="text-xs text-muted-foreground">{t('inspections.totalToday')}</p>
             <p className="text-2xl font-bold mt-1">{summary.total}</p>
           </div>
           <div className="industrial-card p-4">
-            <p className="text-xs text-muted-foreground">Pass</p>
+            <p className="text-xs text-muted-foreground">{t('inspections.pass')}</p>
             <p className="text-2xl font-bold mt-1 text-green-400">{summary.pass}</p>
           </div>
           <div className="industrial-card p-4">
-            <p className="text-xs text-muted-foreground">Conditional</p>
+            <p className="text-xs text-muted-foreground">{t('inspections.conditional')}</p>
             <p className="text-2xl font-bold mt-1 text-amber-400">{summary.conditional}</p>
           </div>
           <div className="industrial-card p-4">
-            <p className="text-xs text-muted-foreground">Failed</p>
+            <p className="text-xs text-muted-foreground">{t('inspections.failed')}</p>
             <p className="text-2xl font-bold mt-1 text-red-400">{summary.fail}</p>
           </div>
         </div>
@@ -518,20 +518,20 @@ export function QualityInspectionsView() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => handleOpenEdit(ins)}>
-                                <Pencil className="w-3.5 h-3.5 mr-2" />Edit
+                                <Pencil className="w-3.5 h-3.5 mr-2" />{t('common.edit')}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               {(ins as any).archivedAt ? (
                                 <DropdownMenuItem onClick={() => restoreInsp.mutate(ins.id)}>
-                                  <RotateCcw className="w-3.5 h-3.5 mr-2" />Restore
+                                  <RotateCcw className="w-3.5 h-3.5 mr-2" />{t('common.restore')}
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem onClick={() => archiveInsp.mutate(ins.id)}>
-                                  <ArchiveIcon className="w-3.5 h-3.5 mr-2" />Archive
+                                  <ArchiveIcon className="w-3.5 h-3.5 mr-2" />{t('common.archive')}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem className="text-destructive" onClick={() => setDeleteDialog({ id: ins.id, number: ins.inspectionNumber })}>
-                                <Trash2 className="w-3.5 h-3.5 mr-2" />Delete
+                                <Trash2 className="w-3.5 h-3.5 mr-2" />{t('common.delete')}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -550,7 +550,7 @@ export function QualityInspectionsView() {
       <FormDialog
         open={formOpen}
         onClose={handleCloseForm}
-        title={editInspection ? 'Edit Inspection' : 'New Inspection'}
+        title={editInspection ? t('iform.editTitle') : t('iform.createTitle')}
         onSubmit={handleSubmit}
         isSubmitting={createMutation.isPending || updateMutation.isPending}
         isValid={isValid}
@@ -560,33 +560,33 @@ export function QualityInspectionsView() {
           <div className="grid grid-cols-2 gap-4">
             {editInspection && (
               <div>
-                <Label>Inspection Number</Label>
+                <Label>{t('iform.inspectionNumber')}</Label>
                 <Input value={form.inspectionNumber} disabled className="mt-1 font-mono text-xs bg-muted/50" />
               </div>
             )}
             <div className={editInspection ? '' : 'col-span-2'}>
-              <Label>Type *</Label>
+              <Label>{t('iform.type')} *</Label>
               <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {Object.entries(TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  {Object.keys(TYPE_LABELS).map((k) => <SelectItem key={k} value={k}>{t(`inspections.type.${k}`)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Total Quantity *</Label>
+              <Label>{t('iform.totalQty')} *</Label>
               <Input type="number" value={form.totalQty} onChange={e => setForm(v => ({ ...v, totalQty: e.target.value }))} className="mt-1" />
             </div>
             <div>
-              <Label>Pass Quantity *</Label>
+              <Label>{t('iform.passQty')} *</Label>
               <Input type="number" value={form.passQty} onChange={e => setForm(v => ({ ...v, passQty: e.target.value }))} className="mt-1" />
             </div>
             <div>
-              <Label>Fail Quantity</Label>
+              <Label>{t('iform.failQty')}</Label>
               <Input type="number" value={form.failQty} onChange={e => setForm(v => ({ ...v, failQty: e.target.value }))} className="mt-1" />
             </div>
             <div>
-              <Label>Work Order</Label>
+              <Label>{t('iform.workOrder')}</Label>
               <EntityPicker
                 items={workOrders}
                 value={form.workOrderId === '__none__' ? null : (form.workOrderId || null)}
@@ -595,13 +595,13 @@ export function QualityInspectionsView() {
                 getPrimary={wo => wo.orderNumber}
                 getSecondary={wo => wo.sku?.name ?? ''}
                 searchText={wo => `${wo.orderNumber} ${wo.sku?.name ?? ''}`}
-                placeholder="Link to work order..."
-                searchPlaceholder="Search work orders…"
+                placeholder={t('iform.linkWorkOrder')}
+                searchPlaceholder={t('iform.searchWorkOrders')}
                 className="mt-1"
               />
             </div>
             <div>
-              <Label>Machine</Label>
+              <Label>{t('iform.machine')}</Label>
               <EntityPicker
                 items={machines}
                 value={form.machineId === '__none__' ? null : (form.machineId || null)}
@@ -610,13 +610,13 @@ export function QualityInspectionsView() {
                 getPrimary={m => m.name}
                 getSecondary={m => m.code}
                 searchText={m => `${m.name} ${m.code}`}
-                placeholder="Link to machine..."
-                searchPlaceholder="Search machines…"
+                placeholder={t('iform.linkMachine')}
+                searchPlaceholder={t('iform.searchMachines')}
                 className="mt-1"
               />
             </div>
             <div>
-              <Label>Batch / Lot</Label>
+              <Label>{t('iform.batch')}</Label>
               <EntityPicker
                 items={batches}
                 value={form.batchRecordId === '__none__' ? null : (form.batchRecordId || null)}
@@ -625,20 +625,20 @@ export function QualityInspectionsView() {
                 getPrimary={b => b.batchNumber}
                 getSecondary={() => ''}
                 searchText={b => b.batchNumber}
-                placeholder="Link to batch..."
-                searchPlaceholder="Search batches…"
+                placeholder={t('iform.linkBatch')}
+                searchPlaceholder={t('iform.searchBatches')}
                 className="mt-1"
               />
             </div>
             <div>
-              <Label>Inspected At</Label>
+              <Label>{t('iform.inspectedAt')}</Label>
               <Input
                 type="datetime-local"
                 value={form.inspectedAt}
                 onChange={e => setForm(v => ({ ...v, inspectedAt: e.target.value }))}
                 className="mt-1"
               />
-              <p className="text-[10px] text-muted-foreground mt-1">Leave blank to use the current time.</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{t('iform.inspectedAtHint')}</p>
             </div>
           </div>
 
@@ -646,7 +646,7 @@ export function QualityInspectionsView() {
           <div>
             <Label className="flex items-center gap-1.5">
               <ClipboardList size={12} className="text-primary" />
-              Quality Plan
+              {t('iform.qualityPlan')}
             </Label>
             <EntityPicker
               items={plans}
@@ -656,8 +656,8 @@ export function QualityInspectionsView() {
               getPrimary={p => p.name}
               getSecondary={p => p.code}
               getMeta={p => <span className="text-muted-foreground">{p.type}</span>}
-              placeholder="Select plan..."
-              searchPlaceholder="Search plans…"
+              placeholder={t('iform.selectPlan')}
+              searchPlaceholder={t('iform.searchPlans')}
               className="mt-1"
             />
           </div>
@@ -667,16 +667,16 @@ export function QualityInspectionsView() {
             <div>
               <Label className="flex items-center gap-1.5 mb-2">
                 <FlaskConical size={12} className="text-primary" />
-                Quality Check Points ({checklist.length} parameters)
+                {t('iform.checkPointsLabel', { count: checklist.length })}
               </Label>
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/40">
                     <tr>
-                      <th className="text-left p-2 font-medium text-muted-foreground">Parameter</th>
-                      <th className="text-left p-2 font-medium text-muted-foreground w-28">Measured Value</th>
-                      <th className="text-center p-2 font-medium text-muted-foreground w-24">Result</th>
-                      <th className="text-left p-2 font-medium text-muted-foreground">Notes</th>
+                      <th className="text-left p-2 font-medium text-muted-foreground">{t('iform.colParameter')}</th>
+                      <th className="text-left p-2 font-medium text-muted-foreground w-28">{t('iform.colMeasuredValue')}</th>
+                      <th className="text-center p-2 font-medium text-muted-foreground w-24">{t('iform.colResult')}</th>
+                      <th className="text-left p-2 font-medium text-muted-foreground">{t('iform.colNotes')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -688,9 +688,9 @@ export function QualityInspectionsView() {
                             <div className="font-medium">{item.parameterName}</div>
                             {param && (
                               <div className="text-[10px] text-muted-foreground">
-                                {param.nominalValue != null && `Nominal: ${param.nominalValue}`}
+                                {param.nominalValue != null && t('iform.nominal', { value: param.nominalValue })}
                                 {param.unit && ` ${param.unit}`}
-                                {(param.lsl != null || param.usl != null) && ` | Spec: [${param.lsl ?? '—'}, ${param.usl ?? '—'}]`}
+                                {(param.lsl != null || param.usl != null) && ` | ${t('iform.spec')}: [${param.lsl ?? '—'}, ${param.usl ?? '—'}]`}
                               </div>
                             )}
                           </td>
@@ -699,7 +699,7 @@ export function QualityInspectionsView() {
                               value={item.measuredValue}
                               onChange={e => updateChecklistItem(idx, 'measuredValue', e.target.value)}
                               className="h-7 text-xs w-full"
-                              placeholder="Enter value"
+                              placeholder={t('iform.enterValue')}
                             />
                           </td>
                           <td className="p-1.5">
@@ -714,7 +714,7 @@ export function QualityInspectionsView() {
                                     : 'bg-muted/30 text-muted-foreground hover:bg-green-500/10',
                                 )}
                               >
-                                <CheckCircle2 size={10} /> Pass
+                                <CheckCircle2 size={10} /> {t('iform.pass')}
                               </button>
                               <button
                                 type="button"
@@ -726,7 +726,7 @@ export function QualityInspectionsView() {
                                     : 'bg-muted/30 text-muted-foreground hover:bg-red-500/10',
                                 )}
                               >
-                                <XCircle size={10} /> Fail
+                                <XCircle size={10} /> {t('iform.fail')}
                               </button>
                             </div>
                           </td>
@@ -735,7 +735,7 @@ export function QualityInspectionsView() {
                               value={item.notes}
                               onChange={e => updateChecklistItem(idx, 'notes', e.target.value)}
                               className="h-7 text-xs w-full"
-                              placeholder="Optional..."
+                              placeholder={t('iform.optionalPlaceholder')}
                             />
                           </td>
                         </tr>
@@ -745,13 +745,13 @@ export function QualityInspectionsView() {
                 </table>
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">
-                {checklist.filter(c => c.pass === true).length}/{checklist.length} parameters passing
+                {t('iform.paramsPassing', { passing: checklist.filter(c => c.pass === true).length, total: checklist.length })}
               </p>
             </div>
           )}
 
           <div>
-            <Label>Notes</Label>
+            <Label>{t('iform.notes')}</Label>
             <Input value={form.notes} onChange={e => setForm(v => ({ ...v, notes: e.target.value }))} className="mt-1" />
           </div>
         </div>
@@ -761,8 +761,8 @@ export function QualityInspectionsView() {
         open={!!deleteDialog}
         onClose={() => setDeleteDialog(null)}
         onConfirm={() => deleteDialog && deleteMutation.mutate(deleteDialog.id)}
-        title={`Delete inspection ${deleteDialog?.number}?`}
-        description="This will permanently delete this inspection record."
+        title={t('iform.deleteTitle', { number: deleteDialog?.number })}
+        description={t('iform.deleteDescription')}
         isDeleting={deleteMutation.isPending}
       />
 
@@ -770,8 +770,8 @@ export function QualityInspectionsView() {
         count={sel.count}
         onClear={sel.clear}
         actions={archived === 'archived'
-          ? [{ label: 'Restore', icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
-          : [{ label: 'Archive', icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
+          ? [{ label: t('common.restore'), icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
+          : [{ label: t('common.archive'), icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
       />
     </div>
   )

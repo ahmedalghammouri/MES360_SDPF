@@ -262,7 +262,7 @@ export function BOMView() {
         </div>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus size={14} className="mr-1.5" />
-          New BOM
+          {t('bomView.newBom')}
         </Button>
       </div>
 
@@ -270,9 +270,7 @@ export function BOMView() {
       <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20 text-sm text-muted-foreground">
         <Info size={15} className="mt-0.5 text-primary shrink-0" />
         <span>
-          A <strong className="text-foreground">BOM</strong> links a finished product (SKU) to the raw materials, packaging and consumables needed to make one unit.
-          The <strong className="text-foreground">scrap factor</strong> adds a buffer (e.g. 0.05 = 5% extra). Approved BOMs are used by production to auto-calculate material requirements.
-          Material <strong className="text-foreground">lots</strong> show available stock per raw material.
+          {t('bomView.infoBanner')}
         </span>
       </div>
 
@@ -292,7 +290,7 @@ export function BOMView() {
       {/* BOM list */}
       <div className="flex flex-col gap-3">
         {isLoading ? (
-          <div className="text-sm text-muted-foreground p-8 text-center">Loading BOMs...</div>
+          <div className="text-sm text-muted-foreground p-8 text-center">{t('bomView.loading')}</div>
         ) : filteredBOMs.length === 0 ? (
           <div className="text-sm text-muted-foreground p-12 text-center border rounded-xl">
             <GitBranch size={32} className="mx-auto mb-3 opacity-20" />
@@ -326,19 +324,19 @@ export function BOMView() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         icon={Layers}
-        title="Create Bill of Materials"
+        title={t('bomView.createTitle')}
         footer={(
           <>
-            <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)}>{t('bomView.cancel')}</Button>
             <Button size="sm" onClick={handleCreate} disabled={createMutation.isPending || !newBOM.skuId}>
-              {createMutation.isPending ? 'Creating...' : 'Create BOM'}
+              {createMutation.isPending ? t('bomView.creating') : t('bomView.createBom')}
             </Button>
           </>
         )}
       >
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <Label>Product (SKU) *</Label>
+                    <Label>{t('bomView.product')} *</Label>
                     <EntityPicker
                       items={skus}
                       value={newBOM.skuId}
@@ -346,18 +344,18 @@ export function BOMView() {
                       getId={(s: any) => s.id}
                       getPrimary={(s: any) => s.name}
                       getSecondary={(s: any) => s.itemNumber}
-                      placeholder="Select product..."
-                      searchPlaceholder="Search by item number or name…"
+                      placeholder={t('bomView.selectProduct')}
+                      searchPlaceholder={t('bomView.searchProduct')}
                       size="sm"
                       clearable={false}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label>Version</Label>
+                    <Label>{t('bomView.version')}</Label>
                     <Input
                       value={newBOM.version}
                       onChange={e => setNewBOM(p => ({ ...p, version: e.target.value }))}
-                      placeholder="1.0"
+                      placeholder={t('bomView.versionPlaceholder')}
                       className="h-8 text-sm"
                     />
                   </div>
@@ -369,15 +367,14 @@ export function BOMView() {
                     <Sparkles size={15} className="mt-0.5 text-emerald-400 shrink-0" />
                     <div className="flex-1 text-xs">
                       <div className="text-foreground font-medium flex items-center flex-wrap gap-x-1">
-                        <span>Found manufacturing process: <strong>{resolvedProcess.process.name}</strong> v{resolvedProcess.process.version}</span>
+                        <span>{t('bomView.foundProcess', { name: resolvedProcess.process.name, version: resolvedProcess.process.version })}</span>
                         <Badge variant="outline" className="text-[9px] h-4">{resolvedProcess.process.scopeType.replace('_', ' ')}</Badge>
                       </div>
                       <p className="text-muted-foreground mt-0.5">
-                        {resolvedProcess.process.steps.length} steps · {resolvedProcess.process.totalMaterials} step input material{resolvedProcess.process.totalMaterials !== 1 ? 's' : ''} —
-                        the BOM can be derived automatically (rolled up per 1 finished unit, each line linked to its step).
+                        {t('bomView.processSummary', { steps: resolvedProcess.process.steps.length, materials: resolvedProcess.process.totalMaterials })}
                       </p>
                       {resolvedProcess.process.totalMaterials === 0 && (
-                        <p className="text-amber-400 mt-1">The process has no step materials yet — add them in Manufacturing Processes, or enter the BOM manually below.</p>
+                        <p className="text-amber-400 mt-1">{t('bomView.processNoMaterials')}</p>
                       )}
                     </div>
                     <Button
@@ -387,7 +384,7 @@ export function BOMView() {
                       onClick={() => deriveMutation.mutate({ skuId: newBOM.skuId, processId: resolvedProcess.process!.id })}
                     >
                       <Workflow size={12} className="mr-1" />
-                      {deriveMutation.isPending ? 'Deriving…' : 'Derive from process'}
+                      {deriveMutation.isPending ? t('bomView.deriving') : t('bomView.deriveFromProcess')}
                     </Button>
                   </div>
                 )}
@@ -395,28 +392,27 @@ export function BOMView() {
                   <div className="flex items-start gap-3 p-3 rounded-lg bg-sky-500/5 border border-sky-500/25 text-xs text-muted-foreground">
                     <Info size={14} className="mt-0.5 text-sky-400 shrink-0" />
                     <span>
-                      No manufacturing process exists for this product yet. Enter the materials below — after creating the BOM you can
-                      <strong className="text-foreground"> generate a draft process</strong> from it with one click.
+                      {t('bomView.noProcessYet')}
                     </span>
                   </div>
                 )}
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <Label>Raw Material Components *</Label>
+                    <Label>{t('bomView.rawMaterialComponents')} *</Label>
                     <Button size="sm" variant="outline" onClick={addNewItemRow} className="h-7 text-xs">
                       <Plus size={12} className="mr-1" />
-                      Add Row
+                      {t('bomView.addRow')}
                     </Button>
                   </div>
                   <div className="border rounded-lg overflow-hidden">
                     <table className="w-full text-xs">
                       <thead className="bg-muted/50">
                         <tr>
-                          <th className="text-left p-2 font-medium">Material</th>
-                          <th className="text-left p-2 font-medium w-24">Qty / Unit</th>
-                          <th className="text-left p-2 font-medium w-20">Unit</th>
-                          <th className="text-left p-2 font-medium w-20">Scrap %</th>
+                          <th className="text-left p-2 font-medium">{t('bomView.col.material')}</th>
+                          <th className="text-left p-2 font-medium w-24">{t('bomView.col.qtyUnit')}</th>
+                          <th className="text-left p-2 font-medium w-20">{t('bomView.col.unit')}</th>
+                          <th className="text-left p-2 font-medium w-20">{t('bomView.col.scrapPct')}</th>
                           <th className="w-8 p-2" />
                         </tr>
                       </thead>
@@ -434,8 +430,8 @@ export function BOMView() {
                                 getId={m => m.id}
                                 getPrimary={m => m.name}
                                 getSecondary={m => m.code}
-                                placeholder="Select material..."
-                                searchPlaceholder="Search by code or name…"
+                                placeholder={t('bomView.selectMaterial')}
+                                searchPlaceholder={t('bomView.searchMaterial')}
                                 size="sm"
                                 className="h-7"
                                 clearable={false}
@@ -453,7 +449,7 @@ export function BOMView() {
                               {item.rawMaterialId ? (
                                 <div
                                   className="h-7 flex items-center px-2 rounded-md border border-input bg-muted/40 text-xs text-muted-foreground"
-                                  title="Unit comes from the raw-material master (unified UoM)"
+                                  title={t('bomView.unitFromMasterTip')}
                                 >
                                   {item.unit}
                                 </div>
@@ -492,11 +488,11 @@ export function BOMView() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <Label>Notes (optional)</Label>
+                  <Label>{t('bomView.notesOptional')}</Label>
                   <Input
                     value={newBOM.notes}
                     onChange={e => setNewBOM(p => ({ ...p, notes: e.target.value }))}
-                    placeholder="Engineering change notes..."
+                    placeholder={t('bomView.notesPlaceholder')}
                     className="h-8 text-sm"
                   />
                 </div>
@@ -508,44 +504,44 @@ export function BOMView() {
           open={!!editBOM}
           onClose={() => setEditBOM(null)}
           icon={Edit2}
-          title="Edit BOM"
+          title={t('bomView.editTitle')}
           description={editBOM.sku.name}
           footer={(
             <>
-              <Button variant="outline" size="sm" onClick={() => setEditBOM(null)}>Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => setEditBOM(null)}>{t('bomView.cancel')}</Button>
               <Button
                 size="sm"
                 disabled={updateMutation.isPending || !editForm.version}
                 onClick={() => updateMutation.mutate({ id: editBOM.id, dto: { version: editForm.version, notes: editForm.notes || undefined } })}
               >
-                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+                {updateMutation.isPending ? t('bomView.saving') : t('bomView.saveChanges')}
               </Button>
             </>
           )}
         >
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <Label>Version</Label>
+                  <Label>{t('bomView.version')}</Label>
                   <Input
                     value={editForm.version}
                     onChange={e => setEditForm(p => ({ ...p, version: e.target.value }))}
-                    placeholder="1.0"
+                    placeholder={t('bomView.versionPlaceholder')}
                     className="h-8 text-sm"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Notes</Label>
+                  <Label>{t('bomView.notes')}</Label>
                   <Input
                     value={editForm.notes}
                     onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))}
-                    placeholder="Engineering change notes..."
+                    placeholder={t('bomView.notesPlaceholder')}
                     className="h-8 text-sm"
                   />
                 </div>
                 {editBOM.approvedAt && (
                   <p className="text-xs text-amber-500 flex items-center gap-1.5">
                     <AlertTriangle size={12} />
-                    This BOM is approved. Only notes can be changed without creating a new version.
+                    {t('bomView.approvedNote')}
                   </p>
                 )}
               </div>
@@ -567,24 +563,24 @@ export function BOMView() {
                   <AlertTriangle size={18} className="text-destructive" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-sm">Delete BOM?</h2>
+                  <h2 className="font-semibold text-sm">{t('bomView.deleteTitle')}</h2>
                   <p className="text-xs text-muted-foreground mt-1">
-                    This will permanently delete the BOM for <strong>{deleteBOMTarget.sku.name}</strong> (v{deleteBOMTarget.version}) and all its {deleteBOMTarget.items.length} material lines.
+                    {t('bomView.deleteDesc', { name: deleteBOMTarget.sku.name, version: deleteBOMTarget.version, count: deleteBOMTarget.items.length })}
                   </p>
                   {deleteBOMTarget.approvedAt && (
-                    <p className="text-xs text-destructive mt-2 font-medium">Approved BOMs cannot be deleted.</p>
+                    <p className="text-xs text-destructive mt-2 font-medium">{t('bomView.approvedCantDelete')}</p>
                   )}
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setDeleteBOMTarget(null)}>Cancel</Button>
+                <Button variant="outline" size="sm" onClick={() => setDeleteBOMTarget(null)}>{t('bomView.cancel')}</Button>
                 <Button
                   size="sm"
                   variant="destructive"
                   disabled={deleteBOMMutation.isPending || !!deleteBOMTarget.approvedAt}
                   onClick={() => deleteBOMMutation.mutate(deleteBOMTarget.id)}
                 >
-                  {deleteBOMMutation.isPending ? 'Deleting...' : 'Delete BOM'}
+                  {deleteBOMMutation.isPending ? t('bomView.deleting') : t('bomView.deleteBom')}
                 </Button>
               </div>
             </motion.div>
@@ -598,10 +594,10 @@ export function BOMView() {
           open={!!addItemBOM}
           onClose={() => setAddItemBOM(null)}
           icon={Plus}
-          title="Add Material to BOM"
+          title={t('bomView.addMaterialTitle')}
           footer={(
             <>
-              <Button variant="outline" size="sm" onClick={() => setAddItemBOM(null)}>Cancel</Button>
+              <Button variant="outline" size="sm" onClick={() => setAddItemBOM(null)}>{t('bomView.cancel')}</Button>
               <Button size="sm"
                 disabled={addItemMutation.isPending || !addItem.rawMaterialId || !addItem.quantityPer}
                 onClick={() => addItemMutation.mutate({
@@ -614,14 +610,14 @@ export function BOMView() {
                   },
                 })}
               >
-                {addItemMutation.isPending ? 'Adding...' : 'Add Material'}
+                {addItemMutation.isPending ? t('bomView.adding') : t('bomView.addMaterial')}
               </Button>
             </>
           )}
         >
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <Label>Raw Material *</Label>
+                  <Label>{t('bomView.rawMaterial')} *</Label>
                   <EntityPicker
                     items={rawMaterials.filter(m => !addItemBOM?.items.some(i => i.rawMaterialId === m.id))}
                     value={addItem.rawMaterialId}
@@ -631,23 +627,23 @@ export function BOMView() {
                     getSecondary={m => m.code}
                     getMeta={m => {
                       const lots = lotsByMaterial[m.id];
-                      return lots ? <span className="text-green-400">{lots.activeLots} lots · {lots.totalRemaining.toFixed(0)} {lots.unit}</span> : null;
+                      return lots ? <span className="text-green-400">{t('bomView.lotsMeta', { count: lots.activeLots, remaining: lots.totalRemaining.toFixed(0), unit: lots.unit })}</span> : null;
                     }}
-                    placeholder="Select material..."
-                    searchPlaceholder="Search by code or name…"
+                    placeholder={t('bomView.selectMaterial')}
+                    searchPlaceholder={t('bomView.searchMaterial')}
                     size="sm"
                     clearable={false}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <Label>Quantity per unit *</Label>
+                    <Label>{t('bomView.quantityPerUnit')} *</Label>
                     <Input type="number" min="0" step="0.001" value={addItem.quantityPer}
                       onChange={e => setAddItem(p => ({ ...p, quantityPer: e.target.value }))}
                       className="h-8 text-sm" placeholder="0.000" />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label>Unit {addItem.rawMaterialId && <span className="text-[10px] text-muted-foreground">(from material master)</span>}</Label>
+                    <Label>{t('bomView.unit')} {addItem.rawMaterialId && <span className="text-[10px] text-muted-foreground">{t('bomView.fromMaterialMaster')}</span>}</Label>
                     {addItem.rawMaterialId ? (
                       <div className="h-8 flex items-center px-3 rounded-md border border-input bg-muted/40 text-sm text-muted-foreground">
                         {addItem.unit}
@@ -663,7 +659,7 @@ export function BOMView() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Scrap Factor (e.g. 0.05 = 5%)</Label>
+                  <Label>{t('bomView.scrapFactor')}</Label>
                   <Input type="number" min="0" max="1" step="0.01" value={addItem.scrapFactor}
                     onChange={e => setAddItem(p => ({ ...p, scrapFactor: e.target.value }))}
                     className="h-8 text-sm" placeholder="0.00" />
@@ -694,6 +690,7 @@ function BOMCard({
   bomCost: number;
   lotsByMaterial: Record<string, MaterialLotSummary>;
 }) {
+  const { t } = useTranslation(['inventory', 'common']);
   return (
     <div className="border rounded-xl overflow-hidden bg-card">
       <div
@@ -711,55 +708,55 @@ function BOMCard({
             {bom.isActive && bom.approvedAt && (
               <Badge className="text-[10px] h-4 bg-success-500/10 text-success-400 border-success-500/20">
                 <CheckCircle2 size={8} className="mr-1" />
-                Approved
+                {t('bomView.approved')}
               </Badge>
             )}
             {bom.isActive && !bom.approvedAt && (
-              <Badge variant="outline" className="text-[10px] h-4 text-amber-500 border-amber-500/30">Draft</Badge>
+              <Badge variant="outline" className="text-[10px] h-4 text-amber-500 border-amber-500/30">{t('bomView.draft')}</Badge>
             )}
             {bom.process && (
               <Badge variant="outline" className="text-[10px] h-4 text-indigo-400 border-indigo-500/30">
                 <Workflow size={8} className="mr-1" />
-                {bom.sourceType === 'DERIVED_FROM_PROCESS' ? 'Derived from' : 'Linked to'} {bom.process.name} v{bom.process.version}
+                {bom.sourceType === 'DERIVED_FROM_PROCESS' ? t('bomView.derivedFrom') : t('bomView.linkedTo')} {bom.process.name} v{bom.process.version}
               </Badge>
             )}
             {bom.isStale && (
               <Badge className="text-[10px] h-4 bg-amber-500/10 text-amber-400 border-amber-500/30">
                 <AlertTriangle size={8} className="mr-1" />
-                Stale
+                {t('bomView.stale')}
               </Badge>
             )}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">
-            {bom.items.length} component{bom.items.length !== 1 ? 's' : ''} · Est. cost: {bomCost > 0 ? `SAR ${bomCost.toFixed(3)} / unit` : 'N/A'}
+            {t('bomView.componentsCount', { count: bom.items.length })} · {bomCost > 0 ? t('bomView.estCost', { cost: t('bomView.perUnit', { cost: bomCost.toFixed(3) }) }) : t('bomView.estCostNa')}
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {bom.isStale && bom.processId && (
             <Button size="sm" variant="outline" className="h-7 text-xs text-amber-400 border-amber-500/40"
               disabled={rederivePending}
-              title="Source process changed — derive a fresh BOM version from it"
+              title={t('bomView.reDeriveTip')}
               onClick={e => { e.stopPropagation(); onRederive(); }}>
-              <RefreshCcw size={12} className="mr-1" />{rederivePending ? 'Re-deriving…' : 'Re-derive'}
+              <RefreshCcw size={12} className="mr-1" />{rederivePending ? t('bomView.reDeriving') : t('bomView.reDerive')}
             </Button>
           )}
           {!bom.processId && (
             <Button size="sm" variant="outline" className="h-7 text-xs text-indigo-400 border-indigo-500/40"
               disabled={generatePending}
-              title="Create a draft manufacturing process from this BOM (guided flow)"
+              title={t('bomView.generateProcessTip')}
               onClick={e => { e.stopPropagation(); onGenerateProcess(); }}>
-              <Workflow size={12} className="mr-1" />{generatePending ? 'Generating…' : 'Generate process'}
+              <Workflow size={12} className="mr-1" />{generatePending ? t('bomView.generating') : t('bomView.generateProcess')}
             </Button>
           )}
           {!bom.approvedAt && (
             <Button size="sm" variant="outline" className="h-7 text-xs"
               onClick={e => { e.stopPropagation(); onApprove(); }}>
-              <FileCheck2 size={12} className="mr-1" />Approve
+              <FileCheck2 size={12} className="mr-1" />{t('bomView.approve')}
             </Button>
           )}
           <Button size="sm" variant="ghost" className="h-7 text-xs"
             onClick={e => { e.stopPropagation(); onAddItem(); }}>
-            <Plus size={12} className="mr-1" />Add Item
+            <Plus size={12} className="mr-1" />{t('bomView.addItem')}
           </Button>
           <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
             onClick={e => { e.stopPropagation(); onEdit(); }}>
@@ -786,21 +783,21 @@ function BOMCard({
             <div className="border-t">
               {bom.items.length === 0 ? (
                 <div className="p-6 text-sm text-muted-foreground text-center">
-                  No materials defined. Add the first component.
+                  {t('bomView.noMaterialsDefined')}
                 </div>
               ) : (
                 <table className="w-full text-xs">
                   <thead className="bg-muted/30">
                     <tr>
-                      <th className="text-left p-2.5 font-medium text-muted-foreground">Material</th>
-                      <th className="text-left p-2.5 font-medium text-muted-foreground">Code</th>
-                      <th className="text-left p-2.5 font-medium text-muted-foreground">Step</th>
-                      <th className="text-right p-2.5 font-medium text-muted-foreground">Qty / Unit</th>
-                      <th className="text-right p-2.5 font-medium text-muted-foreground">Scrap</th>
-                      <th className="text-right p-2.5 font-medium text-muted-foreground">Total Qty</th>
-                      <th className="text-right p-2.5 font-medium text-muted-foreground">Unit Cost</th>
-                      <th className="text-right p-2.5 font-medium text-muted-foreground">Line Cost</th>
-                      <th className="text-center p-2.5 font-medium text-muted-foreground">Lots</th>
+                      <th className="text-left p-2.5 font-medium text-muted-foreground">{t('bomView.col.material')}</th>
+                      <th className="text-left p-2.5 font-medium text-muted-foreground">{t('bomView.col.code')}</th>
+                      <th className="text-left p-2.5 font-medium text-muted-foreground">{t('bomView.col.step')}</th>
+                      <th className="text-right p-2.5 font-medium text-muted-foreground">{t('bomView.col.qtyUnit')}</th>
+                      <th className="text-right p-2.5 font-medium text-muted-foreground">{t('bomView.col.scrap')}</th>
+                      <th className="text-right p-2.5 font-medium text-muted-foreground">{t('bomView.col.totalQty')}</th>
+                      <th className="text-right p-2.5 font-medium text-muted-foreground">{t('bomView.col.unitCost')}</th>
+                      <th className="text-right p-2.5 font-medium text-muted-foreground">{t('bomView.col.lineCost')}</th>
+                      <th className="text-center p-2.5 font-medium text-muted-foreground">{t('bomView.col.lots')}</th>
                       <th className="w-8 p-2.5" />
                     </tr>
                   </thead>
@@ -847,10 +844,10 @@ function BOMCard({
                                   : 'bg-amber-500/10 text-amber-400',
                               )}>
                                 <Package size={9} />
-                                {lots.activeLots} lot{lots.activeLots !== 1 ? 's' : ''} · {lots.totalRemaining.toFixed(0)} {lots.unit}
+                                {t('bomView.lotsBadge', { count: lots.activeLots, remaining: lots.totalRemaining.toFixed(0), unit: lots.unit })}
                               </span>
                             ) : (
-                              <span className="text-[10px] text-muted-foreground/50">No lots</span>
+                              <span className="text-[10px] text-muted-foreground/50">{t('bomView.noLotsBadge')}</span>
                             )}
                           </td>
                           <td className="p-2.5">
@@ -870,7 +867,7 @@ function BOMCard({
                     <tfoot className="bg-muted/30 border-t">
                       <tr>
                         <td colSpan={7} className="p-2.5 text-right text-xs font-medium text-muted-foreground">
-                          Total Material Cost per Unit
+                          {t('bomView.totalCostPerUnit')}
                         </td>
                         <td className="p-2.5 text-right font-bold text-sm">
                           SAR {bomCost.toFixed(3)}

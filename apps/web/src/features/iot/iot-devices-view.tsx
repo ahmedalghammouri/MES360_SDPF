@@ -70,30 +70,30 @@ export function IotDevicesView() {
     mutationFn: (dto: any) => api.post('/iot/devices', dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iot', 'devices'] })
-      toast({ title: 'Device created successfully' })
+      toast({ title: t('devices.createdSuccess') })
       handleCloseForm()
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to create device', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('devices.errorTitle'), description: e?.response?.data?.message ?? t('devices.createFailed'), variant: 'destructive' }),
   })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: any }) => api.patch(`/iot/devices/${id}`, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iot', 'devices'] })
-      toast({ title: 'Device updated successfully' })
+      toast({ title: t('devices.updatedSuccess') })
       handleCloseForm()
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to update device', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('devices.errorTitle'), description: e?.response?.data?.message ?? t('devices.updateFailed'), variant: 'destructive' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/iot/devices/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iot', 'devices'] })
-      toast({ title: 'Device deleted successfully' })
+      toast({ title: t('devices.deletedSuccess') })
       setDeleteDialog(null)
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to delete device', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('devices.errorTitle'), description: e?.response?.data?.message ?? t('devices.deleteFailed'), variant: 'destructive' }),
   })
 
   const handleOpenCreate = () => {
@@ -170,11 +170,11 @@ export function IotDevicesView() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
             <Download size={13} />
-            Export
+            {t('common.export')}
           </Button>
           <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={handleOpenCreate}>
             <Plus size={13} />
-            Add Device
+            {t('common.addDevice')}
           </Button>
         </div>
       </div>
@@ -183,19 +183,19 @@ export function IotDevicesView() {
         <InlineFormSlot />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KPICard title="Total Devices" value={(kpis as any)?.total ?? 0} isLoading={isLoading} />
-          <KPICard title="Connected" value={(kpis as any)?.connected ?? 0} colorMode="default" isLoading={isLoading} />
-          <KPICard title="Disconnected" value={(kpis as any)?.disconnected ?? 0} colorMode="alarm" isLoading={isLoading} />
-          <KPICard title="Errors" value={(kpis as any)?.errored ?? 0} colorMode="alarm" isLoading={isLoading} />
+          <KPICard title={t('devices.kpiTotal')} value={(kpis as any)?.total ?? 0} isLoading={isLoading} />
+          <KPICard title={t('devices.kpiConnected')} value={(kpis as any)?.connected ?? 0} colorMode="default" isLoading={isLoading} />
+          <KPICard title={t('devices.kpiDisconnected')} value={(kpis as any)?.disconnected ?? 0} colorMode="alarm" isLoading={isLoading} />
+          <KPICard title={t('devices.kpiErrors')} value={(kpis as any)?.errored ?? 0} colorMode="alarm" isLoading={isLoading} />
         </div>
 
         <div className="industrial-card p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold">Connected Devices</h3>
+            <h3 className="text-sm font-semibold">{t('devices.connectedDevices')}</h3>
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search devices..."
+                placeholder={t('devices.searchPlaceholder')}
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="h-8 pl-7 w-48 text-xs"
@@ -207,16 +207,16 @@ export function IotDevicesView() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-border/30">
-                  <TableHead className="text-[11px] font-semibold">Device ID</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Name</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Type</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Protocol</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Status</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Last Seen</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Tags</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Scope</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Gateway</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Actions</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('devices.thDeviceId')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('devices.thName')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('devices.thType')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('devices.thProtocol')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('devices.thStatus')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('devices.thLastSeen')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('devices.thTags')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('devices.thScope')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('devices.thGateway')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('devices.thActions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -233,7 +233,7 @@ export function IotDevicesView() {
                 ) : deviceList.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-8 text-muted-foreground text-sm">
-                      No devices found
+                      {t('devices.noDevices')}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -257,7 +257,7 @@ export function IotDevicesView() {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{device.lastSeenAt ? formatDate(device.lastSeenAt) : '—'}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{device._count?.tagDefinitions ?? 0}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{device.machine?.name ? `${device.machine.name}` : device.line?.name ? `${device.line.name} (line)` : device.area?.name ? `${device.area.name} (area)` : '—'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{device.machine?.name ? `${device.machine.name}` : device.line?.name ? t('devices.scopeLine', { name: device.line.name }) : device.area?.name ? t('devices.scopeArea', { name: device.area.name }) : '—'}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{device.gateway?.name ?? '—'}</TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -268,11 +268,11 @@ export function IotDevicesView() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => handleOpenEdit(device)}>
-                              <Pencil className="w-3.5 h-3.5 mr-2" />Edit
+                              <Pencil className="w-3.5 h-3.5 mr-2" />{t('common.edit')}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem className="text-destructive" onClick={() => setDeleteDialog({ id: device.id, name: device.name })}>
-                              <Trash2 className="w-3.5 h-3.5 mr-2" />Delete
+                              <Trash2 className="w-3.5 h-3.5 mr-2" />{t('common.delete')}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

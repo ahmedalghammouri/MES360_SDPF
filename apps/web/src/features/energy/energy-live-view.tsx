@@ -53,32 +53,32 @@ export function EnergyLiveView() {
           <p className="text-xs text-muted-foreground mt-0.5">{t('energy.live.subtitle')}</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5 h-8 text-xs">
-          <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin')} /> Refresh
+          <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin')} /> {t('energy.refresh')}
         </Button>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-w-2xl">
-          <KPICard title="Live Power" value={parseFloat(totalPower.toFixed(2))} unit="kW" isLoading={isLoading} icon={<Zap size={16} />} />
-          <KPICard title="Standby Power" value={resp.standbyPowerKw} unit="kW" colorMode="alarm" isLoading={isLoading} icon={<AlertTriangle size={16} />} subtitle="no production" />
-          <KPICard title="Standby Meters" value={resp.standbyCount} colorMode="alarm" isLoading={isLoading} icon={<Gauge size={16} />} />
+          <KPICard title={t('energy.livePower')} value={parseFloat(totalPower.toFixed(2))} unit="kW" isLoading={isLoading} icon={<Zap size={16} />} />
+          <KPICard title={t('energy.standbyPower')} value={resp.standbyPowerKw} unit="kW" colorMode="alarm" isLoading={isLoading} icon={<AlertTriangle size={16} />} subtitle={t('energy.noProduction')} />
+          <KPICard title={t('energy.standbyMeters')} value={resp.standbyCount} colorMode="alarm" isLoading={isLoading} icon={<Gauge size={16} />} />
         </div>
 
         <div className="glass-card rounded-xl overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Meter</TableHead>
-                <TableHead>Scope</TableHead>
-                <TableHead>Machine state</TableHead>
-                <TableHead className="mono">Power</TableHead>
-                <TableHead>Production</TableHead>
-                <TableHead>Updated</TableHead>
+                <TableHead>{t('energy.colMeter')}</TableHead>
+                <TableHead>{t('energy.colScope')}</TableHead>
+                <TableHead>{t('energy.colMachineState')}</TableHead>
+                <TableHead className="mono">{t('energy.colPower')}</TableHead>
+                <TableHead>{t('energy.colProduction')}</TableHead>
+                <TableHead>{t('energy.colUpdated')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {meters.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm">No meters in scope</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm">{t('energy.noMetersInScope')}</TableCell></TableRow>
               ) : meters.map(m => (
                 <motion.tr key={m.meterId} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                   className={cn('border-b border-border/50 hover:bg-foreground/[0.03]', m.standby && 'bg-danger-500/[0.06]')}>
@@ -91,12 +91,12 @@ export function EnergyLiveView() {
                   <TableCell className="mono font-semibold tabular-nums">{m.powerKw != null ? `${m.powerKw.toFixed(2)} kW` : '—'}</TableCell>
                   <TableCell>
                     {m.inProduction
-                      ? <Badge variant="outline" className="text-[10px] text-success-400 border-success-500/30">In production · {m.executingJobOrders} JO</Badge>
+                      ? <Badge variant="outline" className="text-[10px] text-success-400 border-success-500/30">{t('energy.inProduction', { count: m.executingJobOrders })}</Badge>
                       : m.standby
-                        ? <Badge variant="destructive" className="text-[10px] gap-1"><AlertTriangle size={10} /> Standby draw</Badge>
-                        : <Badge variant="secondary" className="text-[10px]">Idle</Badge>}
+                        ? <Badge variant="destructive" className="text-[10px] gap-1"><AlertTriangle size={10} /> {t('energy.standbyDraw')}</Badge>
+                        : <Badge variant="secondary" className="text-[10px]">{t('energy.idle')}</Badge>}
                   </TableCell>
-                  <TableCell><span className="text-xs text-muted-foreground">{m.lastAt ? `${timeAgo(m.lastAt)} ago` : '—'}</span></TableCell>
+                  <TableCell><span className="text-xs text-muted-foreground">{m.lastAt ? t('energy.timeAgo', { time: timeAgo(m.lastAt) }) : '—'}</span></TableCell>
                 </motion.tr>
               ))}
             </TableBody>

@@ -51,13 +51,13 @@ const TYPE_ICONS: Record<string, React.FC<{ className?: string }>> = {
   CHILLED_WATER: Activity,
 };
 
-function timeAgo(iso: string) {
+function timeAgo(iso: string, t: (k: string, o?: any) => string) {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return t('energy.agoMin', { value: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (hrs < 24) return t('energy.agoHour', { value: hrs });
+  return t('energy.agoDay', { value: Math.floor(hrs / 24) });
 }
 
 export function EnergyMetersView() {
@@ -101,7 +101,7 @@ export function EnergyMetersView() {
     mutationFn: (dto: { meterId: string; value: number }) => api.post('/energy/readings', dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['energy'] });
-      toast({ title: 'Reading added successfully' });
+      toast({ title: t('energy.toastReadingAdded') });
       setShowReadingForm(null);
       setReadingValue('');
     },
@@ -111,7 +111,7 @@ export function EnergyMetersView() {
     mutationFn: (dto: any) => api.post('/energy/meters', dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['energy'] });
-      toast({ title: 'Energy meter created successfully' });
+      toast({ title: t('energy.toastMeterCreated') });
       setShowMeterForm(false);
       setEditMeter(null);
       reset();
@@ -122,7 +122,7 @@ export function EnergyMetersView() {
     mutationFn: ({ id, ...dto }: any) => api.patch(`/energy/meters/${id}`, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['energy'] });
-      toast({ title: 'Energy meter updated successfully' });
+      toast({ title: t('energy.toastMeterUpdated') });
       setShowMeterForm(false);
       setEditMeter(null);
       reset();
@@ -133,7 +133,7 @@ export function EnergyMetersView() {
     mutationFn: (id: string) => api.delete(`/energy/meters/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['energy'] });
-      toast({ title: 'Energy meter deleted successfully' });
+      toast({ title: t('energy.toastMeterDeleted') });
       setDeleteMeter(null);
     },
   });
@@ -181,7 +181,7 @@ export function EnergyMetersView() {
           <p className="text-muted-foreground text-sm mt-1">{t('energy.metersCount', { count: meters.length })}</p>
         </div>
         <Button onClick={() => { setShowMeterForm(true); setEditMeter(null); reset({ type: 'ELECTRICAL' }); }}>
-          <Plus className="w-4 h-4 mr-2" />Add Meter
+          <Plus className="w-4 h-4 mr-2" />{t('energy.addMeter')}
         </Button>
       </div>
 
@@ -212,7 +212,7 @@ export function EnergyMetersView() {
                   <Icon className={cn('w-3.5 h-3.5', textColor)} />
                 </div>
                 <h2 className="font-semibold text-sm">{type.replace(/_/g, ' ')}</h2>
-                <Badge variant="outline" className="text-[10px]">{typeMeters.length} meters</Badge>
+                <Badge variant="outline" className="text-[10px]">{t('energy.metersBadge', { count: typeMeters.length })}</Badge>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {typeMeters.map((m, i) => (
@@ -234,12 +234,12 @@ export function EnergyMetersView() {
                     </div>
 
                     <div className="text-xs text-muted-foreground">
-                      {m.machine?.name ?? m.area?.name ?? m.location ?? 'Factory level'}
+                      {m.machine?.name ?? m.area?.name ?? m.location ?? t('energy.factoryLevel')}
                     </div>
 
                     <div className="border-t border-border/40 pt-3 space-y-1.5">
                       <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Last Reading</span>
+                        <span className="text-muted-foreground">{t('energy.cardLastReading')}</span>
                         {m.lastReading ? (
                           <span className="font-semibold">{m.lastReading.value} {m.lastReading.unit}</span>
                         ) : <span className="text-muted-foreground">—</span>}
@@ -247,18 +247,18 @@ export function EnergyMetersView() {
                       {m.lastReading && (
                         <div className="flex justify-between text-[10px] text-muted-foreground">
                           <span className="flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5" />{timeAgo(m.lastReading.timestamp)}
+                            <Clock className="w-2.5 h-2.5" />{timeAgo(m.lastReading.timestamp, t)}
                           </span>
                           <span>{m.lastReading.source}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-xs mt-1">
-                        <span className="text-muted-foreground">MTD Consumption</span>
+                        <span className="text-muted-foreground">{t('energy.cardMtdConsumption')}</span>
                         <span className="font-semibold">{m.mtdConsumption.toLocaleString()} {m.unit}</span>
                       </div>
                       {m.mtdCost > 0 && (
                         <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">MTD Cost</span>
+                          <span className="text-muted-foreground">{t('energy.cardMtdCost')}</span>
                           <span className="text-green-400">{m.mtdCost.toLocaleString()} SAR</span>
                         </div>
                       )}
@@ -271,7 +271,7 @@ export function EnergyMetersView() {
                         className="flex-1 h-7 text-xs"
                         onClick={() => { setShowReadingForm(m); setReadingValue(''); }}
                       >
-                        <Plus className="w-3 h-3 mr-1" />Add Reading
+                        <Plus className="w-3 h-3 mr-1" />{t('energy.addReading')}
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -281,11 +281,11 @@ export function EnergyMetersView() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => handleEdit(m)}>
-                            <Pencil className="w-3 h-3 mr-2" />Edit
+                            <Pencil className="w-3 h-3 mr-2" />{t('energy.tform.edit')}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => setDeleteMeter(m)} className="text-destructive">
-                            <Trash2 className="w-3 h-3 mr-2" />Delete
+                            <Trash2 className="w-3 h-3 mr-2" />{t('energy.tform.delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -411,7 +411,7 @@ export function EnergyMetersView() {
                       <SelectMenu size="md" fullWidth className="mt-1"
                         value={(watch(field) as string) ?? ''}
                         onValueChange={(v) => setValue(field, v)}
-                        options={[{ value: '', label: '— select —' }, ...opts.map((o: any) => ({ value: o.id, label: `${o.name} (${o.code})` }))]}
+                        options={[{ value: '', label: t('energy.mform.selectDash') }, ...opts.map((o: any) => ({ value: o.id, label: `${o.name} (${o.code})` }))]}
                       />
                     );
                   })()}
@@ -518,12 +518,12 @@ interface EnergyTariff {
 }
 
 const ENERGY_TYPE_OPTS = [
-  { value: 'ELECTRICAL', label: 'Electrical' },
-  { value: 'NATURAL_GAS', label: 'Natural Gas' },
-  { value: 'COMPRESSED_AIR', label: 'Compressed Air' },
-  { value: 'WATER', label: 'Water' },
-  { value: 'STEAM', label: 'Steam' },
-  { value: 'CHILLED_WATER', label: 'Chilled Water' },
+  { value: 'ELECTRICAL', tKey: 'tElectrical' },
+  { value: 'NATURAL_GAS', tKey: 'tNaturalGas' },
+  { value: 'COMPRESSED_AIR', tKey: 'tCompressedAir' },
+  { value: 'WATER', tKey: 'tWater' },
+  { value: 'STEAM', tKey: 'tSteam' },
+  { value: 'CHILLED_WATER', tKey: 'tChilledWater' },
 ];
 
 function EnergyTariffsSection({ machineOpts, lineOpts, areaOpts }: { machineOpts: any[]; lineOpts: any[]; areaOpts: any[] }) {
@@ -549,15 +549,15 @@ function EnergyTariffsSection({ machineOpts, lineOpts, areaOpts }: { machineOpts
 
   const createM = useMutation({
     mutationFn: (dto: any) => api.post('/energy/tariffs', dto),
-    onSuccess: () => { invalidate(); toast({ title: 'Tariff created' }); setShowForm(false); reset(); },
+    onSuccess: () => { invalidate(); toast({ title: t('energy.toastTariffCreated') }); setShowForm(false); reset(); },
   });
   const updateM = useMutation({
     mutationFn: ({ id, ...dto }: any) => api.patch(`/energy/tariffs/${id}`, dto),
-    onSuccess: () => { invalidate(); toast({ title: 'Tariff updated' }); setShowForm(false); reset(); },
+    onSuccess: () => { invalidate(); toast({ title: t('energy.toastTariffUpdated') }); setShowForm(false); reset(); },
   });
   const deleteM = useMutation({
     mutationFn: (id: string) => api.delete(`/energy/tariffs/${id}`),
-    onSuccess: () => { invalidate(); toast({ title: 'Tariff deleted' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('energy.toastTariffDeleted') }); },
   });
 
   const openEdit = (t: EnergyTariff) => {
@@ -584,8 +584,8 @@ function EnergyTariffsSection({ machineOpts, lineOpts, areaOpts }: { machineOpts
   };
 
   const scopeOpts = scopeType === 'machine' ? machineOpts : scopeType === 'line' ? lineOpts : scopeType === 'area' ? areaOpts : [];
-  const scopeLabel = (t: EnergyTariff) =>
-    t.machine ? `Machine · ${t.machine.name}` : t.line ? `Line · ${t.line.name}` : t.area ? `Area · ${t.area.name}` : 'Factory default';
+  const scopeLabel = (tf: EnergyTariff) =>
+    tf.machine ? `${t('energy.tform.machine')} · ${tf.machine.name}` : tf.line ? `${t('energy.tform.line')} · ${tf.line.name}` : tf.area ? `${t('energy.tform.area')} · ${tf.area.name}` : t('energy.tform.factoryDefault');
 
   return (
     <div className="space-y-3">
@@ -594,18 +594,18 @@ function EnergyTariffsSection({ machineOpts, lineOpts, areaOpts }: { machineOpts
           <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-green-500/20">
             <DollarSign className="w-3.5 h-3.5 text-green-400" />
           </div>
-          <h2 className="font-semibold text-sm">Cost Tariffs</h2>
-          <Badge variant="outline" className="text-[10px]">{tariffs.length} rates</Badge>
+          <h2 className="font-semibold text-sm">{t('energy.costTariffs')}</h2>
+          <Badge variant="outline" className="text-[10px]">{t('energy.ratesBadge', { count: tariffs.length })}</Badge>
         </div>
         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { reset(); setShowForm(true); }}>
-          <Plus className="w-3 h-3 mr-1" />Add Tariff
+          <Plus className="w-3 h-3 mr-1" />{t('energy.addTariff')}
         </Button>
       </div>
 
       <div className="glass-card rounded-xl overflow-hidden">
         {tariffs.length === 0 ? (
           <div className="p-6 text-center text-muted-foreground text-sm">
-            No cost rates configured — cost stays 0 until you add a tariff (e.g. 0.18 SAR/kWh as a factory default).
+            {t('energy.noTariffs')}
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -624,7 +624,7 @@ function EnergyTariffsSection({ machineOpts, lineOpts, areaOpts }: { machineOpts
                   <td className="p-3 text-xs">{tf.energyType.replace(/_/g, ' ')}</td>
                   <td className="p-3 text-xs text-muted-foreground">{scopeLabel(tf)}</td>
                   <td className="p-3 text-xs text-muted-foreground">{tf.label ?? '—'}</td>
-                  <td className="p-3 text-xs text-right font-semibold text-green-400">{tf.ratePerUnit} {tf.currency}/unit</td>
+                  <td className="p-3 text-xs text-right font-semibold text-green-400">{t('energy.ratePerUnit', { rate: tf.ratePerUnit, currency: tf.currency })}</td>
                   <td className="p-3 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -663,7 +663,7 @@ function EnergyTariffsSection({ machineOpts, lineOpts, areaOpts }: { machineOpts
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>{t('energy.tform.energyType')} *</Label>
-              <SelectMenu size="md" fullWidth className="mt-1" value={energyType} onValueChange={setEnergyType} options={ENERGY_TYPE_OPTS} />
+              <SelectMenu size="md" fullWidth className="mt-1" value={energyType} onValueChange={setEnergyType} options={ENERGY_TYPE_OPTS.map((o) => ({ value: o.value, label: t(`energy.mform.${o.tKey}`) }))} />
             </div>
             <div>
               <Label>{t('energy.tform.rate')} *</Label>

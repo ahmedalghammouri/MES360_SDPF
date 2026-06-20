@@ -71,10 +71,10 @@ export function DashboardCenterView() {
   async function handleClone(d: DashboardCatalogItem) {
     try {
       const created = await cloneDashboard.mutateAsync(d.id);
-      toast({ title: 'Dashboard created', description: `"${d.title}" was added to your dashboards.` });
+      toast({ title: t('dashboardCenter.toastCreated'), description: t('dashboardCenter.toastCreatedDesc', { title: d.title }) });
       if (created?.id) router.push(`/dashboard-center/${created.id}`);
     } catch {
-      toast({ title: 'Could not duplicate dashboard', variant: 'destructive' });
+      toast({ title: t('dashboardCenter.toastCloneFailed'), variant: 'destructive' });
     }
   }
 
@@ -90,7 +90,7 @@ export function DashboardCenterView() {
             {t('dashboardCenter.title')}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Discover, organize and launch every dashboard, report and analytics view in one place
+            {t('dashboardCenter.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -109,7 +109,7 @@ export function DashboardCenterView() {
                   : grafanaHealth.configured ? 'text-warning-400 border-warning-500/30'
                   : 'text-muted-foreground',
               )}
-              title={grafanaHealth.reachable ? 'Grafana connected' : grafanaHealth.configured ? 'Grafana configured (unreachable)' : 'Grafana not configured'}
+              title={grafanaHealth.reachable ? t('dashboardCenter.grafanaConnected') : grafanaHealth.configured ? t('dashboardCenter.grafanaUnreachable') : t('dashboardCenter.grafanaNotConfigured')}
             >
               <span className={cn('w-1.5 h-1.5 rounded-full',
                 grafanaHealth.reachable ? 'bg-success-400' : grafanaHealth.configured ? 'bg-warning-400' : 'bg-muted-foreground')} />
@@ -118,7 +118,7 @@ export function DashboardCenterView() {
           )}
           <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={13} className={cn(isFetching && 'animate-spin')} />
-            Refresh
+            {t('dashboardCenter.refresh')}
           </Button>
         </div>
       </div>
@@ -127,8 +127,8 @@ export function DashboardCenterView() {
       <div className="px-6 py-3 border-b border-border/40 shrink-0 flex items-center gap-3 flex-wrap">
         {/* Tabs */}
         <div className="flex items-center gap-1 rounded-lg bg-foreground/5 p-0.5">
-          {([['all', 'All', LayoutGrid], ['favorites', 'Favorites', Star], ['templates', 'Templates', Copy]] as const).map(
-            ([key, label, Icon]) => (
+          {([['all', 'tabAll', LayoutGrid], ['favorites', 'tabFavorites', Star], ['templates', 'tabTemplates', Copy]] as const).map(
+            ([key, labelKey, Icon]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -138,7 +138,7 @@ export function DashboardCenterView() {
                 )}
               >
                 <Icon size={13} />
-                {label}
+                {t(`dashboardCenter.${labelKey}`)}
               </button>
             ),
           )}
@@ -182,7 +182,7 @@ export function DashboardCenterView() {
           {/* Category rail */}
           <aside className="w-52 shrink-0 border-r border-border/40 p-3 hidden lg:block">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2 mb-2">
-              Categories
+              {t('dashboardCenter.categories')}
             </div>
             <button
               onClick={() => setActiveCategory(null)}
@@ -191,7 +191,7 @@ export function DashboardCenterView() {
                 !activeCategory ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-foreground/5',
               )}
             >
-              <span className="flex items-center gap-2"><LayoutGrid size={13} /> All Dashboards</span>
+              <span className="flex items-center gap-2"><LayoutGrid size={13} /> {t('dashboardCenter.allDashboards')}</span>
             </button>
             {(categories ?? []).map((c) => {
               const Icon = resolveIcon(c.icon);
@@ -234,9 +234,9 @@ export function DashboardCenterView() {
                 </div>
                 <p className="text-sm font-medium">{t('dashboardCenter.noDashboards')}</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  {tab === 'favorites' ? 'Star dashboards to pin them here for quick access.'
-                    : tab === 'templates' ? 'No templates available yet.'
-                    : 'Try adjusting your search or filters.'}
+                  {tab === 'favorites' ? t('dashboardCenter.emptyFavorites')
+                    : tab === 'templates' ? t('dashboardCenter.emptyTemplates')
+                    : t('dashboardCenter.emptyDefault')}
                 </p>
               </div>
             ) : (

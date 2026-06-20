@@ -83,11 +83,13 @@ export function ProductionOEEView() {
     const best = ranked[0];
     const worst = ranked[ranked.length - 1];
     if (best && best.oee > 0) {
-      out.push({ icon: Trophy, tone: 'text-emerald-400', text: `${best.name} leads with ${best.oee.toFixed(1)}% OEE${best.oee >= WORLD_CLASS ? ' — world-class' : ''}.` });
+      out.push({ icon: Trophy, tone: 'text-emerald-400', text: best.oee >= WORLD_CLASS
+        ? t('oeev.bestLeadsWorldClass', { name: best.name, oee: best.oee.toFixed(1) })
+        : t('oeev.bestLeads', { name: best.name, oee: best.oee.toFixed(1) }) });
     }
     if (worst && worst !== best) {
       const wf = weakestFactor(worst);
-      out.push({ icon: AlertTriangle, tone: 'text-amber-400', text: `${worst.name} is the bottleneck at ${worst.oee.toFixed(1)}% — ${wf.name.toLowerCase()} (${wf.value.toFixed(1)}%) is dragging it down.` });
+      out.push({ icon: AlertTriangle, tone: 'text-amber-400', text: t('oeev.bottleneck', { name: worst.name, oee: worst.oee.toFixed(1), factor: t(`oeev.factorLower.${wf.name}`), value: wf.value.toFixed(1) }) });
     }
     const cur = oeeData?.current;
     if (cur) {
@@ -97,8 +99,8 @@ export function ProductionOEEView() {
         icon: gap > 0 ? TrendingDown : TrendingUp,
         tone: gap > 0 ? 'text-sky-400' : 'text-emerald-400',
         text: gap > 0
-          ? `Plant OEE is ${gap.toFixed(1)} pts below the ${WORLD_CLASS}% target — biggest lever: ${gf.name.toLowerCase()} (${gf.value.toFixed(1)}%).`
-          : `Plant OEE exceeds the ${WORLD_CLASS}% world-class target.`,
+          ? t('oeev.plantBelowTarget', { gap: gap.toFixed(1), target: WORLD_CLASS, factor: t(`oeev.factorLower.${gf.name}`), value: gf.value.toFixed(1) })
+          : t('oeev.plantExceedsTarget', { target: WORLD_CLASS }),
       });
     }
     if (trend.length >= 2) {
@@ -107,12 +109,14 @@ export function ProductionOEEView() {
         out.push({
           icon: delta > 0 ? TrendingUp : TrendingDown,
           tone: delta > 0 ? 'text-emerald-400' : 'text-red-400',
-          text: `OEE ${delta > 0 ? 'improved' : 'declined'} ${Math.abs(delta).toFixed(1)} pts across the selected ${timeframe}.`,
+          text: delta > 0
+            ? t('oeev.trendImproved', { delta: Math.abs(delta).toFixed(1), timeframe })
+            : t('oeev.trendDeclined', { delta: Math.abs(delta).toFixed(1), timeframe }),
         });
       }
     }
     return out;
-  }, [equipment, oeeData, trend, timeframe]);
+  }, [equipment, oeeData, trend, timeframe, t]);
 
   const exportCsv = () => {
     const rows = [
@@ -146,9 +150,9 @@ export function ProductionOEEView() {
           <SelectMenu
             value={machineFilter}
             onValueChange={setMachineFilter}
-            menuLabel="Machine"
+            menuLabel={t('oeev.machine')}
             options={[
-              { value: 'ALL', label: 'All machines' },
+              { value: 'ALL', label: t('oeev.allMachines') },
               ...equipment.map(e => ({ value: e.name, label: e.name })),
             ]}
           />
@@ -157,18 +161,18 @@ export function ProductionOEEView() {
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-background text-xs font-medium hover:bg-muted/50 transition-colors"
           >
             <Layers size={13} className="text-brand-400" />
-            Deep Analysis
+            {t('oeev.deepAnalysis')}
           </Link>
           <Button
             variant="outline" size="sm" className="gap-1.5 h-8 text-xs"
             onClick={() => qc.invalidateQueries({ queryKey: ['production', 'oee'] })}
           >
             <RefreshCw size={13} className={cn(isFetching && 'animate-spin')} />
-            Refresh
+            {t('po.refresh')}
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={exportCsv} disabled={!equipment.length}>
             <Download size={13} />
-            Export CSV
+            {t('oeev.exportCsv')}
           </Button>
         </div>
       </div>

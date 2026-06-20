@@ -53,5 +53,108 @@
     "cancel": "Cancel", "saving": "Saving...", "save": "Save",
     "protocol": "Protocol", "version": "Version", "description": "Description",
     "deleteTitle": "Delete Driver", "deleteConfirmPre": "Are you sure you want to delete", "deleting": "Deleting...", "delete": "Delete"
+  },
+  "common": {
+    "refresh": "Refresh", "export": "Export", "addDevice": "Add Device", "addDriver": "Add Driver",
+    "addTag": "Add Tag", "newStream": "New Stream", "edit": "Edit", "delete": "Delete",
+    "actions": "Actions", "status": "Status", "protocol": "Protocol", "version": "Version",
+    "description": "Description", "name": "Name", "type": "Type", "devices": "Devices",
+    "online": "Online", "offline": "Offline", "live": "Live", "clear": "Clear",
+    "loading": "Loading…"
+  },
+  "overview": {
+    "tabDevices": "Devices", "tabTags": "Tag Definitions",
+    "statConnectedDevices": "Connected Devices", "statTotalTags": "Total Tags",
+    "statDataPoints": "Data Points", "statProtocolsActive": "Protocols Active",
+    "noDevices": "No devices configured", "noMachine": "No machine",
+    "tagsBtn": "Tags", "configBtn": "Config",
+    "tagsCount": "{{count}} tags",
+    "statusConnected": "Connected", "statusDisconnected": "Disconnected", "statusError": "Error",
+    "thTagName": "Tag Name", "thCode": "Code", "thValue": "Value", "thQuality": "Quality",
+    "thMachine": "Machine", "thUpdated": "Updated", "noTags": "No tags configured"
+  },
+  "devices": {
+    "kpiTotal": "Total Devices", "kpiConnected": "Connected", "kpiDisconnected": "Disconnected", "kpiErrors": "Errors",
+    "connectedDevices": "Connected Devices", "searchPlaceholder": "Search devices...",
+    "thDeviceId": "Device ID", "thName": "Name", "thType": "Type", "thProtocol": "Protocol",
+    "thStatus": "Status", "thLastSeen": "Last Seen", "thTags": "Tags", "thScope": "Scope", "thGateway": "Gateway", "thActions": "Actions",
+    "noDevices": "No devices found", "scopeLine": "{{name}} (line)", "scopeArea": "{{name}} (area)",
+    "createdSuccess": "Device created successfully", "updatedSuccess": "Device updated successfully", "deletedSuccess": "Device deleted successfully",
+    "createFailed": "Failed to create device", "updateFailed": "Failed to update device", "deleteFailed": "Failed to delete device",
+    "errorTitle": "Error"
+  },
+  "drivers": {
+    "available": "Available Drivers",
+    "thProtocol": "Protocol", "thVersion": "Version", "thDescription": "Description", "thDevices": "Devices",
+    "thStatus": "Status", "thActions": "Actions", "noDrivers": "No drivers found",
+    "createdSuccess": "Driver created successfully", "updatedSuccess": "Driver updated successfully", "deletedSuccess": "Driver deleted successfully"
+  },
+  "gateways": {
+    "kpiGateways": "Gateways", "kpiOnline": "Online", "kpiOffline": "Offline",
+    "loading": "Loading gateways…", "noneTitle": "No edge gateways registered",
+    "noneDesc": "Install the MES360° Edge Gateway on a plant PC; it registers itself here on first connect.",
+    "thGateway": "Gateway", "thStatus": "Status", "thHost": "Host", "thVersion": "Version",
+    "thDevices": "Devices", "thLastHeartbeat": "Last heartbeat", "thActions": "Actions",
+    "online": "Online", "offline": "Offline", "ago": "{{time}} ago", "never": "never",
+    "rename": "Rename", "remove": "Remove",
+    "updatedSuccess": "Gateway updated", "removedSuccess": "Gateway removed",
+    "errorTitle": "Error", "updateFailed": "Update failed", "deleteFailed": "Delete failed",
+    "renameTitle": "Rename Gateway", "gatewayName": "Gateway Name",
+    "renameHint": "Connection settings (DB / MQTT / Influx) are configured on the gateway itself, in its local dashboard → Settings.",
+    "deleteTitle": "Remove gateway {{name}}?",
+    "deleteDesc": "This deactivates the gateway record. If the gateway is still running it will re-register on its next heartbeat."
+  },
+  "streams": {
+    "kpiTotal": "Total Streams", "kpiActive": "Active", "kpiPaused": "Paused", "kpiMessagesPerSec": "Messages/sec",
+    "active": "Active Streams",
+    "thName": "Stream Name", "thSource": "Source", "thDestination": "Destination", "thStatus": "Status",
+    "thMessages": "Messages", "thRate": "Rate", "thLatency": "Latency", "thActions": "Actions",
+    "noStreams": "No streams found"
+  },
+  "tags": {
+    "kpiTotal": "Total Tags", "kpiActive": "Active", "kpiLive": "Live now", "kpiGoodQuality": "Good Quality",
+    "searchPlaceholder": "Search tags…",
+    "filterDevice": "Device", "filterType": "Type", "filterDataType": "Data type", "filterQuality": "Quality", "filterStatus": "Status",
+    "allDevices": "All Devices", "noDevice": "No device", "allTypes": "All Types", "allDataTypes": "All Data Types",
+    "allQuality": "All Quality", "qGood": "Good", "qBad": "Bad", "qUncertain": "Uncertain", "qUnknown": "Unknown",
+    "allStatus": "All Status", "sActive": "Active", "sInactive": "Inactive",
+    "liveOnly": "Live only", "clearCount": "Clear ({{count}})",
+    "viewLiveGrid": "Live grid", "viewTable": "Table", "viewByDevice": "By device",
+    "countOf": "{{shown}} of {{total}}",
+    "noMatch": "No tags match the current filters", "clearFilters": "Clear filters",
+    "unassigned": "Unassigned",
+    "thTag": "Tag", "thDevice": "Device", "thTypeRole": "Type / Role", "thDataType": "Data Type",
+    "thCurrentValue": "Current Value", "thUnit": "Unit", "thQuality": "Quality", "thLastUpdate": "Last Update", "thStatus": "Status",
+    "active": "Active", "inactive": "Inactive", "liveTitle": "Live",
+    "createdSuccess": "Tag created successfully", "updatedSuccess": "Tag updated successfully", "deletedSuccess": "Tag deleted successfully",
+    "createFailed": "Failed to create tag", "updateFailed": "Failed to update tag", "deleteFailed": "Failed to delete tag",
+    "errorTitle": "Error"
+  },
+  "historian": {
+    "live": "Live", "offline": "Offline",
+    "browseTags": "Browse Tags", "collapseAll": "Collapse all", "expandAll": "Expand all",
+    "searchPlaceholder": "Search tags / KPIs...", "noTags": "No tags found",
+    "addSelected": "Add Selected Tags", "addSelectedCount": "Add Selected Tags ({{count}})",
+    "pauseLive": "Pause Live", "resumeLive": "Resume Live", "reloadHistory": "Reload history", "clear": "Clear",
+    "noSource": "No Trend Data Source available.", "noSourceHint": "Select tags or KPIs from the tree and click “Add Selected Tags”.",
+    "rangeLast15Min": "Last 15 min", "rangeLast1Hour": "Last 1 hour", "rangeLast8Hours": "Last 8 hours",
+    "rangeLast24Hours": "Last 24 hours", "rangeLast7Days": "Last 7 days",
+    "rootTags": "Edge Historian — Tags", "rootKpi": "OEE & KPIs",
+    "defaultArea": "default", "ioGroup": "io",
+    "mOee": "OEE", "mOeeTb": "OEE (Time-Based)", "mAvailability": "Availability", "mAvailabilityTb": "Availability (Time-Based)",
+    "mPerformance": "Performance", "mQuality": "Quality", "mGood": "Good (cum.)", "mRejected": "Rejected (cum.)", "mRate": "Production Rate"
+  },
+  "mqtt": {
+    "ratePerSec": "{{rate}}/s", "topicsCount": "{{count}} topics", "buffered": "{{count}} buffered",
+    "live": "Live", "offline": "Offline",
+    "topics": "Topics ({{count}})", "allTopics": "All topics",
+    "filterPlaceholder": "Filter topic or payload…", "resume": "Resume", "pause": "Pause", "clear": "Clear",
+    "shown": "{{count}} shown", "shownPaused": "{{count}} shown · paused",
+    "paused": "Paused — press Resume to stream live.", "waiting": "Waiting for MQTT traffic…",
+    "copyPayload": "Copy payload", "emptyPayload": "(empty)",
+    "pubTopicPlaceholder": "Topic (mes360/…)",
+    "pubPayloadPlaceholder": "Payload — JSON e.g. {\"value\":1,\"quality\":\"GOOD\"} or plain text",
+    "publish": "Publish",
+    "copied": "Copied to clipboard", "published": "Published", "publishFailed": "Publish failed"
   }
 }

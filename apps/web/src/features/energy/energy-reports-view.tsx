@@ -106,15 +106,15 @@ export default function EnergyReportsView() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t('energy.reports.title')}</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            {t('energy.consumptionAnalytics')} — <span className="text-foreground">{scope?.name ?? 'Whole factory'}</span> · {timeLabel}
+            {t('energy.consumptionAnalytics')} — <span className="text-foreground">{scope?.name ?? t('energy.wholeFactory')}</span> · {timeLabel}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {hasMeters && (
-            <Badge variant="outline" className="text-xs">{meters.length} {meters.length === 1 ? 'meter' : 'meters'}</Badge>
+            <Badge variant="outline" className="text-xs">{t('energy.metersBadge', { count: meters.length })}</Badge>
           )}
           <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={exportCsv} disabled={!chart.length}>
-            <Download className="w-3.5 h-3.5" /> Export CSV
+            <Download className="w-3.5 h-3.5" /> {t('energy.exportCsv')}
           </Button>
         </div>
       </div>
@@ -122,9 +122,9 @@ export default function EnergyReportsView() {
       {/* Summary cards: total + by type */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="industrial-card rounded-xl p-4">
-          <div className="text-xs text-muted-foreground">Total Consumption</div>
+          <div className="text-xs text-muted-foreground">{t('energy.totalConsumption')}</div>
           <div className="text-2xl font-bold text-foreground tabular-nums">{grandTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })}</div>
-          <div className="text-[10px] text-muted-foreground">kWh-equivalent · {timeLabel}</div>
+          <div className="text-[10px] text-muted-foreground">{t('energy.kwhEquivalent')} · {timeLabel}</div>
         </div>
         {Object.entries(totals).sort(([, a], [, b]) => b - a).slice(0, 3).map(([type, val], i) => (
           <div key={type} className="industrial-card rounded-xl p-4">
@@ -133,7 +133,7 @@ export default function EnergyReportsView() {
               {type.replace(/_/g, ' ')}
             </div>
             <div className="text-2xl font-bold text-foreground tabular-nums">{val.toLocaleString(undefined, { maximumFractionDigits: 1 })}</div>
-            <div className="text-[10px] text-muted-foreground">{grandTotal > 0 ? ((val / grandTotal) * 100).toFixed(0) : 0}% of total</div>
+            <div className="text-[10px] text-muted-foreground">{t('energy.pctOfTotal', { value: grandTotal > 0 ? ((val / grandTotal) * 100).toFixed(0) : 0 })}</div>
           </div>
         ))}
       </div>
@@ -142,13 +142,13 @@ export default function EnergyReportsView() {
       <div className="industrial-card rounded-xl p-4">
         <div className="flex items-center gap-2 mb-3">
           <Activity size={14} className="text-yellow-400" />
-          <h2 className="text-sm font-semibold text-foreground">Consumption by Type</h2>
-          <span className="ml-auto text-[10px] text-muted-foreground">daily · {timeLabel}</span>
+          <h2 className="text-sm font-semibold text-foreground">{t('energy.consumptionByType')}</h2>
+          <span className="ml-auto text-[10px] text-muted-foreground">{t('energy.daily')} · {timeLabel}</span>
         </div>
         {isLoading ? (
           <div className="shimmer h-56 rounded" />
         ) : chart.length === 0 ? (
-          <div className="h-56 flex items-center justify-center text-xs text-muted-foreground">No consumption data for this period</div>
+          <div className="h-56 flex items-center justify-center text-xs text-muted-foreground">{t('energy.noConsumptionPeriod')}</div>
         ) : (
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={chart} margin={{ top: 4, right: 8, bottom: 0, left: -10 }}>
@@ -178,16 +178,16 @@ export default function EnergyReportsView() {
       {/* Connected meters */}
       {hasMeters && (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Connected Meters</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t('energy.connectedMeters')}</h2>
           <div className="industrial-card rounded-xl overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/40 bg-muted/20">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Name</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Type</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Unit</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Status</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Last Reading</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('energy.colName')}</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('energy.colType')}</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('energy.colUnit')}</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('energy.colStatus')}</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('energy.cardLastReading')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -201,7 +201,7 @@ export default function EnergyReportsView() {
                       <td className="px-4 py-3">
                         <Badge variant="outline" className={cn('text-[10px]', isActive ? 'text-green-400 border-green-500/40 bg-green-500/10' : 'text-red-400 border-red-500/40 bg-red-500/10')}>
                           <Activity className="w-2.5 h-2.5 mr-1" />
-                          {isActive ? 'ACTIVE' : 'OFFLINE'}
+                          {isActive ? t('energy.statusActive') : t('energy.statusOffline')}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
@@ -219,9 +219,9 @@ export default function EnergyReportsView() {
       {/* Navigation tip */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-        <span>Configure meters at</span>
+        <span>{t('energy.configureMetersAt')}</span>
         <Link href="/energy/meters" className="inline-flex items-center gap-0.5 text-primary hover:underline underline-offset-2">
-          Energy Meters <ChevronRight className="w-3 h-3" />
+          {t('energy.metersTitle')} <ChevronRight className="w-3 h-3" />
         </Link>
       </div>
     </div>

@@ -27,6 +27,75 @@
     "dark": "Dark",
     "system": "System"
   },
+  "validation": {
+    "required": "Required",
+    "minPassword": "Minimum 8 characters",
+    "passwordsDontMatch": "Passwords don't match"
+  },
+  "toasts": {
+    "saved": "Saved",
+    "savedDesc": "Your settings have been updated.",
+    "saveFailed": "Save failed",
+    "tryAgain": "Please try again.",
+    "passwordChanged": "Password changed",
+    "passwordChangedDesc": "Your password has been updated successfully.",
+    "error": "Error",
+    "currentPasswordIncorrect": "Current password is incorrect.",
+    "comingSoonTitle": "Coming soon",
+    "mfaNotAvailable": "MFA enrollment is not available yet."
+  },
+  "profile": {
+    "title": "Profile Information",
+    "subtitle": "Update your personal details",
+    "fullName": "Full Name",
+    "nameArabic": "Name (Arabic)",
+    "emailAddress": "Email Address",
+    "emailCannotChange": "Email cannot be changed. Contact admin.",
+    "role": "Role",
+    "department": "Department",
+    "jobTitle": "Job Title",
+    "phone": "Phone",
+    "saving": "Saving…",
+    "saveChanges": "Save Changes"
+  },
+  "security": {
+    "title": "Security Settings",
+    "subtitle": "Manage your password and two-factor authentication",
+    "changePassword": "Change Password",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmNewPassword": "Confirm New Password",
+    "updating": "Updating...",
+    "updatePassword": "Update Password",
+    "cancel": "Cancel",
+    "twoFactor": "Two-Factor Authentication",
+    "twoFactorDesc": "Add an extra layer of security using an authenticator app",
+    "enabled": "Enabled",
+    "setupMfa": "Setup MFA",
+    "scanQr": "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)",
+    "qrAlt": "MFA QR Code",
+    "manualEntryKey": "Manual Entry Key"
+  },
+  "notifications": {
+    "title": "Notification Channels",
+    "subtitle": "Choose how you receive alerts. For per-event rules, use Notification Preferences.",
+    "email": "Email",
+    "emailDesc": "Receive notifications by email",
+    "whatsapp": "WhatsApp",
+    "whatsappDesc": "Receive notifications on WhatsApp",
+    "sms": "SMS",
+    "smsDesc": "Receive notifications by SMS",
+    "saving": "Saving…",
+    "saveChannels": "Save Channels",
+    "advancedRules": "Advanced rules"
+  },
+  "languageSection": {
+    "saving": "Saving…"
+  },
+  "integrations": {
+    "comingSoon": "Coming soon",
+    "underDevelopment": "This settings section is under development"
+  },
   "dz": {
     "headerTitle": "System & Danger Zone",
     "headerUnlocked": "Unlocked. Destructive operations below are irreversible.",
@@ -49,6 +118,24 @@
     "alsoWipeTs": "Also wipe the time-series historian", "alsoWipeTsDesc": "Clears InfluxDB high-frequency production/OEE history in the same run.",
     "confirmPassword": "Confirm your password", "typeReset": "Type", "toConfirm": "to confirm",
     "cancel": "Cancel", "resetting": "Resetting…", "permanentlyDelete": "Permanently delete",
+    "affectedRecords": "Affected records:", "reset": "Reset",
+    "toast": {
+      "historianWiped": "Historian wiped",
+      "historianWipedDesc": "All time-series points were deleted from InfluxDB.",
+      "wipeFailed": "Wipe failed",
+      "wipeFailedDesc": "InfluxDB did not confirm the delete. Check the historian connection.",
+      "resetCompleted": "Reset completed",
+      "resetCompletedDesc": "Deleted {{count}} production records{{tsNote}}.",
+      "tsNoteWiped": " + historian wiped",
+      "tsNoteFailed": " (historian wipe FAILED)",
+      "resetFailed": "Reset failed",
+      "resetFailedDesc": "Check password / confirmation.",
+      "historianPaused": "Historian paused",
+      "historianResumed": "Historian resumed",
+      "historianPausedDesc": "New time-series writes are blocked — the bucket stays empty.",
+      "historianResumedDesc": "Time-series ingestion resumed.",
+      "actionFailed": "Action failed"
+    },
     "prod": {
       "productionOrders": "Production Orders", "workOrders": "Work Orders", "jobOrders": "Job Orders", "productionEvents": "Production Events",
       "batchRecords": "Batch Records", "materialConsumptions": "Material Consumptions", "jobOrderMaterials": "Job-Order Materials",

@@ -155,30 +155,30 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
       const deleted = res?.deleted ? Object.values(res.deleted).reduce((a: number, b: any) => a + Number(b || 0), 0) : 0;
       if (res?.scope === 'timeseries') {
         if (res?.timeseriesWiped) {
-          toast({ title: 'Historian wiped', description: 'All time-series points were deleted from InfluxDB.' });
+          toast({ title: t('dz.toast.historianWiped'), description: t('dz.toast.historianWipedDesc') });
         } else {
-          toast({ variant: 'destructive', title: 'Wipe failed', description: 'InfluxDB did not confirm the delete. Check the historian connection.' });
+          toast({ variant: 'destructive', title: t('dz.toast.wipeFailed'), description: t('dz.toast.wipeFailedDesc') });
         }
       } else {
-        const tsNote = vars?.wipeTimeseries ? (res?.timeseriesWiped ? ' + historian wiped' : ' (historian wipe FAILED)') : '';
-        toast({ title: 'Reset completed', description: `Deleted ${deleted} production records${tsNote}.` });
+        const tsNote = vars?.wipeTimeseries ? (res?.timeseriesWiped ? t('dz.toast.tsNoteWiped') : t('dz.toast.tsNoteFailed')) : '';
+        toast({ title: t('dz.toast.resetCompleted'), description: t('dz.toast.resetCompletedDesc', { count: deleted, tsNote }) });
       }
       closeDialog();
       refetch();
       qc.invalidateQueries();
     },
     onError: (e: any) => {
-      toast({ variant: 'destructive', title: 'Reset failed', description: e?.response?.data?.message ?? 'Check password / confirmation.' });
+      toast({ variant: 'destructive', title: t('dz.toast.resetFailed'), description: e?.response?.data?.message ?? t('dz.toast.resetFailedDesc') });
     },
   });
 
   const pauseMut = useMutation({
     mutationFn: (paused: boolean) => client.post('/system/historian/pause', { paused }).then((r) => r.data),
     onSuccess: (res: any) => {
-      toast({ title: res?.paused ? 'Historian paused' : 'Historian resumed', description: res?.paused ? 'New time-series writes are blocked — the bucket stays empty.' : 'Time-series ingestion resumed.' });
+      toast({ title: res?.paused ? t('dz.toast.historianPaused') : t('dz.toast.historianResumed'), description: res?.paused ? t('dz.toast.historianPausedDesc') : t('dz.toast.historianResumedDesc') });
       refetch();
     },
-    onError: () => toast({ variant: 'destructive', title: 'Action failed' }),
+    onError: () => toast({ variant: 'destructive', title: t('dz.toast.actionFailed') }),
   });
 
   const closeDialog = () => { setTarget(null); setPassword(''); setConfirmPhrase(''); setWipeTs(false); };
@@ -256,6 +256,8 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
         title={t('dz.resetProdTitle')}
         description={t('dz.resetProdDesc')}
         count={status?.productionTotal}
+        affectedLabel={t('dz.affectedRecords')}
+        resetLabel={t('dz.reset')}
         onClick={() => setTarget({ scope: 'production', title: t('dz.resetProdTitle'), danger: t('dz.resetProdDanger') })}
       />
 
@@ -265,6 +267,8 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
         description={t('dz.wipeTsDesc', { bucket: status?.timeseries.bucket ?? 'mes_timeseries' })}
         count={status?.timeseries.points ?? undefined}
         disabled={!status?.timeseries.enabled}
+        affectedLabel={t('dz.affectedRecords')}
+        resetLabel={t('dz.reset')}
         onClick={() => setTarget({ scope: 'timeseries', title: t('dz.wipeTsTitle'), danger: t('dz.wipeTsDanger') })}
       />
 
@@ -334,16 +338,16 @@ function Stat({ label, value, highlight, muted, icon }: { label: string; value: 
   );
 }
 
-function ResetCard({ title, description, count, disabled, onClick }: { title: string; description: string; count?: number; disabled?: boolean; onClick: () => void }) {
+function ResetCard({ title, description, count, disabled, onClick, affectedLabel, resetLabel }: { title: string; description: string; count?: number; disabled?: boolean; onClick: () => void; affectedLabel: string; resetLabel: string }) {
   return (
     <div className="rounded-xl border border-red-500/30 bg-red-500/[0.03] p-5 flex items-start justify-between gap-4">
       <div className="min-w-0">
         <h3 className="text-sm font-semibold text-red-300">{title}</h3>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
-        {count !== undefined && <div className="text-xs mt-2 text-muted-foreground">Affected records: <span className="font-bold text-foreground">{count.toLocaleString()}</span></div>}
+        {count !== undefined && <div className="text-xs mt-2 text-muted-foreground">{affectedLabel} <span className="font-bold text-foreground">{count.toLocaleString()}</span></div>}
       </div>
       <Button variant="destructive" size="sm" className="shrink-0" onClick={onClick} disabled={disabled}>
-        <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Reset
+        <Trash2 className="w-3.5 h-3.5 mr-1.5" /> {resetLabel}
       </Button>
     </div>
   );

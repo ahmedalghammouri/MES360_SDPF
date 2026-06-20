@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronRight, ChevronDown, Search, Factory, Layers, Activity, Cpu, Check } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 
 import { api } from '@/services/api.client';
 import { Input } from '@/components/ui/input';
@@ -95,6 +96,7 @@ export function ScopeTreePicker({ value, onSelect }: {
   value?: ScopeSelection | null;
   onSelect: (sel: ScopeSelection) => void;
 }) {
+  const { t } = useTranslation('production');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -125,13 +127,13 @@ export function ScopeTreePicker({ value, onSelect }: {
     <div className="rounded-lg border border-border overflow-hidden">
       <div className="relative border-b border-border/60 p-2">
         <Search size={13} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search area / line / machine…" className="h-8 pl-8 text-xs" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('scopePicker.search')} className="h-8 pl-8 text-xs" />
       </div>
       <div className="max-h-56 overflow-y-auto p-1">
         {isLoading ? (
           <div className="space-y-1.5 p-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="shimmer h-7 rounded" />)}</div>
         ) : display.length === 0 ? (
-          <div className="text-center py-6 text-xs text-muted-foreground">No hierarchy found</div>
+          <div className="text-center py-6 text-xs text-muted-foreground">{t('scopePicker.noHierarchy')}</div>
         ) : (
           display.map((root) => (
             <Row key={root.id} node={root} depth={0} selectedId={value?.id}
@@ -140,7 +142,7 @@ export function ScopeTreePicker({ value, onSelect }: {
         )}
       </div>
       <div className="border-t border-border/60 px-3 py-2 text-[10px] text-muted-foreground">
-        Pick an <span className="text-purple-400">Area</span> (all lines + machines), a <span className="text-brand-400">Line</span> (all machines), or a single <span className="text-green-400">Machine</span>.
+        {t('scopePicker.hintPre')}<span className="text-purple-400">{t('scopePicker.hintArea')}</span>{t('scopePicker.hintAreaParen')}<span className="text-brand-400">{t('scopePicker.hintLine')}</span>{t('scopePicker.hintLineParen')}<span className="text-green-400">{t('scopePicker.hintMachine')}</span>{t('scopePicker.hintPost')}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Zap, Gauge, Clock, AlertTriangle, Cpu, CalendarClock, PackageX,
   CheckCircle2, XCircle, Loader2, Sparkles, Undo2, Redo2, Save,
@@ -42,6 +43,7 @@ function KpiTile({ icon: Icon, label, value, unit, color, hint }: {
 
 // ── Capable-to-Promise dialog ────────────────────────────────────
 function CtpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const { t } = useTranslation('modules');
   const [skuId, setSkuId] = useState('');
   const [quantity, setQuantity] = useState(1000);
   const [dueDate, setDueDate] = useState('');
@@ -73,20 +75,20 @@ function CtpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: bo
       open={open}
       onClose={() => onOpenChange(false)}
       icon={CalendarClock}
-      title="Capable-to-Promise"
-      description="Check whether a quantity can be delivered by a requested date"
+      title={t('aps.ctp.title')}
+      description={t('aps.ctp.description')}
       footer={(
         <>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('aps.ctp.close')}</Button>
           <Button onClick={run} disabled={!skuId || loading}>
-            {loading ? <><Loader2 size={15} className="mr-2 animate-spin" /> Checking…</> : 'Check availability'}
+            {loading ? <><Loader2 size={15} className="mr-2 animate-spin" /> {t('aps.ctp.checking')}</> : t('aps.ctp.checkAvailability')}
           </Button>
         </>
       )}
     >
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>Product (SKU)</Label>
+            <Label>{t('aps.ctp.productSku')}</Label>
             <EntityPicker
               items={skus}
               value={skuId}
@@ -94,18 +96,18 @@ function CtpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: bo
               getId={(s) => s.id}
               getPrimary={(s) => s.name}
               getSecondary={(s) => s.code}
-              placeholder="Select a SKU…"
-              searchPlaceholder="Search by code or name…"
+              placeholder={t('aps.ctp.selectSku')}
+              searchPlaceholder={t('aps.ctp.searchByCodeName')}
               clearable={false}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Quantity</Label>
+              <Label>{t('aps.ctp.quantity')}</Label>
               <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
             </div>
             <div className="space-y-1.5">
-              <Label>Requested date</Label>
+              <Label>{t('aps.ctp.requestedDate')}</Label>
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </div>
@@ -118,13 +120,13 @@ function CtpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: bo
                 <>
                   <div className={cn('flex items-center gap-2 font-semibold', result.feasible ? 'text-emerald-500' : 'text-destructive')}>
                     {result.feasible ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-                    {result.feasible ? 'Deliverable on time' : 'Cannot meet requested date'}
+                    {result.feasible ? t('aps.ctp.deliverableOnTime') : t('aps.ctp.cannotMeetDate')}
                   </div>
                   <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                    <div>Promise date: <span className="font-medium text-foreground">{new Date(result.promiseDate!).toLocaleString()}</span></div>
-                    <div>On machine: <span className="font-medium text-foreground">{result.machine?.name}</span> · {result.runtimeHours}h run</div>
+                    <div>{t('aps.ctp.promiseDate')}: <span className="font-medium text-foreground">{new Date(result.promiseDate!).toLocaleString()}</span></div>
+                    <div>{t('aps.ctp.onMachine')}: <span className="font-medium text-foreground">{result.machine?.name}</span> · {t('aps.ctp.hRun', { hours: result.runtimeHours })}</div>
                     {result.slackHours !== null && result.slackHours !== undefined && (
-                      <div>Slack vs requested: <span className={cn('font-medium', result.slackHours >= 0 ? 'text-emerald-500' : 'text-destructive')}>{result.slackHours}h</span></div>
+                      <div>{t('aps.ctp.slackVsRequested')}: <span className={cn('font-medium', result.slackHours >= 0 ? 'text-emerald-500' : 'text-destructive')}>{t('aps.ctp.hours', { hours: result.slackHours })}</span></div>
                     )}
                   </div>
                 </>
@@ -145,6 +147,7 @@ interface PlanSnapshot {
 }
 
 export function ApsView() {
+  const { t } = useTranslation('modules');
   const { data: plan, isLoading } = useApsPlan();
   const { data: mrp } = useApsMrp();
   const runDry = useRunScheduleDry();
@@ -178,7 +181,7 @@ export function ApsView() {
     runDry.mutate({}, {
       onSuccess: (res) => {
         if (!res.updates || res.updates.length === 0) {
-          toast({ title: 'Nothing to replan', description: 'All operations are already running or fixed.' });
+          toast({ title: t('aps.toastNothingTitle'), description: t('aps.toastNothingDesc') });
           return;
         }
         pushSnapshot(res, {});
@@ -191,10 +194,10 @@ export function ApsView() {
   const commitPlan = () => {
     const updates = overlay ? Object.entries(overlay.map).map(([id, w]) => ({ id, start: w.start, end: w.end })) : [];
     if (updates.length === 0) {
-      toast({ title: 'No plan changes to save', description: 'Recalculate or drag an operation first.' });
+      toast({ title: t('aps.toastNoChangesTitle'), description: t('aps.toastNoChangesDesc') });
       return;
     }
-    if (!window.confirm(`Save this plan? ${updates.length} operation(s) will be rescheduled in the database.`)) return;
+    if (!window.confirm(t('aps.confirmSave', { count: updates.length }))) return;
     saveSchedule.mutate(updates, { onSuccess: discard });
   };
 
@@ -262,7 +265,7 @@ export function ApsView() {
     const poMap = new Map<string, { label: string; wos: Map<string, typeof items> }>();
     for (const it of items) {
       const poKey = it.productionOrderId ?? '__direct';
-      const poLabel = it.productionOrderNumber ?? 'Direct Work Orders';
+      const poLabel = it.productionOrderNumber ?? t('aps.directWorkOrders');
       if (!poMap.has(poKey)) poMap.set(poKey, { label: poLabel, wos: new Map() });
       const po = poMap.get(poKey)!;
       if (!po.wos.has(it.workOrderId)) po.wos.set(it.workOrderId, []);
@@ -271,13 +274,13 @@ export function ApsView() {
     return [...poMap.entries()].map(([poKey, po]) => ({
       id: `po:${poKey}`,
       label: po.label,
-      sub: `${po.wos.size} work order${po.wos.size === 1 ? '' : 's'}`,
+      sub: t('aps.workOrdersCount', { count: po.wos.size }),
       children: [...po.wos.entries()].map(([woId, ops]) => {
         const sorted = [...ops].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
         return {
           id: `wo:${woId}`,
           label: sorted[0].orderNumber,
-          sub: `${sorted.length} steps · ${sorted[0].priority}`,
+          sub: `${t('aps.stepsCount', { count: sorted.length })} · ${sorted[0].priority}`,
           children: sorted.map((op) => ({
             id: `jo:${op.id}`,
             label: `${op.sequenceOrder}. ${op.operation}`,
@@ -295,7 +298,7 @@ export function ApsView() {
     id: r.materialId,
     date: r.requiredDate,
     color: r.shortage > 0 ? '#ef4444' : '#f59e0b',
-    label: `${r.code} — required ${r.required} ${r.unit}, available ${r.available}${r.shortage > 0 ? ` · SHORT ${r.shortage} ${r.unit}` : ' · OK'}${r.suggestedOrderDate ? `\nOrder by ${new Date(r.suggestedOrderDate).toLocaleDateString()}` : ''}`,
+    label: `${r.code} — ${t('aps.marker.required')} ${r.required} ${r.unit}, ${t('aps.marker.available')} ${r.available}${r.shortage > 0 ? ` · ${t('aps.marker.short')} ${r.shortage} ${r.unit}` : ` · ${t('aps.marker.ok')}`}${r.suggestedOrderDate ? `\n${t('aps.marker.orderBy')} ${new Date(r.suggestedOrderDate).toLocaleDateString()}` : ''}`,
   }));
 
   const demandMarkers: DemandMarker[] = (plan?.demand ?? []).map((d) => ({
@@ -314,35 +317,35 @@ export function ApsView() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Sparkles size={22} className="text-primary" /> Production Schedule — APS
+            <Sparkles size={22} className="text-primary" /> {t('aps.title')}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Factory Navigator · finite-capacity planning, Capable-to-Promise and MRP, updated from live machine &amp; operator events.
+            {t('aps.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" onClick={() => setCtpOpen(true)}>
-            <CalendarClock size={16} className="mr-2" /> Capable-to-Promise
+            <CalendarClock size={16} className="mr-2" /> {t('aps.ctp.title')}
           </Button>
           {/* Undo / Redo over dry-run previews */}
           <div className="flex items-center rounded-md border border-border overflow-hidden">
-            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-none" onClick={undo} disabled={!canUndo} title="Undo">
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-none" onClick={undo} disabled={!canUndo} title={t('aps.undo')}>
               <Undo2 size={16} />
             </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-none border-l border-border" onClick={redo} disabled={!canRedo} title="Redo">
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-none border-l border-border" onClick={redo} disabled={!canRedo} title={t('aps.redo')}>
               <Redo2 size={16} />
             </Button>
           </div>
           {dirty && (
-            <Button variant="ghost" onClick={discard} className="text-muted-foreground">Discard</Button>
+            <Button variant="ghost" onClick={discard} className="text-muted-foreground">{t('aps.discard')}</Button>
           )}
           <Button variant={dirty ? 'outline' : 'default'} onClick={recalcPreview} disabled={runDry.isPending}>
             {runDry.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Zap size={16} className="mr-2" />}
-            Recalculate Plan
+            {t('aps.recalculatePlan')}
           </Button>
           <Button onClick={commitPlan} disabled={!dirty || saveSchedule.isPending}>
             {saveSchedule.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />}
-            Save Plan
+            {t('aps.savePlan')}
           </Button>
         </div>
       </div>
@@ -352,18 +355,18 @@ export function ApsView() {
       {dirty && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
           <AlertTriangle size={14} className="shrink-0" />
-          Preview only — this plan is <strong>not saved</strong>. Review the Gantt, then <strong>Save Plan</strong> to commit, or Undo/Discard.
+          {t('aps.previewBanner1')} <strong>{t('aps.previewNotSaved')}</strong>. {t('aps.previewBanner2')} <strong>{t('aps.savePlan')}</strong> {t('aps.previewBanner3')}
         </div>
       )}
 
       {/* KPI bar */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiTile icon={Clock} label="Makespan" value={m?.makespanHours ?? '—'} unit="h" color="#6366f1" />
-        <KpiTile icon={CheckCircle2} label="On-time" value={m?.onTimePct ?? '—'} unit="%" color="#22c55e" hint={`${m?.onTimeOrders ?? 0} orders`} />
-        <KpiTile icon={AlertTriangle} label="Late orders" value={m?.lateOrderCount ?? '—'} color={(m?.lateOrderCount ?? 0) > 0 ? '#ef4444' : '#22c55e'} />
-        <KpiTile icon={Gauge} label="Utilization" value={m?.utilizationPct ?? '—'} unit="%" color="#a855f7" />
-        <KpiTile icon={Cpu} label="Machines" value={m?.machinesUsed ?? '—'} color="#0ea5e9" />
-        <KpiTile icon={PackageX} label="Unscheduled" value={plan?.unscheduled ?? '—'} color={(plan?.unscheduled ?? 0) > 0 ? '#f59e0b' : '#22c55e'} hint="ops without slot" />
+        <KpiTile icon={Clock} label={t('aps.kpi.makespan')} value={m?.makespanHours ?? '—'} unit="h" color="#6366f1" />
+        <KpiTile icon={CheckCircle2} label={t('aps.kpi.onTime')} value={m?.onTimePct ?? '—'} unit="%" color="#22c55e" hint={t('aps.kpi.ordersCount', { count: m?.onTimeOrders ?? 0 })} />
+        <KpiTile icon={AlertTriangle} label={t('aps.kpi.lateOrders')} value={m?.lateOrderCount ?? '—'} color={(m?.lateOrderCount ?? 0) > 0 ? '#ef4444' : '#22c55e'} />
+        <KpiTile icon={Gauge} label={t('aps.kpi.utilization')} value={m?.utilizationPct ?? '—'} unit="%" color="#a855f7" />
+        <KpiTile icon={Cpu} label={t('aps.kpi.machines')} value={m?.machinesUsed ?? '—'} color="#0ea5e9" />
+        <KpiTile icon={PackageX} label={t('aps.kpi.unscheduled')} value={plan?.unscheduled ?? '—'} color={(plan?.unscheduled ?? 0) > 0 ? '#f59e0b' : '#22c55e'} hint={t('aps.kpi.opsWithoutSlot')} />
       </div>
 
       {/* Factory Navigator Gantt */}
@@ -373,14 +376,14 @@ export function ApsView() {
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-border/60 bg-card p-10 text-center">
-          <p className="text-sm text-muted-foreground">No scheduled operations yet.</p>
+          <p className="text-sm text-muted-foreground">{t('aps.noScheduledOps')}</p>
           <Button className="mt-3" onClick={recalcPreview} disabled={runDry.isPending}>
-            <Zap size={16} className="mr-2" /> Generate the plan
+            <Zap size={16} className="mr-2" /> {t('aps.generatePlan')}
           </Button>
         </div>
       ) : (
         <FactoryGantt
-          title="Factory Navigator"
+          title={t('aps.factoryNavigator')}
           tasks={tasks}
           resources={ganttResources}
           tree={tree}
@@ -392,23 +395,23 @@ export function ApsView() {
           onZoomChange={setZoom}
           onTaskMove={handleMove}
           actions={[
-            { label: 'Recalculate (preview)', icon: Zap, onClick: recalcPreview, disabled: runDry.isPending },
-            { label: 'Undo', icon: Undo2, onClick: undo, disabled: !canUndo },
-            { label: 'Redo', icon: Redo2, onClick: redo, disabled: !canRedo },
-            { label: dirty ? 'Save Plan' : 'Saved', icon: Save, onClick: commitPlan, disabled: !dirty || saveSchedule.isPending },
+            { label: t('aps.actions.recalcPreview'), icon: Zap, onClick: recalcPreview, disabled: runDry.isPending },
+            { label: t('aps.undo'), icon: Undo2, onClick: undo, disabled: !canUndo },
+            { label: t('aps.redo'), icon: Redo2, onClick: redo, disabled: !canRedo },
+            { label: dirty ? t('aps.savePlan') : t('aps.saved'), icon: Save, onClick: commitPlan, disabled: !dirty || saveSchedule.isPending },
           ]}
           insights={
             <div className="space-y-1.5 text-xs">
-              <div className="font-semibold text-sm mb-2">Schedule KPIs</div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Makespan</span><strong>{m?.makespanHours ?? '—'} h</strong></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">On-time</span><strong className="text-emerald-500">{m?.onTimePct ?? '—'}%</strong></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Late orders</span><strong className={cn((m?.lateOrderCount ?? 0) > 0 ? 'text-destructive' : 'text-emerald-500')}>{m?.lateOrderCount ?? 0}</strong></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Utilization</span><strong>{m?.utilizationPct ?? '—'}%</strong></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Material shortages</span><strong className={cn(shortages.length > 0 ? 'text-destructive' : 'text-emerald-500')}>{shortages.length}</strong></div>
+              <div className="font-semibold text-sm mb-2">{t('aps.scheduleKpis')}</div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t('aps.kpi.makespan')}</span><strong>{m?.makespanHours ?? '—'} h</strong></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t('aps.kpi.onTime')}</span><strong className="text-emerald-500">{m?.onTimePct ?? '—'}%</strong></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t('aps.kpi.lateOrders')}</span><strong className={cn((m?.lateOrderCount ?? 0) > 0 ? 'text-destructive' : 'text-emerald-500')}>{m?.lateOrderCount ?? 0}</strong></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t('aps.kpi.utilization')}</span><strong>{m?.utilizationPct ?? '—'}%</strong></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t('aps.materialShortages')}</span><strong className={cn(shortages.length > 0 ? 'text-destructive' : 'text-emerald-500')}>{shortages.length}</strong></div>
             </div>
           }
           onCtp={() => setCtpOpen(true)}
-          statusExtra={`Not Scheduled: ${plan!.unscheduled} · drag = move · edge = resize · ◆ due · ● finish`}
+          statusExtra={t('aps.statusExtra', { count: plan!.unscheduled })}
         />
       )}
 
@@ -417,11 +420,11 @@ export function ApsView() {
         <div className="flex items-center gap-1 border-b border-border/60 px-3 pt-2">
           <button onClick={() => setTab('mrp')}
             className={cn('px-3 py-2 text-sm rounded-t-md', tab === 'mrp' ? 'bg-muted/60 font-medium' : 'text-muted-foreground hover:bg-muted/30')}>
-            <PackageX size={14} className="inline mr-1.5" /> Material Shortages {shortages.length > 0 && <Badge variant="destructive" className="ml-1.5 text-[10px]">{shortages.length}</Badge>}
+            <PackageX size={14} className="inline mr-1.5" /> {t('aps.tabMaterialShortages')} {shortages.length > 0 && <Badge variant="destructive" className="ml-1.5 text-[10px]">{shortages.length}</Badge>}
           </button>
           <button onClick={() => setTab('late')}
             className={cn('px-3 py-2 text-sm rounded-t-md', tab === 'late' ? 'bg-muted/60 font-medium' : 'text-muted-foreground hover:bg-muted/30')}>
-            <AlertTriangle size={14} className="inline mr-1.5" /> Late Orders {(m?.lateOrderCount ?? 0) > 0 && <Badge variant="destructive" className="ml-1.5 text-[10px]">{m?.lateOrderCount}</Badge>}
+            <AlertTriangle size={14} className="inline mr-1.5" /> {t('aps.tabLateOrders')} {(m?.lateOrderCount ?? 0) > 0 && <Badge variant="destructive" className="ml-1.5 text-[10px]">{m?.lateOrderCount}</Badge>}
           </button>
         </div>
 
@@ -429,24 +432,24 @@ export function ApsView() {
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-muted-foreground">
               <tr className="text-left">
-                <th className="px-4 py-2 font-medium">Material</th>
-                <th className="px-4 py-2 font-medium text-right">Required</th>
-                <th className="px-4 py-2 font-medium text-right">Available</th>
-                <th className="px-4 py-2 font-medium text-right">Shortage</th>
-                <th className="px-4 py-2 font-medium">Need by</th>
-                <th className="px-4 py-2 font-medium">Order by</th>
+                <th className="px-4 py-2 font-medium">{t('aps.col.material')}</th>
+                <th className="px-4 py-2 font-medium text-right">{t('aps.col.required')}</th>
+                <th className="px-4 py-2 font-medium text-right">{t('aps.col.available')}</th>
+                <th className="px-4 py-2 font-medium text-right">{t('aps.col.shortage')}</th>
+                <th className="px-4 py-2 font-medium">{t('aps.col.needBy')}</th>
+                <th className="px-4 py-2 font-medium">{t('aps.col.orderBy')}</th>
               </tr>
             </thead>
             <tbody>
               {(mrp?.requirements ?? []).length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No open orders requiring materials.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">{t('aps.noOpenOrders')}</td></tr>
               ) : mrp!.requirements.map((r) => (
                 <tr key={r.materialId} className="border-t border-border/50">
                   <td className="px-4 py-2">{r.name} <span className="text-muted-foreground font-mono text-xs">{r.code}</span></td>
                   <td className="px-4 py-2 text-right tabular-nums">{r.required} {r.unit}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{r.available} {r.unit}</td>
                   <td className={cn('px-4 py-2 text-right tabular-nums font-semibold', r.shortage > 0 ? 'text-destructive' : 'text-emerald-500')}>
-                    {r.shortage > 0 ? `${r.shortage} ${r.unit}` : 'OK'}
+                    {r.shortage > 0 ? `${r.shortage} ${r.unit}` : t('aps.marker.ok')}
                   </td>
                   <td className="px-4 py-2 text-xs">{new Date(r.requiredDate).toLocaleDateString()}</td>
                   <td className="px-4 py-2 text-xs">{r.suggestedOrderDate ? new Date(r.suggestedOrderDate).toLocaleDateString() : '—'}</td>
@@ -458,15 +461,15 @@ export function ApsView() {
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-muted-foreground">
               <tr className="text-left">
-                <th className="px-4 py-2 font-medium">Work Order</th>
-                <th className="px-4 py-2 font-medium">Finishes</th>
-                <th className="px-4 py-2 font-medium">Due</th>
-                <th className="px-4 py-2 font-medium text-right">Late by</th>
+                <th className="px-4 py-2 font-medium">{t('aps.col.workOrder')}</th>
+                <th className="px-4 py-2 font-medium">{t('aps.col.finishes')}</th>
+                <th className="px-4 py-2 font-medium">{t('aps.col.due')}</th>
+                <th className="px-4 py-2 font-medium text-right">{t('aps.col.lateBy')}</th>
               </tr>
             </thead>
             <tbody>
               {(m?.lateOrders ?? []).length === 0 ? (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-emerald-500">All scheduled orders are on time.</td></tr>
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-emerald-500">{t('aps.allOnTime')}</td></tr>
               ) : m!.lateOrders.map((o) => (
                 <tr key={o.orderNumber} className="border-t border-border/50">
                   <td className="px-4 py-2 font-mono text-xs">{o.orderNumber}</td>

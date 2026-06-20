@@ -34,9 +34,9 @@ interface IoTTag {
 }
 
 const statusConfig = {
-  CONNECTED:    { color: 'text-green-400', bg: 'bg-green-500/20',  icon: Wifi,          label: 'Connected'    },
-  DISCONNECTED: { color: 'text-gray-400',  bg: 'bg-gray-500/20',   icon: WifiOff,        label: 'Disconnected' },
-  ERROR:        { color: 'text-red-400',   bg: 'bg-red-500/20',    icon: AlertTriangle,  label: 'Error'        },
+  CONNECTED:    { color: 'text-green-400', bg: 'bg-green-500/20',  icon: Wifi,          labelKey: 'overview.statusConnected'    },
+  DISCONNECTED: { color: 'text-gray-400',  bg: 'bg-gray-500/20',   icon: WifiOff,        labelKey: 'overview.statusDisconnected' },
+  ERROR:        { color: 'text-red-400',   bg: 'bg-red-500/20',    icon: AlertTriangle,  labelKey: 'overview.statusError'        },
 };
 
 const qualityColors: Record<string, string> = {
@@ -82,21 +82,21 @@ export function IoTView() {
             queryClient.invalidateQueries({ queryKey: ['iot'] });
           }}>
             <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
+            {t('common.refresh')}
           </Button>
           <Button size="sm">
             <Plus className="w-4 h-4 mr-2" />
-            Add Device
+            {t('common.addDevice')}
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Connected Devices', value: `${connectedCount}/${devices.length}`, icon: Wifi,     color: 'text-green-400'  },
-          { label: 'Total Tags',        value: tags.length,                            icon: Radio,    color: 'text-brand-400'  },
-          { label: 'Data Points',       value: tags.filter(t => t.currentValue).length, icon: Activity, color: 'text-cyan-400'  },
-          { label: 'Protocols Active',  value: protocols.size || 0,                    icon: Signal,   color: 'text-purple-400' },
+          { label: t('overview.statConnectedDevices'), value: `${connectedCount}/${devices.length}`, icon: Wifi,     color: 'text-green-400'  },
+          { label: t('overview.statTotalTags'),        value: tags.length,                            icon: Radio,    color: 'text-brand-400'  },
+          { label: t('overview.statDataPoints'),       value: tags.filter(t => t.currentValue).length, icon: Activity, color: 'text-cyan-400'  },
+          { label: t('overview.statProtocolsActive'),  value: protocols.size || 0,                    icon: Signal,   color: 'text-purple-400' },
         ].map(stat => {
           const Icon = stat.icon;
           return (
@@ -115,8 +115,8 @@ export function IoTView() {
 
       <Tabs defaultValue="devices">
         <TabsList>
-          <TabsTrigger value="devices">Devices</TabsTrigger>
-          <TabsTrigger value="tags">Tag Definitions</TabsTrigger>
+          <TabsTrigger value="devices">{t('overview.tabDevices')}</TabsTrigger>
+          <TabsTrigger value="tags">{t('overview.tabTags')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="devices" className="mt-4">
@@ -127,7 +127,7 @@ export function IoTView() {
           ) : devices.length === 0 ? (
             <div className="glass-card rounded-xl p-12 text-center text-muted-foreground">
               <WifiOff className="w-12 h-12 mx-auto mb-3 opacity-40" />
-              <div className="font-medium">No devices configured</div>
+              <div className="font-medium">{t('overview.noDevices')}</div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -153,7 +153,7 @@ export function IoTView() {
                         </div>
                         <div>
                           <div className="font-medium text-sm">{device.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{device.machine?.name ?? 'No machine'}</div>
+                          <div className="text-[11px] text-muted-foreground">{device.machine?.name ?? t('overview.noMachine')}</div>
                         </div>
                       </div>
                       {device.protocol && (
@@ -167,20 +167,20 @@ export function IoTView() {
 
                     <div className="flex items-center justify-between text-xs">
                       <div className="text-muted-foreground">
-                        {device.tagCount != null ? `${device.tagCount} tags` : ''}
+                        {device.tagCount != null ? t('overview.tagsCount', { count: device.tagCount }) : ''}
                       </div>
                       <div className={cn('flex items-center gap-1', statusCfg.color)}>
                         <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                        <span>{device.lastSeenAt ? timeAgo(device.lastSeenAt) : statusCfg.label}</span>
+                        <span>{device.lastSeenAt ? timeAgo(device.lastSeenAt) : t(statusCfg.labelKey)}</span>
                       </div>
                     </div>
 
                     <div className="flex gap-2 mt-3 pt-3 border-t border-border/50">
                       <Button size="sm" variant="ghost" className="flex-1 h-7 text-xs">
-                        <Cpu className="w-3 h-3 mr-1" />Tags
+                        <Cpu className="w-3 h-3 mr-1" />{t('overview.tagsBtn')}
                       </Button>
                       <Button size="sm" variant="ghost" className="flex-1 h-7 text-xs">
-                        <Settings className="w-3 h-3 mr-1" />Config
+                        <Settings className="w-3 h-3 mr-1" />{t('overview.configBtn')}
                       </Button>
                     </div>
                   </motion.div>
@@ -195,12 +195,12 @@ export function IoTView() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left p-4 text-muted-foreground font-medium">Tag Name</th>
-                  <th className="text-left p-4 text-muted-foreground font-medium">Code</th>
-                  <th className="text-right p-4 text-muted-foreground font-medium">Value</th>
-                  <th className="text-left p-4 text-muted-foreground font-medium">Quality</th>
-                  <th className="text-left p-4 text-muted-foreground font-medium">Machine</th>
-                  <th className="text-left p-4 text-muted-foreground font-medium">Updated</th>
+                  <th className="text-left p-4 text-muted-foreground font-medium">{t('overview.thTagName')}</th>
+                  <th className="text-left p-4 text-muted-foreground font-medium">{t('overview.thCode')}</th>
+                  <th className="text-right p-4 text-muted-foreground font-medium">{t('overview.thValue')}</th>
+                  <th className="text-left p-4 text-muted-foreground font-medium">{t('overview.thQuality')}</th>
+                  <th className="text-left p-4 text-muted-foreground font-medium">{t('overview.thMachine')}</th>
+                  <th className="text-left p-4 text-muted-foreground font-medium">{t('overview.thUpdated')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -214,7 +214,7 @@ export function IoTView() {
                   ))
                 ) : tags.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-muted-foreground text-sm">No tags configured</td>
+                    <td colSpan={6} className="p-8 text-center text-muted-foreground text-sm">{t('overview.noTags')}</td>
                   </tr>
                 ) : (
                   tags.map(tag => (

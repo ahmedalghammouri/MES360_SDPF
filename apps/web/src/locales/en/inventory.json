@@ -143,10 +143,156 @@
   },
   "bomView": {
     "search": "Search by product name or code…", "noBoms": "No BOMs found. Create the first one.",
-    "col": { "material": "Material", "qtyUnit": "Qty / Unit", "unit": "Unit", "scrapPct": "Scrap %" }
+    "newBom": "New BOM", "loading": "Loading BOMs...",
+    "infoBanner": "A BOM links a finished product (SKU) to the raw materials, packaging and consumables needed to make one unit. The scrap factor adds a buffer (e.g. 0.05 = 5% extra). Approved BOMs are used by production to auto-calculate material requirements. Material lots show available stock per raw material.",
+    "createTitle": "Create Bill of Materials", "cancel": "Cancel", "creating": "Creating...", "createBom": "Create BOM",
+    "product": "Product (SKU)", "selectProduct": "Select product...", "searchProduct": "Search by item number or name…",
+    "version": "Version", "versionPlaceholder": "1.0",
+    "foundProcess": "Found manufacturing process: {{name}} v{{version}}",
+    "processSummary": "{{steps}} steps · {{materials}} step input materials — the BOM can be derived automatically (rolled up per 1 finished unit, each line linked to its step).",
+    "processNoMaterials": "The process has no step materials yet — add them in Manufacturing Processes, or enter the BOM manually below.",
+    "deriving": "Deriving…", "deriveFromProcess": "Derive from process",
+    "noProcessYet": "No manufacturing process exists for this product yet. Enter the materials below — after creating the BOM you can generate a draft process from it with one click.",
+    "rawMaterialComponents": "Raw Material Components", "addRow": "Add Row",
+    "selectMaterial": "Select material...", "searchMaterial": "Search by code or name…",
+    "unitFromMasterTip": "Unit comes from the raw-material master (unified UoM)",
+    "editTitle": "Edit BOM", "saving": "Saving...", "saveChanges": "Save Changes",
+    "notes": "Notes", "notesOptional": "Notes (optional)", "notesPlaceholder": "Engineering change notes...",
+    "approvedNote": "This BOM is approved. Only notes can be changed without creating a new version.",
+    "deleteTitle": "Delete BOM?",
+    "deleteDesc": "This will permanently delete the BOM for {{name}} (v{{version}}) and all its {{count}} material lines.",
+    "approvedCantDelete": "Approved BOMs cannot be deleted.", "deleting": "Deleting...", "deleteBom": "Delete BOM",
+    "addMaterialTitle": "Add Material to BOM", "adding": "Adding...", "addMaterial": "Add Material",
+    "rawMaterial": "Raw Material", "quantityPerUnit": "Quantity per unit", "unit": "Unit",
+    "fromMaterialMaster": "(from material master)",
+    "lotsMeta": "{{count}} lots · {{remaining}} {{unit}}",
+    "scrapFactor": "Scrap Factor (e.g. 0.05 = 5%)",
+    "noMaterialsDefined": "No materials defined. Add the first component.",
+    "approved": "Approved", "draft": "Draft", "stale": "Stale",
+    "derivedFrom": "Derived from", "linkedTo": "Linked to",
+    "componentsCount": "{{count}} components", "estCost": "Est. cost: {{cost}}", "estCostNa": "Est. cost: N/A",
+    "perUnit": "SAR {{cost}} / unit",
+    "reDerive": "Re-derive", "reDeriving": "Re-deriving…", "reDeriveTip": "Source process changed — derive a fresh BOM version from it",
+    "generateProcess": "Generate process", "generating": "Generating…", "generateProcessTip": "Create a draft manufacturing process from this BOM (guided flow)",
+    "approve": "Approve", "addItem": "Add Item",
+    "lotsBadge": "{{count}} lots · {{remaining}} {{unit}}", "noLotsBadge": "No lots",
+    "totalCostPerUnit": "Total Material Cost per Unit",
+    "col": {
+      "material": "Material", "qtyUnit": "Qty / Unit", "unit": "Unit", "scrapPct": "Scrap %",
+      "code": "Code", "step": "Step", "scrap": "Scrap", "totalQty": "Total Qty", "unitCost": "Unit Cost", "lineCost": "Line Cost", "lots": "Lots"
+    }
   },
   "overview": {
     "rawMaterials": "Raw Materials", "materialLots": "Material Lots", "products": "Products", "spareParts": "Spare Parts",
-    "viewAll": "View All", "noRecentMovements": "No recent movements"
+    "viewAll": "View All", "noRecentMovements": "No recent movements",
+    "kpi": {
+      "totalValue": "Total Inventory Value", "lowStockAlerts": "Low-Stock Alerts", "lotsExpiring": "Lots Expiring (30d)", "movements7d": "Movements (7d)"
+    },
+    "cat": { "rawMaterials": "Raw Materials", "spareParts": "Spare Parts", "products": "Products / SKUs", "materialLots": "Material Lots" },
+    "expired": "expired", "low": "low",
+    "reorderAlerts": "Reorder Alerts", "allHealthy": "All stock levels are healthy ✓",
+    "recentMovements": "Recent Stock Movements", "item": "Item",
+    "kind": { "raw": "Raw", "spare": "Spare" }, "min": "min"
+  },
+  "reports": {
+    "section": "Reports", "lowStockAlerts": "Low Stock Alerts", "low": "Low",
+    "noLowStockDetails": "No low-stock material details available.",
+    "pctOfMinimum": "{{pct}}% of minimum", "viewAllLowStock": "View All Low Stock",
+    "kpi": { "totalSkus": "Total SKUs", "rawMaterials": "Raw Materials", "lowStockAlerts": "Low Stock Alerts", "storageLocations": "Storage Locations" },
+    "cards": {
+      "stockLevels": { "title": "Stock Levels", "desc": "Current stock vs min/max thresholds" },
+      "productInventory": { "title": "Product Inventory", "desc": "SKU catalog with inventory status" },
+      "spareParts": { "title": "Spare Parts", "desc": "Spare parts availability and requests" },
+      "stockMovements": { "title": "Stock Movements", "desc": "Receipts, issues, adjustments ledger" },
+      "bomRequirements": { "title": "BOM Requirements", "desc": "Material requirements from active BOMs" },
+      "storageUtilization": { "title": "Storage Utilization", "desc": "Location occupancy and organization" }
+    }
+  },
+  "lotsView": {
+    "receiveLot": "Receive Lot", "allStatus": "All Status", "statusLabel": "Status",
+    "selectRow": "Select row", "restore": "Restore", "archive": "Archive", "delete": "Delete",
+    "formTitle": "Receive Material Lot", "receive": "Receive",
+    "rawMaterialMaster": "Raw Material (Master)", "selectRawMaterial": "Select raw material...", "searchByCodeName": "Search by code or name…",
+    "lotNumber": "Lot Number", "supplier": "Supplier", "quantity": "Quantity", "unit": "Unit", "expiryDate": "Expiry Date", "storageLocation": "Storage Location",
+    "selectLocation": "Select location…",
+    "createdSuccess": "Material lot created successfully", "deletedSuccess": "Material lot deleted successfully",
+    "createError": "Failed to create lot", "deleteError": "Failed to delete lot",
+    "deleteTitle": "Delete lot {{lot}}?", "deleteDesc": "This will permanently delete this material lot."
+  },
+  "productsView": {
+    "addProduct": "Add Product", "selectRow": "Select row", "edit": "Edit", "restore": "Restore", "archive": "Archive", "delete": "Delete",
+    "items": "{{count}} items", "bomTitle": "Bill of Materials",
+    "createdSuccess": "Product created successfully", "updatedSuccess": "Product updated successfully", "deletedSuccess": "Product deleted successfully",
+    "createError": "Failed to create product", "updateError": "Failed to update product", "deleteError": "Failed to delete product"
+  },
+  "rawMaterialsView": {
+    "addMaterial": "Add Material",
+    "kpi": { "totalMaterials": "Total Materials", "lowStock": "Low Stock", "totalStockValue": "Total Stock Value" },
+    "activeRecords": "active material records", "belowMinimum": "materials below minimum", "sarAcross": "SAR across all materials",
+    "selectRow": "Select row", "addFirstHint": "Add your first material using the button above",
+    "status": { "lowStock": "Low Stock", "reorder": "Reorder", "normal": "Normal" },
+    "menu": { "adjustStock": "Adjust Stock", "viewLots": "View Lots", "history": "History", "edit": "Edit", "restore": "Restore", "archive": "Archive", "delete": "Delete" },
+    "noMovementsYet": "No stock movements yet", "onHand": "on hand",
+    "materialLots": "Material Lots", "noLotsReceived": "No lots received for this material", "receiveFromLots": "Receive a lot from the Material Lots page.",
+    "lot": { "qty": "Qty", "remaining": "Remaining", "received": "Received", "expiry": "Expiry", "supplier": "Supplier", "location": "Location", "used": "used" },
+    "deleteTitle": "Delete \"{{name}}\"?", "deleteDesc": "This will permanently remove this raw material from inventory. This action cannot be undone.",
+    "toast": {
+      "archived": "Raw material archived", "archivedDesc": "Hidden from active list — switch the filter to \"Archived\" to restore.",
+      "restored": "Raw material restored", "created": "Raw material created successfully", "updated": "Raw material updated", "deleted": "Raw material deleted",
+      "error": "Error", "stockAdjusted": "Stock adjusted",
+      "failArchive": "Failed to archive", "failRestore": "Failed to restore", "failCreate": "Failed to create material", "failUpdate": "Failed to update material", "failDelete": "Failed to delete material", "failAdjust": "Failed to adjust stock"
+    }
+  },
+  "spareRequestsView": {
+    "kpi": { "totalPending": "Total Pending", "insufficientStock": "Insufficient Stock", "highCritical": "High / Critical Priority" },
+    "awaitingIssue": "requests awaiting issue", "belowRequired": "parts below required stock", "urgentWaiting": "urgent work orders waiting",
+    "allPriorities": "All Priorities",
+    "priority": { "critical": "Critical", "high": "High", "medium": "Medium", "low": "Low" },
+    "noPending": "No pending spare part requests", "noPendingHint": "All requests have been fulfilled or none exist yet",
+    "short": "Short", "alreadyIssued": "{{count}} already issued", "issue": "Issue",
+    "issueTitle": "Issue Parts to Work Order", "issueDesc": "Issuing {{part}} for work order {{wo}}",
+    "cancel": "Cancel", "issuing": "Issuing…", "confirmIssue": "Confirm Issue",
+    "summary": { "partNumber": "Part Number", "machine": "Machine", "priority": "Priority", "qtyRequested": "Qty Requested", "availableInStock": "Available in Stock", "storageLocation": "Storage Location", "unitCost": "Unit Cost" },
+    "unitsRemaining": "{{count}} units remaining", "units": "{{count}} units",
+    "insufficientWarn": "Stock is below requested quantity. You can only issue up to {{count}} units.",
+    "quantityToIssue": "Quantity to Issue", "max": "(max {{count}})",
+    "exceedsStock": "Exceeds available stock ({{count}} units)", "exceedsRequested": "Exceeds requested quantity — partial over-issue",
+    "notesOptional": "Notes (optional)", "notesPlaceholder": "e.g. Issued from Bin A-12, Shelf 3…",
+    "issuedSuccess": "Parts issued successfully", "issueFailed": "Failed to issue parts"
+  },
+  "sparePartsView": {
+    "addPart": "Add Part", "lowStockOnly": "Low Stock Only", "selectRow": "Select row",
+    "menu": { "adjustStock": "Adjust Stock", "edit": "Edit", "restore": "Restore", "archive": "Archive", "delete": "Delete" },
+    "adjustTitle": "Adjust Stock — {{name}}", "current": "Current", "quantity": "Quantity",
+    "cancel": "Cancel", "saving": "Saving…", "apply": "Apply",
+    "adjust": { "add": "ADD", "remove": "REMOVE", "set": "SET" },
+    "toast": { "created": "Spare part created", "updated": "Spare part updated", "deleted": "Spare part deleted", "restored": "Spare part restored", "archived": "Spare part archived", "error": "Error", "failCreate": "Failed to create", "failUpdate": "Failed to update", "failDelete": "Failed to delete", "fail": "Failed" }
+  },
+  "stockMovementsView": {
+    "exportTitle": "Stock Movements", "allItemTypes": "All Item Types", "allMovements": "All Movements",
+    "from": "From", "to": "To",
+    "entity": { "SPARE_PART": "Spare Part", "RAW_MATERIAL": "Raw Material", "PRODUCT": "Product" },
+    "exportCol": { "date": "Date", "type": "Type", "itemCode": "Item Code", "item": "Item", "movement": "Movement", "qty": "Qty", "before": "Before", "after": "After", "cost": "Cost", "reference": "Reference", "by": "By" }
+  },
+  "storageView": {
+    "refresh": "Refresh", "newLocation": "New Location",
+    "kpi": { "totalLocations": "Total Locations", "active": "Active" },
+    "createFirst": "Create your first location to start tracking inventory placement.",
+    "loadingContents": "Loading contents...",
+    "codePlaceholder": "RM-A01",
+    "menu": { "viewContents": "View Contents", "editLocation": "Edit Location", "printQr": "Print QR Label", "deactivate": "Deactivate", "delete": "Delete" },
+    "empty": "Empty", "noCapacity": "No capacity set", "itemsCount": "{{count}} items", "capacityItems": "{{current}} / {{capacity}} items",
+    "clickToView": "Click to view contents",
+    "sheetKpi": { "totalItems": "Total Items", "rawMaterials": "Raw Materials", "activeLots": "Active Lots", "stockValue": "Stock Value" },
+    "capacityUtilization": "Capacity Utilization", "itemsCapacity": "{{items}} items / {{capacity}} capacity",
+    "belowMin": "{{count}} items below minimum stock level", "expiredLots": "{{count}} expired material lots in this location",
+    "breakdown": { "rawMaterials": "Raw Materials", "materialLots": "Material Lots", "spareParts": "Spare Parts", "products": "Products/SKUs" },
+    "estStockValue": "Estimated Stock Value", "stockValueBasis": "Based on unit costs × quantities at this location",
+    "emptyLocation": "Empty Location", "emptyLocationHint": "No inventory is currently assigned to this location.",
+    "lowStock": "Low Stock", "ok": "OK",
+    "noRawAt": "No raw materials at this location", "noLotsAt": "No material lots at this location", "noPartsAt": "No spare parts at this location", "noSkusAt": "No products/SKUs assigned to this location",
+    "lotsCol": { "lotMaterial": "Lot / Material", "bin": "Bin", "qtyRemaining": "Qty / Remaining", "received": "Received", "status": "Status", "exp": "Exp" },
+    "partsCol": { "partNameHead": "Part # / Name", "binCategory": "Bin / Category", "stockQty": "Stock Qty", "value": "Value (SAR)", "status": "Status" },
+    "skusCol": { "skuCode": "SKU Code", "name": "Name", "itemNo": "Item #", "category": "Category" }
   }
 }

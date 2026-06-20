@@ -11,11 +11,12 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, CalendarRange } from 'lucide-react';
 import type { GanttItem } from '@/components/charts/gantt-chart';
 import { cn } from '@/lib/utils';
 
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 interface ScheduleCalendarProps {
   items: GanttItem[];
@@ -32,6 +33,7 @@ function fmtTime(iso: string) {
 }
 
 export function ScheduleCalendar({ items, month, onPrevMonth, onNextMonth, onToday, typeLabels = {} }: ScheduleCalendarProps) {
+  const { t } = useTranslation('modules');
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const year = month.getFullYear();
@@ -72,7 +74,7 @@ export function ScheduleCalendar({ items, month, onPrevMonth, onNextMonth, onTod
         {/* Month navigation */}
         <div className="flex items-center justify-between mb-4">
           <button onClick={onToday} className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-muted/60 transition-colors flex items-center gap-1.5">
-            <CalendarRange size={13} /> Today
+            <CalendarRange size={13} /> {t('schedule.cal.today')}
           </button>
           <div className="flex items-center gap-2">
             <button onClick={onPrevMonth} className="p-1.5 rounded-md hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground">
@@ -88,8 +90,8 @@ export function ScheduleCalendar({ items, month, onPrevMonth, onNextMonth, onTod
 
         {/* Weekday headers */}
         <div className="grid grid-cols-7 gap-1 mb-1">
-          {WEEKDAY_LABELS.map(d => (
-            <div key={d} className="text-center text-[11px] font-semibold text-muted-foreground py-1">{d}</div>
+          {WEEKDAY_KEYS.map(d => (
+            <div key={d} className="text-center text-[11px] font-semibold text-muted-foreground py-1">{t('schedule.cal.weekday.' + d)}</div>
           ))}
         </div>
 
@@ -128,7 +130,7 @@ export function ScheduleCalendar({ items, month, onPrevMonth, onNextMonth, onTod
                     </div>
                   ))}
                   {dayItems.length > 3 && (
-                    <span className="text-[9px] text-muted-foreground px-1">+{dayItems.length - 3} more</span>
+                    <span className="text-[9px] text-muted-foreground px-1">{t('schedule.cal.moreCount', { count: dayItems.length - 3 })}</span>
                   )}
                 </div>
               </button>
@@ -143,11 +145,11 @@ export function ScheduleCalendar({ items, month, onPrevMonth, onNextMonth, onTod
           <h3 className="text-sm font-semibold mb-3">
             {monthName} {selectedDay}, {year}
             <span className="ml-2 text-xs text-muted-foreground font-normal">
-              {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''}
+              {t('schedule.cal.itemCount', { count: selectedItems.length })}
             </span>
           </h3>
           {selectedItems.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-2">Nothing scheduled for this day.</p>
+            <p className="text-xs text-muted-foreground py-2">{t('schedule.cal.nothingScheduled')}</p>
           ) : (
             <div className="space-y-1.5">
               {selectedItems.map((it, i) => (

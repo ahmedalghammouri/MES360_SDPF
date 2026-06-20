@@ -268,18 +268,18 @@ export function IotTagsView() {
         <div className="industrial-card p-3 flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search tags…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 pl-7 w-48 text-xs" />
+            <Input placeholder={t('tags.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 pl-7 w-48 text-xs" />
           </div>
-          <FilterSelect value={deviceFilter} onChange={setDeviceFilter} placeholder="Device" width="w-40"
-            options={[{ v: 'ALL', l: 'All Devices' }, { v: 'none', l: 'No device' }, ...deviceOptions.map((d: any) => ({ v: d.id, l: d.name }))]} />
-          <FilterSelect value={typeFilter} onChange={setTypeFilter} placeholder="Type" width="w-36"
-            options={[{ v: 'ALL', l: 'All Types' }, ...tagTypes.map((t) => ({ v: t, l: t }))]} />
-          <FilterSelect value={dataTypeFilter} onChange={setDataTypeFilter} placeholder="Data type" width="w-32"
-            options={[{ v: 'ALL', l: 'All Data Types' }, ...dataTypes.map((t) => ({ v: t, l: t }))]} />
-          <FilterSelect value={qualityFilter} onChange={setQualityFilter} placeholder="Quality" width="w-32"
-            options={[{ v: 'ALL', l: 'All Quality' }, { v: 'GOOD', l: 'Good' }, { v: 'BAD', l: 'Bad' }, { v: 'UNCERTAIN', l: 'Uncertain' }, { v: 'UNKNOWN', l: 'Unknown' }]} />
-          <FilterSelect value={statusFilter} onChange={setStatusFilter} placeholder="Status" width="w-32"
-            options={[{ v: 'ALL', l: 'All Status' }, { v: 'ACTIVE', l: 'Active' }, { v: 'INACTIVE', l: 'Inactive' }]} />
+          <FilterSelect value={deviceFilter} onChange={setDeviceFilter} placeholder={t('tags.filterDevice')} width="w-40"
+            options={[{ v: 'ALL', l: t('tags.allDevices') }, { v: 'none', l: t('tags.noDevice') }, ...deviceOptions.map((d: any) => ({ v: d.id, l: d.name }))]} />
+          <FilterSelect value={typeFilter} onChange={setTypeFilter} placeholder={t('tags.filterType')} width="w-36"
+            options={[{ v: 'ALL', l: t('tags.allTypes') }, ...tagTypes.map((tt) => ({ v: tt, l: tt }))]} />
+          <FilterSelect value={dataTypeFilter} onChange={setDataTypeFilter} placeholder={t('tags.filterDataType')} width="w-32"
+            options={[{ v: 'ALL', l: t('tags.allDataTypes') }, ...dataTypes.map((dt) => ({ v: dt, l: dt }))]} />
+          <FilterSelect value={qualityFilter} onChange={setQualityFilter} placeholder={t('tags.filterQuality')} width="w-32"
+            options={[{ v: 'ALL', l: t('tags.allQuality') }, { v: 'GOOD', l: t('tags.qGood') }, { v: 'BAD', l: t('tags.qBad') }, { v: 'UNCERTAIN', l: t('tags.qUncertain') }, { v: 'UNKNOWN', l: t('tags.qUnknown') }]} />
+          <FilterSelect value={statusFilter} onChange={setStatusFilter} placeholder={t('tags.filterStatus')} width="w-32"
+            options={[{ v: 'ALL', l: t('tags.allStatus') }, { v: 'ACTIVE', l: t('tags.sActive') }, { v: 'INACTIVE', l: t('tags.sInactive') }]} />
           <Button variant={liveOnly ? 'default' : 'outline'} size="sm" className="h-8 text-xs gap-1.5" onClick={() => setLiveOnly((v) => !v)}>
             <Wifi size={12} /> Live only
           </Button>

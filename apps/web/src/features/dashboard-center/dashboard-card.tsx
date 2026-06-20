@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import * as LucideIcons from 'lucide-react';
 import {
@@ -21,12 +22,12 @@ export function resolveIcon(name?: string | null): React.ElementType {
   return Icon ?? LayoutDashboard;
 }
 
-const SOURCE_META: Record<DashboardSource, { label: string; icon: React.ElementType; cls: string }> = {
-  MES360_NATIVE: { label: 'MES360°', icon: Factory, cls: 'text-brand-400 border-brand-500/30 bg-brand-500/10' },
-  GRAFANA: { label: 'Grafana', icon: Sparkles, cls: 'text-orange-400 border-orange-500/30 bg-orange-500/10' },
-  REPORT: { label: 'Report', icon: FileText, cls: 'text-slate-400 border-slate-500/30 bg-slate-500/10' },
-  EXTERNAL: { label: 'External', icon: Globe, cls: 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10' },
-  TEMPLATE: { label: 'Template', icon: Copy, cls: 'text-purple-400 border-purple-500/30 bg-purple-500/10' },
+const SOURCE_META: Record<DashboardSource, { labelKey: string; icon: React.ElementType; cls: string }> = {
+  MES360_NATIVE: { labelKey: 'dashboardCenter.card.srcMes360', icon: Factory, cls: 'text-brand-400 border-brand-500/30 bg-brand-500/10' },
+  GRAFANA: { labelKey: 'dashboardCenter.card.srcGrafana', icon: Sparkles, cls: 'text-orange-400 border-orange-500/30 bg-orange-500/10' },
+  REPORT: { labelKey: 'dashboardCenter.card.srcReport', icon: FileText, cls: 'text-slate-400 border-slate-500/30 bg-slate-500/10' },
+  EXTERNAL: { labelKey: 'dashboardCenter.card.srcExternal', icon: Globe, cls: 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10' },
+  TEMPLATE: { labelKey: 'dashboardCenter.card.srcTemplate', icon: Copy, cls: 'text-purple-400 border-purple-500/30 bg-purple-500/10' },
 };
 
 interface DashboardCardProps {
@@ -42,6 +43,7 @@ interface DashboardCardProps {
 export function DashboardCard({
   dashboard, onLaunch, onToggleFavorite, onClone, onEdit, onDelete, index = 0,
 }: DashboardCardProps) {
+  const { t } = useTranslation('modules');
   const Icon = resolveIcon(dashboard.icon);
   const source = SOURCE_META[dashboard.source];
   const accent = dashboard.category?.color ?? '#6175f4';
@@ -68,7 +70,7 @@ export function DashboardCard({
             <button
               onClick={(e) => { e.stopPropagation(); onToggleFavorite(dashboard); }}
               className="shrink-0 text-muted-foreground hover:text-amber-400 transition-colors"
-              aria-label={dashboard.isFavorite ? 'Unfavorite' : 'Favorite'}
+              aria-label={dashboard.isFavorite ? t('dashboardCenter.card.unfavorite') : t('dashboardCenter.card.favorite')}
             >
               <Star size={15} className={cn(dashboard.isFavorite && 'fill-amber-400 text-amber-400')} />
             </button>
@@ -82,9 +84,9 @@ export function DashboardCard({
       {/* Tags */}
       {dashboard.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {dashboard.tags.slice(0, 4).map((t) => (
-            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-foreground/5 text-muted-foreground">
-              {t}
+          {dashboard.tags.slice(0, 4).map((tag) => (
+            <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded bg-foreground/5 text-muted-foreground">
+              {tag}
             </span>
           ))}
         </div>
@@ -95,16 +97,16 @@ export function DashboardCard({
         <div className="flex items-center gap-1.5 flex-wrap">
           <Badge variant="outline" className={cn('text-[9px] h-5 gap-1', source.cls)}>
             <source.icon size={9} />
-            {source.label}
+            {t(source.labelKey)}
           </Badge>
           {dashboard.isFactoryAware && (
             <Badge variant="outline" className="text-[9px] h-5 text-muted-foreground">
-              Factory-aware
+              {t('dashboardCenter.card.factoryAware')}
             </Badge>
           )}
           {dashboard.isTemplate && (
             <Badge variant="outline" className="text-[9px] h-5 text-purple-400 border-purple-500/30">
-              Template
+              {t('dashboardCenter.card.srcTemplate')}
             </Badge>
           )}
         </div>
@@ -117,7 +119,7 @@ export function DashboardCard({
               className="h-7 gap-1 text-[11px]"
               onClick={(e) => { e.stopPropagation(); onClone?.(dashboard); }}
             >
-              <Copy size={12} /> Use
+              <Copy size={12} /> {t('dashboardCenter.card.use')}
             </Button>
           ) : (
             <Button
@@ -128,7 +130,7 @@ export function DashboardCard({
               {dashboard.source === 'GRAFANA' || dashboard.source === 'EXTERNAL'
                 ? <ExternalLink size={12} />
                 : <Play size={12} />}
-              Launch
+              {t('dashboardCenter.card.launch')}
             </Button>
           )}
 
@@ -141,23 +143,23 @@ export function DashboardCard({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => onLaunch(dashboard)}>
-                  <Play size={12} /> Launch
+                  <Play size={12} /> {t('dashboardCenter.card.launch')}
                 </DropdownMenuItem>
                 {onClone && (
                   <DropdownMenuItem className="gap-2 text-xs" onClick={() => onClone(dashboard)}>
-                    <Copy size={12} /> Duplicate
+                    <Copy size={12} /> {t('dashboardCenter.card.duplicate')}
                   </DropdownMenuItem>
                 )}
                 {dashboard.canManage && onEdit && (
                   <DropdownMenuItem className="gap-2 text-xs" onClick={() => onEdit(dashboard)}>
-                    <Pencil size={12} /> Edit
+                    <Pencil size={12} /> {t('dashboardCenter.card.edit')}
                   </DropdownMenuItem>
                 )}
                 {dashboard.canManage && !dashboard.isSystem && onDelete && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="gap-2 text-xs text-danger-400" onClick={() => onDelete(dashboard)}>
-                      <Trash2 size={12} /> Delete
+                      <Trash2 size={12} /> {t('dashboardCenter.card.delete')}
                     </DropdownMenuItem>
                   </>
                 )}

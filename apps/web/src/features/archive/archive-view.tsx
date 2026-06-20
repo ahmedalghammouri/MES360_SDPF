@@ -55,16 +55,16 @@ export function ArchiveView() {
     qc.invalidateQueries({ queryKey: ['archive'] });
     setSelected(new Set());
   };
-  const err = (e: any) => toast({ variant: 'destructive', title: 'Error', description: e?.response?.data?.message ?? 'Failed' });
+  const err = (e: any) => toast({ variant: 'destructive', title: t('archive.error'), description: e?.response?.data?.message ?? t('archive.failed') });
 
   const restoreOne = useMutation({
     mutationFn: (id: string) => api.patch(`/archive/${activeEntity}/${id}/restore`, {}),
-    onSuccess: () => { invalidate(); toast({ title: 'Restored' }); },
+    onSuccess: () => { invalidate(); toast({ title: t('archive.restored') }); },
     onError: err,
   });
   const bulkRestore = useMutation({
     mutationFn: (ids: string[]) => api.post(`/archive/${activeEntity}/bulk-restore`, { ids }),
-    onSuccess: (r: any) => { invalidate(); toast({ title: `Restored ${r?.count ?? ''} record(s)` }); },
+    onSuccess: (r: any) => { invalidate(); toast({ title: t('archive.restoredCount', { count: r?.count ?? 0 }) }); },
     onError: err,
   });
 
@@ -81,7 +81,7 @@ export function ArchiveView() {
           <h1 className="text-lg font-bold flex items-center gap-2"><Archive size={18} className="text-primary" /> {t('archive.title')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('archive.subtitle')}</p>
         </div>
-        <Badge variant="outline" className="text-xs">{totalArchived} archived</Badge>
+        <Badge variant="outline" className="text-xs">{t('archive.archivedCount', { count: totalArchived })}</Badge>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-4">
@@ -109,11 +109,11 @@ export function ArchiveView() {
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search archived…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="h-8 pl-7 w-60 text-xs" />
+            <Input placeholder={t('archive.searchPlaceholder')} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="h-8 pl-7 w-60 text-xs" />
           </div>
           {selected.size > 0 && (
             <Button size="sm" className="h-8 text-xs gap-1.5" disabled={bulkRestore.isPending} onClick={() => bulkRestore.mutate([...selected])}>
-              <RotateCcw size={13} /> Restore {selected.size} selected
+              <RotateCcw size={13} /> {t('archive.restoreSelected', { count: selected.size })}
             </Button>
           )}
         </div>
@@ -123,11 +123,11 @@ export function ArchiveView() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent border-border/30">
-                <TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Select all" /></TableHead>
-                <TableHead className="text-[11px] font-semibold">Record</TableHead>
-                <TableHead className="text-[11px] font-semibold">Detail</TableHead>
-                <TableHead className="text-[11px] font-semibold">Archived</TableHead>
-                <TableHead className="text-[11px] font-semibold text-right">Action</TableHead>
+                <TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label={t('archive.selectAll')} /></TableHead>
+                <TableHead className="text-[11px] font-semibold">{t('archive.colRecord')}</TableHead>
+                <TableHead className="text-[11px] font-semibold">{t('archive.colDetail')}</TableHead>
+                <TableHead className="text-[11px] font-semibold">{t('archive.colArchived')}</TableHead>
+                <TableHead className="text-[11px] font-semibold text-right">{t('archive.colAction')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -137,17 +137,17 @@ export function ArchiveView() {
                 ))
               ) : rows.length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-sm">
-                  <Inbox size={20} className="mx-auto mb-2 opacity-50" /> No archived records in this entity
+                  <Inbox size={20} className="mx-auto mb-2 opacity-50" /> {t('archive.noRecords')}
                 </TableCell></TableRow>
               ) : rows.map((r) => (
                 <TableRow key={r.id} className="border-border/20 hover:bg-muted/20" data-state={selected.has(r.id) ? 'selected' : undefined}>
-                  <TableCell><Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggle(r.id)} aria-label="Select row" /></TableCell>
+                  <TableCell><Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggle(r.id)} aria-label={t('archive.selectRow')} /></TableCell>
                   <TableCell className="font-mono text-xs font-semibold text-primary">{r.primary}</TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[280px] truncate">{r.secondary ?? '—'}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{r.archivedAt ? new Date(r.archivedAt).toLocaleString() : '—'}</TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={restoreOne.isPending} onClick={() => restoreOne.mutate(r.id)}>
-                      <RotateCcw size={12} /> Restore
+                      <RotateCcw size={12} /> {t('archive.restore')}
                     </Button>
                   </TableCell>
                 </TableRow>

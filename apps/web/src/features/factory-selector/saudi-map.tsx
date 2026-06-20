@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Map as LeafletMap, Marker as LeafletMarker } from 'leaflet';
 import { Factory } from './factories';
 
@@ -134,6 +135,10 @@ const CSS = `
 `;
 
 export function SaudiMap({ factories, selectedId, hoveredId, onHover, onSelect }: SaudiMapProps) {
+  // No user-facing chrome rendered here (markers show factory codes — data only);
+  // hook is wired for consistency / future labels.
+  const { t: _t } = useTranslation('modules');
+  void _t;
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const leafletRef = useRef<typeof import('leaflet') | null>(null);

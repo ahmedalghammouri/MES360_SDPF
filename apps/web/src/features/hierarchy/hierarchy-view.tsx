@@ -81,6 +81,7 @@ const EMPTY_FORM = {
 function TreeNode({
   node, depth = 0, onEdit, onDelete,
 }: { node: HierarchyNode; depth?: number; onEdit: (n: HierarchyNode) => void; onDelete: (n: HierarchyNode) => void }) {
+  const { t } = useTranslation('modules');
   const [expanded, setExpanded] = useState(depth < 2);
   const cfg = TYPE_CFG[node.type] ?? TYPE_CFG.MACHINE;
   const Icon = cfg.icon;
@@ -106,7 +107,7 @@ function TreeNode({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium truncate">{node.name}</span>
-            <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 shrink-0">{cfg.label}</Badge>
+            <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 shrink-0">{t(`hierarchy.hform.nodeType.${node.type}`, { defaultValue: cfg.label })}</Badge>
             {node.code && <span className="text-[10px] font-mono text-muted-foreground">{node.code}</span>}
           </div>
           {node.machineType && (
@@ -132,11 +133,11 @@ function TreeNode({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="text-xs">
               <DropdownMenuItem onClick={e => { e.stopPropagation(); onEdit(node); }}>
-                <Pencil className="w-3 h-3 mr-2" /> Edit
+                <Pencil className="w-3 h-3 mr-2" /> {t('hierarchy.edit')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={e => { e.stopPropagation(); onDelete(node); }} className="text-destructive">
-                <Trash2 className="w-3 h-3 mr-2" /> Delete
+                <Trash2 className="w-3 h-3 mr-2" /> {t('hierarchy.delete')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -191,11 +192,11 @@ export function HierarchyView() {
       qc.invalidateQueries({ queryKey: ['hierarchy-tree'] });
       qc.invalidateQueries({ queryKey: ['hierarchy', 'areas'] });
       qc.invalidateQueries({ queryKey: ['hierarchy', 'lines'] });
-      toast({ title: 'Node created successfully' });
+      toast({ title: t('hierarchy.toastCreated') });
       setFormOpen(false);
       setForm(EMPTY_FORM);
     },
-    onError: (e: any) => toast({ title: 'Failed to create node', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('hierarchy.toastCreateFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const updateMutation = useMutation({
@@ -203,10 +204,10 @@ export function HierarchyView() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['hierarchy-tree'] });
       qc.invalidateQueries({ queryKey: ['hierarchy', 'areas'] });
-      toast({ title: 'Node updated successfully' });
+      toast({ title: t('hierarchy.toastUpdated') });
       setEditNode(null);
     },
-    onError: (e: any) => toast({ title: 'Failed to update node', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('hierarchy.toastUpdateFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
@@ -214,10 +215,10 @@ export function HierarchyView() {
       api.delete(`/hierarchy/${id}`, { data: { type } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['hierarchy-tree'] });
-      toast({ title: 'Node removed from hierarchy' });
+      toast({ title: t('hierarchy.toastRemoved') });
       setDeleteNode(null);
     },
-    onError: (e: any) => toast({ title: 'Delete failed', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('hierarchy.toastDeleteFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const openCreate = () => {
@@ -291,7 +292,7 @@ export function HierarchyView() {
           <p className="text-muted-foreground text-sm mt-1">{t('hierarchy.subtitle')}</p>
         </div>
         <Button onClick={openCreate} className="gap-2">
-          <Plus className="w-4 h-4" /> Add Node
+          <Plus className="w-4 h-4" /> {t('hierarchy.addNode')}
         </Button>
       </div>
 
@@ -300,7 +301,7 @@ export function HierarchyView() {
       {/* Tree */}
       <div className="glass-card rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Hierarchy Tree</h2>
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">{t('hierarchy.tree')}</h2>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             {(Object.keys(TYPE_CFG) as (keyof typeof TYPE_CFG)[]).map(type => {
               const cfg = TYPE_CFG[type];
@@ -308,7 +309,7 @@ export function HierarchyView() {
               return (
                 <div key={type} className="flex items-center gap-1.5">
                   <Icon className={cn('w-3 h-3', cfg.color)} />
-                  <span>{cfg.label}</span>
+                  <span>{t(`hierarchy.hform.nodeType.${type}`, { defaultValue: cfg.label })}</span>
                 </div>
               );
             })}
@@ -322,7 +323,7 @@ export function HierarchyView() {
         ) : nodes.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <Building2 className="w-12 h-12 mx-auto mb-3 opacity-20" />
-            <p className="text-sm">No hierarchy configured yet</p>
+            <p className="text-sm">{t('hierarchy.noHierarchy')}</p>
           </div>
         ) : (
           <div className="max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
@@ -394,7 +395,7 @@ export function HierarchyView() {
                 <Input
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder={form.type === 'AREA' ? 'e.g. Packing Area' : form.type === 'PRODUCTION_LINE' ? 'e.g. Packing Line 1' : 'e.g. Big Betti'}
+                  placeholder={form.type === 'AREA' ? t('hierarchy.hform.namePhArea') : form.type === 'PRODUCTION_LINE' ? t('hierarchy.hform.namePhLine') : t('hierarchy.hform.namePhMachine')}
                   className="h-9"
                 />
               </div>
@@ -509,7 +510,7 @@ export function HierarchyView() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium">{t('hierarchy.hform.manufacturer')}</Label>
-                    <Input value={form.manufacturer} onChange={e => setForm(f => ({ ...f, manufacturer: e.target.value }))} className="h-9" placeholder="e.g. Siemens" />
+                    <Input value={form.manufacturer} onChange={e => setForm(f => ({ ...f, manufacturer: e.target.value }))} className="h-9" placeholder={t('hierarchy.hform.manufacturerPh')} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium">{t('hierarchy.hform.designCapacity')}</Label>

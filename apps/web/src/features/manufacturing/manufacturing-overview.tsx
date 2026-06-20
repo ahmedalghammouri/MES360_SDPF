@@ -357,12 +357,12 @@ export default function ManufacturingOverview() {
             <span className="text-sm font-semibold text-foreground">{shiftSummary.shiftName}</span>
           </div>
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <span>Elapsed:</span>
+            <span>{t('mfgOverview.elapsed')}:</span>
             <span className="font-medium text-foreground">{shiftSummary.elapsed}</span>
           </div>
           <div className="flex min-w-[180px] flex-1 items-center gap-2">
             <span className="whitespace-nowrap text-xs text-muted-foreground">
-              Output {formatNumber(shiftSummary.output, 0)} / {formatNumber(shiftSummary.target, 0)}
+              {t('mfgOverview.output')} {formatNumber(shiftSummary.output, 0)} / {formatNumber(shiftSummary.target, 0)}
             </span>
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/10">
               <div
@@ -373,7 +373,7 @@ export default function ManufacturingOverview() {
             <span className="text-xs font-medium text-foreground">{shiftOutputPct.toFixed(0)}%</span>
           </div>
           <div className="flex items-center gap-1.5 text-sm">
-            <span className="text-muted-foreground">OEE:</span>
+            <span className="text-muted-foreground">{t('mfgOverview.kpi.oee')}:</span>
             <span
               className={cn(
                 'font-bold',
@@ -424,9 +424,9 @@ export default function ManufacturingOverview() {
 
       {/* Time-Based (AT-OEE) — shown beside the schedule-based KPIs above */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground px-1">
-        <span>Time-Based OEE (AT-OEE): <b className="text-foreground">{kpis ? formatPercent(kpis.oeeTb ?? 0) : '—'}</b></span>
-        <span>Availability (Time-Based): <b className="text-foreground">{kpis ? formatPercent(kpis.availabilityTb ?? 0) : '—'}</b></span>
-        <span className="opacity-70">Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)</span>
+        <span>{t('mfgOverview.atOee')}: <b className="text-foreground">{kpis ? formatPercent(kpis.oeeTb ?? 0) : '—'}</b></span>
+        <span>{t('mfgOverview.availabilityTb')}: <b className="text-foreground">{kpis ? formatPercent(kpis.availabilityTb ?? 0) : '—'}</b></span>
+        <span className="opacity-70">{t('mfgOverview.scheduleNote')}</span>
       </div>
 
       {/* ── 4. Machine Grid + Active Operations ───────────────────────────── */}
@@ -437,12 +437,12 @@ export default function ManufacturingOverview() {
             <Monitor className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold text-foreground">{t('mfgOverview.machineStatusGrid')}</h2>
             <Badge variant="outline" className="text-xs">
-              {machines.length} machines
+              {t('mfgOverview.machinesCount', { count: machines.length })}
             </Badge>
           </div>
           {machines.length === 0 ? (
             <div className="rounded-xl border border-foreground/10 bg-foreground/5 p-8 text-center text-sm text-muted-foreground">
-              No machine data available
+              {t('mfgOverview.noMachineData')}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -475,7 +475,7 @@ export default function ManufacturingOverview() {
                       </span>
                     )}
                     <div className="mb-1 flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">OEE</span>
+                      <span className="text-muted-foreground">{t('mfgOverview.kpi.oee')}</span>
                       <span className="font-medium text-foreground">{formatPercent(machine.oee)}</span>
                     </div>
                     <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-foreground/10">
@@ -486,14 +486,14 @@ export default function ManufacturingOverview() {
                     </div>
                     {machine.currentOrder && (
                       <p className="truncate text-xs text-muted-foreground">
-                        Order:{' '}
+                        {t('mfgOverview.order')}:{' '}
                         <span className="font-medium text-foreground">{machine.currentOrder}</span>
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      Throughput:{' '}
+                      {t('mfgOverview.throughput')}:{' '}
                       <span className="font-medium text-foreground">
-                        {formatNumber(machine.throughput, 0)} u/hr
+                        {t('mfgOverview.uPerHr', { value: formatNumber(machine.throughput, 0) })}
                       </span>
                     </p>
                   </motion.div>
@@ -603,7 +603,7 @@ export default function ManufacturingOverview() {
                 strokeWidth={1.5}
                 strokeDasharray="4 2"
                 fill="url(#gradTarget)"
-                name="Target"
+                name={t('mfgOverview.chartTarget')}
               />
               <Area
                 type="monotone"
@@ -611,7 +611,7 @@ export default function ManufacturingOverview() {
                 stroke="#10b981"
                 strokeWidth={2}
                 fill="url(#gradActual)"
-                name="Actual"
+                name={t('mfgOverview.chartActual')}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -624,7 +624,7 @@ export default function ManufacturingOverview() {
           <div className="mb-3 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-red-400" />
             <h2 className="text-sm font-semibold text-red-400">
-              Active Alarms ({activeAlarms})
+              {t('mfgOverview.activeAlarmsTitle', { count: activeAlarms })}
             </h2>
           </div>
           <div className="space-y-2">
@@ -635,9 +635,9 @@ export default function ManufacturingOverview() {
                 className="flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs"
               >
                 <span className="rounded-full bg-red-500/30 px-2 py-0.5 font-semibold text-red-300">
-                  HIGH
+                  {t('mfgOverview.high')}
                 </span>
-                <span className="flex-1 text-red-200">Alarm #{i + 1} — Awaiting details</span>
+                <span className="flex-1 text-red-200">{t('mfgOverview.alarmPlaceholder', { num: i + 1 })}</span>
                 <span className="text-red-400/60">—</span>
               </div>
             ))}

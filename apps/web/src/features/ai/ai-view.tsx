@@ -103,12 +103,12 @@ export function AIView() {
             {t('ai.title')}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Predictive analytics, anomaly detection, and optimization recommendations
+            {t('ai.subtitle')}
           </p>
         </div>
         <Button size="sm" onClick={() => refetch()} disabled={isFetching}>
           <Brain className={cn('w-4 h-4 mr-2', isFetching && 'animate-pulse')} />
-          {isFetching ? 'Analyzing…' : 'Run Analysis'}
+          {isFetching ? t('ai.analyzing') : t('ai.runAnalysis')}
         </Button>
       </div>
 
@@ -154,7 +154,7 @@ export function AIView() {
             ))
           ) : insights.length === 0 ? (
             <div className="glass-card rounded-xl p-10 text-center text-sm text-muted-foreground">
-              No active insights — all monitored systems are within normal parameters.
+              {t('ai.noInsights')}
             </div>
           ) : (
             <AnimatedInsights insights={insights} activeInsight={activeInsight} setActiveInsight={setActiveInsight} />
@@ -165,13 +165,13 @@ export function AIView() {
           <div className="glass-card rounded-xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-brand-400" />
-              Equipment Health Index — Last 30 Days
+              {t('ai.healthIndex')}
             </h3>
             {isLoading ? (
               <div className="shimmer h-40 rounded-lg" />
             ) : equipmentHealth.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                No machine telemetry available yet.
+                {t('ai.noTelemetry')}
               </div>
             ) : (
               <div className="space-y-3">
@@ -190,7 +190,7 @@ export function AIView() {
                       </div>
                     </div>
                     <div className="w-12 text-right text-sm font-mono">{eq.health}%</div>
-                    <span className="w-20 text-[11px] text-muted-foreground capitalize flex items-center gap-1">
+                    <span className="w-20 text-[11px] text-muted-foreground flex items-center gap-1">
                       <TrendingUp
                         className={cn(
                           'w-3 h-3',
@@ -198,7 +198,7 @@ export function AIView() {
                           eq.trend === 'improving' ? 'text-green-400' : 'text-muted-foreground',
                         )}
                       />
-                      {eq.trend}
+                      {t(`ai.trend.${eq.trend}`)}
                     </span>
                     <Badge
                       className={cn(
@@ -208,7 +208,7 @@ export function AIView() {
                         'bg-green-500/20 text-green-400 border-green-500/30',
                       )}
                     >
-                      {eq.risk}
+                      {t(`ai.risk.${eq.risk}`)}
                     </Badge>
                   </div>
                 ))}
@@ -240,7 +240,7 @@ export function AIView() {
                         : 'bg-foreground/10 text-muted-foreground border-foreground/20',
                     )}
                   >
-                    {detector.status}
+                    {t(`ai.detectorStatus.${detector.status}`)}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -294,18 +294,18 @@ function AnimatedInsights({
                     <div className="font-medium text-sm leading-snug">{insight.title}</div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Badge className={cn('text-[10px]', severityColors[insight.severity as keyof typeof severityColors])}>
-                        {insight.severity}
+                        {t(`ai.severity.${insight.severity}`)}
                       </Badge>
                       <ChevronRight className={cn('w-4 h-4 text-muted-foreground transition-transform', isActive && 'rotate-90')} />
                     </div>
                   </div>
                   <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
-                    <Badge variant="outline" className="text-[10px]">{cfg.label}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{t(`ai.cfg.${insight.type}`)}</Badge>
                     <span>{insight.equipmentId}</span>
                     <span>{insight.detectedAt}</span>
                     <span className="flex items-center gap-1">
                       <Target className="w-3 h-3" />
-                      {insight.confidence}% confidence
+                      {t('ai.confidence', { value: insight.confidence })}
                     </span>
                   </div>
                 </div>

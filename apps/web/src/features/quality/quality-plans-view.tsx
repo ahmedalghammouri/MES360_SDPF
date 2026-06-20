@@ -1,5 +1,5 @@
 'use client';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -201,22 +201,22 @@ export function QualityPlansView() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw size={13} className="mr-1.5" /> Refresh
+            <RefreshCw size={13} className="mr-1.5" /> {t('common.refresh')}
           </Button>
           <Button size="sm" onClick={() => { setEditPlan(null); setPlanForm({ ...EMPTY_PLAN }); setPlanFormOpen(true); }}>
-            <Plus size={14} className="mr-1.5" /> New Plan
+            <Plus size={14} className="mr-1.5" /> {t('plansView.newPlan')}
           </Button>
         </div>
       </div>
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KPICard icon={ClipboardList} label="Total Plans" value={total} />
-        <KPICard icon={CheckCircle2} label="Approved" value={approved} valueClass="text-green-400" />
-        <KPICard icon={AlertTriangle} label="Draft (Pending Approval)" value={total - approved} valueClass={total - approved > 0 ? 'text-amber-400' : undefined} />
-        {Object.entries(byType).map(([t, c]) => {
-          const cfg = PLAN_TYPE_CFG[t as keyof typeof PLAN_TYPE_CFG];
-          return <KPICard key={t} icon={cfg.icon} label={cfg.label} value={c} valueClass={cfg.cls.split(' ').find(s => s.startsWith('text-'))} />;
+        <KPICard icon={ClipboardList} label={t('plansView.totalPlans')} value={total} />
+        <KPICard icon={CheckCircle2} label={t('plansView.approved')} value={approved} valueClass="text-green-400" />
+        <KPICard icon={AlertTriangle} label={t('plansView.draftPending')} value={total - approved} valueClass={total - approved > 0 ? 'text-amber-400' : undefined} />
+        {Object.entries(byType).map(([k, c]) => {
+          const cfg = PLAN_TYPE_CFG[k as keyof typeof PLAN_TYPE_CFG];
+          return <KPICard key={k} icon={cfg.icon} label={t(`plansView.type.${k}`)} value={c} valueClass={cfg.cls.split(' ').find(s => s.startsWith('text-'))} />;
         })}
       </div>
 
@@ -234,8 +234,8 @@ export function QualityPlansView() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">{t('plans.allTypes')}</SelectItem>
-            {Object.entries(PLAN_TYPE_CFG).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            {Object.keys(PLAN_TYPE_CFG).map((k) => (
+              <SelectItem key={k} value={k}>{t(`plansView.type.${k}`)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -246,7 +246,7 @@ export function QualityPlansView() {
           className="h-8 text-xs"
         >
           {showInactive ? <Eye size={12} className="mr-1.5" /> : <EyeOff size={12} className="mr-1.5" />}
-          {showInactive ? 'Showing Inactive' : 'Active Only'}
+          {showInactive ? t('plansView.showingInactive') : t('plansView.activeOnly')}
         </Button>
         <ArchiveFilter value={archived} onChange={setArchived} />
       </div>
@@ -325,8 +325,8 @@ export function QualityPlansView() {
                     <Select value={planForm.type} onValueChange={v => setPlanForm(p => ({ ...p, type: v }))}>
                       <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {Object.entries(PLAN_TYPE_CFG).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                        {Object.keys(PLAN_TYPE_CFG).map((k) => (
+                          <SelectItem key={k} value={k}>{t(`plansView.type.${k}`)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -359,7 +359,7 @@ export function QualityPlansView() {
                 {PLAN_TYPE_CFG[planForm.type as keyof typeof PLAN_TYPE_CFG] && (
                   <div className={cn('flex items-start gap-2 p-3 rounded-lg border text-xs', PLAN_TYPE_CFG[planForm.type as keyof typeof PLAN_TYPE_CFG].cls)}>
                     <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                    {PLAN_TYPE_CFG[planForm.type as keyof typeof PLAN_TYPE_CFG].desc}
+                    {t(`plansView.typeDesc.${planForm.type}`)}
                   </div>
                 )}
               </div>
@@ -378,27 +378,27 @@ export function QualityPlansView() {
                   <Trash2 size={16} className="text-destructive" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm">Delete Quality Plan?</h3>
+                  <h3 className="font-semibold text-sm">{t('plansView.deletePlanTitle')}</h3>
                   <p className="text-xs text-muted-foreground">{deleteTarget.code} — {deleteTarget.name}</p>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mb-2">
-                This will permanently delete the plan and all its check-point parameters.
+                {t('plansView.deletePlanDescription')}
               </p>
               {(deleteTarget._count?.results ?? 0) > 0 && (
                 <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs mb-3">
                   <AlertTriangle size={12} />
-                  This plan has {deleteTarget._count!.results} inspection record(s). Deactivate instead of delete.
+                  {t('plansView.hasRecordsWarning', { count: deleteTarget._count!.results })}
                 </div>
               )}
               <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+                <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>{t('common.cancel')}</Button>
                 <Button
                   size="sm" variant="destructive"
                   disabled={deleteMutation.isPending || (deleteTarget._count?.results ?? 0) > 0}
                   onClick={() => deleteMutation.mutate(deleteTarget.id)}
                 >
-                  {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+                  {deleteMutation.isPending ? t('common.deleting') : t('common.delete')}
                 </Button>
               </div>
             </motion.div>
@@ -410,8 +410,8 @@ export function QualityPlansView() {
         count={sel.count}
         onClear={sel.clear}
         actions={archived === 'archived'
-          ? [{ label: 'Restore', icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
-          : [{ label: 'Archive', icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
+          ? [{ label: t('common.restore'), icon: RotateCcw, onClick: () => { bulkRestore.mutate(sel.selectedIds); sel.clear(); } }]
+          : [{ label: t('common.archive'), icon: ArchiveIcon, onClick: () => { bulkArchive.mutate(sel.selectedIds); sel.clear(); } }]}
       />
     </div>
   );
@@ -460,13 +460,13 @@ function PlanCard({ plan, isSelected, onView, onEdit, onDelete, onApprove, onDea
       onClick={onView}
     >
       <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
-        <Checkbox checked={selected} onCheckedChange={onToggle} aria-label="Select plan" />
+        <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={t('plansView.selectPlan')} />
       </div>
       {/* Type badge */}
       <div className="flex items-center justify-between mb-3 pl-7">
         <span className={cn('inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border', cfg.cls)}>
           <TypeIcon size={9} />
-          {cfg.label}
+          {t(`plansView.type.${plan.type}`, { defaultValue: cfg.label })}
         </span>
         <div className="relative" onClick={e => e.stopPropagation()}>
           <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => setMenuOpen(o => !o)}>
@@ -480,33 +480,33 @@ function PlanCard({ plan, isSelected, onView, onEdit, onDelete, onApprove, onDea
                 onMouseLeave={() => setMenuOpen(false)}
               >
                 <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left" onClick={() => { onView(); setMenuOpen(false); }}>
-                  <Eye size={12} /> View / Edit Points
+                  <Eye size={12} /> {t('plansView.viewEditPoints')}
                 </button>
                 <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left" onClick={() => { onEdit(); setMenuOpen(false); }}>
-                  <Edit2 size={12} /> Edit Plan
+                  <Edit2 size={12} /> {t('plansView.editPlan')}
                 </button>
                 {!plan.approvedAt && (
                   <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left text-green-400" onClick={() => { onApprove(); setMenuOpen(false); }}>
-                    <CheckCircle2 size={12} /> Approve Plan
+                    <CheckCircle2 size={12} /> {t('plansView.approvePlan')}
                   </button>
                 )}
                 {plan.isActive && (
                   <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left text-amber-400" onClick={() => { onDeactivate(); setMenuOpen(false); }}>
-                    <ToggleLeft size={12} /> Deactivate
+                    <ToggleLeft size={12} /> {t('plansView.deactivate')}
                   </button>
                 )}
                 <div className="border-t my-1" />
                 {(plan as any).archivedAt ? (
                   <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left" onClick={() => { onRestore(); setMenuOpen(false); }}>
-                    <RotateCcw size={12} /> Restore
+                    <RotateCcw size={12} /> {t('common.restore')}
                   </button>
                 ) : (
                   <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left" onClick={() => { onArchive(); setMenuOpen(false); }}>
-                    <ArchiveIcon size={12} /> Archive
+                    <ArchiveIcon size={12} /> {t('common.archive')}
                   </button>
                 )}
                 <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left text-destructive" onClick={() => { onDelete(); setMenuOpen(false); }}>
-                  <Trash2 size={12} /> Delete
+                  <Trash2 size={12} /> {t('common.delete')}
                 </button>
               </motion.div>
             )}
@@ -524,7 +524,7 @@ function PlanCard({ plan, isSelected, onView, onEdit, onDelete, onApprove, onDea
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <Target size={10} />
-          <span className="font-medium text-foreground">{plan.parameters.length}</span> points
+          <span className="font-medium text-foreground">{plan.parameters.length}</span> {t('plansView.points')}
         </span>
         {plan.samplingFrequency && (
           <span className="flex items-center gap-1">
@@ -539,7 +539,7 @@ function PlanCard({ plan, isSelected, onView, onEdit, onDelete, onApprove, onDea
       {plan.parameters.filter(p => p.isKPI).length > 0 && (
         <div className="flex items-center gap-1 mt-2 text-[10px] text-amber-400">
           <Star size={9} fill="currentColor" />
-          {plan.parameters.filter(p => p.isKPI).length} KPI param{plan.parameters.filter(p => p.isKPI).length !== 1 ? 's' : ''}
+          {t('plansView.kpiParamCount', { count: plan.parameters.filter(p => p.isKPI).length })}
         </div>
       )}
 
@@ -547,15 +547,15 @@ function PlanCard({ plan, isSelected, onView, onEdit, onDelete, onApprove, onDea
       <div className="mt-3 pt-2.5 border-t flex items-center justify-between">
         {plan.approvedAt ? (
           <span className="flex items-center gap-1 text-[10px] text-green-400">
-            <CheckCircle2 size={9} /> Approved
+            <CheckCircle2 size={9} /> {t('plansView.approvedStatus')}
           </span>
         ) : (
           <span className="flex items-center gap-1 text-[10px] text-amber-400">
-            <AlertTriangle size={9} /> Pending Approval
+            <AlertTriangle size={9} /> {t('plansView.pendingApproval')}
           </span>
         )}
         {(plan._count?.results ?? 0) > 0 && (
-          <span className="text-[10px] text-muted-foreground">{plan._count!.results} inspections</span>
+          <span className="text-[10px] text-muted-foreground">{t('plansView.inspectionsCount', { count: plan._count!.results })}</span>
         )}
       </div>
     </div>
@@ -655,7 +655,7 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
         {/* Header */}
         <SheetHeader className="p-5 border-b shrink-0">
           {isLoading || !plan ? (
-            <SheetTitle className="text-sm">Loading...</SheetTitle>
+            <SheetTitle className="text-sm">{t('common.loading')}</SheetTitle>
           ) : (
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -666,7 +666,7 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
                   <SheetTitle className="text-base font-bold font-mono">{plan.code}</SheetTitle>
                   <p className="text-sm text-muted-foreground">{plan.name}</p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full border', cfg.cls)}>{cfg.label}</span>
+                    <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full border', cfg.cls)}>{t(`plansView.type.${plan.type}`, { defaultValue: cfg.label })}</span>
                     <span className="text-[10px] text-muted-foreground">v{plan.version}</span>
                     {plan.samplingFrequency && (
                       <span className="text-[10px] text-muted-foreground">
@@ -675,11 +675,11 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
                     )}
                     {plan.approvedAt ? (
                       <span className="flex items-center gap-0.5 text-[10px] text-green-400">
-                        <CheckCircle2 size={9} /> Approved
+                        <CheckCircle2 size={9} /> {t('plansView.approvedStatus')}
                       </span>
                     ) : (
                       <span className="flex items-center gap-0.5 text-[10px] text-amber-400">
-                        <AlertTriangle size={9} /> Pending Approval
+                        <AlertTriangle size={9} /> {t('plansView.pendingApproval')}
                       </span>
                     )}
                   </div>
@@ -692,11 +692,11 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
                     disabled={approveMutation.isPending}
                   >
                     <CheckCircle2 size={12} className="mr-1.5" />
-                    {approveMutation.isPending ? 'Approving...' : 'Approve'}
+                    {approveMutation.isPending ? t('plansView.approving') : t('plansView.approve')}
                   </Button>
                 )}
                 <Button variant="outline" size="sm" onClick={() => onEdit(plan)}>
-                  <Edit2 size={12} className="mr-1.5" /> Edit
+                  <Edit2 size={12} className="mr-1.5" /> {t('common.edit')}
                 </Button>
               </div>
             </div>
@@ -707,9 +707,9 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
         {plan && (
           <div className="grid grid-cols-3 gap-px bg-border shrink-0">
             {[
-              { label: 'Check Points', value: plan.parameters.length.toString() },
-              { label: 'KPI Parameters', value: plan.parameters.filter(p => p.isKPI).length.toString() },
-              { label: 'Inspections', value: (plan._count?.results ?? 0).toString() },
+              { label: t('plansView.checkPoints'), value: plan.parameters.length.toString() },
+              { label: t('plansView.kpiParameters'), value: plan.parameters.filter(p => p.isKPI).length.toString() },
+              { label: t('plansView.inspections'), value: (plan._count?.results ?? 0).toString() },
             ].map(k => (
               <div key={k.label} className="bg-background px-3 py-2 text-center">
                 <div className="text-sm font-bold">{k.value}</div>
@@ -723,16 +723,16 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
         {plan && (
           <div className="px-5 py-3 bg-muted/20 border-b shrink-0">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Data Flow:</span>
-              <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium border', cfg.cls)}>{cfg.label}</span>
+              <span className="font-medium text-foreground">{t('plansView.dataFlow')}</span>
+              <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium border', cfg.cls)}>{t(`plansView.type.${plan.type}`, { defaultValue: cfg.label })}</span>
               <span className="text-muted-foreground">→</span>
-              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5">Quality Plan</span>
+              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5">{t('plansView.qualityPlanNode')}</span>
               <span className="text-muted-foreground">→</span>
-              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5">Check Points</span>
+              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5">{t('plansView.checkPointsNode')}</span>
               <span className="text-muted-foreground">→</span>
-              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5">Work Order Inspection</span>
+              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5">{t('plansView.workOrderInspection')}</span>
               <span className="text-muted-foreground">→</span>
-              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5">Result / NCR</span>
+              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5">{t('plansView.resultNcr')}</span>
             </div>
           </div>
         )}
@@ -740,15 +740,15 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
         {/* Parameters section */}
         <div className="flex-1 overflow-y-auto p-5">
           {isLoading ? (
-            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">Loading...</div>
+            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">{t('common.loading')}</div>
           ) : plan ? (
             <div className="flex flex-col gap-4">
               {/* Section header */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold">Quality Check Points</h3>
+                  <h3 className="text-sm font-semibold">{t('plansView.checkPointsTitle')}</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Define measured parameters with SPC control limits and product spec limits
+                    {t('plansView.checkPointsDesc')}
                   </p>
                 </div>
                 <Button
@@ -757,7 +757,7 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
                   onClick={() => { setAddingParam(a => !a); setEditParam(null); setParamForm({ ...EMPTY_PARAM }); }}
                 >
                   {addingParam ? <X size={12} className="mr-1.5" /> : <Plus size={12} className="mr-1.5" />}
-                  {addingParam ? 'Cancel' : 'Add Parameter'}
+                  {addingParam ? t('common.cancel') : t('plansView.addParameter')}
                 </Button>
               </div>
 
@@ -841,8 +841,8 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
               {plan.parameters.length === 0 ? (
                 <div className="border rounded-xl p-10 text-center text-sm text-muted-foreground">
                   <Target size={28} className="mx-auto mb-3 opacity-20" />
-                  <p>No check points yet.</p>
-                  <p className="text-xs mt-1">Add parameters to define what will be measured during inspection.</p>
+                  <p>{t('plansView.noCheckPoints')}</p>
+                  <p className="text-xs mt-1">{t('plansView.noCheckPointsHint')}</p>
                 </div>
               ) : (
                 <div className="border rounded-xl overflow-hidden">
@@ -850,11 +850,11 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
                     <thead className="bg-muted/30 border-b">
                       <tr>
                         <th className="text-left px-3 py-2.5 font-medium text-muted-foreground w-6">#</th>
-                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Parameter</th>
-                        <th className="text-center px-2 py-2.5 font-medium text-muted-foreground w-20">Nominal</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">{t('plansView.colParameter')}</th>
+                        <th className="text-center px-2 py-2.5 font-medium text-muted-foreground w-20">{t('plansView.colNominal')}</th>
                         <th className="text-center px-2 py-2.5 font-medium text-blue-400 w-28">UCL / LCL</th>
                         <th className="text-center px-2 py-2.5 font-medium text-amber-400 w-28">USL / LSL</th>
-                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Check Method</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">{t('plansView.colCheckMethod')}</th>
                         <th className="text-center px-2 py-2.5 font-medium text-muted-foreground w-12">KPI</th>
                         <th className="w-16" />
                       </tr>
@@ -878,8 +878,8 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
               {/* Limits legend */}
               {plan.parameters.length > 0 && (
                 <div className="flex items-center gap-4 text-[10px] text-muted-foreground pt-1">
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />UCL/LCL = Statistical Control Limits (from SPC)</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />USL/LSL = Product Specification Limits</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />{t('plansView.legendControl')}</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{t('plansView.legendSpec')}</span>
                 </div>
               )}
             </div>
@@ -894,13 +894,15 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
                 initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                 className="bg-background border rounded-xl shadow-2xl w-80 p-5"
               >
-                <h3 className="font-semibold text-sm mb-2">Delete Parameter?</h3>
-                <p className="text-xs text-muted-foreground mb-4">Remove <strong>{deleteParam.name}</strong> from this quality plan?</p>
+                <h3 className="font-semibold text-sm mb-2">{t('plansView.deleteParamTitle')}</h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  <Trans i18nKey="quality:plansView.deleteParamDescription" values={{ name: deleteParam.name }} components={[<strong key="0" />]} />
+                </p>
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setDeleteParam(null)}>Cancel</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDeleteParam(null)}>{t('common.cancel')}</Button>
                   <Button size="sm" variant="destructive" disabled={deleteParamMutation.isPending}
                     onClick={() => deleteParamMutation.mutate(deleteParam.id)}>
-                    {deleteParamMutation.isPending ? 'Deleting...' : 'Delete'}
+                    {deleteParamMutation.isPending ? t('common.deleting') : t('common.delete')}
                   </Button>
                 </div>
               </motion.div>

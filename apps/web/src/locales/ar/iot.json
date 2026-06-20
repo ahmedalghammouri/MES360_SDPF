@@ -53,5 +53,108 @@
     "cancel": "إلغاء", "saving": "جارٍ الحفظ...", "save": "حفظ",
     "protocol": "البروتوكول", "version": "الإصدار", "description": "الوصف",
     "deleteTitle": "حذف المشغّل", "deleteConfirmPre": "هل أنت متأكد أنك تريد حذف", "deleting": "جارٍ الحذف...", "delete": "حذف"
+  },
+  "common": {
+    "refresh": "تحديث", "export": "تصدير", "addDevice": "إضافة جهاز", "addDriver": "إضافة مشغّل",
+    "addTag": "إضافة وسم", "newStream": "تدفق جديد", "edit": "تعديل", "delete": "حذف",
+    "actions": "إجراءات", "status": "الحالة", "protocol": "البروتوكول", "version": "الإصدار",
+    "description": "الوصف", "name": "الاسم", "type": "النوع", "devices": "الأجهزة",
+    "online": "متصل", "offline": "غير متصل", "live": "مباشر", "clear": "مسح",
+    "loading": "جارٍ التحميل…"
+  },
+  "overview": {
+    "tabDevices": "الأجهزة", "tabTags": "تعريفات الوسوم",
+    "statConnectedDevices": "الأجهزة المتصلة", "statTotalTags": "إجمالي الوسوم",
+    "statDataPoints": "نقاط البيانات", "statProtocolsActive": "البروتوكولات النشطة",
+    "noDevices": "لا توجد أجهزة مُهيأة", "noMachine": "لا توجد ماكينة",
+    "tagsBtn": "الوسوم", "configBtn": "الإعدادات",
+    "tagsCount": "{{count}} وسم",
+    "statusConnected": "متصل", "statusDisconnected": "غير متصل", "statusError": "خطأ",
+    "thTagName": "اسم الوسم", "thCode": "الرمز", "thValue": "القيمة", "thQuality": "الجودة",
+    "thMachine": "الماكينة", "thUpdated": "آخر تحديث", "noTags": "لا توجد وسوم مُهيأة"
+  },
+  "devices": {
+    "kpiTotal": "إجمالي الأجهزة", "kpiConnected": "متصل", "kpiDisconnected": "غير متصل", "kpiErrors": "أخطاء",
+    "connectedDevices": "الأجهزة المتصلة", "searchPlaceholder": "البحث عن الأجهزة...",
+    "thDeviceId": "معرّف الجهاز", "thName": "الاسم", "thType": "النوع", "thProtocol": "البروتوكول",
+    "thStatus": "الحالة", "thLastSeen": "آخر ظهور", "thTags": "الوسوم", "thScope": "النطاق", "thGateway": "البوابة", "thActions": "إجراءات",
+    "noDevices": "لا توجد أجهزة", "scopeLine": "{{name}} (خط)", "scopeArea": "{{name}} (منطقة)",
+    "createdSuccess": "تم إنشاء الجهاز بنجاح", "updatedSuccess": "تم تحديث الجهاز بنجاح", "deletedSuccess": "تم حذف الجهاز بنجاح",
+    "createFailed": "تعذّر إنشاء الجهاز", "updateFailed": "تعذّر تحديث الجهاز", "deleteFailed": "تعذّر حذف الجهاز",
+    "errorTitle": "خطأ"
+  },
+  "drivers": {
+    "available": "المشغّلات المتاحة",
+    "thProtocol": "البروتوكول", "thVersion": "الإصدار", "thDescription": "الوصف", "thDevices": "الأجهزة",
+    "thStatus": "الحالة", "thActions": "إجراءات", "noDrivers": "لا توجد مشغّلات",
+    "createdSuccess": "تم إنشاء المشغّل بنجاح", "updatedSuccess": "تم تحديث المشغّل بنجاح", "deletedSuccess": "تم حذف المشغّل بنجاح"
+  },
+  "gateways": {
+    "kpiGateways": "البوابات", "kpiOnline": "متصلة", "kpiOffline": "غير متصلة",
+    "loading": "جارٍ تحميل البوابات…", "noneTitle": "لا توجد بوابات حافة مُسجّلة",
+    "noneDesc": "ثبّت بوابة الحافة MES360° على حاسوب في المصنع؛ ستُسجّل نفسها هنا عند أول اتصال.",
+    "thGateway": "البوابة", "thStatus": "الحالة", "thHost": "المضيف", "thVersion": "الإصدار",
+    "thDevices": "الأجهزة", "thLastHeartbeat": "آخر نبضة", "thActions": "إجراءات",
+    "online": "متصلة", "offline": "غير متصلة", "ago": "منذ {{time}}", "never": "أبداً",
+    "rename": "إعادة تسمية", "remove": "إزالة",
+    "updatedSuccess": "تم تحديث البوابة", "removedSuccess": "تمت إزالة البوابة",
+    "errorTitle": "خطأ", "updateFailed": "فشل التحديث", "deleteFailed": "فشل الحذف",
+    "renameTitle": "إعادة تسمية البوابة", "gatewayName": "اسم البوابة",
+    "renameHint": "تُهيأ إعدادات الاتصال (قاعدة البيانات / MQTT / Influx) على البوابة نفسها، في لوحتها المحلية ← الإعدادات.",
+    "deleteTitle": "إزالة البوابة {{name}}؟",
+    "deleteDesc": "يؤدي هذا إلى إلغاء تنشيط سجل البوابة. إذا كانت البوابة لا تزال تعمل فستعيد التسجيل عند نبضتها التالية."
+  },
+  "streams": {
+    "kpiTotal": "إجمالي التدفقات", "kpiActive": "نشطة", "kpiPaused": "متوقفة مؤقتاً", "kpiMessagesPerSec": "رسائل/ثانية",
+    "active": "التدفقات النشطة",
+    "thName": "اسم التدفق", "thSource": "المصدر", "thDestination": "الوجهة", "thStatus": "الحالة",
+    "thMessages": "الرسائل", "thRate": "المعدل", "thLatency": "زمن الاستجابة", "thActions": "إجراءات",
+    "noStreams": "لا توجد تدفقات"
+  },
+  "tags": {
+    "kpiTotal": "إجمالي الوسوم", "kpiActive": "نشطة", "kpiLive": "مباشرة الآن", "kpiGoodQuality": "جودة جيدة",
+    "searchPlaceholder": "البحث عن الوسوم…",
+    "filterDevice": "الجهاز", "filterType": "النوع", "filterDataType": "نوع البيانات", "filterQuality": "الجودة", "filterStatus": "الحالة",
+    "allDevices": "كل الأجهزة", "noDevice": "بدون جهاز", "allTypes": "كل الأنواع", "allDataTypes": "كل أنواع البيانات",
+    "allQuality": "كل الجودات", "qGood": "جيد", "qBad": "سيئ", "qUncertain": "غير مؤكد", "qUnknown": "غير معروف",
+    "allStatus": "كل الحالات", "sActive": "نشط", "sInactive": "غير نشط",
+    "liveOnly": "المباشرة فقط", "clearCount": "مسح ({{count}})",
+    "viewLiveGrid": "شبكة مباشرة", "viewTable": "جدول", "viewByDevice": "حسب الجهاز",
+    "countOf": "{{shown}} من {{total}}",
+    "noMatch": "لا توجد وسوم تطابق عوامل التصفية الحالية", "clearFilters": "مسح عوامل التصفية",
+    "unassigned": "غير مُسند",
+    "thTag": "الوسم", "thDevice": "الجهاز", "thTypeRole": "النوع / الدور", "thDataType": "نوع البيانات",
+    "thCurrentValue": "القيمة الحالية", "thUnit": "الوحدة", "thQuality": "الجودة", "thLastUpdate": "آخر تحديث", "thStatus": "الحالة",
+    "active": "نشط", "inactive": "غير نشط", "liveTitle": "مباشر",
+    "createdSuccess": "تم إنشاء الوسم بنجاح", "updatedSuccess": "تم تحديث الوسم بنجاح", "deletedSuccess": "تم حذف الوسم بنجاح",
+    "createFailed": "تعذّر إنشاء الوسم", "updateFailed": "تعذّر تحديث الوسم", "deleteFailed": "تعذّر حذف الوسم",
+    "errorTitle": "خطأ"
+  },
+  "historian": {
+    "live": "مباشر", "offline": "غير متصل",
+    "browseTags": "تصفّح الوسوم", "collapseAll": "طيّ الكل", "expandAll": "توسيع الكل",
+    "searchPlaceholder": "البحث في الوسوم / المؤشرات...", "noTags": "لا توجد وسوم",
+    "addSelected": "إضافة الوسوم المحددة", "addSelectedCount": "إضافة الوسوم المحددة ({{count}})",
+    "pauseLive": "إيقاف المباشر مؤقتاً", "resumeLive": "استئناف المباشر", "reloadHistory": "إعادة تحميل السجل", "clear": "مسح",
+    "noSource": "لا يوجد مصدر بيانات اتجاه متاح.", "noSourceHint": "اختر الوسوم أو المؤشرات من الشجرة ثم اضغط ”إضافة الوسوم المحددة“.",
+    "rangeLast15Min": "آخر 15 دقيقة", "rangeLast1Hour": "آخر ساعة", "rangeLast8Hours": "آخر 8 ساعات",
+    "rangeLast24Hours": "آخر 24 ساعة", "rangeLast7Days": "آخر 7 أيام",
+    "rootTags": "أرشيف الحافة — الوسوم", "rootKpi": "الكفاءة والمؤشرات",
+    "defaultArea": "افتراضي", "ioGroup": "io",
+    "mOee": "OEE", "mOeeTb": "OEE (زمني)", "mAvailability": "الإتاحة", "mAvailabilityTb": "الإتاحة (زمنية)",
+    "mPerformance": "الأداء", "mQuality": "الجودة", "mGood": "الجيد (تراكمي)", "mRejected": "المرفوض (تراكمي)", "mRate": "معدل الإنتاج"
+  },
+  "mqtt": {
+    "ratePerSec": "{{rate}}/ث", "topicsCount": "{{count}} موضوع", "buffered": "{{count}} مُخزّن",
+    "live": "مباشر", "offline": "غير متصل",
+    "topics": "المواضيع ({{count}})", "allTopics": "كل المواضيع",
+    "filterPlaceholder": "تصفية الموضوع أو الحمولة…", "resume": "استئناف", "pause": "إيقاف مؤقت", "clear": "مسح",
+    "shown": "{{count}} معروض", "shownPaused": "{{count}} معروض · متوقف مؤقتاً",
+    "paused": "متوقف مؤقتاً — اضغط استئناف للبث المباشر.", "waiting": "في انتظار حركة MQTT…",
+    "copyPayload": "نسخ الحمولة", "emptyPayload": "(فارغ)",
+    "pubTopicPlaceholder": "الموضوع (mes360/…)",
+    "pubPayloadPlaceholder": "الحمولة — JSON مثل {\"value\":1,\"quality\":\"GOOD\"} أو نص عادي",
+    "publish": "نشر",
+    "copied": "تم النسخ إلى الحافظة", "published": "تم النشر", "publishFailed": "فشل النشر"
   }
 }

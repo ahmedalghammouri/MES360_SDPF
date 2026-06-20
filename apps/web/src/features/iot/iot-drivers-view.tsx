@@ -35,7 +35,7 @@ export function IotDriversView() {
     mutationFn: (dto: any) => api.post('/iot/drivers', dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iot', 'drivers'] });
-      toast({ title: 'Driver created successfully' });
+      toast({ title: t('drivers.createdSuccess') });
       setShowForm(false);
       reset();
     },
@@ -45,7 +45,7 @@ export function IotDriversView() {
     mutationFn: ({ id, ...dto }: any) => api.patch(`/iot/drivers/${id}`, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iot', 'drivers'] });
-      toast({ title: 'Driver updated successfully' });
+      toast({ title: t('drivers.updatedSuccess') });
       setEditDriver(null);
       setShowForm(false);
       reset();
@@ -56,7 +56,7 @@ export function IotDriversView() {
     mutationFn: (id: string) => api.delete(`/iot/drivers/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['iot', 'drivers'] });
-      toast({ title: 'Driver deleted successfully' });
+      toast({ title: t('drivers.deletedSuccess') });
       setDeleteDriver(null);
     },
   });
@@ -92,11 +92,11 @@ export function IotDriversView() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
             <Download size={13} />
-            Export
+            {t('common.export')}
           </Button>
           <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => { setShowForm(true); setEditDriver(null); reset(); }}>
             <Plus size={13} />
-            Add Driver
+            {t('common.addDriver')}
           </Button>
         </div>
       </div>
@@ -105,18 +105,18 @@ export function IotDriversView() {
         <InlineFormSlot className="mb-6 empty:mb-0" />
 
         <div className="industrial-card p-4">
-          <h3 className="text-sm font-semibold mb-4">Available Drivers</h3>
+          <h3 className="text-sm font-semibold mb-4">{t('drivers.available')}</h3>
 
           <div className="rounded-lg border border-border/30 overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-border/30">
-                  <TableHead className="text-[11px] font-semibold">Protocol</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Version</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Description</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Devices</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Status</TableHead>
-                  <TableHead className="text-[11px] font-semibold">Actions</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('drivers.thProtocol')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('drivers.thVersion')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('drivers.thDescription')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('drivers.thDevices')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('drivers.thStatus')}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{t('drivers.thActions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

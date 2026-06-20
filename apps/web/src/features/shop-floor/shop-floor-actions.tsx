@@ -11,6 +11,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Wrench, AlertTriangle, BellRing, Play, Pause } from 'lucide-react';
 
@@ -66,6 +67,7 @@ export function MaintenanceRequestDialog({
   onOpenChange: (v: boolean) => void;
   target: JOActionTarget | null;
 }) {
+  const { t } = useTranslation('production');
   const { toast } = useToast();
   const qc = useQueryClient();
   const [type, setType] = useState<string>('CORRECTIVE');
@@ -102,16 +104,16 @@ export function MaintenanceRequestDialog({
         ...(description.trim() ? { description: description.trim() } : {}),
         // Auto-link the production work order this operation belongs to.
         ...(target?.workOrderId ? { productionWOId: target.workOrderId } : {}),
-        notes: target?.operationName ? `Requested from shop floor — operation "${target.operationName}"` : undefined,
+        notes: target?.operationName ? t('sfa.requestedFromShopFloor', { operation: target.operationName }) : undefined,
         ...(spareLines.length
           ? { spareParts: spareLines.map((l) => ({ sparePartId: l.sparePartId, quantityRequested: l.quantityRequested })) }
           : {}),
       }),
     onSuccess: (r: any) => {
       toast({
-        title: 'Maintenance requested',
+        title: t('sfa.maintenanceRequested'),
         description: r?.woNumber
-          ? `Order ${r.woNumber} created${spareLines.length ? ` · ${spareLines.length} part(s) requested` : ''}`
+          ? t('sfa.orderCreated', { wo: r.woNumber }) + (spareLines.length ? ' · ' + t('sfa.partsRequested', { count: spareLines.length }) : '')
           : undefined,
       });
       qc.invalidateQueries({ queryKey: ['jo-live'] });
@@ -120,7 +122,7 @@ export function MaintenanceRequestDialog({
       reset();
     },
     onError: (e: any) => toast({
-      variant: 'destructive', title: 'Request failed', description: e?.response?.data?.message,
+      variant: 'destructive', title: t('sfa.requestFailed'), description: e?.response?.data?.message,
     }),
   });
 
@@ -134,64 +136,64 @@ export function MaintenanceRequestDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wrench className="w-5 h-5 text-amber-400" /> Request Maintenance
+            <Wrench className="w-5 h-5 text-amber-400" /> {t('sfa.requestMaintenance')}
           </DialogTitle>
           <DialogDescription>
-            {target?.machineName ? `Machine: ${target.machineName}` : 'Creates a maintenance work order linked to this machine and production order.'}
+            {target?.machineName ? t('sfa.machinePrefix', { name: target.machineName }) : t('sfa.maintDesc')}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {/* Auto-linked context so the operator sees what the order will carry */}
           <div className="flex flex-wrap gap-1.5 text-[11px]">
             {target?.machineName && (
-              <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5">Machine: {target.machineName}</span>
+              <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5">{t('sfa.machinePrefix', { name: target.machineName })}</span>
             )}
             {target?.workOrderId && (
-              <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5">Linked to current Work Order</span>
+              <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5">{t('sfa.linkedWo')}</span>
             )}
             {target?.operationName && (
-              <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5">Op: {target.operationName}</span>
+              <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5">{t('sfa.opPrefix', { name: target.operationName })}</span>
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Type">
+            <Field label={t('sfa.type')}>
               <select value={type} onChange={(e) => setType(e.target.value)} className={inputCls}>
                 {MAINT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </Field>
-            <Field label="Priority">
+            <Field label={t('sfa.priority')}>
               <select value={priority} onChange={(e) => setPriority(e.target.value)} className={inputCls}>
                 {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </Field>
           </div>
-          <Field label="Title">
+          <Field label={t('sfa.title')}>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Feeder belt slipping — needs adjustment"
+              placeholder={t('sfa.titlePlaceholder')}
               className={inputCls}
             />
           </Field>
-          <Field label="Description (optional)">
+          <Field label={t('sfa.descOptional')}>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              placeholder="Symptoms, what was observed, urgency…"
+              placeholder={t('sfa.descPlaceholder')}
               className={inputCls}
             />
           </Field>
 
           {/* Spare parts the operator already knows are needed */}
-          <Field label="Spare parts needed (optional)">
+          <Field label={t('sfa.sparesOptional')}>
             <div className="space-y-2">
               {spareLines.map((line) => (
                 <div key={line.sparePartId} className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 px-2 py-1.5">
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium truncate">{line.name}</div>
-                    <div className="text-[10px] text-muted-foreground font-mono">{line.partNumber} · {line.stockQty} in stock</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">{line.partNumber} · {t('sfa.inStock', { count: line.stockQty })}</div>
                   </div>
                   <input
                     type="number" min={1} value={line.quantityRequested}
@@ -205,7 +207,7 @@ export function MaintenanceRequestDialog({
               <input
                 value={spareSearch}
                 onChange={(e) => setSpareSearch(e.target.value)}
-                placeholder="Search a spare part to add…"
+                placeholder={t('sfa.searchSpare')}
                 className={inputCls}
               />
               {matches.length > 0 && (
@@ -217,25 +219,25 @@ export function MaintenanceRequestDialog({
                         <div className="text-xs font-medium">{p.name}</div>
                         <div className="text-[10px] text-muted-foreground font-mono">{p.partNumber}</div>
                       </div>
-                      <span className={p.stockQty <= 0 ? 'text-[10px] text-red-400' : 'text-[10px] text-green-400'}>{p.stockQty} in stock</span>
+                      <span className={p.stockQty <= 0 ? 'text-[10px] text-red-400' : 'text-[10px] text-green-400'}>{t('sfa.inStock', { count: p.stockQty })}</span>
                     </button>
                   ))}
                 </div>
               )}
               {spareLines.length > 0 && (
-                <p className="text-[10px] text-amber-400">Order will start as AWAITING_PARTS until inventory issues the parts.</p>
+                <p className="text-[10px] text-amber-400">{t('sfa.awaitingParts')}</p>
               )}
             </div>
           </Field>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('sfa.cancel')}</Button>
           <Button
             disabled={mut.isPending || title.trim().length < 5 || !target?.machineId}
             onClick={() => mut.mutate()}
           >
             <Wrench className="w-4 h-4 mr-2" />
-            {mut.isPending ? 'Submitting…' : 'Submit Request'}
+            {mut.isPending ? t('sfa.submitting') : t('sfa.submitRequest')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -247,16 +249,16 @@ export function MaintenanceRequestDialog({
 // 2. Machine state / downtime
 // ─────────────────────────────────────────────────────────────
 
-const MACHINE_STATES: Array<{ value: string; label: string; tone: string; down: boolean }> = [
-  { value: 'RUNNING',     label: 'Running',          tone: 'text-green-400',  down: false },
-  { value: 'IDLE',        label: 'Idle',             tone: 'text-slate-400',  down: false },
-  { value: 'BREAKDOWN',   label: 'Breakdown',        tone: 'text-red-400',    down: true },
-  { value: 'PLANNED_STOP',label: 'Planned Stop',     tone: 'text-blue-400',   down: true },
-  { value: 'SETUP',       label: 'Setup',            tone: 'text-amber-400',  down: true },
-  { value: 'CHANGEOVER',  label: 'Changeover',       tone: 'text-amber-400',  down: true },
-  { value: 'STARVED',     label: 'Starved (no material)', tone: 'text-orange-400', down: true },
-  { value: 'BLOCKED',     label: 'Blocked (downstream)',  tone: 'text-purple-400', down: true },
-  { value: 'MAINTENANCE', label: 'Maintenance',      tone: 'text-cyan-400',   down: true },
+const MACHINE_STATES: Array<{ value: string; labelKey: string; tone: string; down: boolean }> = [
+  { value: 'RUNNING',     labelKey: 'sfa.states.RUNNING',      tone: 'text-green-400',  down: false },
+  { value: 'IDLE',        labelKey: 'sfa.states.IDLE',         tone: 'text-slate-400',  down: false },
+  { value: 'BREAKDOWN',   labelKey: 'sfa.states.BREAKDOWN',    tone: 'text-red-400',    down: true },
+  { value: 'PLANNED_STOP',labelKey: 'sfa.states.PLANNED_STOP', tone: 'text-blue-400',   down: true },
+  { value: 'SETUP',       labelKey: 'sfa.states.SETUP',        tone: 'text-amber-400',  down: true },
+  { value: 'CHANGEOVER',  labelKey: 'sfa.states.CHANGEOVER',   tone: 'text-amber-400',  down: true },
+  { value: 'STARVED',     labelKey: 'sfa.states.STARVED',      tone: 'text-orange-400', down: true },
+  { value: 'BLOCKED',     labelKey: 'sfa.states.BLOCKED',      tone: 'text-purple-400', down: true },
+  { value: 'MAINTENANCE', labelKey: 'sfa.states.MAINTENANCE',  tone: 'text-cyan-400',   down: true },
 ];
 
 export function MachineStateDialog({
@@ -266,6 +268,7 @@ export function MachineStateDialog({
   onOpenChange: (v: boolean) => void;
   target: JOActionTarget | null;
 }) {
+  const { t } = useTranslation('production');
   const { toast } = useToast();
   const qc = useQueryClient();
   const [state, setState] = useState('BREAKDOWN');
@@ -293,15 +296,15 @@ export function MachineStateDialog({
         workOrderId: target?.workOrderId,
       }),
     onSuccess: (r: any) => {
-      const joMsg = r?.jobOrder ? ` · Job order → ${r.jobOrder.status}` : '';
-      toast({ title: `Machine → ${state}${joMsg}` });
+      const joMsg = r?.jobOrder ? ` · ${t('sfa.jobOrderArrow', { status: r.jobOrder.status })}` : '';
+      toast({ title: `${t('sfa.machineArrow', { state })}${joMsg}` });
       qc.invalidateQueries({ queryKey: ['shop-floor-jobs'] });
       qc.invalidateQueries({ queryKey: ['jo-live'] });
       onOpenChange(false);
       setReason(''); setCauseId(''); setCause(null);
     },
     onError: (e: any) => toast({
-      variant: 'destructive', title: 'State change failed', description: e?.response?.data?.message,
+      variant: 'destructive', title: t('sfa.stateChangeFailed'), description: e?.response?.data?.message,
     }),
   });
 
@@ -310,16 +313,15 @@ export function MachineStateDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-orange-400" /> Machine State / Stop Reason
+            <AlertTriangle className="w-5 h-5 text-orange-400" /> {t('sfa.machineStateTitle')}
           </DialogTitle>
           <DialogDescription>
-            {target?.machineName ? `Machine: ${target.machineName} — ` : ''}
-            Updates the machine state timeline, opens/closes the downtime event and
-            {isDown ? ' pauses' : ' resumes'} the job order.
+            {target?.machineName ? t('sfa.machinePrefixDash', { name: target.machineName }) : ''}
+            {isDown ? t('sfa.stateDescPause') : t('sfa.stateDescResume')}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <Field label="New state">
+          <Field label={t('sfa.newState')}>
             <div className="grid grid-cols-3 gap-2">
               {MACHINE_STATES.map((s) => (
                 <button
@@ -333,13 +335,13 @@ export function MachineStateDialog({
                 >
                   {s.value === 'RUNNING' ? <Play className="w-3 h-3 inline mr-1" /> :
                    s.down ? <Pause className="w-3 h-3 inline mr-1" /> : null}
-                  {s.label}
+                  {t(s.labelKey)}
                 </button>
               ))}
             </div>
           </Field>
           {isDown && (
-            <Field label="Stop reason (downtime cause)">
+            <Field label={t('sfa.stopReason')}>
               <CauseTreeSelect
                 reasonTree={reasonTree}
                 value={causeId}
@@ -348,31 +350,31 @@ export function MachineStateDialog({
               />
               {cause && (
                 <div className="flex items-center gap-1.5 mt-1.5">
-                  <span className="text-[10px] text-muted-foreground">Category:</span>
+                  <span className="text-[10px] text-muted-foreground">{t('sfa.categoryLabel')}</span>
                   <Badge variant="outline" className="text-[10px] h-4">{cause.category}</Badge>
-                  {cause.isPlanned && <Badge variant="outline" className="text-[10px] h-4 text-blue-400 border-blue-500/30">Planned Stop</Badge>}
+                  {cause.isPlanned && <Badge variant="outline" className="text-[10px] h-4 text-blue-400 border-blue-500/30">{t('sfa.plannedStop')}</Badge>}
                 </div>
               )}
             </Field>
           )}
-          <Field label={isDown ? 'Details / root cause' : 'Note (optional)'}>
+          <Field label={isDown ? t('sfa.detailsRoot') : t('sfa.noteOptional')}>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={2}
-              placeholder={isDown ? 'Describe what happened…' : 'e.g. Jam cleared, restarting'}
+              placeholder={isDown ? t('sfa.detailsPlaceholder') : t('sfa.notePlaceholder')}
               className={inputCls}
             />
           </Field>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('sfa.cancel')}</Button>
           <Button
             disabled={mut.isPending || !target?.machineId}
             onClick={() => mut.mutate()}
             variant={isDown ? 'destructive' : 'default'}
           >
-            {mut.isPending ? 'Applying…' : `Set ${state}`}
+            {mut.isPending ? t('sfa.applying') : t('sfa.setState', { state })}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -384,12 +386,12 @@ export function MachineStateDialog({
 // 3. Raise alarm
 // ─────────────────────────────────────────────────────────────
 
-const SEVERITIES: Array<{ value: string; label: string; cls: string }> = [
-  { value: 'CRITICAL', label: 'Critical', cls: 'border-red-500/60 text-red-400 bg-red-500/10' },
-  { value: 'HIGH',     label: 'High',     cls: 'border-orange-500/60 text-orange-400 bg-orange-500/10' },
-  { value: 'MEDIUM',   label: 'Medium',   cls: 'border-amber-500/60 text-amber-400 bg-amber-500/10' },
-  { value: 'LOW',      label: 'Low',      cls: 'border-blue-500/60 text-blue-400 bg-blue-500/10' },
-  { value: 'INFO',     label: 'Info',     cls: 'border-slate-500/60 text-slate-400 bg-slate-500/10' },
+const SEVERITIES: Array<{ value: string; labelKey: string; cls: string }> = [
+  { value: 'CRITICAL', labelKey: 'sfa.sev.CRITICAL', cls: 'border-red-500/60 text-red-400 bg-red-500/10' },
+  { value: 'HIGH',     labelKey: 'sfa.sev.HIGH',     cls: 'border-orange-500/60 text-orange-400 bg-orange-500/10' },
+  { value: 'MEDIUM',   labelKey: 'sfa.sev.MEDIUM',   cls: 'border-amber-500/60 text-amber-400 bg-amber-500/10' },
+  { value: 'LOW',      labelKey: 'sfa.sev.LOW',      cls: 'border-blue-500/60 text-blue-400 bg-blue-500/10' },
+  { value: 'INFO',     labelKey: 'sfa.sev.INFO',     cls: 'border-slate-500/60 text-slate-400 bg-slate-500/10' },
 ];
 
 export function AlarmDialog({
@@ -399,6 +401,7 @@ export function AlarmDialog({
   onOpenChange: (v: boolean) => void;
   target: JOActionTarget | null;
 }) {
+  const { t } = useTranslation('production');
   const { toast } = useToast();
   const qc = useQueryClient();
   const [severity, setSeverity] = useState('HIGH');
@@ -416,14 +419,14 @@ export function AlarmDialog({
         description: description.trim(),
       }),
     onSuccess: () => {
-      toast({ title: 'Alarm raised', description: `${severity} · ${description.slice(0, 60)}` });
+      toast({ title: t('sfa.alarmRaised'), description: `${severity} · ${description.slice(0, 60)}` });
       qc.invalidateQueries({ queryKey: ['jo-live'] });
       qc.invalidateQueries({ queryKey: ['alarms'] });
       onOpenChange(false);
       setDescription('');
     },
     onError: (e: any) => toast({
-      variant: 'destructive', title: 'Failed to raise alarm', description: e?.response?.data?.message,
+      variant: 'destructive', title: t('sfa.failedToRaiseAlarm'), description: e?.response?.data?.message,
     }),
   });
 
@@ -432,15 +435,15 @@ export function AlarmDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <BellRing className="w-5 h-5 text-red-400" /> Raise Alarm
+            <BellRing className="w-5 h-5 text-red-400" /> {t('sfa.raiseAlarm')}
           </DialogTitle>
           <DialogDescription>
-            {target?.machineName ? `Machine: ${target.machineName} — ` : ''}
-            Notifies supervisors; appears in the live dashboard and alarm log.
+            {target?.machineName ? t('sfa.machinePrefixDash', { name: target.machineName }) : ''}
+            {t('sfa.alarmDesc')}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <Field label="Severity">
+          <Field label={t('sfa.severity')}>
             <div className="flex gap-2 flex-wrap">
               {SEVERITIES.map((s) => (
                 <button
@@ -450,37 +453,37 @@ export function AlarmDialog({
                     severity === s.value ? s.cls + ' ring-1 ring-current' : 'border-border text-muted-foreground bg-muted/40'
                   }`}
                 >
-                  {s.label}
+                  {t(s.labelKey)}
                 </button>
               ))}
             </div>
           </Field>
-          <Field label="Category">
+          <Field label={t('sfa.category')}>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
               {['PROCESS', 'EQUIPMENT', 'SAFETY', 'QUALITY', 'OPERATOR'].map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </Field>
-          <Field label="Description">
+          <Field label={t('sfa.description')}>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              placeholder="What is happening?"
+              placeholder={t('sfa.alarmPlaceholder')}
               className={inputCls}
             />
           </Field>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('sfa.cancel')}</Button>
           <Button
             variant="destructive"
             disabled={mut.isPending || description.trim().length < 3}
             onClick={() => mut.mutate()}
           >
             <BellRing className="w-4 h-4 mr-2" />
-            {mut.isPending ? 'Raising…' : 'Raise Alarm'}
+            {mut.isPending ? t('sfa.raising') : t('sfa.raiseAlarm')}
           </Button>
         </DialogFooter>
       </DialogContent>

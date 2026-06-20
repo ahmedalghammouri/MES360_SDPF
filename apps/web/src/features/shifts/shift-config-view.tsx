@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import {
   Clock, CalendarDays, Gauge, Target, Plus, Pencil, Trash2,
   CalendarPlus, Moon, Sun, AlertTriangle,
@@ -110,6 +111,7 @@ function DayChips({ days }: { days: number[] }) {
 
 // ── 24h coverage timeline: where every active shift sits in the day ─────────
 function CoverageBar({ templates }: { templates: ShiftTemplate[] }) {
+  const { t: tr } = useTranslation('production');
   const active = templates.filter((t) => t.isActive);
   if (active.length === 0) return null;
   const toMin = (hhmm: string) => {
@@ -120,9 +122,9 @@ function CoverageBar({ templates }: { templates: ShiftTemplate[] }) {
   return (
     <div className="rounded-xl border border-border/60 bg-card p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">24h Coverage</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr('shiftCfg.coverage24h')}</span>
         <span className="text-[10px] text-muted-foreground">
-          {active.length} active shift{active.length !== 1 ? 's' : ''}
+          {tr('shiftCfg.activeShifts', { count: active.length })}
         </span>
       </div>
       <div className="relative h-9 rounded-lg bg-muted/30 overflow-hidden">
@@ -161,6 +163,7 @@ const INSTANCE_STATUSES = ['ALL', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANC
 
 // ── Main view ────────────────────────────────────────────────────────────────
 export function ShiftConfigView() {
+  const { t } = useTranslation('production');
   const { data: config } = useShiftConfig();
   const { data: templates, isLoading } = useShiftTemplates(true);
 
@@ -228,19 +231,19 @@ export function ShiftConfigView() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">Shift Configuration</h1>
+          <h1 className="text-2xl font-bold">{t('shiftCfg.title')}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Define the shift model that segments every OEE, availability and production report.
+            {t('shiftCfg.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={generateWeek} disabled={generateMut.isPending}>
             <CalendarPlus size={16} className="mr-2" />
-            Generate this week
+            {t('shiftCfg.generateWeek')}
           </Button>
           <Button onClick={openCreate}>
             <Plus size={16} className="mr-2" />
-            New Shift
+            {t('shiftCfg.newShift')}
           </Button>
         </div>
       </div>
@@ -249,70 +252,70 @@ export function ShiftConfigView() {
 
       {/* Config summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard icon={Clock} label="Shifts / day" value={config?.shiftsPerDay ?? '—'}
+        <SummaryCard icon={Clock} label={t('shiftCfg.shiftsPerDay')} value={config?.shiftsPerDay ?? '—'}
           accent="bg-indigo-500/15 text-indigo-400" />
-        <SummaryCard icon={CalendarDays} label="Working days / week" value={config?.workingDaysPerWeek ?? '—'}
+        <SummaryCard icon={CalendarDays} label={t('shiftCfg.workingDaysPerWeek')} value={config?.workingDaysPerWeek ?? '—'}
           hint={config ? config.workingDays.map((d) => DOW_LABELS[d]).join(' · ') : undefined}
           accent="bg-emerald-500/15 text-emerald-400" />
-        <SummaryCard icon={Gauge} label="Planned production hrs / day" value={config?.plannedProductionHoursPerDay ?? '—'}
+        <SummaryCard icon={Gauge} label={t('shiftCfg.plannedHrsPerDay')} value={config?.plannedProductionHoursPerDay ?? '—'}
           accent="bg-amber-500/15 text-amber-400" />
-        <SummaryCard icon={Target} label="Target / shift"
+        <SummaryCard icon={Target} label={t('shiftCfg.targetPerShift')}
           value={config?.shifts?.[0]?.targetQtyPerShift ?? '—'}
-          hint="boxes / packs" accent="bg-rose-500/15 text-rose-400" />
+          hint={t('shiftCfg.boxesPacks')} accent="bg-rose-500/15 text-rose-400" />
       </div>
 
       <Tabs defaultValue="templates">
         <TabsList>
-          <TabsTrigger value="templates">Shift Templates</TabsTrigger>
-          <TabsTrigger value="instances">Scheduled Shifts</TabsTrigger>
+          <TabsTrigger value="templates">{t('shiftCfg.tabTemplates')}</TabsTrigger>
+          <TabsTrigger value="instances">{t('shiftCfg.tabInstances')}</TabsTrigger>
         </TabsList>
 
         {/* Templates */}
         <TabsContent value="templates" className="space-y-3 mt-4">
           <CoverageBar templates={templates ?? []} />
           {isLoading ? (
-            <div className="text-sm text-muted-foreground">Loading shifts…</div>
+            <div className="text-sm text-muted-foreground">{t('shiftCfg.loading')}</div>
           ) : (templates ?? []).length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
-              No shift templates yet. Click <strong>New Shift</strong> to define one.
+              {t('shiftCfg.noTemplatesPre')}<strong>{t('shiftCfg.noTemplatesEmphasis')}</strong>{t('shiftCfg.noTemplatesPost')}
             </div>
           ) : (
-            (templates ?? []).map((t) => (
+            (templates ?? []).map((tpl) => (
               <motion.div
-                key={t.id}
+                key={tpl.id}
                 initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                 className={cn(
                   'rounded-xl border bg-card p-4 flex items-center gap-4',
-                  t.isActive ? 'border-border/60' : 'border-border/40 opacity-60',
+                  tpl.isActive ? 'border-border/60' : 'border-border/40 opacity-60',
                 )}
               >
                 <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
-                  t.crossesMidnight ? 'bg-indigo-500/15 text-indigo-400' : 'bg-amber-500/15 text-amber-400')}>
-                  {t.crossesMidnight ? <Moon size={18} /> : <Sun size={18} />}
+                  tpl.crossesMidnight ? 'bg-indigo-500/15 text-indigo-400' : 'bg-amber-500/15 text-amber-400')}>
+                  {tpl.crossesMidnight ? <Moon size={18} /> : <Sun size={18} />}
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold">{t.name}</span>
-                    <Badge variant="outline" className="text-[10px] font-mono">{t.code}</Badge>
-                    {!t.isActive && <Badge variant="secondary" className="text-[10px]">Inactive</Badge>}
-                    {t.crossesMidnight && <Badge variant="secondary" className="text-[10px]">Crosses midnight</Badge>}
+                    <span className="font-semibold">{tpl.name}</span>
+                    <Badge variant="outline" className="text-[10px] font-mono">{tpl.code}</Badge>
+                    {!tpl.isActive && <Badge variant="secondary" className="text-[10px]">{t('shiftCfg.inactive')}</Badge>}
+                    {tpl.crossesMidnight && <Badge variant="secondary" className="text-[10px]">{t('shiftCfg.crossesMidnight')}</Badge>}
                   </div>
                   <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1 flex-wrap">
-                    <span className="flex items-center gap-1"><Clock size={12} />{t.startTime}–{t.endTime}</span>
-                    <span>{t.plannedProductionHours}h planned / {t.shiftDurationHours}h</span>
-                    <span>Break {t.breakMinutes}m · Clean {t.cleaningMinutes}m</span>
-                    {t.targetQtyPerShift != null && <span className="flex items-center gap-1"><Target size={12} />{t.targetQtyPerShift}</span>}
-                    <span>{t.instanceCount} scheduled</span>
+                    <span className="flex items-center gap-1"><Clock size={12} />{tpl.startTime}–{tpl.endTime}</span>
+                    <span>{t('shiftCfg.plannedOfDuration', { planned: tpl.plannedProductionHours, duration: tpl.shiftDurationHours })}</span>
+                    <span>{t('shiftCfg.breakClean', { break: tpl.breakMinutes, clean: tpl.cleaningMinutes })}</span>
+                    {tpl.targetQtyPerShift != null && <span className="flex items-center gap-1"><Target size={12} />{tpl.targetQtyPerShift}</span>}
+                    <span>{t('shiftCfg.scheduledSuffix', { count: tpl.instanceCount })}</span>
                   </div>
-                  <div className="mt-2"><DayChips days={t.days} /></div>
+                  <div className="mt-2"><DayChips days={tpl.days} /></div>
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(t)}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(tpl)}>
                     <Pencil size={15} />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleting(t)}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleting(tpl)}>
                     <Trash2 size={15} />
                   </Button>
                 </div>
@@ -336,30 +339,30 @@ export function ShiftConfigView() {
                     : 'border-border text-muted-foreground hover:text-foreground',
                 )}
               >
-                {s === 'ALL' ? 'All' : s.replace('_', ' ').toLowerCase()}
+                {s === 'ALL' ? t('shiftCfg.statusAll') : s.replace('_', ' ').toLowerCase()}
               </button>
             ))}
             <span className="ml-auto text-xs text-muted-foreground">
-              {(instancesResp as any)?.total ?? instances.length} shift instance{(((instancesResp as any)?.total ?? instances.length) !== 1) ? 's' : ''}
+              {t('shiftCfg.instancesCount', { count: (instancesResp as any)?.total ?? instances.length })}
             </span>
           </div>
           <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/40 text-muted-foreground">
                 <tr className="text-left">
-                  <th className="px-4 py-2 font-medium">Date</th>
-                  <th className="px-4 py-2 font-medium">Shift</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium text-right">Target</th>
-                  <th className="px-4 py-2 font-medium text-right">Actual</th>
-                  <th className="px-4 py-2 font-medium text-right">OEE</th>
-                  <th className="px-4 py-2 font-medium">Operator</th>
+                  <th className="px-4 py-2 font-medium">{t('shiftCfg.col.date')}</th>
+                  <th className="px-4 py-2 font-medium">{t('shiftCfg.col.shift')}</th>
+                  <th className="px-4 py-2 font-medium">{t('shiftCfg.col.status')}</th>
+                  <th className="px-4 py-2 font-medium text-right">{t('shiftCfg.col.target')}</th>
+                  <th className="px-4 py-2 font-medium text-right">{t('shiftCfg.col.actual')}</th>
+                  <th className="px-4 py-2 font-medium text-right">{t('shiftCfg.col.oee')}</th>
+                  <th className="px-4 py-2 font-medium">{t('shiftCfg.col.operator')}</th>
                 </tr>
               </thead>
               <tbody>
                 {instances.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                    No scheduled shifts. Use <strong>Generate this week</strong>.
+                    {t('shiftCfg.noScheduledPre')}<strong>{t('shiftCfg.noScheduledEmphasis')}</strong>{t('shiftCfg.noScheduledPost')}
                   </td></tr>
                 ) : instances.map((i) => (
                   <tr key={i.id} className="border-t border-border/50">
@@ -392,55 +395,55 @@ export function ShiftConfigView() {
       <FormDialog
         open={formOpen}
         onClose={() => setFormOpen(false)}
-        title={editing ? `Edit Shift — ${editing.name}` : 'New Shift'}
+        title={editing ? t('shiftCfg.editTitle', { name: editing.name }) : t('shiftCfg.newTitle')}
         onSubmit={submit}
-        submitLabel={editing ? 'Save changes' : 'Create shift'}
+        submitLabel={editing ? t('shiftCfg.saveChanges') : t('shiftCfg.createShift')}
         isSubmitting={createMut.isPending || updateMut.isPending}
         isValid={isValid}
       >
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Code</Label>
+            <Label>{t('shiftCfg.code')}</Label>
             <Input value={form.code} onChange={(e) => patch({ code: e.target.value })} placeholder="S1" />
           </div>
           <div className="space-y-1.5">
-            <Label>Name</Label>
-            <Input value={form.name} onChange={(e) => patch({ name: e.target.value })} placeholder="Day Shift" />
+            <Label>{t('shiftCfg.name')}</Label>
+            <Input value={form.name} onChange={(e) => patch({ name: e.target.value })} placeholder={t('shiftCfg.namePlaceholder')} />
           </div>
           <div className="space-y-1.5 col-span-2">
-            <Label>Name (Arabic)</Label>
+            <Label>{t('shiftCfg.nameAr')}</Label>
             <Input value={form.nameAr} onChange={(e) => patch({ nameAr: e.target.value })} placeholder="الوردية الصباحية" dir="rtl" />
           </div>
 
           <div className="space-y-1.5">
-            <Label>Start time</Label>
+            <Label>{t('shiftCfg.startTime')}</Label>
             <Input type="time" value={form.startTime} onChange={(e) => patch({ startTime: e.target.value })} />
           </div>
           <div className="space-y-1.5">
-            <Label>End time</Label>
+            <Label>{t('shiftCfg.endTime')}</Label>
             <Input type="time" value={form.endTime} onChange={(e) => patch({ endTime: e.target.value })} />
           </div>
 
           <div className="space-y-1.5">
-            <Label>Shift duration (hrs)</Label>
+            <Label>{t('shiftCfg.shiftDuration')}</Label>
             <Input type="number" step="0.5" value={form.shiftDurationHours} onChange={(e) => patch({ shiftDurationHours: e.target.value })} />
           </div>
           <div className="space-y-1.5">
-            <Label>Planned production (hrs)</Label>
+            <Label>{t('shiftCfg.plannedProduction')}</Label>
             <Input type="number" step="0.5" value={form.plannedProductionHours} onChange={(e) => patch({ plannedProductionHours: e.target.value })} />
           </div>
 
           <div className="space-y-1.5">
-            <Label>Break (min)</Label>
+            <Label>{t('shiftCfg.breakMin')}</Label>
             <Input type="number" value={form.breakMinutes} onChange={(e) => patch({ breakMinutes: e.target.value })} />
           </div>
           <div className="space-y-1.5">
-            <Label>Cleaning (min)</Label>
+            <Label>{t('shiftCfg.cleaningMin')}</Label>
             <Input type="number" value={form.cleaningMinutes} onChange={(e) => patch({ cleaningMinutes: e.target.value })} />
           </div>
 
           <div className="space-y-1.5 col-span-2">
-            <Label>Target qty / shift</Label>
+            <Label>{t('shiftCfg.targetQtyPerShift')}</Label>
             <Input type="number" value={form.targetQtyPerShift} onChange={(e) => patch({ targetQtyPerShift: e.target.value })} placeholder="3000" />
             {/* Unit of the target — used to convert per-step targets & finished output */}
             <div className="flex items-center gap-2 pt-1">
@@ -465,13 +468,12 @@ export function ShiftConfigView() {
               ))}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              The target unit defines the finished-goods unit. Per-step targets are auto-converted
-              from this via the product packaging (e.g. cartons → inners / pallets).
+              {t('shiftCfg.targetUnitHelp')}
             </p>
           </div>
 
           <div className="space-y-2 col-span-2">
-            <Label>Working days</Label>
+            <Label>{t('shiftCfg.workingDays')}</Label>
             <div className="flex flex-wrap gap-1.5">
               {DOW_ORDER.map((d) => {
                 const on = form.days.includes(d);
@@ -494,15 +496,15 @@ export function ShiftConfigView() {
 
           <div className="flex items-center gap-2 col-span-2">
             <Checkbox id="isActive" checked={form.isActive} onCheckedChange={(v) => patch({ isActive: !!v })} />
-            <Label htmlFor="isActive" className="font-normal cursor-pointer">Active</Label>
+            <Label htmlFor="isActive" className="font-normal cursor-pointer">{t('shiftCfg.active')}</Label>
           </div>
         </div>
 
         {/* Live computed feedback */}
         <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
-          <div>Planned production window: <strong className="text-foreground">{plannedMinutes} min</strong> (duration − break − cleaning) — this is the OEE availability denominator.</div>
-          {crossesMidnight && <div className="flex items-center gap-1 text-indigo-400"><Moon size={12} /> This shift crosses midnight.</div>}
-          {planned > duration && <div className="flex items-center gap-1 text-destructive"><AlertTriangle size={12} /> Planned hours cannot exceed shift duration.</div>}
+          <div>{t('shiftCfg.plannedWindowPre')}<strong className="text-foreground">{t('hierOee.minSuffix', { count: plannedMinutes })}</strong>{t('shiftCfg.plannedWindowPost')}</div>
+          {crossesMidnight && <div className="flex items-center gap-1 text-indigo-400"><Moon size={12} /> {t('shiftCfg.crossesMidnightNote')}</div>}
+          {planned > duration && <div className="flex items-center gap-1 text-destructive"><AlertTriangle size={12} /> {t('shiftCfg.plannedExceeds')}</div>}
         </div>
       </FormDialog>
 
@@ -510,15 +512,15 @@ export function ShiftConfigView() {
       <FormDialog
         open={!!deleting}
         onClose={() => setDeleting(null)}
-        title={`Delete ${deleting?.name ?? 'shift'}?`}
+        title={t('shiftCfg.deleteTitle', { name: deleting?.name ?? t('shiftCfg.deleteFallback') })}
         onSubmit={() => deleting && deleteMut.mutate(deleting.id, { onSuccess: () => setDeleting(null) })}
-        submitLabel="Delete"
+        submitLabel={t('shiftCfg.delete')}
         isSubmitting={deleteMut.isPending}
       >
         <p className="text-sm text-muted-foreground">
           {deleting && deleting.instanceCount > 0
-            ? `This shift has ${deleting.instanceCount} scheduled instance(s), so it will be deactivated (history preserved) rather than deleted.`
-            : 'This shift template will be permanently deleted.'}
+            ? t('shiftCfg.deleteDeactivate', { count: deleting.instanceCount })
+            : t('shiftCfg.deletePermanent')}
         </p>
       </FormDialog>
 

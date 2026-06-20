@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   SlidersHorizontal,
   Play,
@@ -70,9 +71,9 @@ interface WorkOrdersResponse {
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PRIORITY_BADGE: Record<Priority, { label: string; cls: string } | undefined> = {
-  CRITICAL: { label: 'CRITICAL', cls: 'bg-red-500/20 text-red-400 border-red-500/40' },
-  HIGH:     { label: 'HIGH',     cls: 'bg-orange-500/20 text-orange-400 border-orange-500/40' },
+const PRIORITY_BADGE: Record<Priority, { labelKey: string; cls: string } | undefined> = {
+  CRITICAL: { labelKey: 'mfgControl.priority.critical', cls: 'bg-red-500/20 text-red-400 border-red-500/40' },
+  HIGH:     { labelKey: 'mfgControl.priority.high',     cls: 'bg-orange-500/20 text-orange-400 border-orange-500/40' },
   MEDIUM:   undefined,
   LOW:      undefined,
 };
@@ -86,13 +87,13 @@ const JO_STATUS_CLS: Record<string, string> = {
   CANCELLED:  'text-red-400 bg-red-500/10 border-red-500/20',
 };
 
-const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
-  { value: 'all',         label: 'All Statuses' },
-  { value: 'PLANNED',     label: 'Planned' },
-  { value: 'RELEASED',    label: 'Released' },
-  { value: 'IN_PROGRESS', label: 'In Progress' },
-  { value: 'ON_HOLD',     label: 'On Hold' },
-  { value: 'COMPLETED',   label: 'Completed' },
+const STATUS_FILTER_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: 'all',         labelKey: 'mfgControl.statusFilter.all' },
+  { value: 'PLANNED',     labelKey: 'mfgControl.statusFilter.planned' },
+  { value: 'RELEASED',    labelKey: 'mfgControl.statusFilter.released' },
+  { value: 'IN_PROGRESS', labelKey: 'mfgControl.statusFilter.inProgress' },
+  { value: 'ON_HOLD',     labelKey: 'mfgControl.statusFilter.onHold' },
+  { value: 'COMPLETED',   labelKey: 'mfgControl.statusFilter.completed' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,8 +170,10 @@ interface JOChipProps {
 }
 
 function JOChip({ jo }: JOChipProps) {
+  const { t } = useTranslation('modules');
   const statusCls = JO_STATUS_CLS[jo.status] ?? 'text-muted-foreground bg-muted/20 border-border/30';
   const operatorName = jo.operator?.name ?? null;
+  const statusLabel = t('mfgControl.joStatus.' + jo.status, { defaultValue: jo.status });
 
   return (
     <div className="flex items-center justify-between gap-2 px-2 py-1 rounded-md bg-background/40 border border-border/20">
@@ -189,7 +192,7 @@ function JOChip({ jo }: JOChipProps) {
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
         <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded border', statusCls)}>
-          {jo.status}
+          {statusLabel}
         </span>
         {jo.joOEE != null && (
           <span className={cn('text-[10px] font-bold tabular-nums', oeeColor(jo.joOEE))}>
@@ -211,6 +214,7 @@ interface WOCardProps {
 }
 
 function WOCard({ wo, onStart, onHold, onRelease, onComplete, isPending }: WOCardProps) {
+  const { t } = useTranslation('modules');
   const [expanded, setExpanded] = useState(false);
   const stepPct =
     wo.totalSteps > 0
@@ -252,7 +256,7 @@ function WOCard({ wo, onStart, onHold, onRelease, onComplete, isPending }: WOCar
                     priorityBadge.cls,
                   )}
                 >
-                  {priorityBadge.label}
+                  {t(priorityBadge.labelKey)}
                 </span>
               )}
             </div>
@@ -268,7 +272,7 @@ function WOCard({ wo, onStart, onHold, onRelease, onComplete, isPending }: WOCar
         <div className="mb-2">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-muted-foreground">
-              {wo.completedSteps}/{wo.totalSteps} steps
+              {t('mfgControl.stepsProgress', { completed: wo.completedSteps, total: wo.totalSteps })}
             </span>
             <span className="text-[10px] font-semibold tabular-nums">{stepPct}%</span>
           </div>
@@ -278,13 +282,13 @@ function WOCard({ wo, onStart, onHold, onRelease, onComplete, isPending }: WOCar
         {/* Qty row */}
         <div className="flex items-center gap-3 text-[11px] mb-2">
           <span className="text-muted-foreground">
-            Planned: <span className="text-foreground font-medium">{wo.plannedQty}</span>
+            {t('mfgControl.planned')}: <span className="text-foreground font-medium">{wo.plannedQty}</span>
           </span>
           <span className="text-green-400 font-medium">
-            Good: {wo.goodQty}
+            {t('mfgControl.good')}: {wo.goodQty}
           </span>
           {wo.scrapQty > 0 && (
-            <span className="text-red-400 font-medium">Scrap: {wo.scrapQty}</span>
+            <span className="text-red-400 font-medium">{t('mfgControl.scrap')}: {wo.scrapQty}</span>
           )}
         </div>
 
@@ -297,7 +301,7 @@ function WOCard({ wo, onStart, onHold, onRelease, onComplete, isPending }: WOCar
               disabled={isPending}
               onClick={() => onStart!(wo.id)}
             >
-              <Play size={10} />Start
+              <Play size={10} />{t('mfgControl.start')}
             </Button>
           )}
           {canHold && (
@@ -308,7 +312,7 @@ function WOCard({ wo, onStart, onHold, onRelease, onComplete, isPending }: WOCar
               disabled={isPending}
               onClick={() => onHold!(wo.id)}
             >
-              <Pause size={10} />Hold
+              <Pause size={10} />{t('mfgControl.hold')}
             </Button>
           )}
           {canRelease && (
@@ -318,7 +322,7 @@ function WOCard({ wo, onStart, onHold, onRelease, onComplete, isPending }: WOCar
               disabled={isPending}
               onClick={() => onRelease!(wo.id)}
             >
-              <Play size={10} />Release
+              <Play size={10} />{t('mfgControl.release')}
             </Button>
           )}
           {canComplete && (
@@ -328,7 +332,7 @@ function WOCard({ wo, onStart, onHold, onRelease, onComplete, isPending }: WOCar
               disabled={isPending}
               onClick={() => onComplete!(wo.id)}
             >
-              <CheckCircle2 size={10} />Complete
+              <CheckCircle2 size={10} />{t('mfgControl.complete')}
             </Button>
           )}
         </div>
@@ -343,7 +347,7 @@ function WOCard({ wo, onStart, onHold, onRelease, onComplete, isPending }: WOCar
           >
             <span className="flex items-center gap-1">
               <Layers size={10} />
-              {wo.jobOrders!.length} Job Order{wo.jobOrders!.length !== 1 ? 's' : ''}
+              {t('mfgControl.jobOrdersCount', { count: wo.jobOrders!.length })}
             </span>
             <ChevronRight
               size={11}
@@ -405,6 +409,7 @@ function KanbanColumn({
   isPending,
   highlighted,
 }: KanbanColumnProps) {
+  const { t } = useTranslation('modules');
   return (
     <div
       className={cn(
@@ -433,7 +438,7 @@ function KanbanColumn({
           {orders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50 text-xs gap-2">
               <Layers size={22} />
-              <span>No work orders</span>
+              <span>{t('mfgControl.noWorkOrders')}</span>
             </div>
           ) : (
             orders.map(wo => (
@@ -463,27 +468,37 @@ interface CompletedTableProps {
 }
 
 function CompletedTable({ orders }: CompletedTableProps) {
+  const { t } = useTranslation('modules');
   const last10 = orders.filter(w => w.status === 'COMPLETED').slice(0, 10);
 
   if (last10.length === 0) return null;
+
+  const headers: { key: string; label: string }[] = [
+    { key: 'woNumber', label: t('mfgControl.completedCol.woNumber') },
+    { key: 'product', label: t('mfgControl.completedCol.product') },
+    { key: 'plannedEnd', label: t('mfgControl.completedCol.plannedEnd') },
+    { key: 'goodQty', label: t('mfgControl.completedCol.goodQty') },
+    { key: 'scrap', label: t('mfgControl.completedCol.scrap') },
+    { key: 'oee', label: t('mfgControl.completedCol.oee') },
+  ];
 
   return (
     <div className="industrial-card rounded-xl overflow-hidden">
       <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
         <CheckCircle2 size={14} className="text-slate-400" />
-        <span className="text-sm font-semibold">Recently Completed</span>
-        <span className="ml-auto text-xs text-muted-foreground">Last {last10.length}</span>
+        <span className="text-sm font-semibold">{t('mfgControl.recentlyCompleted')}</span>
+        <span className="ml-auto text-xs text-muted-foreground">{t('mfgControl.lastN', { count: last10.length })}</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border/20">
-              {['WO Number', 'Product', 'Planned End', 'Good Qty', 'Scrap', 'OEE'].map(h => (
+              {headers.map(h => (
                 <th
-                  key={h}
+                  key={h.key}
                   className="text-left px-4 py-2 text-[11px] font-semibold text-muted-foreground"
                 >
-                  {h}
+                  {h.label}
                 </th>
               ))}
             </tr>
@@ -574,6 +589,7 @@ const PO_STATUS_CLS: Record<string, string> = {
 
 
 function POPipeline() {
+  const { t } = useTranslation('modules');
   const qc = useQueryClient();
   const [autoGenPO, setAutoGenPO] = useState<PipelinePO | null>(null);
   const [open, setOpen] = useState(true);
@@ -616,15 +632,15 @@ function POPipeline() {
       >
         <ChevronRight size={14} className={cn('text-muted-foreground shrink-0 transition-transform', open && 'rotate-90')} />
         <ClipboardList size={14} className="text-primary shrink-0" />
-        <span className="text-sm font-semibold">Production Orders — release &amp; generate from here</span>
+        <span className="text-sm font-semibold">{t('mfgControl.po.header')}</span>
         <span className="text-[10px] font-medium text-muted-foreground bg-muted/40 rounded-full px-2 py-0.5 shrink-0">{pos.length}</span>
         {needsAction > 0 && (
           <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5 shrink-0">
-            {needsAction} need action
+            {t('mfgControl.po.needAction', { count: needsAction })}
           </span>
         )}
         <span className="ml-auto text-[10px] text-muted-foreground hidden lg:flex items-center">
-          Release PO <ArrowRight size={9} className="inline mx-0.5" /> Auto-Generate WO + Job Orders <ArrowRight size={9} className="inline mx-0.5" /> control below
+          {t('mfgControl.po.flowReleasePo')} <ArrowRight size={9} className="inline mx-0.5" /> {t('mfgControl.po.flowAutoGen')} <ArrowRight size={9} className="inline mx-0.5" /> {t('mfgControl.po.flowControlBelow')}
         </span>
       </button>
       {open && (
@@ -637,12 +653,12 @@ function POPipeline() {
               <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="font-mono text-[11px] font-bold text-primary truncate">{po.orderNumber}</span>
                 <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded border shrink-0', statusCls)}>
-                  {po.status.replace('_', ' ')}
+                  {t('mfgControl.po.status.' + po.status, { defaultValue: po.status.replace('_', ' ') })}
                 </span>
               </div>
               <div className="text-[11px] text-muted-foreground truncate mb-0.5">{po.sku?.name ?? '—'}</div>
               <div className="text-[10px] text-muted-foreground mb-2">
-                {po.targetQty} {po.unit ?? ''} · {woCount} WO{woCount !== 1 ? 's' : ''} · due {fmtDate(po.plannedEnd)}
+                {po.targetQty} {po.unit ?? ''} · {t('mfgControl.po.woCount', { count: woCount })} · {t('mfgControl.po.due', { date: fmtDate(po.plannedEnd) })}
               </div>
               <div className="flex items-center gap-1.5">
                 {po.status === 'PLANNED' && (
@@ -651,7 +667,7 @@ function POPipeline() {
                     disabled={releaseMutation.isPending}
                     onClick={() => releaseMutation.mutate(po.id)}
                   >
-                    <Play size={10} />Release PO
+                    <Play size={10} />{t('mfgControl.po.releasePo')}
                   </Button>
                 )}
                 {['RELEASED', 'IN_PROGRESS'].includes(po.status) && (
@@ -661,12 +677,12 @@ function POPipeline() {
                     className="h-6 px-2 text-[10px] gap-1"
                     onClick={() => setAutoGenPO(po)}
                   >
-                    <Zap size={10} />{woCount > 0 ? 'Generate again' : 'Auto-Generate WO'}
+                    <Zap size={10} />{woCount > 0 ? t('mfgControl.po.generateAgain') : t('mfgControl.po.autoGenerateWo')}
                   </Button>
                 )}
                 {woCount > 0 && (
                   <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
-                    <CheckCircle2 size={10} />{woCount} generated
+                    <CheckCircle2 size={10} />{t('mfgControl.po.generated', { count: woCount })}
                   </span>
                 )}
               </div>
@@ -693,6 +709,7 @@ function POPipeline() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ManufacturingControlView() {
+  const { t } = useTranslation('modules');
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -780,8 +797,8 @@ export default function ManufacturingControlView() {
         <div className="flex items-center gap-3">
           <SlidersHorizontal size={20} className="text-primary" />
           <div>
-            <h1 className="text-xl font-bold leading-tight">Manufacturing Control Panel</h1>
-            <p className="text-xs text-muted-foreground">Real-time work order control</p>
+            <h1 className="text-xl font-bold leading-tight">{t('mfgControl.title')}</h1>
+            <p className="text-xs text-muted-foreground">{t('mfgControl.subtitle')}</p>
           </div>
           {/* Live badge */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/30">
@@ -789,7 +806,7 @@ export default function ManufacturingControlView() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
             </span>
-            <span className="text-[11px] font-semibold text-green-400">Live</span>
+            <span className="text-[11px] font-semibold text-green-400">{t('mfgControl.live')}</span>
           </div>
         </div>
 
@@ -801,7 +818,7 @@ export default function ManufacturingControlView() {
               className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
             <Input
-              placeholder="Search WO / product…"
+              placeholder={t('mfgControl.searchPlaceholder')}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="h-8 pl-7 w-44 text-xs"
@@ -810,8 +827,8 @@ export default function ManufacturingControlView() {
           <SelectMenu
             value={statusFilter}
             onValueChange={setStatusFilter}
-            menuLabel="Status"
-            options={STATUS_FILTER_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+            menuLabel={t('mfgControl.statusMenuLabel')}
+            options={STATUS_FILTER_OPTIONS.map(o => ({ value: o.value, label: t(o.labelKey) }))}
           />
         </div>
       </div>
@@ -822,25 +839,25 @@ export default function ManufacturingControlView() {
       {/* ── Summary strip ── */}
       <div className="flex gap-3 flex-wrap">
         <StatBox
-          label="In Progress"
+          label={t('mfgControl.stat.inProgress')}
           value={inProgressCount}
           colorCls="text-green-400"
           icon={<Play size={16} />}
         />
         <StatBox
-          label="Planned & Released"
+          label={t('mfgControl.stat.plannedReleased')}
           value={queueCount}
           colorCls="text-blue-400"
           icon={<Clock size={16} />}
         />
         <StatBox
-          label="On Hold"
+          label={t('mfgControl.stat.onHold')}
           value={onHoldCount}
           colorCls="text-yellow-400"
           icon={<AlertTriangle size={16} />}
         />
         <StatBox
-          label="Completed Today"
+          label={t('mfgControl.stat.completedToday')}
           value={completedTodayCount}
           colorCls="text-slate-400"
           icon={<CheckCircle2 size={16} />}
@@ -865,7 +882,7 @@ export default function ManufacturingControlView() {
       {!isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-h-[480px]">
           <KanbanColumn
-            title="Planned & Released"
+            title={t('mfgControl.stat.plannedReleased')}
             count={plannedReleased.length}
             headerCls="border-blue-500/20 bg-blue-500/5"
             accentCls="bg-blue-500/20 text-blue-300"
@@ -874,7 +891,7 @@ export default function ManufacturingControlView() {
             isPending={anyPending}
           />
           <KanbanColumn
-            title="In Progress"
+            title={t('mfgControl.stat.inProgress')}
             count={inProgress.length}
             headerCls="border-green-500/30 bg-green-500/10"
             accentCls="bg-green-500/20 text-green-300"
@@ -885,7 +902,7 @@ export default function ManufacturingControlView() {
             highlighted
           />
           <KanbanColumn
-            title="On Hold"
+            title={t('mfgControl.stat.onHold')}
             count={onHold.length}
             headerCls="border-amber-500/20 bg-amber-500/5"
             accentCls="bg-amber-500/20 text-amber-300"

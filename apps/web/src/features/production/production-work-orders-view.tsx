@@ -96,13 +96,14 @@ function DetailRow({ label, value }: { label: string; value?: React.ReactNode })
   );
 }
 
-const INSP_RESULT: Record<string, { label: string; cls: string; Icon: any }> = {
-  PASS:        { label: 'Pass',        cls: 'text-green-400', Icon: CheckCircle2 },
-  FAIL:        { label: 'Fail',        cls: 'text-red-400',   Icon: XCircle      },
-  CONDITIONAL: { label: 'Conditional', cls: 'text-amber-400', Icon: AlertCircle  },
+const INSP_RESULT: Record<string, { labelKey: string; cls: string; Icon: any }> = {
+  PASS:        { labelKey: 'wo.insp.pass',        cls: 'text-green-400', Icon: CheckCircle2 },
+  FAIL:        { labelKey: 'wo.insp.fail',        cls: 'text-red-400',   Icon: XCircle      },
+  CONDITIONAL: { labelKey: 'wo.insp.conditional', cls: 'text-amber-400', Icon: AlertCircle  },
 };
 
 function WorkOrderQualityPanel({ workOrderId, machineId }: { workOrderId: string; machineId?: string }) {
+  const { t } = useTranslation(['production', 'common']);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
@@ -132,20 +133,20 @@ function WorkOrderQualityPanel({ workOrderId, machineId }: { workOrderId: string
     mutationFn: (dto: any) => api.post('/quality/inspections', dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quality', 'wo-inspections', workOrderId] });
-      toast({ title: 'Inspection recorded' });
+      toast({ title: t('wo.toast.inspRecorded') });
       resetForm();
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to save inspection', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message ?? t('wo.toast.inspSaveFailed'), variant: 'destructive' }),
   });
 
   const updateInspMutation = useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: any }) => api.patch(`/quality/inspections/${id}`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quality', 'wo-inspections', workOrderId] });
-      toast({ title: 'Inspection updated' });
+      toast({ title: t('wo.toast.inspUpdated') });
       resetForm();
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to update inspection', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message ?? t('wo.toast.inspUpdateFailed'), variant: 'destructive' }),
   });
 
   const plans: any[] = (plansData as any) ?? [];
@@ -207,7 +208,7 @@ function WorkOrderQualityPanel({ workOrderId, machineId }: { workOrderId: string
       <div className="flex items-center justify-between mb-2">
         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <ClipboardCheck size={12} className="text-primary" />
-          Quality Inspections
+          {t('wo.qualityInspections')}
         </p>
         <div className="flex items-center gap-2">
           {inspections.length > 0 && (
@@ -215,11 +216,11 @@ function WorkOrderQualityPanel({ workOrderId, machineId }: { workOrderId: string
               variant="outline"
               className={cn('text-[10px] h-4', overallPass ? 'text-green-400 border-green-500/30' : failCount > 0 ? 'text-red-400 border-red-500/30' : 'text-amber-400 border-amber-500/30')}
             >
-              {passCount}/{inspections.length} Pass
+              {passCount}/{inspections.length} {t('wo.insp.pass')}
             </Badge>
           )}
           <Button size="sm" variant="outline" className="h-5 text-[10px] px-2 gap-1" onClick={() => setAddOpen(true)}>
-            <Plus size={10} />Add
+            <Plus size={10} />{t('wo.add')}
           </Button>
         </div>
       </div>
@@ -227,8 +228,8 @@ function WorkOrderQualityPanel({ workOrderId, machineId }: { workOrderId: string
         <div className="shimmer h-10 rounded-lg" />
       ) : inspections.length === 0 ? (
         <div className="industrial-card rounded-lg px-3 py-2 text-xs text-muted-foreground text-center">
-          No inspections yet —{' '}
-          <button className="text-primary underline underline-offset-2" onClick={() => setAddOpen(true)}>add one</button>
+          {t('wo.noInspections')}{' '}
+          <button className="text-primary underline underline-offset-2" onClick={() => setAddOpen(true)}>{t('wo.addOne')}</button>
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -245,14 +246,14 @@ function WorkOrderQualityPanel({ workOrderId, machineId }: { workOrderId: string
                     {ins.plan && <span className="text-[10px] text-muted-foreground truncate">{ins.plan.name}</span>}
                   </div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">
-                    Pass: {ins.passQty} · Fail: {ins.failQty} · Total: {ins.totalQty}
+                    {t('wo.insp.pass')}: {ins.passQty} · {t('wo.insp.fail')}: {ins.failQty} · {t('wo.insp.total')}: {ins.totalQty}
                     {ins.inspector && ` · ${ins.inspector.name}`}
                   </div>
                 </div>
-                <span className={cn('text-[10px] font-semibold', r.cls)}>{r.label}</span>
+                <span className={cn('text-[10px] font-semibold', r.cls)}>{t(r.labelKey)}</span>
                 <Button
                   variant="ghost" size="icon" className="h-6 w-6 shrink-0"
-                  title="Edit inspection"
+                  title={t('wo.editInspection')}
                   onClick={() => handleOpenEditInsp(ins)}
                 >
                   <Pencil size={11} />
@@ -268,30 +269,30 @@ function WorkOrderQualityPanel({ workOrderId, machineId }: { workOrderId: string
         open={addOpen || !!editId}
         onClose={resetForm}
         icon={ClipboardCheck}
-        title={editId ? 'Edit Quality Inspection' : 'Add Quality Inspection'}
+        title={editId ? t('wo.editInspTitle') : t('wo.addInspTitle')}
         footer={(
           <>
-            <Button variant="outline" size="sm" onClick={resetForm}>Cancel</Button>
+            <Button variant="outline" size="sm" onClick={resetForm}>{t('common:actions.cancel')}</Button>
             <Button size="sm" disabled={!isAddValid || isSaving} onClick={handleAddInsp}>
-              {isSaving ? 'Saving…' : editId ? 'Save Changes' : 'Record Inspection'}
+              {isSaving ? t('bform.saving') : editId ? t('bform.saveChanges') : t('wo.recordInspection')}
             </Button>
           </>
         )}
       >
           <div className="space-y-3">
             <div>
-              <Label className="text-xs">Inspection Type *</Label>
+              <Label className="text-xs">{t('wo.inspectionType')} *</Label>
               <Select value={addForm.type} onValueChange={v => setAddForm(f => ({ ...f, type: v }))}>
                 <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {['INCOMING', 'IN_PROCESS', 'FINAL', 'PATROL', 'AUDIT'].map(t => (
-                    <SelectItem key={t} value={t}>{t.replace('_', ' ')}</SelectItem>
+                  {['INCOMING', 'IN_PROCESS', 'FINAL', 'PATROL', 'AUDIT'].map(tp => (
+                    <SelectItem key={tp} value={tp}>{tp.replace('_', ' ')}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Quality Plan <span className="text-muted-foreground">(optional)</span></Label>
+              <Label className="text-xs">{t('wo.qualityPlan')} <span className="text-muted-foreground">({t('wo.optional')})</span></Label>
               <EntityPicker
                 items={plans}
                 value={addForm.planId === '__none__' ? null : addForm.planId}
@@ -299,47 +300,47 @@ function WorkOrderQualityPanel({ workOrderId, machineId }: { workOrderId: string
                 getId={(p: any) => p.id}
                 getPrimary={(p: any) => p.name}
                 getSecondary={(p: any) => p.code}
-                placeholder="— Select plan —"
-                searchPlaceholder="Search plans…"
+                placeholder={t('wo.selectPlan')}
+                searchPlaceholder={t('wo.searchPlans')}
                 size="sm"
                 className="mt-1"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Total Qty Inspected *</Label>
+                <Label className="text-xs">{t('wo.totalQtyInspected')} *</Label>
                 <Input
                   type="number" min={1}
                   value={addForm.totalQty}
                   onChange={e => setAddForm(f => ({ ...f, totalQty: e.target.value }))}
                   className="mt-1 h-8 text-xs"
-                  placeholder="e.g. 10"
+                  placeholder={t('wo.eg10')}
                 />
               </div>
               <div>
-                <Label className="text-xs">Passed Qty *</Label>
+                <Label className="text-xs">{t('wo.passedQty')} *</Label>
                 <Input
                   type="number" min={0}
                   value={addForm.passQty}
                   onChange={e => setAddForm(f => ({ ...f, passQty: e.target.value }))}
                   className="mt-1 h-8 text-xs"
-                  placeholder="e.g. 9"
+                  placeholder={t('wo.eg9')}
                 />
               </div>
             </div>
             {addForm.totalQty && addForm.passQty && (
               <div className="industrial-card rounded-md px-3 py-2 text-[10px] flex items-center gap-3">
-                <span className="text-muted-foreground">Failed: <span className="font-semibold text-foreground">{failNum}</span></span>
-                <span className="text-muted-foreground">Pass rate: <span className="font-semibold text-foreground">{passRate}%</span></span>
-                <span className="text-muted-foreground">→ Result: <span className={cn('font-bold', resultCls)}>{predictedResult}</span></span>
+                <span className="text-muted-foreground">{t('wo.failed')}: <span className="font-semibold text-foreground">{failNum}</span></span>
+                <span className="text-muted-foreground">{t('wo.passRate')}: <span className="font-semibold text-foreground">{passRate}%</span></span>
+                <span className="text-muted-foreground">→ {t('wo.result')}: <span className={cn('font-bold', resultCls)}>{predictedResult}</span></span>
               </div>
             )}
             <div>
-              <Label className="text-xs">Notes</Label>
+              <Label className="text-xs">{t('wform.notes')}</Label>
               <Input
                 value={addForm.notes}
                 onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Optional notes…"
+                placeholder={t('wform.optionalNotes')}
                 className="mt-1 h-8 text-xs"
               />
             </div>
@@ -428,40 +429,40 @@ export function ProductionWorkOrdersView() {
       queryClient.invalidateQueries({ queryKey: ['production', 'work-orders'] });
       queryClient.invalidateQueries({ queryKey: ['production', 'kpis'] });
       queryClient.invalidateQueries({ queryKey: ['production-orders'] });
-      toast({ title: 'Work order created' });
+      toast({ title: t('wo.toast.created') });
       setFormOpen(false); setForm(EMPTY_FORM);
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to create', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message ?? t('wo.toast.createFailed'), variant: 'destructive' }),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: any }) => api.patch(`/production/work-orders/${id}`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['production', 'work-orders'] });
-      toast({ title: 'Work order updated' }); setEditWO(null);
+      toast({ title: t('wo.toast.updated') }); setEditWO(null);
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const startMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/production/work-orders/${id}/start`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['production', 'work-orders'] }); toast({ title: 'Work order started' }); },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['production', 'work-orders'] }); toast({ title: t('wo.toast.started') }); },
+    onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const releaseMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/production/work-orders/${id}/release`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['production', 'work-orders'] }); toast({ title: 'Work order resumed' }); },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['production', 'work-orders'] }); toast({ title: t('wo.toast.resumed') }); },
+    onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const holdMutation = useMutation({
     mutationFn: ({ woId, reason }: { woId: string; reason: string }) => api.patch(`/production/work-orders/${woId}/hold`, { reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['production', 'work-orders'] });
-      setHoldDialog(null); setHoldReason(''); toast({ title: 'Work order placed on hold' });
+      setHoldDialog(null); setHoldReason(''); toast({ title: t('wo.toast.held') });
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const completeMutation = useMutation({
@@ -469,27 +470,27 @@ export function ProductionWorkOrdersView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['production', 'work-orders'] });
       setCompleteDialog(null); setCompleteForm({ actualQty: '', goodQty: '' });
-      toast({ title: 'Work order completed' });
+      toast({ title: t('wo.toast.completed') });
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const cancelMutation = useMutation({
     mutationFn: ({ woId, reason }: { woId: string; reason: string }) => api.patch(`/production/work-orders/${woId}/cancel`, { reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['production', 'work-orders'] });
-      setCancelDialog(null); setCancelReason(''); toast({ title: 'Work order cancelled' });
+      setCancelDialog(null); setCancelReason(''); toast({ title: t('wo.toast.cancelled') });
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/production/work-orders/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['production', 'work-orders'] });
-      toast({ title: 'Work order deleted' }); setDeleteDialog(null);
+      toast({ title: t('wo.toast.deleted') }); setDeleteDialog(null);
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const handleCreate = () => {
@@ -727,7 +728,7 @@ export function ProductionWorkOrdersView() {
                     <SheetDescription className="mt-0.5">{detail.productName || (detail as any).sku?.name || '—'}</SheetDescription>
                   </div>
                   <Badge variant={STATUS_COLORS[(detail as any).status] ?? 'secondary'}>
-                    {STATUS_LABELS[(detail as any).status] ?? (detail as any).status}
+                    {t(`status.${(detail as any).status}`, { defaultValue: (detail as any).status })}
                   </Badge>
                   <Badge variant="outline" className={cn('text-[10px]', PRIORITY_CLS[(detail as any).priority] ?? '')}>
                     {(detail as any).priority}
@@ -735,7 +736,7 @@ export function ProductionWorkOrdersView() {
                 </div>
               </>
             ) : (
-              <SheetTitle>Work Order Details</SheetTitle>
+              <SheetTitle>{t('wo.detailsTitle')}</SheetTitle>
             )}
           </SheetHeader>
 
@@ -749,12 +750,12 @@ export function ProductionWorkOrdersView() {
                 {/* OEE Metrics */}
                 {((detail as any).oee != null) && (
                   <div>
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">OEE Metrics</p>
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('wo.oeeMetrics')}</p>
                     <div className="grid grid-cols-4 gap-2">
-                      <MetricCard label="OEE" value={`${(detail as any).oee?.toFixed(1)}%`} color={oeeColor((detail as any).oee)} />
-                      <MetricCard label="Availability" value={`${(detail as any).availability?.toFixed(1)}%`} />
-                      <MetricCard label="Performance" value={`${(detail as any).performance?.toFixed(1)}%`} />
-                      <MetricCard label="Quality" value={`${(detail as any).quality?.toFixed(1)}%`} />
+                      <MetricCard label={t('cards.oee')} value={`${(detail as any).oee?.toFixed(1)}%`} color={oeeColor((detail as any).oee)} />
+                      <MetricCard label={t('cards.availability')} value={`${(detail as any).availability?.toFixed(1)}%`} />
+                      <MetricCard label={t('cards.performance')} value={`${(detail as any).performance?.toFixed(1)}%`} />
+                      <MetricCard label={t('cards.quality')} value={`${(detail as any).quality?.toFixed(1)}%`} />
                     </div>
                   </div>
                 )}
@@ -775,12 +776,12 @@ export function ProductionWorkOrdersView() {
                   const unit = lastJO?.outputUnit ?? '';
                   return (
                     <div>
-                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Production Progress</p>
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('wo.productionProgress')}</p>
                       <div className="industrial-card rounded-lg p-3 space-y-3">
                         {/* Step completion bar */}
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] text-muted-foreground">Steps completed</span>
+                            <span className="text-[10px] text-muted-foreground">{t('wo.stepsCompleted')}</span>
                             <span className="text-[10px] font-semibold">{completedSteps} / {totalSteps}</span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -794,7 +795,7 @@ export function ProductionWorkOrdersView() {
                         {d.plannedQty > 0 && (
                           <div>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] text-muted-foreground">Final output vs planned</span>
+                              <span className="text-[10px] text-muted-foreground">{t('wo.finalOutputVsPlanned')}</span>
                               <span className="text-[10px] font-semibold">{good} / {d.plannedQty} {unit}</span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -808,10 +809,10 @@ export function ProductionWorkOrdersView() {
                         {/* KPIs */}
                         <div className="grid grid-cols-4 gap-2 text-center pt-1 border-t border-border/30">
                           {[
-                            { label: 'Planned',       value: `${d.plannedQty}`,       sub: unit },
-                            { label: 'Output (last)', value: `${actual}`,              sub: unit,  color: 'text-foreground' },
-                            { label: 'Good',          value: `${good}`,               sub: unit,  color: 'text-green-400' },
-                            { label: 'Total Scrap',   value: `${scrap}`,              sub: 'all steps', color: scrap > 0 ? 'text-red-400' : '' },
+                            { label: t('wo.planned'),     value: `${d.plannedQty}`,       sub: unit },
+                            { label: t('wo.outputLast'),  value: `${actual}`,              sub: unit,  color: 'text-foreground' },
+                            { label: t('wo.good'),        value: `${good}`,               sub: unit,  color: 'text-green-400' },
+                            { label: t('wo.totalScrap'),  value: `${scrap}`,              sub: t('wo.allSteps'), color: scrap > 0 ? 'text-red-400' : '' },
                           ].map(m => (
                             <div key={m.label}>
                               <div className={cn('text-base font-bold tabular-nums', (m as any).color)}>{m.value}</div>
@@ -829,7 +830,7 @@ export function ProductionWorkOrdersView() {
                 {((detail as any).jobOrders?.length > 0) && (
                   <div>
                     <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <Layers className="w-3 h-3" />Dispatch List
+                      <Layers className="w-3 h-3" />{t('podetail.dispatchList')}
                     </p>
                     <div className="space-y-1.5">
                       {(detail as any).jobOrders.map((jo: any) => {
@@ -858,7 +859,7 @@ export function ProductionWorkOrdersView() {
                               <div className="flex items-center gap-1.5 shrink-0">
                                 {statusIcon[jo.status] ?? <Circle className="w-2 h-2 text-muted-foreground/40" />}
                                 <span className={cn('text-[10px] font-medium', statusColor[jo.status] ?? 'text-muted-foreground')}>
-                                  {jo.status}
+                                  {t(`podetail.joStatus.${jo.status}`, { defaultValue: jo.status })}
                                 </span>
                               </div>
                             </div>
@@ -919,44 +920,44 @@ export function ProductionWorkOrdersView() {
 
                 {/* Details */}
                 <div>
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Order Details</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('wo.orderDetails')}</p>
                   <div className="industrial-card rounded-lg px-3">
-                    <DetailRow label="Product" value={(detail as any).sku?.name ?? (detail as any).productName} />
-                    <DetailRow label="SKU Code" value={(detail as any).sku?.code ?? (detail as any).productCode} />
-                    <DetailRow label="Item #" value={(detail as any).sku?.itemNumber} />
-                    <DetailRow label="Production Line" value={(detail as any).line?.name ?? (detail as any).line} />
+                    <DetailRow label={t('col.product')} value={(detail as any).sku?.name ?? (detail as any).productName} />
+                    <DetailRow label={t('wo.skuCode')} value={(detail as any).sku?.code ?? (detail as any).productCode} />
+                    <DetailRow label={t('wo.itemNumber')} value={(detail as any).sku?.itemNumber} />
+                    <DetailRow label={t('wo.productionLine')} value={(detail as any).line?.name ?? (detail as any).line} />
                     <DetailRow
-                      label="Machines"
+                      label={t('wo.machines')}
                       value={((detail as any).machines ?? [])
                         .map((m: { name: string }) => m.name)
                         .join(', ') || '—'}
                     />
-                    <DetailRow label="Operator" value={(detail as any).operator?.name ?? (detail as any).operator} />
-                    <DetailRow label="Supervisor" value={(detail as any).supervisor?.name ?? (detail as any).supervisor} />
+                    <DetailRow label={t('wform.operator')} value={(detail as any).operator?.name ?? (detail as any).operator} />
+                    <DetailRow label={t('wo.supervisor')} value={(detail as any).supervisor?.name ?? (detail as any).supervisor} />
                   </div>
                 </div>
 
                 {/* Timeline */}
                 <div>
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Timeline</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('wo.timeline')}</p>
                   <div className="industrial-card rounded-lg px-3">
-                    <DetailRow label="Planned Start" value={(detail as any).plannedStart ? formatDate((detail as any).plannedStart) : undefined} />
-                    <DetailRow label="Planned End" value={(detail as any).plannedEnd ? formatDate((detail as any).plannedEnd) : undefined} />
-                    <DetailRow label="Actual Start" value={(detail as any).actualStart ? formatDate((detail as any).actualStart) : undefined} />
-                    <DetailRow label="Actual End" value={(detail as any).actualEnd ? formatDate((detail as any).actualEnd) : undefined} />
-                    <DetailRow label="Downtime" value={(detail as any).downtimeMinutes != null ? `${(detail as any).downtimeMinutes} min` : undefined} />
+                    <DetailRow label={t('podetail.plannedStart')} value={(detail as any).plannedStart ? formatDate((detail as any).plannedStart) : undefined} />
+                    <DetailRow label={t('podetail.plannedEnd')} value={(detail as any).plannedEnd ? formatDate((detail as any).plannedEnd) : undefined} />
+                    <DetailRow label={t('podetail.actualStart')} value={(detail as any).actualStart ? formatDate((detail as any).actualStart) : undefined} />
+                    <DetailRow label={t('podetail.actualEnd')} value={(detail as any).actualEnd ? formatDate((detail as any).actualEnd) : undefined} />
+                    <DetailRow label={t('wo.downtime')} value={(detail as any).downtimeMinutes != null ? t('wo.minutesValue', { count: (detail as any).downtimeMinutes }) : undefined} />
                   </div>
                 </div>
 
                 {/* Linked batches */}
                 {(detail as any).batchRecords?.length > 0 && (
                   <div>
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Linked Batches</p>
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('wo.linkedBatches')}</p>
                     <div className="space-y-1.5">
                       {(detail as any).batchRecords.map((b: any) => (
                         <div key={b.id} className="industrial-card rounded-lg px-3 py-2 flex items-center justify-between">
                           <span className="font-mono text-xs text-primary">{b.batchNumber}</span>
-                          <Badge variant="outline" className="text-[10px] h-4">{b.status}</Badge>
+                          <Badge variant="outline" className="text-[10px] h-4">{t(`batches.status.${b.status}`, { defaultValue: b.status })}</Badge>
                         </div>
                       ))}
                     </div>
@@ -969,7 +970,7 @@ export function ProductionWorkOrdersView() {
                 {/* Notes */}
                 {(detail as any).notes && (
                   <div>
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Notes</p>
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('wform.notes')}</p>
                     <div className="industrial-card rounded-lg px-3 py-2">
                       <p className="text-xs text-muted-foreground">{(detail as any).notes}</p>
                     </div>
@@ -984,32 +985,32 @@ export function ProductionWorkOrdersView() {
             <div className="px-6 py-3 border-t border-border/50 flex items-center gap-2 shrink-0">
               {(detail as any).archivedAt ? (
                 <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7" onClick={() => { restoreWO.mutate((detail as any).id); setViewId(null); }}>
-                  <RotateCcw size={11} />Restore
+                  <RotateCcw size={11} />{t('pomenu.restore')}
                 </Button>
               ) : (
                 <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7" onClick={() => { archiveWO.mutate((detail as any).id); setViewId(null); }}>
-                  <ArchiveIcon size={11} />Archive
+                  <ArchiveIcon size={11} />{t('pomenu.archive')}
                 </Button>
               )}
               {['PLANNED', 'RELEASED'].includes((detail as any).status) && (
                 <Button size="sm" className="gap-1.5 text-xs h-7 bg-green-600 hover:bg-green-700" onClick={() => { startMutation.mutate((detail as any).id); setViewId(null); }}>
-                  <Play size={11} />Start
+                  <Play size={11} />{t('wo.start')}
                 </Button>
               )}
               {(detail as any).status === 'ON_HOLD' && (
                 <Button size="sm" className="gap-1.5 text-xs h-7 bg-green-600 hover:bg-green-700" onClick={() => { releaseMutation.mutate((detail as any).id); setViewId(null); }}>
-                  <Play size={11} />Resume
+                  <Play size={11} />{t('resume')}
                 </Button>
               )}
               {(detail as any).status === 'IN_PROGRESS' && (
                 <>
                   <Button size="sm" className="gap-1.5 text-xs h-7 bg-green-600 hover:bg-green-700"
                     onClick={() => { setViewId(null); setCompleteDialog({ woId: (detail as any).id, orderNumber: (detail as any).orderNumber, plannedQty: (detail as any).plannedQty }); setCompleteForm({ actualQty: String((detail as any).plannedQty), goodQty: '' }); }}>
-                    <CheckCircle size={11} />Complete
+                    <CheckCircle size={11} />{t('complete')}
                   </Button>
                   <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7"
                     onClick={() => { setViewId(null); setHoldDialog({ woId: (detail as any).id, orderNumber: (detail as any).orderNumber }); }}>
-                    <Pause size={11} />Hold
+                    <Pause size={11} />{t('hold')}
                   </Button>
                 </>
               )}

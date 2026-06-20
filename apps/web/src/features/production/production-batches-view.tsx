@@ -121,30 +121,30 @@ export function ProductionBatchesView() {
     mutationFn: (dto: any) => api.post('/production/batches', dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['production', 'batches'] });
-      toast({ title: 'Batch created', description: `Batch ${formData.batchNumber} is now active.` });
+      toast({ title: t('batchv.toastCreated'), description: t('batchv.toastCreatedDesc', { batch: formData.batchNumber }) });
       setFormOpen(false);
       setFormData(EMPTY_FORM);
     },
-    onError: (e: any) => toast({ title: 'Failed to create batch', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('batchv.toastCreateFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: any }) => api.patch(`/production/batches/${id}`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['production', 'batches'] });
-      toast({ title: 'Batch updated successfully' });
+      toast({ title: t('batchv.toastUpdated') });
       setEditBatch(null);
     },
-    onError: (e: any) => toast({ title: 'Update failed', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('batchv.toastUpdateFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/production/batches/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['production', 'batches'] });
-      toast({ title: 'Batch deleted' }); setDeleteId(null);
+      toast({ title: t('batchv.toastDeleted') }); setDeleteId(null);
     },
-    onError: (e: any) => toast({ title: 'Delete failed', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('batchv.toastDeleteFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const activeCount = batches.filter(b => b.status === 'ACTIVE').length;

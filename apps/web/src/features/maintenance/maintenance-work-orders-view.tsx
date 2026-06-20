@@ -240,39 +240,39 @@ export function MaintenanceWorkOrdersView() {
     mutationFn: (dto: any) => api.post('/maintenance/work-orders', dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Maintenance order created', variant: 'success' });
+      toast({ title: t('toast.woCreated'), variant: 'success' });
       handleCloseForm();
     },
-    onError: (e: any) => toast({ title: 'Failed to create maintenance order', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.woCreateFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: any }) => api.patch(`/maintenance/work-orders/${id}`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Maintenance order updated', variant: 'success' });
+      toast({ title: t('toast.woUpdated'), variant: 'success' });
       handleCloseForm();
     },
-    onError: (e: any) => toast({ title: 'Failed to update maintenance order', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.woUpdateFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/maintenance/work-orders/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Maintenance order deleted' });
+      toast({ title: t('toast.woDeleted') });
       setDeleteDialog(null);
     },
-    onError: (e: any) => toast({ title: 'Failed to delete', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.woDeleteFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const startMutation = useMutation({
     mutationFn: (woId: string) => api.patch(`/maintenance/work-orders/${woId}/start`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Maintenance order started', variant: 'success' });
+      toast({ title: t('toast.woStarted'), variant: 'success' });
     },
-    onError: (e: any) => toast({ title: 'Failed to start', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.woStartFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const assignMutation = useMutation({
@@ -280,11 +280,11 @@ export function MaintenanceWorkOrdersView() {
       api.patch(`/maintenance/work-orders/${woId}/assign`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Maintenance order assigned', variant: 'success' });
+      toast({ title: t('toast.woAssigned'), variant: 'success' });
       setAssignDialog(null); setAssignUserId(''); setAssignNotes('');
       setViewWO(null);
     },
-    onError: (e: any) => toast({ title: 'Failed to assign', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.woAssignFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const completeMutation = useMutation({
@@ -292,11 +292,11 @@ export function MaintenanceWorkOrdersView() {
       api.patch(`/maintenance/work-orders/${woId}/complete`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Maintenance order completed', variant: 'success' });
+      toast({ title: t('toast.woCompleted'), variant: 'success' });
       setCompleteDialog(null); setCompleteForm({ actualHours: '', laborCost: '', partsCost: '', runtimeHoursAtService: '', notes: '' });
       setViewWO(null);
     },
-    onError: (e: any) => toast({ title: 'Failed to complete', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.woCompleteFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const holdMutation = useMutation({
@@ -304,19 +304,19 @@ export function MaintenanceWorkOrdersView() {
       api.patch(`/maintenance/work-orders/${woId}/hold`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Maintenance order put on hold' });
+      toast({ title: t('toast.woHeld') });
       setHoldDialog(null); setHoldReason('');
     },
-    onError: (e: any) => toast({ title: 'Failed', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.woActionFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const resumeMutation = useMutation({
     mutationFn: (woId: string) => api.patch(`/maintenance/work-orders/${woId}/resume`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Maintenance order resumed', variant: 'success' });
+      toast({ title: t('toast.woResumed'), variant: 'success' });
     },
-    onError: (e: any) => toast({ title: 'Failed', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.woActionFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const cancelMutation = useMutation({
@@ -324,11 +324,11 @@ export function MaintenanceWorkOrdersView() {
       api.patch(`/maintenance/work-orders/${woId}/cancel`, { reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Maintenance order cancelled' });
+      toast({ title: t('toast.woCancelled') });
       setCancelDialog(null); setCancelReason('');
       setViewWO(null);
     },
-    onError: (e: any) => toast({ title: 'Failed to cancel', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.woCancelFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const issueMutation = useMutation({
@@ -338,12 +338,12 @@ export function MaintenanceWorkOrdersView() {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'wo-spare-parts', viewWO?.id] });
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'spare-parts', 'all'] });
-      toast({ title: 'Parts issued to maintenance order', variant: 'success' });
+      toast({ title: t('toast.partsIssued'), variant: 'success' });
       setIssueDialog(null);
       setIssueQty('');
       setIssueNotes('');
     },
-    onError: (e: any) => toast({ title: 'Failed to issue parts', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.partsIssueFailed'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   const cancelPartMutation = useMutation({
@@ -352,9 +352,9 @@ export function MaintenanceWorkOrdersView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'wo-spare-parts', viewWO?.id] });
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'work-orders'] });
-      toast({ title: 'Part request cancelled' });
+      toast({ title: t('toast.partRequestCancelled') });
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message, variant: 'destructive' }),
   });
 
   // Request more spare parts on an already-open maintenance order (any time before
@@ -368,9 +368,9 @@ export function MaintenanceWorkOrdersView() {
       queryClient.invalidateQueries({ queryKey: ['maintenance', 'spare-parts', 'all'] });
       setSpareLines([]);
       setShowPartPicker(false);
-      toast({ title: 'Spare parts requested', variant: 'success' });
+      toast({ title: t('toast.sparesRequested'), variant: 'success' });
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to request parts', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.sparesRequestFailed'), variant: 'destructive' }),
   });
 
   const submitAddSpares = () => {
@@ -508,7 +508,7 @@ export function MaintenanceWorkOrdersView() {
         <div className="flex items-center gap-2">
           <ExportMenu
             filename="maintenance-orders"
-            title="Maintenance Orders"
+            title={t('woView.exportTitle')}
             rows={orders}
             columns={[
               { key: 'woNumber', label: 'WO #' },
@@ -522,7 +522,7 @@ export function MaintenanceWorkOrdersView() {
             ]}
           />
           <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={handleOpenCreate}>
-            <Plus size={13} />New Maintenance Order
+            <Plus size={13} />{t('woView.newOrder')}
           </Button>
         </div>
       </div>
@@ -601,7 +601,7 @@ export function MaintenanceWorkOrdersView() {
                     const priority = PRIORITY_CONFIG[wo.priority];
                     return (
                       <TableRow key={wo.id} onClick={() => setViewWO(wo)} className={cn('border-border/20 hover:bg-muted/20 cursor-pointer', sel.isSelected(wo.id) && 'bg-primary/5')}>
-                        <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={sel.isSelected(wo.id)} onCheckedChange={() => sel.toggle(wo.id)} aria-label="Select row" /></TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={sel.isSelected(wo.id)} onCheckedChange={() => sel.toggle(wo.id)} aria-label={t('selectRow')} /></TableCell>
                         <TableCell className="font-mono text-xs font-semibold text-primary">{wo.woNumber}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5">
@@ -612,7 +612,7 @@ export function MaintenanceWorkOrdersView() {
                                   'inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded border',
                                   wo.hasPendingParts ? 'text-amber-400 border-amber-500/30' : 'text-muted-foreground border-border/50',
                                 )}
-                                title={`${wo.sparePartsCount} spare part request(s)`}
+                                title={t('woView.sparePartRequests', { count: wo.sparePartsCount })}
                               >
                                 <Package size={9} /> {wo.sparePartsCount}
                               </span>
@@ -642,13 +642,13 @@ export function MaintenanceWorkOrdersView() {
                               {wo.assignedTo}
                             </div>
                           ) : (
-                            <span className="text-xs text-muted-foreground">Unassigned</span>
+                            <span className="text-xs text-muted-foreground">{t('woView.unassigned')}</span>
                           )}
                         </TableCell>
                         <TableCell>
                           {wo.hasPendingParts && (
                             <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-full px-1.5 py-0.5 w-fit">
-                              <Package size={9} />Pending
+                              <Package size={9} />{t('woView.pendingTag')}
                             </span>
                           )}
                         </TableCell>
@@ -664,14 +664,14 @@ export function MaintenanceWorkOrdersView() {
                               : undefined}
                             extraActions={[
                               {
-                                label: 'Start Maintenance Order',
+                                label: t('woView.startOrder'),
                                 icon: Play,
                                 onClick: () => startMutation.mutate(wo.id),
                                 variant: 'success',
                                 hidden: wo.status !== 'ASSIGNED',
                               },
                               {
-                                label: 'Cancel Order',
+                                label: t('woView.cancelOrder'),
                                 icon: Ban,
                                 onClick: () => { setCancelDialog({ wo }); setCancelReason(''); },
                                 variant: 'destructive',
@@ -718,7 +718,7 @@ export function MaintenanceWorkOrdersView() {
           <div className="space-y-5">
             {/* Core fields */}
             <div>
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Maintenance Order Details</p>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('woView.orderDetails')}</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2 space-y-1.5">
                   <Label className="text-xs">{t('mform.title')} <span className="text-destructive">*</span></Label>
@@ -841,8 +841,8 @@ export function MaintenanceWorkOrdersView() {
               <div>
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Package size={10} className="text-brand-400" />
-                  Spare Parts Required
-                  <span className="font-normal text-muted-foreground/60 normal-case tracking-normal">(optional)</span>
+                  {t('woView.sparePartsRequired')}
+                  <span className="font-normal text-muted-foreground/60 normal-case tracking-normal">{t('woView.optional')}</span>
                 </p>
 
                 {spareLines.length > 0 && (
@@ -850,9 +850,9 @@ export function MaintenanceWorkOrdersView() {
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-muted/30 border-b border-border/30">
-                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">Part</th>
-                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">In Stock</th>
-                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">Qty Needed</th>
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t('woView.tblPart')}</th>
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t('woView.tblInStock')}</th>
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t('woView.tblQtyNeeded')}</th>
                           <th className="px-3 py-2 w-8" />
                         </tr>
                       </thead>
@@ -877,7 +877,7 @@ export function MaintenanceWorkOrdersView() {
                                 className={cn('h-7 w-20', line.quantityRequested > line.stockQty && 'border-amber-400/60')}
                               />
                               {line.quantityRequested > line.stockQty && (
-                                <div className="text-[10px] text-amber-400 mt-0.5">Exceeds stock</div>
+                                <div className="text-[10px] text-amber-400 mt-0.5">{t('woView.exceedsStock')}</div>
                               )}
                             </td>
                             <td className="px-3 py-2">
@@ -901,14 +901,14 @@ export function MaintenanceWorkOrdersView() {
                         autoFocus
                         value={spareSearch}
                         onChange={e => setSpareSearch(e.target.value)}
-                        placeholder="Search by part name or number…"
+                        placeholder={t('woView.searchPart')}
                         className="h-8 pl-7 text-xs"
                       />
                     </div>
                     <div className="max-h-40 overflow-y-auto space-y-0.5">
                       {availableParts.length === 0 ? (
                         <p className="text-xs text-muted-foreground text-center py-3">
-                          {spareSearch ? 'No matching parts' : 'All parts already added'}
+                          {spareSearch ? t('woView.noMatchingParts') : t('woView.allPartsAdded')}
                         </p>
                       ) : (
                         availableParts.slice(0, 20).map(p => (
@@ -923,28 +923,28 @@ export function MaintenanceWorkOrdersView() {
                             </div>
                             <div className="text-right shrink-0 ml-4">
                               <div className={cn('text-xs font-medium', p.stockQty <= 0 ? 'text-red-400' : 'text-green-400')}>
-                                {p.stockQty} in stock
+                                {t('woView.qtyInStock', { count: p.stockQty })}
                               </div>
-                              {p.unitCost && <div className="text-[10px] text-muted-foreground">{p.unitCost} SAR/ea</div>}
+                              {p.unitCost && <div className="text-[10px] text-muted-foreground">{t('woView.sarPerEach', { value: p.unitCost })}</div>}
                             </div>
                           </button>
                         ))
                       )}
                     </div>
                     <Button variant="outline" size="sm" className="h-7 text-xs w-full" onClick={() => setShowPartPicker(false)}>
-                      Done
+                      {t('woView.done')}
                     </Button>
                   </div>
                 ) : (
                   <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 w-full" onClick={() => setShowPartPicker(true)}>
-                    <Plus size={12} />Add Spare Part
+                    <Plus size={12} />{t('woView.addSparePart')}
                   </Button>
                 )}
 
                 {spareLines.length > 0 && (
                   <div className="flex items-center gap-1.5 mt-2 text-[11px] text-brand-400 bg-brand-400/5 border border-brand-400/20 rounded-md px-2.5 py-1.5">
                     <Info size={10} />
-                    {spareLines.length} part{spareLines.length > 1 ? 's' : ''} requested — inventory team will confirm delivery before work starts
+                    {t('woView.partsRequested', { count: spareLines.length })}
                   </div>
                 )}
               </div>
@@ -1019,7 +1019,7 @@ export function MaintenanceWorkOrdersView() {
 
               {viewWO.description && (
                 <div>
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('woView.descriptionSection')}</p>
                   <div className="industrial-card rounded-lg px-3 py-2.5">
                     <p className="text-xs text-muted-foreground">{viewWO.description}</p>
                   </div>
@@ -1028,7 +1028,7 @@ export function MaintenanceWorkOrdersView() {
 
               {viewWO.notes && (
                 <div>
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Internal Notes</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('woView.internalNotesSection')}</p>
                   <div className="industrial-card rounded-lg px-3 py-2.5">
                     <p className="text-xs text-muted-foreground">{viewWO.notes}</p>
                   </div>
@@ -1040,15 +1040,15 @@ export function MaintenanceWorkOrdersView() {
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <Package size={10} className="text-brand-400" />
-                    Spare Parts
+                    {t('woView.spareParts')}
                     {woSpareParts.length > 0 && (
                       <span className="normal-case tracking-normal font-normal">
                         — {pendingParts.length > 0 ? (
-                          <span className="text-amber-400">{pendingParts.length} pending delivery</span>
+                          <span className="text-amber-400">{t('woView.pendingDelivery', { count: pendingParts.length })}</span>
                         ) : allIssued ? (
-                          <span className="text-green-400">all issued</span>
+                          <span className="text-green-400">{t('woView.allIssued')}</span>
                         ) : (
-                          <span>{woSpareParts.length} parts</span>
+                          <span>{t('woView.partsCount', { count: woSpareParts.length })}</span>
                         )}
                       </span>
                     )}
@@ -1088,34 +1088,34 @@ export function MaintenanceWorkOrdersView() {
                           <>
                             <div className="relative">
                               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                              <Input autoFocus value={spareSearch} onChange={e => setSpareSearch(e.target.value)} placeholder="Search by part name or number…" className="h-8 pl-7 text-xs" />
+                              <Input autoFocus value={spareSearch} onChange={e => setSpareSearch(e.target.value)} placeholder={t('woView.searchPart')} className="h-8 pl-7 text-xs" />
                             </div>
                             <div className="max-h-40 overflow-y-auto space-y-0.5">
                               {availableParts.length === 0 ? (
-                                <p className="text-xs text-muted-foreground text-center py-3">{spareSearch ? 'No matching parts' : 'All parts already added'}</p>
+                                <p className="text-xs text-muted-foreground text-center py-3">{spareSearch ? t('woView.noMatchingParts') : t('woView.allPartsAdded')}</p>
                               ) : (
                                 availableParts.slice(0, 20).map(p => (
                                   <button key={p.id} onClick={() => addSpareLine(p)} className="w-full flex items-center justify-between px-2.5 py-2 rounded-md hover:bg-muted/60 text-left transition-colors">
                                     <div><div className="text-xs font-medium">{p.name}</div><div className="text-[10px] text-muted-foreground font-mono">{p.partNumber}</div></div>
-                                    <div className={cn('text-xs font-medium shrink-0 ml-4', p.stockQty <= 0 ? 'text-red-400' : 'text-green-400')}>{p.stockQty} in stock</div>
+                                    <div className={cn('text-xs font-medium shrink-0 ml-4', p.stockQty <= 0 ? 'text-red-400' : 'text-green-400')}>{t('woView.qtyInStock', { count: p.stockQty })}</div>
                                   </button>
                                 ))
                               )}
                             </div>
                           </>
                         ) : (
-                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 w-full" onClick={() => setShowPartPicker(true)}><Plus size={12} />Add another part</Button>
+                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 w-full" onClick={() => setShowPartPicker(true)}><Plus size={12} />{t('woView.addAnotherPart')}</Button>
                         )}
                         <div className="flex gap-2">
                           <Button size="sm" className="h-7 text-xs flex-1 gap-1.5" disabled={spareLines.length === 0 || addSpareMutation.isPending} onClick={submitAddSpares}>
-                            <Package size={11} />{addSpareMutation.isPending ? 'Requesting…' : `Request ${spareLines.length} part${spareLines.length === 1 ? '' : 's'}`}
+                            <Package size={11} />{addSpareMutation.isPending ? t('woView.requesting') : t('woView.requestNParts', { count: spareLines.length })}
                           </Button>
-                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setSpareLines([]); setShowPartPicker(false); setSpareSearch(''); }}>Cancel</Button>
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setSpareLines([]); setShowPartPicker(false); setSpareSearch(''); }}>{t('woView.cancel')}</Button>
                         </div>
                       </div>
                     ) : (
                       <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 w-full" onClick={() => setShowPartPicker(true)}>
-                        <Plus size={12} />Request Spare Parts
+                        <Plus size={12} />{t('woView.requestSpareParts')}
                       </Button>
                     )}
                   </div>
@@ -1124,7 +1124,7 @@ export function MaintenanceWorkOrdersView() {
                 {woSpareParts.length === 0 ? (
                   <div className="industrial-card rounded-lg px-3 py-4 text-center">
                     <Package size={20} className="mx-auto mb-1.5 text-muted-foreground/30" />
-                    <p className="text-xs text-muted-foreground">No spare parts requested for this maintenance order</p>
+                    <p className="text-xs text-muted-foreground">{t('woView.noSparesRequested')}</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1143,23 +1143,23 @@ export function MaintenanceWorkOrdersView() {
                               )}
                             </div>
                             <span className={cn('flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border shrink-0', cfg.cls)}>
-                              <Icon size={9} />{cfg.label}
+                              <Icon size={9} />{t(`woView.spareStatus.${req.status}`, { defaultValue: cfg.label })}
                             </span>
                           </div>
 
                           <div className="grid grid-cols-3 gap-2 text-[11px]">
                             <div className="industrial-card rounded px-2 py-1 text-center">
-                              <div className="text-muted-foreground">Requested</div>
+                              <div className="text-muted-foreground">{t('woView.requested')}</div>
                               <div className="font-bold tabular-nums">{req.quantityRequested}</div>
                             </div>
                             <div className="industrial-card rounded px-2 py-1 text-center">
-                              <div className="text-muted-foreground">Issued</div>
+                              <div className="text-muted-foreground">{t('woView.issued')}</div>
                               <div className={cn('font-bold tabular-nums', req.quantityIssued > 0 ? 'text-green-400' : '')}>
                                 {req.quantityIssued}
                               </div>
                             </div>
                             <div className="industrial-card rounded px-2 py-1 text-center">
-                              <div className="text-muted-foreground">In Stock</div>
+                              <div className="text-muted-foreground">{t('woView.inStock')}</div>
                               <div className={cn('font-bold tabular-nums', req.sparePart.stockQty <= 0 ? 'text-red-400' : 'text-green-400')}>
                                 {req.sparePart.stockQty}
                               </div>
@@ -1168,7 +1168,7 @@ export function MaintenanceWorkOrdersView() {
 
                           {req.issuedBy && (
                             <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                              <User size={9} />Issued by {req.issuedBy.name}
+                              <User size={9} />{t('woView.issuedBy', { name: req.issuedBy.name })}
                               {req.issuedAt && ` · ${formatDate(req.issuedAt)}`}
                             </div>
                           )}
@@ -1188,7 +1188,7 @@ export function MaintenanceWorkOrdersView() {
                                   setIssueNotes('');
                                 }}
                               >
-                                <PackageCheck size={11} />Issue Parts
+                                <PackageCheck size={11} />{t('woView.issueParts')}
                               </Button>
                               <Button
                                 variant="outline"
@@ -1197,7 +1197,7 @@ export function MaintenanceWorkOrdersView() {
                                 onClick={() => cancelPartMutation.mutate({ woId: viewWO.id, requestId: req.id })}
                                 disabled={cancelPartMutation.isPending}
                               >
-                                <X size={11} />Cancel
+                                <X size={11} />{t('woView.cancel')}
                               </Button>
                             </div>
                           )}
@@ -1211,7 +1211,7 @@ export function MaintenanceWorkOrdersView() {
                                 setIssueNotes('');
                               }}
                             >
-                              <PackageMinus size={11} />Issue Remaining ({remaining})
+                              <PackageMinus size={11} />{t('woView.issueRemaining', { count: remaining })}
                             </Button>
                           )}
                         </div>
@@ -1229,7 +1229,7 @@ export function MaintenanceWorkOrdersView() {
               {viewWO.status === 'AWAITING_PARTS' && (
                 <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-amber-400/10 border border-amber-400/30 text-amber-400 text-xs">
                   <Package size={12} className="shrink-0" />
-                  <span>Work cannot start until all spare parts are approved and issued by Inventory.</span>
+                  <span>{t('woView.awaitingPartsBanner')}</span>
                 </div>
               )}
               <div className="flex items-center gap-2 flex-wrap">
@@ -1237,35 +1237,35 @@ export function MaintenanceWorkOrdersView() {
                 {!['COMPLETED', 'CANCELLED'].includes(viewWO.status) && (
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5"
                     onClick={() => { setViewWO(null); handleOpenEdit(viewWO); }}>
-                    Edit Order
+                    {t('woView.editOrder')}
                   </Button>
                 )}
                 {/* Assign — for OPEN or AWAITING_PARTS */}
                 {['OPEN', 'AWAITING_PARTS'].includes(viewWO.status) && (
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 text-blue-400 border-blue-400/30 hover:bg-blue-400/10"
                     onClick={() => { setAssignDialog({ wo: viewWO }); setAssignUserId(''); setAssignNotes(''); }}>
-                    <User size={11} />Assign Technician
+                    <User size={11} />{t('woView.assignTechnician')}
                   </Button>
                 )}
                 {/* Start — for ASSIGNED */}
                 {viewWO.status === 'ASSIGNED' && (
                   <Button size="sm" className="h-7 text-xs gap-1.5"
                     onClick={() => { startMutation.mutate(viewWO.id); }}>
-                    <Play size={11} />Start Work
+                    <Play size={11} />{t('woView.startWork')}
                   </Button>
                 )}
                 {/* Complete — for IN_PROGRESS */}
                 {viewWO.status === 'IN_PROGRESS' && (
                   <Button size="sm" className="h-7 text-xs gap-1.5 bg-green-500 hover:bg-green-600 text-white"
                     onClick={() => { setCompleteDialog({ wo: viewWO }); setCompleteForm({ actualHours: '', laborCost: '', partsCost: '', runtimeHoursAtService: '', notes: '' }); }}>
-                    <CheckCircle size={11} />Complete Order
+                    <CheckCircle size={11} />{t('woView.completeOrder')}
                   </Button>
                 )}
                 {/* Hold — for IN_PROGRESS */}
                 {viewWO.status === 'IN_PROGRESS' && (
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 text-amber-400 border-amber-400/30 hover:bg-amber-400/10"
                     onClick={() => { setHoldDialog({ wo: viewWO }); setHoldReason(''); }}>
-                    <Clock size={11} />Put On Hold
+                    <Clock size={11} />{t('woView.putOnHold')}
                   </Button>
                 )}
                 {/* Resume — for ON_HOLD */}
@@ -1410,8 +1410,8 @@ export function MaintenanceWorkOrdersView() {
                   getId={u => u.id}
                   getPrimary={u => u.name}
                   getMeta={u => <span className="text-muted-foreground">{u.role}</span>}
-                  placeholder="Select technician…"
-                  searchPlaceholder="Search technicians…"
+                  placeholder={t('mform.selectTechnician')}
+                  searchPlaceholder={t('mform.searchTechnicians')}
                   clearable={false}
                 />
               </div>

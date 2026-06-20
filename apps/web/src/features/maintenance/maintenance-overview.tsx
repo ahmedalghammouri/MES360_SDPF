@@ -95,11 +95,11 @@ export function MaintenanceOverview() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
             <Calendar size={13} />
-            Schedule
+            {t('ov.schedule')}
           </Button>
           <Button size="sm" className="gap-1.5 h-8 text-xs">
             <Plus size={13} />
-            New Work Order
+            {t('ov.newWorkOrder')}
           </Button>
         </div>
       </div>
@@ -107,13 +107,13 @@ export function MaintenanceOverview() {
       <div className="flex-1 overflow-auto p-6 space-y-5">
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          <KPICard title="Open WOs" value={kpis?.openWOs ?? 0} colorMode="alarm" isLoading={kpisLoading} icon={<Wrench size={16} />} />
-          <KPICard title="Overdue" value={kpis?.overdueWOs ?? 0} colorMode="alarm" isLoading={kpisLoading} icon={<AlertTriangle size={16} />} />
-          <KPICard title="Completion" value={kpis?.completionRate ?? 0} unit="%" target={95} colorMode="oee" isLoading={kpisLoading} icon={<CheckCircle2 size={16} />} />
-          <KPICard title="MTTR" value={kpis?.mttr ?? 0} unit="h" isLoading={kpisLoading} icon={<Clock size={16} />} />
-          <KPICard title="MTBF" value={kpis?.mtbf ?? 0} unit="h" isLoading={kpisLoading} icon={<Activity size={16} />} />
-          <KPICard title="Availability" value={kpis?.availabilityRate ?? 0} unit="%" target={98} colorMode="oee" isLoading={kpisLoading} />
-          <KPICard title="PM Compliance" value={kpis?.pmCompliance ?? 0} unit="%" target={90} colorMode="oee" isLoading={kpisLoading} />
+          <KPICard title={t('ov.kpiOpenWOs')} value={kpis?.openWOs ?? 0} colorMode="alarm" isLoading={kpisLoading} icon={<Wrench size={16} />} />
+          <KPICard title={t('ov.kpiOverdue')} value={kpis?.overdueWOs ?? 0} colorMode="alarm" isLoading={kpisLoading} icon={<AlertTriangle size={16} />} />
+          <KPICard title={t('ov.kpiCompletion')} value={kpis?.completionRate ?? 0} unit="%" target={95} colorMode="oee" isLoading={kpisLoading} icon={<CheckCircle2 size={16} />} />
+          <KPICard title={t('ov.kpiMttr')} value={kpis?.mttr ?? 0} unit="h" isLoading={kpisLoading} icon={<Clock size={16} />} />
+          <KPICard title={t('ov.kpiMtbf')} value={kpis?.mtbf ?? 0} unit="h" isLoading={kpisLoading} icon={<Activity size={16} />} />
+          <KPICard title={t('ov.kpiAvailability')} value={kpis?.availabilityRate ?? 0} unit="%" target={98} colorMode="oee" isLoading={kpisLoading} />
+          <KPICard title={t('ov.kpiPmCompliance')} value={kpis?.pmCompliance ?? 0} unit="%" target={90} colorMode="oee" isLoading={kpisLoading} />
         </div>
 
         {/* MTTR/MTBF Chart */}
@@ -125,21 +125,21 @@ export function MaintenanceOverview() {
             <TabsList>
               <TabsTrigger value="work-orders" className="text-xs gap-1.5">
                 <Wrench size={12} />
-                Work Orders
+                {t('ov.tabWorkOrders')}
               </TabsTrigger>
               <TabsTrigger value="assets" className="text-xs gap-1.5">
                 <Boxes size={12} />
-                Assets
+                {t('ov.tabAssets')}
               </TabsTrigger>
               <TabsTrigger value="calendar" className="text-xs gap-1.5">
                 <Calendar size={12} />
-                PM Calendar
+                {t('ov.tabCalendar')}
               </TabsTrigger>
             </TabsList>
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search..."
+                placeholder={t('search')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-8 pl-7 w-44 text-xs"
@@ -152,15 +152,15 @@ export function MaintenanceOverview() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-border/30">
-                    <TableHead className="text-[11px]">WO #</TableHead>
-                    <TableHead className="text-[11px]">Title</TableHead>
-                    <TableHead className="text-[11px]">Type</TableHead>
-                    <TableHead className="text-[11px]">Priority</TableHead>
-                    <TableHead className="text-[11px]">Status</TableHead>
-                    <TableHead className="text-[11px]">Asset</TableHead>
-                    <TableHead className="text-[11px]">Assigned To</TableHead>
-                    <TableHead className="text-[11px]">Due Date</TableHead>
-                    <TableHead className="text-[11px]">Est. Hours</TableHead>
+                    <TableHead className="text-[11px]">{t('ov.col.wo')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ov.col.title')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ov.col.type')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ov.col.priority')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ov.col.status')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ov.col.asset')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ov.col.assignedTo')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ov.col.dueDate')}</TableHead>
+                    <TableHead className="text-[11px]">{t('ov.col.estHours')}</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
@@ -193,7 +193,7 @@ export function MaintenanceOverview() {
                         </TableCell>
                         <TableCell>
                           <Badge variant={WO_STATUS[wo.status]} className="text-[10px] h-5">
-                            {wo.status.replace('_', ' ')}
+                            {t(`woStatus.${wo.status}`, { defaultValue: wo.status.replace('_', ' ') })}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -201,7 +201,7 @@ export function MaintenanceOverview() {
                           <div className="text-[10px] text-muted-foreground">{wo.assetCode}</div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {wo.assignedTo || <span className="italic text-warning-400">Unassigned</span>}
+                          {wo.assignedTo || <span className="italic text-warning-400">{t('unassigned')}</span>}
                         </TableCell>
                         <TableCell className={cn('text-xs', isOverdue && 'text-danger-400 font-medium')}>
                           {formatDate(wo.dueDate)}
@@ -231,8 +231,8 @@ export function MaintenanceOverview() {
             <div className="flex items-center justify-center h-40 industrial-card rounded-lg">
               <div className="text-center">
                 <Boxes size={32} className="text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Asset Registry</p>
-                <p className="text-xs text-muted-foreground/60">Equipment, BOM, and asset history</p>
+                <p className="text-sm text-muted-foreground">{t('ov.assetRegistry')}</p>
+                <p className="text-xs text-muted-foreground/60">{t('ov.assetRegistryDesc')}</p>
               </div>
             </div>
           </TabsContent>
@@ -241,8 +241,8 @@ export function MaintenanceOverview() {
             <div className="flex items-center justify-center h-40 industrial-card rounded-lg">
               <div className="text-center">
                 <Calendar size={32} className="text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">PM Calendar</p>
-                <p className="text-xs text-muted-foreground/60">Scheduled preventive maintenance</p>
+                <p className="text-sm text-muted-foreground">{t('ov.pmCalendar')}</p>
+                <p className="text-xs text-muted-foreground/60">{t('ov.pmCalendarDesc')}</p>
               </div>
             </div>
           </TabsContent>

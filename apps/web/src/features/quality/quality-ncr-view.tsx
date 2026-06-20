@@ -146,30 +146,30 @@ export function QualityNcrView() {
     mutationFn: (dto: any) => api.post('/quality/ncr', dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quality', 'ncr'] })
-      toast({ title: 'NCR created successfully' })
+      toast({ title: t('toast.ncrCreated') })
       handleCloseForm()
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to create NCR', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.ncrCreateFailed'), variant: 'destructive' }),
   })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: any }) => api.patch(`/quality/ncr/${id}`, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quality', 'ncr'] })
-      toast({ title: 'NCR updated successfully' })
+      toast({ title: t('toast.ncrUpdated') })
       handleCloseForm()
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to update NCR', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.ncrUpdateFailed'), variant: 'destructive' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/quality/ncr/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quality', 'ncr'] })
-      toast({ title: 'NCR deleted successfully' })
+      toast({ title: t('toast.ncrDeleted') })
       setDeleteDialog(null)
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to delete NCR', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.ncrDeleteFailed'), variant: 'destructive' }),
   })
 
   const { archive: archiveMutation, restore: restoreMutation, bulkArchive, bulkRestore } = useArchive('ncrs', [['quality', 'ncr']], 'NCR');
@@ -179,9 +179,9 @@ export function QualityNcrView() {
       api.patch(`/quality/ncr/${ncrId}/status`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quality', 'ncr'] })
-      toast({ title: 'NCR status updated' })
+      toast({ title: t('toast.ncrStatusUpdated') })
     },
-    onError: (e: any) => toast({ title: 'Error', description: e?.response?.data?.message ?? 'Failed to update NCR', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: t('toast.error'), description: e?.response?.data?.message ?? t('toast.ncrUpdateFailed'), variant: 'destructive' }),
   })
 
   const openCount = ncrs.filter((n) => n.status === 'OPEN').length;
@@ -293,18 +293,18 @@ export function QualityNcrView() {
         <div className="flex items-center gap-2">
           <ExportMenu
             filename="ncr-register"
-            title="NCR Register"
+            title={t('ncr.register')}
             rows={ncrs}
             columns={[
-              { key: 'ncrNumber', label: 'NCR #' },
-              { key: 'title', label: 'Title' },
-              { key: 'severity', label: 'Severity' },
-              { key: 'status', label: 'Status' },
-              { key: 'machine', label: 'Machine', value: (r: any) => r.machine?.name ?? '' },
-              { key: 'batch', label: 'Batch / Product', value: (r: any) => r.batchRecord?.batchNumber ?? r.sku?.name ?? '' },
-              { key: 'detectedBy', label: 'Detected By', value: (r: any) => r.detectedBy?.name ?? '' },
-              { key: 'reportedAt', label: 'Reported', value: (r: any) => r.reportedAt ? formatDate(r.reportedAt) : '' },
-              { key: 'dueDate', label: 'Due', value: (r: any) => r.dueDate ? formatDate(r.dueDate) : '' },
+              { key: 'ncrNumber', label: t('ncr.col.ncr') },
+              { key: 'title', label: t('ncr.col.title') },
+              { key: 'severity', label: t('ncr.col.severity') },
+              { key: 'status', label: t('ncr.col.status') },
+              { key: 'machine', label: t('ncr.col.machine'), value: (r: any) => r.machine?.name ?? '' },
+              { key: 'batch', label: t('ncr.col.batchProduct'), value: (r: any) => r.batchRecord?.batchNumber ?? r.sku?.name ?? '' },
+              { key: 'detectedBy', label: t('ncr.col.detectedBy'), value: (r: any) => r.detectedBy?.name ?? '' },
+              { key: 'reportedAt', label: t('ncr.col.reported'), value: (r: any) => r.reportedAt ? formatDate(r.reportedAt) : '' },
+              { key: 'dueDate', label: t('ncr.col.due'), value: (r: any) => r.dueDate ? formatDate(r.dueDate) : '' },
             ]}
           />
           <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={handleOpenCreate}><Plus size={13} /> {t('ncr.newNcr')}</Button>
@@ -433,11 +433,11 @@ export function QualityNcrView() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem asChild className="gap-2 text-xs">
-                                <Link href={`/quality/ncr/${ncr.id}`}><Eye size={12} /> View details</Link>
+                                <Link href={`/quality/ncr/${ncr.id}`}><Eye size={12} /> {t('ncr.viewDetails')}</Link>
                               </DropdownMenuItem>
                               {['OPEN', 'IN_REVIEW'].includes(ncr.status) && (
                                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => handleOpenEdit(ncr)}>
-                                  <Pencil size={12} /> Edit
+                                  <Pencil size={12} /> {t('common.edit')}
                                 </DropdownMenuItem>
                               )}
                               {nextStatuses.length > 0 && <DropdownMenuSeparator />}
@@ -447,22 +447,22 @@ export function QualityNcrView() {
                                   className="text-xs"
                                   onClick={() => statusMutation.mutate({ ncrId: ncr.id, status: s })}
                                 >
-                                  → {STATUS_LABELS[s as NcrStatus] ?? s}
+                                  → {t(`ncr.status.${s}`, { defaultValue: STATUS_LABELS[s as NcrStatus] ?? s })}
                                 </DropdownMenuItem>
                               ))}
                               <DropdownMenuSeparator />
                               {(ncr as any).archivedAt ? (
                                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => restoreMutation.mutate(ncr.id)}>
-                                  <RotateCcw size={12} /> Restore
+                                  <RotateCcw size={12} /> {t('common.restore')}
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem className="gap-2 text-xs" onClick={() => archiveMutation.mutate(ncr.id)}>
-                                  <ArchiveIcon size={12} /> Archive
+                                  <ArchiveIcon size={12} /> {t('common.archive')}
                                 </DropdownMenuItem>
                               )}
                               {['OPEN'].includes(ncr.status) && (
                                 <DropdownMenuItem className="gap-2 text-destructive text-xs" onClick={() => setDeleteDialog({ id: ncr.id, ncrNumber: ncr.ncrNumber })}>
-                                  <Trash2 size={12} /> Delete
+                                  <Trash2 size={12} /> {t('common.delete')}
                                 </DropdownMenuItem>
                               )}
                             </DropdownMenuContent>
@@ -507,11 +507,11 @@ export function QualityNcrView() {
           </div>
           <div>
             <Label>{t('nform.defectCategory')} *</Label>
-            <Input value={form.defectCategory} onChange={e => setForm(v => ({ ...v, defectCategory: e.target.value }))} placeholder="e.g. LABELING, FILL_WEIGHT, SEAL" className="mt-1" />
+            <Input value={form.defectCategory} onChange={e => setForm(v => ({ ...v, defectCategory: e.target.value }))} placeholder={t('nform.defectCategoryPlaceholder')} className="mt-1" />
           </div>
           <div>
             <Label>{t('nform.defectCode')} <span className="text-muted-foreground">({t('nform.optional')})</span></Label>
-            <Input value={form.defectCode} onChange={e => setForm(v => ({ ...v, defectCode: e.target.value }))} placeholder="e.g. DC-001" className="mt-1" />
+            <Input value={form.defectCode} onChange={e => setForm(v => ({ ...v, defectCode: e.target.value }))} placeholder={t('nform.defectCodePlaceholder')} className="mt-1" />
           </div>
           <div>
             <Label>{t('nform.ncQty')} *</Label>
@@ -522,8 +522,8 @@ export function QualityNcrView() {
             <Select value={form.disposition} onValueChange={v => setForm(f => ({ ...f, disposition: v }))}>
               <SelectTrigger className="mt-1"><SelectValue placeholder={t('nform.selectDisposition')} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
-                {DISPOSITIONS.map(d => <SelectItem key={d} value={d}>{DISPOSITION_LABELS[d]}</SelectItem>)}
+                <SelectItem value="__none__">{t('common.none')}</SelectItem>
+                {DISPOSITIONS.map(d => <SelectItem key={d} value={d}>{t(`ncr.disposition.${d}`, { defaultValue: DISPOSITION_LABELS[d] })}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

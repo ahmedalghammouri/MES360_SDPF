@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, CalendarRange, CalendarDays, GanttChartSquare, Layers, Boxes } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -21,11 +22,14 @@ interface ScheduleViewProps {
 }
 
 export function ScheduleView({
-  title = 'General Schedule',
-  subtitle = 'Unified Gantt across production, work orders, maintenance, planned downtime and shifts.',
+  title: titleProp,
+  subtitle: subtitleProp,
   defaultTypes,
   lockTypes = false,
 }: ScheduleViewProps) {
+  const { t } = useTranslation('modules');
+  const title = titleProp ?? t('schedule.view.title');
+  const subtitle = subtitleProp ?? t('schedule.view.subtitle');
   const [zoom, setZoom] = useState<FactoryZoom>('week');
   const [groupBy, setGroupBy] = useState<'type' | 'resource'>('type');
   const [anchor, setAnchor] = useState(() => {
@@ -71,8 +75,8 @@ export function ScheduleView({
       return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
     }
     const present = new Set(filteredItems.map((i) => i.type));
-    return typeMeta.filter((t) => present.has(t.type)).map((t) => ({ id: t.type, name: t.label, sub: `${counts[t.type] ?? 0} items` }));
-  }, [filteredItems, groupBy, typeMeta, counts]);
+    return typeMeta.filter((tm) => present.has(tm.type)).map((tm) => ({ id: tm.type, name: tm.label, sub: t('schedule.view.itemsCount', { count: counts[tm.type] ?? 0 }) }));
+  }, [filteredItems, groupBy, typeMeta, counts, t]);
 
   const ganttTasks: FactoryTask[] = useMemo(() => filteredItems.map((it) => ({
     id: it.id,
@@ -117,11 +121,11 @@ export function ScheduleView({
           <div className="inline-flex rounded-lg border border-border overflow-hidden">
             <button onClick={() => setView('gantt')}
               className={cn('px-2.5 py-1.5 text-xs flex items-center gap-1.5', view === 'gantt' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted/50')}>
-              <GanttChartSquare size={13} /> Gantt
+              <GanttChartSquare size={13} /> {t('schedule.view.gantt')}
             </button>
             <button onClick={() => setView('calendar')}
               className={cn('px-2.5 py-1.5 text-xs flex items-center gap-1.5 border-l border-border', view === 'calendar' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted/50')}>
-              <CalendarDays size={13} /> Calendar
+              <CalendarDays size={13} /> {t('schedule.view.calendar')}
             </button>
           </div>
           {view === 'gantt' && (
@@ -130,20 +134,20 @@ export function ScheduleView({
               <div className="inline-flex rounded-lg border border-border overflow-hidden">
                 <button onClick={() => setGroupBy('type')}
                   className={cn('px-2.5 py-1.5 text-xs flex items-center gap-1.5', groupBy === 'type' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted/50')}>
-                  <Layers size={13} /> Type
+                  <Layers size={13} /> {t('schedule.view.groupType')}
                 </button>
                 <button onClick={() => setGroupBy('resource')}
                   className={cn('px-2.5 py-1.5 text-xs flex items-center gap-1.5 border-l border-border', groupBy === 'resource' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted/50')}>
-                  <Boxes size={13} /> Resource
+                  <Boxes size={13} /> {t('schedule.view.groupResource')}
                 </button>
               </div>
               {/* zoom */}
               <div className="inline-flex rounded-lg border border-border overflow-hidden">
                 {(['day', 'week', 'month'] as FactoryZoom[]).map((z) => (
                   <button key={z} onClick={() => setZoom(z)}
-                    className={cn('px-2.5 py-1.5 text-xs capitalize', z !== 'day' && 'border-l border-border',
+                    className={cn('px-2.5 py-1.5 text-xs', z !== 'day' && 'border-l border-border',
                       zoom === z ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted/50')}>
-                    {z}
+                    {t('schedule.view.zoom.' + z)}
                   </button>
                 ))}
               </div>
@@ -175,7 +179,7 @@ export function ScheduleView({
         {view === 'gantt' && (
           <div className="flex items-center gap-1.5">
             <Button variant="outline" size="sm" className="h-8" onClick={today}>
-              <CalendarRange size={14} className="mr-1.5" /> Today
+              <CalendarRange size={14} className="mr-1.5" /> {t('schedule.view.today')}
             </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shift(-1)}><ChevronLeft size={16} /></Button>
             <span className="text-xs font-medium text-muted-foreground min-w-[180px] text-center tabular-nums">{rangeLabel}</span>
@@ -206,7 +210,7 @@ export function ScheduleView({
           rangeTo={dateTo}
           zoom={zoom}
           onZoomChange={(z) => setZoom(z)}
-          statusExtra={`${rangeLabel} · grouped by ${groupBy}`}
+          statusExtra={`${rangeLabel} · ${t('schedule.view.groupedBy', { group: t('schedule.view.' + (groupBy === 'type' ? 'groupType' : 'groupResource')) })}`}
         />
       )}
     </div>

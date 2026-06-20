@@ -26,18 +26,19 @@ import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { SystemDangerZone } from './system-danger-zone';
 
-const passwordSchema = z
-  .object({
-    currentPassword: z.string().min(1, 'Required'),
-    newPassword: z.string().min(8, 'Minimum 8 characters'),
-    confirmPassword: z.string(),
-  })
-  .refine((d) => d.newPassword === d.confirmPassword, {
-    message: "Passwords don't match",
-    path: ['confirmPassword'],
-  });
+const makePasswordSchema = (t: (key: string) => string) =>
+  z
+    .object({
+      currentPassword: z.string().min(1, t('validation.required')),
+      newPassword: z.string().min(8, t('validation.minPassword')),
+      confirmPassword: z.string(),
+    })
+    .refine((d) => d.newPassword === d.confirmPassword, {
+      message: t('validation.passwordsDontMatch'),
+      path: ['confirmPassword'],
+    });
 
-type PasswordFormData = z.infer<typeof passwordSchema>;
+type PasswordFormData = z.infer<ReturnType<typeof makePasswordSchema>>;
 
 export function SettingsView() {
   const { user, setUser } = useAuthStore();
@@ -87,28 +88,28 @@ export function SettingsView() {
   const {
     register, handleSubmit, reset,
     formState: { errors, isSubmitting },
-  } = useForm<PasswordFormData>({ resolver: zodResolver(passwordSchema) });
+  } = useForm<PasswordFormData>({ resolver: zodResolver(makePasswordSchema(t)) });
 
   // Generic profile save → PATCH /users/me, then sync the auth store.
   const saveProfile = useMutation({
     mutationFn: (patch: Record<string, unknown>) => api.patch<any>('/users/me', patch),
     onSuccess: (updated) => {
       if (user) setUser({ ...user, ...updated });
-      toast({ title: 'Saved', description: 'Your settings have been updated.' });
+      toast({ title: t('toasts.saved'), description: t('toasts.savedDesc') });
     },
     onError: (e: any) => {
-      toast({ variant: 'destructive', title: 'Save failed', description: e?.response?.data?.message ?? 'Please try again.' });
+      toast({ variant: 'destructive', title: t('toasts.saveFailed'), description: e?.response?.data?.message ?? t('toasts.tryAgain') });
     },
   });
 
   const handlePasswordChange = async (data: PasswordFormData) => {
     try {
       await authService.changePassword(data.currentPassword, data.newPassword);
-      toast({ title: 'Password changed', description: 'Your password has been updated successfully.' });
+      toast({ title: t('toasts.passwordChanged'), description: t('toasts.passwordChangedDesc') });
       reset();
       setChangingPassword(false);
     } catch {
-      toast({ title: 'Error', description: 'Current password is incorrect.', variant: 'destructive' });
+      toast({ title: t('toasts.error'), description: t('toasts.currentPasswordIncorrect'), variant: 'destructive' });
     }
   };
 
@@ -156,43 +157,43 @@ export function SettingsView() {
           {activeSection === 'profile' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold">Profile Information</h2>
-                <p className="text-sm text-muted-foreground">Update your personal details</p>
+                <h2 className="text-lg font-semibold">{t('profile.title')}</h2>
+                <p className="text-sm text-muted-foreground">{t('profile.subtitle')}</p>
               </div>
               <Separator />
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Full Name</Label>
+                  <Label>{t('profile.fullName')}</Label>
                   <Input value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Name (Arabic)</Label>
+                  <Label>{t('profile.nameArabic')}</Label>
                   <Input value={nameAr} onChange={(e) => setNameAr(e.target.value)} dir="rtl" />
                 </div>
                 <div className="space-y-2 col-span-2">
-                  <Label>Email Address</Label>
+                  <Label>{t('profile.emailAddress')}</Label>
                   <Input defaultValue={user?.email || ''} disabled />
-                  <p className="text-xs text-muted-foreground">Email cannot be changed. Contact admin.</p>
+                  <p className="text-xs text-muted-foreground">{t('profile.emailCannotChange')}</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Role</Label>
+                  <Label>{t('profile.role')}</Label>
                   <Input defaultValue={user?.role || ''} disabled />
                 </div>
                 <div className="space-y-2">
-                  <Label>Department</Label>
+                  <Label>{t('profile.department')}</Label>
                   <Input value={department} onChange={(e) => setDepartment(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Job Title</Label>
+                  <Label>{t('profile.jobTitle')}</Label>
                   <Input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Phone</Label>
+                  <Label>{t('profile.phone')}</Label>
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </div>
               </div>
               <Button onClick={() => saveProfile.mutate({ name, nameAr, department, jobTitle, phone })} disabled={saveProfile.isPending}>
-                {saveProfile.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : 'Save Changes'}
+                {saveProfile.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('profile.saving')}</> : t('profile.saveChanges')}
               </Button>
             </div>
           )}
@@ -200,41 +201,41 @@ export function SettingsView() {
           {activeSection === 'security' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold">Security Settings</h2>
-                <p className="text-sm text-muted-foreground">Manage your password and two-factor authentication</p>
+                <h2 className="text-lg font-semibold">{t('security.title')}</h2>
+                <p className="text-sm text-muted-foreground">{t('security.subtitle')}</p>
               </div>
               <Separator />
 
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Change Password</h3>
+                <h3 className="text-sm font-semibold">{t('security.changePassword')}</h3>
                 {!changingPassword ? (
                   <Button variant="outline" onClick={() => setChangingPassword(true)}>
                     <Key className="w-4 h-4 mr-2" />
-                    Change Password
+                    {t('security.changePassword')}
                   </Button>
                 ) : (
                   <form onSubmit={handleSubmit(handlePasswordChange)} className="space-y-3 max-w-sm">
                     <div className="space-y-2">
-                      <Label>Current Password</Label>
+                      <Label>{t('security.currentPassword')}</Label>
                       <Input type="password" {...register('currentPassword')} />
                       {errors.currentPassword && <p className="text-xs text-destructive">{errors.currentPassword.message}</p>}
                     </div>
                     <div className="space-y-2">
-                      <Label>New Password</Label>
+                      <Label>{t('security.newPassword')}</Label>
                       <Input type="password" {...register('newPassword')} />
                       {errors.newPassword && <p className="text-xs text-destructive">{errors.newPassword.message}</p>}
                     </div>
                     <div className="space-y-2">
-                      <Label>Confirm New Password</Label>
+                      <Label>{t('security.confirmNewPassword')}</Label>
                       <Input type="password" {...register('confirmPassword')} />
                       {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
                     </div>
                     <div className="flex gap-2">
                       <Button type="submit" disabled={isSubmitting}>
-                        {isSubmitting ? 'Updating...' : 'Update Password'}
+                        {isSubmitting ? t('security.updating') : t('security.updatePassword')}
                       </Button>
                       <Button type="button" variant="outline" onClick={() => { setChangingPassword(false); reset(); }}>
-                        Cancel
+                        {t('security.cancel')}
                       </Button>
                     </div>
                   </form>
@@ -246,20 +247,20 @@ export function SettingsView() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold">Two-Factor Authentication</h3>
+                    <h3 className="text-sm font-semibold">{t('security.twoFactor')}</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Add an extra layer of security using an authenticator app
+                      {t('security.twoFactorDesc')}
                     </p>
                   </div>
                   {user?.mfaEnabled ? (
                     <div className="flex items-center gap-2 text-green-400 text-sm">
                       <CheckCircle className="w-4 h-4" />
-                      Enabled
+                      {t('security.enabled')}
                     </div>
                   ) : (
-                    <Button size="sm" disabled onClick={() => toast({ title: 'Coming soon', description: 'MFA enrollment is not available yet.' })}>
+                    <Button size="sm" disabled onClick={() => toast({ title: t('toasts.comingSoonTitle'), description: t('toasts.mfaNotAvailable') })}>
                       <QrCode className="w-4 h-4 mr-2" />
-                      Setup MFA
+                      {t('security.setupMfa')}
                     </Button>
                   )}
                 </div>
@@ -267,13 +268,13 @@ export function SettingsView() {
                 {mfaSetupData && (
                   <div className="bg-foreground/5 rounded-lg p-4 space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+                      {t('security.scanQr')}
                     </p>
                     <div className="w-48 h-48 bg-white rounded-lg flex items-center justify-center">
-                      <img src={mfaSetupData.qrCode} alt="MFA QR Code" className="w-44 h-44" />
+                      <img src={mfaSetupData.qrCode} alt={t('security.qrAlt')} className="w-44 h-44" />
                     </div>
                     <div>
-                      <Label className="text-xs">Manual Entry Key</Label>
+                      <Label className="text-xs">{t('security.manualEntryKey')}</Label>
                       <Input value={mfaSetupData.secret} readOnly className="font-mono text-xs mt-1" />
                     </div>
                   </div>
@@ -285,17 +286,17 @@ export function SettingsView() {
           {activeSection === 'notifications' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold">Notification Channels</h2>
-                <p className="text-sm text-muted-foreground">Choose how you receive alerts. For per-event rules, use Notification Preferences.</p>
+                <h2 className="text-lg font-semibold">{t('notifications.title')}</h2>
+                <p className="text-sm text-muted-foreground">{t('notifications.subtitle')}</p>
               </div>
               <Separator />
               <div className="space-y-4 max-w-lg">
                 {[
-                  { label: 'Email', desc: 'Receive notifications by email', val: notifyEmail, set: setNotifyEmail },
-                  { label: 'WhatsApp', desc: 'Receive notifications on WhatsApp', val: notifyWhatsapp, set: setNotifyWhatsapp },
-                  { label: 'SMS', desc: 'Receive notifications by SMS', val: notifySMS, set: setNotifySMS },
+                  { key: 'email', label: t('notifications.email'), desc: t('notifications.emailDesc'), val: notifyEmail, set: setNotifyEmail },
+                  { key: 'whatsapp', label: t('notifications.whatsapp'), desc: t('notifications.whatsappDesc'), val: notifyWhatsapp, set: setNotifyWhatsapp },
+                  { key: 'sms', label: t('notifications.sms'), desc: t('notifications.smsDesc'), val: notifySMS, set: setNotifySMS },
                 ].map((pref) => (
-                  <div key={pref.label} className="flex items-center justify-between py-1.5">
+                  <div key={pref.key} className="flex items-center justify-between py-1.5">
                     <div>
                       <div className="text-sm font-medium">{pref.label}</div>
                       <div className="text-xs text-muted-foreground">{pref.desc}</div>
@@ -312,10 +313,10 @@ export function SettingsView() {
               </div>
               <div className="flex items-center gap-3">
                 <Button onClick={() => saveProfile.mutate({ notifyEmail, notifyWhatsapp, notifySMS })} disabled={saveProfile.isPending}>
-                  {saveProfile.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : 'Save Channels'}
+                  {saveProfile.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('notifications.saving')}</> : t('notifications.saveChannels')}
                 </Button>
                 <Link href="/notifications/preferences" className="text-sm text-brand-400 hover:underline inline-flex items-center gap-1">
-                  Advanced rules <ExternalLink className="w-3.5 h-3.5" />
+                  {t('notifications.advancedRules')} <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
               </div>
             </div>
@@ -324,8 +325,8 @@ export function SettingsView() {
           {activeSection === 'language' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold">Language & Region</h2>
-                <p className="text-sm text-muted-foreground">Configure display language and regional settings</p>
+                <h2 className="text-lg font-semibold">{t('language.title')}</h2>
+                <p className="text-sm text-muted-foreground">{t('language.subtitle')}</p>
               </div>
               <Separator />
               <div className="grid grid-cols-2 gap-4 max-w-md">
@@ -335,23 +336,23 @@ export function SettingsView() {
                     options={[{ value: 'en', label: 'English' }, { value: 'ar', label: 'العربية (Arabic)' }]} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Date Format</Label>
+                  <Label>{t('language.dateFormat')}</Label>
                   <SelectMenu size="md" fullWidth value={dateFormat} onValueChange={setDateFormat}
                     options={[{ value: 'DD/MM/YYYY', label: 'DD/MM/YYYY' }, { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY' }, { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD' }]} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Time Zone</Label>
+                  <Label>{t('language.timeZone')}</Label>
                   <SelectMenu size="md" fullWidth value={timeZone} onValueChange={setTimeZone}
                     options={[{ value: 'Asia/Riyadh', label: 'Asia/Riyadh (UTC+3)' }, { value: 'UTC', label: 'UTC' }, { value: 'Africa/Cairo', label: 'Africa/Cairo (UTC+2)' }]} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Number Format</Label>
+                  <Label>{t('language.numberFormat')}</Label>
                   <SelectMenu size="md" fullWidth value={numberFormat} onValueChange={setNumberFormat}
                     options={[{ value: '1,234.56', label: '1,234.56' }, { value: '1.234,56', label: '1.234,56' }]} />
                 </div>
               </div>
               <Button onClick={saveRegion} disabled={saveProfile.isPending}>
-                {saveProfile.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : 'Save Settings'}
+                {saveProfile.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('languageSection.saving')}</> : t('language.save')}
               </Button>
             </div>
           )}
@@ -393,8 +394,8 @@ export function SettingsView() {
           {activeSection === 'integrations' && (
             <div className="py-12 text-center text-muted-foreground">
               <Settings className="w-12 h-12 mx-auto mb-3 opacity-40" />
-              <div className="font-medium">Coming soon</div>
-              <div className="text-sm mt-1">This settings section is under development</div>
+              <div className="font-medium">{t('integrations.comingSoon')}</div>
+              <div className="text-sm mt-1">{t('integrations.underDevelopment')}</div>
             </div>
           )}
 

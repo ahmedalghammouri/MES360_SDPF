@@ -163,18 +163,18 @@ export function StorageLocationsView() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw size={13} className="mr-1.5" /> Refresh
+            <RefreshCw size={13} className="mr-1.5" /> {t('storageView.refresh')}
           </Button>
           <Button size="sm" onClick={() => { setEditLocation(null); setForm({ ...EMPTY_FORM }); setFormOpen(true); }}>
-            <Plus size={14} className="mr-1.5" /> New Location
+            <Plus size={14} className="mr-1.5" /> {t('storageView.newLocation')}
           </Button>
         </div>
       </div>
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-        <KPIChip label="Total Locations" value={locations.length} icon={MapPin} />
-        <KPIChip label="Active" value={activeCount} icon={CheckCircle2} valueClass="text-green-400" />
+        <KPIChip label={t('storageView.kpi.totalLocations')} value={locations.length} icon={MapPin} />
+        <KPIChip label={t('storageView.kpi.active')} value={activeCount} icon={CheckCircle2} valueClass="text-green-400" />
         <KPIChip label={t('storage.itemsTracked')} value={totalItems} icon={Boxes} />
         {ZONES.map(z => {
           const c = locations.filter(l => l.zone === z.value).length;
@@ -240,7 +240,7 @@ export function StorageLocationsView() {
             <div className="border rounded-xl p-16 text-center text-sm text-muted-foreground">
               <MapPin size={36} className="mx-auto mb-3 opacity-20" />
               <p className="font-medium mb-1">{t('storage.noLocations')}</p>
-              <p>Create your first location to start tracking inventory placement.</p>
+              <p>{t('storageView.createFirst')}</p>
             </div>
           )}
         </div>
@@ -279,7 +279,7 @@ export function StorageLocationsView() {
                     <Input
                       value={form.code}
                       onChange={e => setForm(p => ({ ...p, code: e.target.value.toUpperCase() }))}
-                      placeholder="RM-A01"
+                      placeholder={t('storageView.codePlaceholder')}
                       className="h-8 text-sm font-mono"
                       disabled={!!editLocation}
                     />
@@ -376,6 +376,7 @@ function LocationCard({ location, zone, onView, onEdit, onDeactivate, onDelete }
   onDeactivate: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation(['inventory', 'common']);
   const [menuOpen, setMenuOpen] = useState(false);
   const Icon = zone.icon;
   const usage = location.capacity && location.capacity > 0
@@ -383,9 +384,9 @@ function LocationCard({ location, zone, onView, onEdit, onDeactivate, onDelete }
     : null;
 
   const chips = [
-    location.rawMaterialCount > 0 && { label: `${location.rawMaterialCount} RM`, cls: 'text-blue-400' },
-    location.materialLotCount > 0 && { label: `${location.materialLotCount} lots`, cls: 'text-violet-400' },
-    location.sparePartCount > 0  && { label: `${location.sparePartCount} parts`, cls: 'text-amber-400' },
+    location.rawMaterialCount > 0 && { label: t('storageView.chipRm', { count: location.rawMaterialCount }), cls: 'text-blue-400' },
+    location.materialLotCount > 0 && { label: t('storageView.chipLots', { count: location.materialLotCount }), cls: 'text-violet-400' },
+    location.sparePartCount > 0  && { label: t('storageView.chipParts', { count: location.sparePartCount }), cls: 'text-amber-400' },
   ].filter(Boolean) as { label: string; cls: string }[];
 
   return (
@@ -425,20 +426,20 @@ function LocationCard({ location, zone, onView, onEdit, onDeactivate, onDelete }
                 onMouseLeave={() => setMenuOpen(false)}
               >
                 <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left" onClick={() => { onView(); setMenuOpen(false); }}>
-                  <Eye size={12} /> View Contents
+                  <Eye size={12} /> {t('storageView.menu.viewContents')}
                 </button>
                 <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left" onClick={() => { onEdit(); setMenuOpen(false); }}>
-                  <Edit2 size={12} /> Edit Location
+                  <Edit2 size={12} /> {t('storageView.menu.editLocation')}
                 </button>
                 <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left text-muted-foreground" onClick={() => { setMenuOpen(false); window.print?.(); }}>
-                  <Printer size={12} /> Print QR Label
+                  <Printer size={12} /> {t('storageView.menu.printQr')}
                 </button>
                 <div className="border-t my-1" />
                 <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left text-amber-400" onClick={() => { onDeactivate(); setMenuOpen(false); }}>
-                  <ToggleLeft size={12} /> Deactivate
+                  <ToggleLeft size={12} /> {t('storageView.menu.deactivate')}
                 </button>
                 <button className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left text-destructive" onClick={() => { onDelete(); setMenuOpen(false); }}>
-                  <Trash2 size={12} /> Delete
+                  <Trash2 size={12} /> {t('storageView.menu.delete')}
                 </button>
               </motion.div>
             )}
@@ -449,7 +450,7 @@ function LocationCard({ location, zone, onView, onEdit, onDeactivate, onDelete }
       {/* Item chips */}
       <div className="flex items-center gap-1.5 flex-wrap min-h-[20px] mb-2">
         {chips.length === 0 ? (
-          <span className="text-xs text-muted-foreground italic">Empty</span>
+          <span className="text-xs text-muted-foreground italic">{t('storageView.empty')}</span>
         ) : chips.map(c => (
           <span key={c.label} className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted/60 border', c.cls)}>{c.label}</span>
         ))}
@@ -459,7 +460,7 @@ function LocationCard({ location, zone, onView, onEdit, onDeactivate, onDelete }
       {usage !== null ? (
         <div className="mt-2">
           <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-            <span>{location.totalItems} / {location.capacity} items</span>
+            <span>{t('storageView.capacityItems', { current: location.totalItems, capacity: location.capacity })}</span>
             <span className={cn(usage > 80 ? 'text-red-400' : usage > 60 ? 'text-amber-400' : 'text-green-400')}>
               {usage.toFixed(0)}%
             </span>
@@ -473,20 +474,20 @@ function LocationCard({ location, zone, onView, onEdit, onDeactivate, onDelete }
         </div>
       ) : (
         <div className="text-[10px] text-muted-foreground mt-1">
-          {location.totalItems > 0 ? `${location.totalItems} items` : 'No capacity set'}
+          {location.totalItems > 0 ? t('storageView.itemsCount', { count: location.totalItems }) : t('storageView.noCapacity')}
         </div>
       )}
 
       {/* View link */}
       <div className="flex items-center gap-1 mt-3 text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
         <Eye size={10} />
-        <span>Click to view contents</span>
+        <span>{t('storageView.clickToView')}</span>
         <ChevronRight size={10} className="ml-auto" />
       </div>
 
       {!location.isActive && (
         <div className="absolute inset-0 rounded-xl flex items-center justify-center pointer-events-none">
-          <span className="bg-background/80 px-2 py-0.5 rounded text-xs text-muted-foreground border">Inactive</span>
+          <span className="bg-background/80 px-2 py-0.5 rounded text-xs text-muted-foreground border">{t('storage.inactive')}</span>
         </div>
       )}
     </div>
@@ -549,7 +550,7 @@ function LocationContentsSheet({ locationId, onClose, onEdit }: {
                 </div>
               </div>
               <Button variant="outline" size="sm" className="shrink-0" onClick={() => onEdit(contents)}>
-                <Edit2 size={12} className="mr-1.5" /> Edit
+                <Edit2 size={12} className="mr-1.5" /> {t('storageView.edit')}
               </Button>
             </div>
           )}
@@ -559,10 +560,10 @@ function LocationContentsSheet({ locationId, onClose, onEdit }: {
         {contents && (
           <div className="grid grid-cols-4 gap-px bg-border border-b shrink-0">
             {[
-              { label: 'Total Items', value: (contents.rawMaterials.length + contents.materialLots.length + contents.spareParts.length + contents.skus.length).toString() },
-              { label: 'Raw Materials', value: contents.rawMaterials.length.toString() },
-              { label: 'Active Lots', value: contents.materialLots.filter(l => l.status === 'ACTIVE').length.toString() },
-              { label: 'Stock Value', value: `SAR ${contents.stockValue.toLocaleString()}` },
+              { label: t('storageView.sheetKpi.totalItems'), value: (contents.rawMaterials.length + contents.materialLots.length + contents.spareParts.length + contents.skus.length).toString() },
+              { label: t('storageView.sheetKpi.rawMaterials'), value: contents.rawMaterials.length.toString() },
+              { label: t('storageView.sheetKpi.activeLots'), value: contents.materialLots.filter(l => l.status === 'ACTIVE').length.toString() },
+              { label: t('storageView.sheetKpi.stockValue'), value: `SAR ${contents.stockValue.toLocaleString()}` },
             ].map(k => (
               <div key={k.label} className="bg-background px-3 py-2.5 text-center">
                 <div className="text-sm font-bold">{k.value}</div>
@@ -599,7 +600,7 @@ function LocationContentsSheet({ locationId, onClose, onEdit }: {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading && (
-            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">Loading contents...</div>
+            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">{t('storageView.loadingContents')}</div>
           )}
 
           {!isLoading && contents && tab === 'summary' && <SummaryTab contents={contents} zone={zone} />}
@@ -618,6 +619,7 @@ function LocationContentsSheet({ locationId, onClose, onEdit }: {
 /* ------------------------------------------------------------------ */
 
 function SummaryTab({ contents, zone }: { contents: LocationContents; zone: typeof ZONES[number] }) {
+  const { t } = useTranslation(['inventory', 'common']);
   const totalItems = contents.rawMaterials.length + contents.materialLots.length + contents.spareParts.length + contents.skus.length;
   const lowStock = [...contents.rawMaterials, ...contents.spareParts].filter(i => i.isLowStock).length;
   const expiredLots = contents.materialLots.filter(l => l.status === 'EXPIRED').length;
@@ -631,7 +633,7 @@ function SummaryTab({ contents, zone }: { contents: LocationContents; zone: type
       {usage !== null && (
         <div className="border rounded-xl p-4">
           <div className="flex items-center justify-between mb-2 text-sm">
-            <span className="font-medium">Capacity Utilization</span>
+            <span className="font-medium">{t('storageView.capacityUtilization')}</span>
             <span className={cn('font-bold', usage > 80 ? 'text-red-400' : usage > 60 ? 'text-amber-400' : 'text-green-400')}>
               {usage.toFixed(1)}%
             </span>
@@ -642,7 +644,7 @@ function SummaryTab({ contents, zone }: { contents: LocationContents; zone: type
               style={{ width: `${usage}%` }}
             />
           </div>
-          <div className="text-xs text-muted-foreground">{totalItems} items / {contents.capacity} capacity</div>
+          <div className="text-xs text-muted-foreground">{t('storageView.itemsCapacity', { items: totalItems, capacity: contents.capacity })}</div>
         </div>
       )}
 
@@ -652,13 +654,13 @@ function SummaryTab({ contents, zone }: { contents: LocationContents; zone: type
           {lowStock > 0 && (
             <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
               <AlertTriangle size={14} />
-              <span>{lowStock} item{lowStock !== 1 ? 's' : ''} below minimum stock level</span>
+              <span>{t('storageView.belowMin', { count: lowStock })}</span>
             </div>
           )}
           {expiredLots > 0 && (
             <div className="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
               <AlertTriangle size={14} />
-              <span>{expiredLots} expired material lot{expiredLots !== 1 ? 's' : ''} in this location</span>
+              <span>{t('storageView.expiredLots', { count: expiredLots })}</span>
             </div>
           )}
         </div>
@@ -667,10 +669,10 @@ function SummaryTab({ contents, zone }: { contents: LocationContents; zone: type
       {/* Category breakdown */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: 'Raw Materials',  count: contents.rawMaterials.length,  icon: Package,      color: 'text-blue-400',   bg: 'bg-blue-500/10 border-blue-500/20' },
-          { label: 'Material Lots',  count: contents.materialLots.length,  icon: Archive,      color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
-          { label: 'Spare Parts',    count: contents.spareParts.length,    icon: Settings,     color: 'text-amber-400',  bg: 'bg-amber-500/10 border-amber-500/20' },
-          { label: 'Products/SKUs',  count: contents.skus.length,          icon: QrCode,       color: 'text-green-400',  bg: 'bg-green-500/10 border-green-500/20' },
+          { label: t('storageView.breakdown.rawMaterials'),  count: contents.rawMaterials.length,  icon: Package,      color: 'text-blue-400',   bg: 'bg-blue-500/10 border-blue-500/20' },
+          { label: t('storageView.breakdown.materialLots'),  count: contents.materialLots.length,  icon: Archive,      color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
+          { label: t('storageView.breakdown.spareParts'),    count: contents.spareParts.length,    icon: Settings,     color: 'text-amber-400',  bg: 'bg-amber-500/10 border-amber-500/20' },
+          { label: t('storageView.breakdown.products'),  count: contents.skus.length,          icon: QrCode,       color: 'text-green-400',  bg: 'bg-green-500/10 border-green-500/20' },
         ].map(c => (
           <div key={c.label} className={cn('border rounded-lg p-3 flex items-center gap-3', c.bg)}>
             <c.icon size={16} className={c.color} />
@@ -686,17 +688,17 @@ function SummaryTab({ contents, zone }: { contents: LocationContents; zone: type
       <div className="border rounded-xl p-4">
         <div className="flex items-center gap-2 mb-1">
           <DollarSign size={14} className="text-green-400" />
-          <span className="text-sm font-medium">Estimated Stock Value</span>
+          <span className="text-sm font-medium">{t('storageView.estStockValue')}</span>
         </div>
         <div className="text-2xl font-bold text-green-400">SAR {contents.stockValue.toLocaleString()}</div>
-        <div className="text-xs text-muted-foreground mt-1">Based on unit costs × quantities at this location</div>
+        <div className="text-xs text-muted-foreground mt-1">{t('storageView.stockValueBasis')}</div>
       </div>
 
       {totalItems === 0 && (
         <div className="border rounded-xl p-10 text-center text-sm text-muted-foreground">
           <Boxes size={32} className="mx-auto mb-3 opacity-20" />
-          <p className="font-medium">Empty Location</p>
-          <p className="text-xs mt-1">No inventory is currently assigned to this location.</p>
+          <p className="font-medium">{t('storageView.emptyLocation')}</p>
+          <p className="text-xs mt-1">{t('storageView.emptyLocationHint')}</p>
         </div>
       )}
     </div>

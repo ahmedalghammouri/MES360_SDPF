@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next';
 
 import React, { useMemo, useState } from 'react';
+import type { TFunction } from 'i18next';
 import {
   TrendingUp,
   TrendingDown,
@@ -116,22 +117,22 @@ function oeeColor(value: number): string {
   return 'text-rose-400';
 }
 
-function statusChip(gap: number) {
+function statusChip(gap: number, t: TFunction) {
   if (gap >= 0)
     return (
       <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">
-        On Target
+        {t('kpiv.onTarget')}
       </Badge>
     );
   if (gap >= -5)
     return (
       <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">
-        Near Target
+        {t('kpiv.nearTarget')}
       </Badge>
     );
   return (
     <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/30 text-xs">
-      Below Target
+      {t('kpiv.belowTarget')}
     </Badge>
   );
 }
@@ -636,7 +637,7 @@ export default function ProductionKpiView() {
                           {gap >= 0 ? '+' : ''}
                           {gap.toFixed(1)}{row.unit}
                         </td>
-                        <td>{statusChip(gap)}</td>
+                        <td>{statusChip(gap, t)}</td>
                       </tr>
                     );
                   })}

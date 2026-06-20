@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import {
@@ -14,15 +15,16 @@ import { useFactoryStore } from '@/store/factory-store';
 import { useDashboardEmbed, type EmbedContext } from './use-dashboard-center';
 import { resolveIcon } from './dashboard-card';
 
-const TIME_RANGES: { value: string; label: string }[] = [
-  { value: 'now-1h', label: 'Last 1h' },
-  { value: 'now-6h', label: 'Last 6h' },
-  { value: 'now-24h', label: 'Last 24h' },
-  { value: 'now-7d', label: 'Last 7d' },
-  { value: 'now-30d', label: 'Last 30d' },
+const TIME_RANGES: { value: string; labelKey: string }[] = [
+  { value: 'now-1h', labelKey: 'viewer.range1h' },
+  { value: 'now-6h', labelKey: 'viewer.range6h' },
+  { value: 'now-24h', labelKey: 'viewer.range24h' },
+  { value: 'now-7d', labelKey: 'viewer.range7d' },
+  { value: 'now-30d', labelKey: 'viewer.range30d' },
 ];
 
 export function EmbeddedDashboardViewer({ dashboardId }: { dashboardId: string }) {
+  const { t } = useTranslation('modules');
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const { selectedFactory } = useFactoryStore();
@@ -47,12 +49,12 @@ export function EmbeddedDashboardViewer({ dashboardId }: { dashboardId: string }
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border/50 shrink-0 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => router.push('/dashboard-center')}>
-            <ArrowLeft size={14} /> Catalog
+            <ArrowLeft size={14} /> {t('dashboardCenter.viewer.catalog')}
           </Button>
           <div className="h-5 w-px bg-border" />
           <div className="flex items-center gap-2 min-w-0">
             <Icon size={16} className="text-primary shrink-0" />
-            <span className="text-sm font-semibold truncate">{data?.dashboard.title ?? 'Loading…'}</span>
+            <span className="text-sm font-semibold truncate">{data?.dashboard.title ?? t('dashboardCenter.viewer.loading')}</span>
           </div>
         </div>
 
@@ -60,7 +62,7 @@ export function EmbeddedDashboardViewer({ dashboardId }: { dashboardId: string }
           {data?.dashboard.isFactoryAware && (
             <Badge variant="outline" className="h-8 gap-1.5 text-xs">
               <Building2 size={13} className="text-cyan-400" />
-              {selectedFactory?.code ?? 'All factories'}
+              {selectedFactory?.code ?? t('dashboardCenter.viewer.allFactories')}
             </Badge>
           )}
 
@@ -70,16 +72,16 @@ export function EmbeddedDashboardViewer({ dashboardId }: { dashboardId: string }
             <SelectMenu
               value={timeRange}
               onValueChange={setTimeRange}
-              menuLabel="Time range"
-              options={TIME_RANGES.map((t) => ({ value: t.value, label: t.label }))}
+              menuLabel={t('dashboardCenter.viewer.timeRange')}
+              options={TIME_RANGES.map((r) => ({ value: r.value, label: t('dashboardCenter.' + r.labelKey) }))}
             />
           </div>
 
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setReloadKey((k) => k + 1)} title="Reload">
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setReloadKey((k) => k + 1)} title={t('dashboardCenter.viewer.reload')}>
             <RefreshCw size={13} />
           </Button>
           {iframeUrl && (
-            <Button variant="outline" size="icon" className="h-8 w-8" title="Open in new tab"
+            <Button variant="outline" size="icon" className="h-8 w-8" title={t('dashboardCenter.viewer.openNewTab')}
               onClick={() => window.open(data!.url!, '_blank', 'noopener')}>
               <Maximize2 size={13} />
             </Button>
@@ -96,32 +98,32 @@ export function EmbeddedDashboardViewer({ dashboardId }: { dashboardId: string }
         ) : error ? (
           <ViewerMessage
             icon={<AlertTriangle size={22} className="text-danger-400" />}
-            title="Unable to load dashboard"
-            body="You may not have access, or the dashboard no longer exists."
-            action={<Button size="sm" variant="outline" onClick={() => router.push('/dashboard-center')}>Back to catalog</Button>}
+            title={t('dashboardCenter.viewer.errorTitle')}
+            body={t('dashboardCenter.viewer.errorBody')}
+            action={<Button size="sm" variant="outline" onClick={() => router.push('/dashboard-center')}>{t('dashboardCenter.viewer.backToCatalog')}</Button>}
           />
         ) : data?.kind === 'native' ? (
           <ViewerMessage
             icon={<ExternalLink size={22} className="text-brand-400" />}
-            title="MES360° native dashboard"
-            body="This dashboard opens directly inside MES360°."
+            title={t('dashboardCenter.viewer.nativeTitle')}
+            body={t('dashboardCenter.viewer.nativeBody')}
             action={data.route
-              ? <Button size="sm" onClick={() => router.push(data.route!)}>Open dashboard</Button>
+              ? <Button size="sm" onClick={() => router.push(data.route!)}>{t('dashboardCenter.viewer.openDashboard')}</Button>
               : undefined}
           />
         ) : data?.kind === 'grafana' && !data.embeddable ? (
           <ViewerMessage
             icon={<Settings size={22} className="text-warning-400" />}
-            title={data.grafanaConfigured ? 'Grafana dashboard not mapped' : 'Grafana not configured'}
+            title={data.grafanaConfigured ? t('dashboardCenter.viewer.grafanaNotMappedTitle') : t('dashboardCenter.viewer.grafanaNotConfiguredTitle')}
             body={data.grafanaConfigured
-              ? 'This catalog entry has no Grafana dashboard UID assigned yet. An admin can map it from the dashboard settings.'
-              : 'Grafana integration is not configured on this environment. Set GRAFANA_URL / GRAFANA_PUBLIC_URL to enable embedded dashboards.'}
+              ? t('dashboardCenter.viewer.grafanaNotMappedBody')
+              : t('dashboardCenter.viewer.grafanaNotConfiguredBody')}
           />
         ) : iframeUrl ? (
           <iframe
             key={reloadKey}
             src={iframeUrl}
-            title={data?.dashboard.title ?? 'Dashboard'}
+            title={data?.dashboard.title ?? t('dashboardCenter.viewer.dashboard')}
             className="absolute inset-0 w-full h-full border-0"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
             referrerPolicy="strict-origin-when-cross-origin"
@@ -130,8 +132,8 @@ export function EmbeddedDashboardViewer({ dashboardId }: { dashboardId: string }
         ) : (
           <ViewerMessage
             icon={<AlertTriangle size={22} className="text-muted-foreground" />}
-            title="Nothing to display"
-            body="This dashboard has no embeddable target."
+            title={t('dashboardCenter.viewer.nothingTitle')}
+            body={t('dashboardCenter.viewer.nothingBody')}
           />
         )}
       </div>

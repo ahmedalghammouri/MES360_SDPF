@@ -37,42 +37,42 @@ interface MaintenanceKPIs {
 
 const REPORT_CARDS = [
   {
-    title: 'Maintenance Overview',
+    titleKey: 'reportsView.cards.overviewTitle',
     href: '/maintenance',
     icon: Wrench,
-    desc: 'Full maintenance dashboard and KPIs',
+    descKey: 'reportsView.cards.overviewDesc',
     color: 'text-amber-400',
     bg: 'bg-amber-500/15',
   },
   {
-    title: 'Work Order History',
+    titleKey: 'reportsView.cards.historyTitle',
     href: '/maintenance/work-orders',
     icon: ClipboardList,
-    desc: 'All maintenance WOs with full history',
+    descKey: 'reportsView.cards.historyDesc',
     color: 'text-blue-400',
     bg: 'bg-blue-500/15',
   },
   {
-    title: 'PM Compliance',
+    titleKey: 'reportsView.cards.pmTitle',
     href: '/maintenance/preventive',
     icon: Calendar,
-    desc: 'Preventive maintenance schedule adherence',
+    descKey: 'reportsView.cards.pmDesc',
     color: 'text-green-400',
     bg: 'bg-green-500/15',
   },
   {
-    title: 'Asset Health',
+    titleKey: 'reportsView.cards.assetTitle',
     href: '/maintenance/assets',
     icon: Cpu,
-    desc: 'Equipment health and maintenance records',
+    descKey: 'reportsView.cards.assetDesc',
     color: 'text-purple-400',
     bg: 'bg-purple-500/15',
   },
   {
-    title: 'Maintenance Report',
+    titleKey: 'reportsView.cards.reportTitle',
     href: '/reports/maintenance',
     icon: FileText,
-    desc: 'Detailed maintenance performance report',
+    descKey: 'reportsView.cards.reportDesc',
     color: 'text-cyan-400',
     bg: 'bg-cyan-500/15',
   },
@@ -101,23 +101,23 @@ export default function MaintenanceReportsView() {
 
   const kpiCards = [
     {
-      label: 'MTTR',
-      unit: 'hours',
+      label: t('reportsView.kpiMttr'),
+      unit: t('reportsView.hours'),
       value: Number(kpis.mttr ?? 0).toFixed(1),
       icon: Clock,
       color: 'text-amber-400',
       bg: 'bg-amber-500/20',
     },
     {
-      label: 'MTBF',
-      unit: 'hours',
+      label: t('reportsView.kpiMtbf'),
+      unit: t('reportsView.hours'),
       value: Number(kpis.mtbf ?? 0).toFixed(1),
       icon: Activity,
       color: 'text-green-400',
       bg: 'bg-green-500/20',
     },
     {
-      label: 'PM Compliance',
+      label: t('reportsView.kpiPmCompliance'),
       unit: '%',
       value: Number(kpis.pmCompliance ?? 0).toFixed(1),
       icon: Calendar,
@@ -125,7 +125,7 @@ export default function MaintenanceReportsView() {
       bg: 'bg-blue-500/20',
     },
     {
-      label: 'Machine Availability',
+      label: t('reportsView.kpiAvailability'),
       unit: '%',
       value: Number(kpis.availabilityRate ?? 0).toFixed(1),
       icon: Gauge,
@@ -209,8 +209,7 @@ export default function MaintenanceReportsView() {
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
             <span className="text-sm font-medium text-red-300">
-              <span className="font-bold text-red-400">{kpis.overdueWOs}</span>{' '}
-              maintenance order{kpis.overdueWOs !== 1 ? 's are' : ' is'} overdue
+              {t('reportsView.overdueCount', { count: kpis.overdueWOs })}
             </span>
           </div>
           <Link href="/maintenance/scheduling">
@@ -219,7 +218,7 @@ export default function MaintenanceReportsView() {
               size="sm"
               className="border-red-500/40 text-red-400 hover:bg-red-500/20 hover:text-red-300 shrink-0"
             >
-              View Schedule
+              {t('reportsView.viewSchedule')}
               <ChevronRight className="w-3.5 h-3.5 ml-1" />
             </Button>
           </Link>
@@ -229,7 +228,7 @@ export default function MaintenanceReportsView() {
       {/* Report Cards Grid */}
       <div>
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Available Reports
+          {t('reportsView.availableReports')}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {REPORT_CARDS.map((card, i) => {
@@ -253,11 +252,11 @@ export default function MaintenanceReportsView() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-sm">{card.title}</span>
+                        <span className="font-semibold text-sm">{t(card.titleKey)}</span>
                         <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        {card.desc}
+                        {t(card.descKey)}
                       </p>
                     </div>
                   </div>

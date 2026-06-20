@@ -74,7 +74,7 @@ export function FactoryAnalyticsView() {
   const cur = oee?.current;
   const trend = oee?.trend ?? [];
   const equip = [...(oee?.byEquipment ?? [])].sort((a, b) => b.oee - a.oee);
-  const scopeName = scope?.name ?? 'Whole factory';
+  const scopeName = scope?.name ?? t('analytics.wholeFactory');
   const dtCats = Object.entries(downtime?.byCategory ?? {}).sort(([, a], [, b]) => b - a);
   const dtCatMax = dtCats[0]?.[1] || 1;
 
@@ -98,31 +98,31 @@ export function FactoryAnalyticsView() {
       <div className="flex-1 overflow-auto p-6 space-y-5">
         {/* KPI strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KPICard title="OEE" value={cur?.oee ?? 0} unit="%" target={WORLD_CLASS} colorMode="oee" isLoading={oeeLoading} />
-          <KPICard title="Availability" value={cur?.availability ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
-          <KPICard title="Performance" value={cur?.performance ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
-          <KPICard title="Quality" value={cur?.quality ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
+          <KPICard title={t('analytics.oee')} value={cur?.oee ?? 0} unit="%" target={WORLD_CLASS} colorMode="oee" isLoading={oeeLoading} />
+          <KPICard title={t('analytics.availability')} value={cur?.availability ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
+          <KPICard title={t('analytics.performance')} value={cur?.performance ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
+          <KPICard title={t('analytics.quality')} value={cur?.quality ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
         </div>
 
         {/* Time-Based (AT-OEE) + reliability strip */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground -mt-1 px-1">
-          <span>Time-Based OEE (AT-OEE): <b className="text-foreground">{(cur?.oeeTb ?? 0).toFixed(1)}%</b></span>
-          <span>Availability (Time-Based): <b className="text-foreground">{(cur?.availabilityTb ?? 0).toFixed(1)}%</b></span>
+          <span>{t('analytics.atOee')}: <b className="text-foreground">{(cur?.oeeTb ?? 0).toFixed(1)}%</b></span>
+          <span>{t('analytics.availabilityTb')}: <b className="text-foreground">{(cur?.availabilityTb ?? 0).toFixed(1)}%</b></span>
           <span className="opacity-70">·</span>
-          <span>MTTR: <b className="text-foreground">{(maint?.mttr ?? 0).toFixed(1)}h</b></span>
-          <span>MTBF: <b className="text-foreground">{(maint?.mtbf ?? 0).toFixed(0)}h</b></span>
-          <span>Maint. Availability: <b className="text-foreground">{(maint?.availabilityRate ?? 0).toFixed(1)}%</b></span>
+          <span>{t('analytics.mttr')}: <b className="text-foreground">{(maint?.mttr ?? 0).toFixed(1)}h</b></span>
+          <span>{t('analytics.mtbf')}: <b className="text-foreground">{(maint?.mtbf ?? 0).toFixed(0)}h</b></span>
+          <span>{t('analytics.maintAvailability')}: <b className="text-foreground">{(maint?.availabilityRate ?? 0).toFixed(1)}%</b></span>
         </div>
 
         {/* OEE trend — schedule vs time-based */}
         <div className="industrial-card rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <Activity size={14} className="text-brand-400" />
-            <h3 className="text-sm font-semibold">OEE Trend — Schedule vs Time-Based</h3>
-            <span className="text-[10px] text-muted-foreground ml-auto">target {WORLD_CLASS}%</span>
+            <h3 className="text-sm font-semibold">{t('analytics.oeeTrend')}</h3>
+            <span className="text-[10px] text-muted-foreground ml-auto">{t('analytics.target', { value: WORLD_CLASS })}</span>
           </div>
           {trend.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-xs text-muted-foreground">No OEE records in this period</div>
+            <div className="h-52 flex items-center justify-center text-xs text-muted-foreground">{t('analytics.noOeeRecords')}</div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
@@ -137,12 +137,12 @@ export function FactoryAnalyticsView() {
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                 <ReTooltip
                   contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                  formatter={(v: any, n: any) => [`${Number(v).toFixed(1)}%`, n === 'oeeTb' ? 'OEE (Time-Based)' : 'OEE (Schedule)']}
+                  formatter={(v: any, n: any) => [`${Number(v).toFixed(1)}%`, n === 'oeeTb' ? t('analytics.oeeTimeBased') : t('analytics.oeeSchedule')]}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <ReferenceLine y={WORLD_CLASS} stroke="#22c55e" strokeDasharray="6 4" strokeOpacity={0.6} />
-                <Area type="monotone" dataKey="oee" name="OEE (Schedule)" stroke="#818cf8" strokeWidth={2} fill="url(#anOeeFill)" />
-                <Area type="monotone" dataKey="oeeTb" name="OEE (Time-Based)" stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" fill="none" connectNulls />
+                <Area type="monotone" dataKey="oee" name={t('analytics.oeeSchedule')} stroke="#818cf8" strokeWidth={2} fill="url(#anOeeFill)" />
+                <Area type="monotone" dataKey="oeeTb" name={t('analytics.oeeTimeBased')} stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" fill="none" connectNulls />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -157,24 +157,24 @@ export function FactoryAnalyticsView() {
             <div className="industrial-card rounded-xl p-4 h-full">
               <div className="flex items-center gap-2 mb-3">
                 <Cpu size={14} className="text-brand-400" />
-                <h3 className="text-sm font-semibold">Per-Machine Breakdown</h3>
-                <span className="ml-auto text-[10px] text-muted-foreground">{equip.length} machines</span>
+                <h3 className="text-sm font-semibold">{t('analytics.perMachine')}</h3>
+                <span className="ml-auto text-[10px] text-muted-foreground">{t('analytics.machinesCount', { count: equip.length })}</span>
               </div>
               {equip.length === 0 ? (
-                <div className="text-xs text-muted-foreground text-center py-8">No machine OEE in this period</div>
+                <div className="text-xs text-muted-foreground text-center py-8">{t('analytics.noMachineOee')}</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-border/40 text-muted-foreground">
-                        <th className="text-left py-2 px-2 font-medium">Machine</th>
-                        <th className="text-center py-2 px-2 font-medium">OEE</th>
-                        <th className="text-center py-2 px-2 font-medium">OEE-TB</th>
-                        <th className="text-center py-2 px-2 font-medium">A</th>
-                        <th className="text-center py-2 px-2 font-medium">A-TB</th>
-                        <th className="text-center py-2 px-2 font-medium">P</th>
-                        <th className="text-center py-2 px-2 font-medium">Q</th>
-                        <th className="text-right py-2 px-2 font-medium">Output</th>
+                        <th className="text-left py-2 px-2 font-medium">{t('analytics.colMachine')}</th>
+                        <th className="text-center py-2 px-2 font-medium">{t('analytics.oee')}</th>
+                        <th className="text-center py-2 px-2 font-medium">{t('analytics.colOeeTb')}</th>
+                        <th className="text-center py-2 px-2 font-medium">{t('analytics.colA')}</th>
+                        <th className="text-center py-2 px-2 font-medium">{t('analytics.colATb')}</th>
+                        <th className="text-center py-2 px-2 font-medium">{t('analytics.colP')}</th>
+                        <th className="text-center py-2 px-2 font-medium">{t('analytics.colQ')}</th>
+                        <th className="text-right py-2 px-2 font-medium">{t('analytics.colOutput')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -202,29 +202,29 @@ export function FactoryAnalyticsView() {
             <div className="industrial-card rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <ShieldAlert size={14} className="text-brand-400" />
-                <h3 className="text-sm font-semibold">Downtime Classification</h3>
+                <h3 className="text-sm font-semibold">{t('analytics.downtimeClassification')}</h3>
               </div>
               <div className="grid grid-cols-3 gap-2 mb-4">
                 {[
-                  { label: 'Total', value: downtime?.totalMinutes ?? 0, color: 'text-foreground' },
-                  { label: 'OEE impact', value: downtime?.oeeImpactMinutes ?? 0, color: 'text-red-400' },
-                  { label: 'Planned', value: downtime?.plannedMinutes ?? 0, color: 'text-emerald-400' },
+                  { label: t('analytics.dtTotal'), value: downtime?.totalMinutes ?? 0, color: 'text-foreground' },
+                  { label: t('analytics.dtOeeImpact'), value: downtime?.oeeImpactMinutes ?? 0, color: 'text-red-400' },
+                  { label: t('analytics.dtPlanned'), value: downtime?.plannedMinutes ?? 0, color: 'text-emerald-400' },
                 ].map((s) => (
                   <div key={s.label} className="text-center p-2 rounded-lg bg-muted/20">
-                    <div className={cn('text-sm font-bold tabular-nums', s.color)}>{Math.round(s.value)}<span className="text-[10px] font-normal text-muted-foreground"> min</span></div>
+                    <div className={cn('text-sm font-bold tabular-nums', s.color)}>{Math.round(s.value)}<span className="text-[10px] font-normal text-muted-foreground"> {t('analytics.min')}</span></div>
                     <div className="text-[10px] text-muted-foreground">{s.label}</div>
                   </div>
                 ))}
               </div>
               {dtCats.length === 0 ? (
-                <div className="text-xs text-muted-foreground text-center py-4">No downtime in this period</div>
+                <div className="text-xs text-muted-foreground text-center py-4">{t('analytics.noDowntime')}</div>
               ) : (
                 <div className="space-y-2">
                   {dtCats.slice(0, 8).map(([cat, min]) => (
                     <div key={cat}>
                       <div className="flex items-center justify-between text-[11px] mb-0.5">
                         <span className="text-muted-foreground truncate">{prettyCat(cat)}</span>
-                        <span className="font-semibold tabular-nums shrink-0 ml-2">{Math.round(min)} min</span>
+                        <span className="font-semibold tabular-nums shrink-0 ml-2">{Math.round(min)} {t('analytics.min')}</span>
                       </div>
                       <div className="h-2 rounded-full bg-foreground/10 overflow-hidden">
                         <div className="h-full rounded-full bg-amber-500/70" style={{ width: `${(min / dtCatMax) * 100}%` }} />
@@ -239,20 +239,20 @@ export function FactoryAnalyticsView() {
             <div className="industrial-card rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <TrendingUp size={14} className="text-brand-400" />
-                <h3 className="text-sm font-semibold">Output (period)</h3>
+                <h3 className="text-sm font-semibold">{t('analytics.outputPeriod')}</h3>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center p-2 rounded-lg bg-muted/20">
                   <div className="text-sm font-bold tabular-nums text-foreground">{(oee?.totalCount ?? 0).toLocaleString()}</div>
-                  <div className="text-[10px] text-muted-foreground">Total</div>
+                  <div className="text-[10px] text-muted-foreground">{t('analytics.outTotal')}</div>
                 </div>
                 <div className="text-center p-2 rounded-lg bg-muted/20">
                   <div className="text-sm font-bold tabular-nums text-emerald-400">{(oee?.goodCount ?? 0).toLocaleString()}</div>
-                  <div className="text-[10px] text-muted-foreground">Good</div>
+                  <div className="text-[10px] text-muted-foreground">{t('analytics.outGood')}</div>
                 </div>
                 <div className="text-center p-2 rounded-lg bg-muted/20">
                   <div className="text-sm font-bold tabular-nums text-red-400">{Math.max(0, (oee?.totalCount ?? 0) - (oee?.goodCount ?? 0)).toLocaleString()}</div>
-                  <div className="text-[10px] text-muted-foreground">Scrap</div>
+                  <div className="text-[10px] text-muted-foreground">{t('analytics.outScrap')}</div>
                 </div>
               </div>
             </div>

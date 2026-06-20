@@ -27,6 +27,75 @@
     "dark": "داكن",
     "system": "النظام"
   },
+  "validation": {
+    "required": "مطلوب",
+    "minPassword": "الحد الأدنى 8 أحرف",
+    "passwordsDontMatch": "كلمتا المرور غير متطابقتين"
+  },
+  "toasts": {
+    "saved": "تم الحفظ",
+    "savedDesc": "تم تحديث إعداداتك.",
+    "saveFailed": "فشل الحفظ",
+    "tryAgain": "يرجى المحاولة مرة أخرى.",
+    "passwordChanged": "تم تغيير كلمة المرور",
+    "passwordChangedDesc": "تم تحديث كلمة مرورك بنجاح.",
+    "error": "خطأ",
+    "currentPasswordIncorrect": "كلمة المرور الحالية غير صحيحة.",
+    "comingSoonTitle": "قريبًا",
+    "mfaNotAvailable": "تسجيل المصادقة الثنائية غير متاح بعد."
+  },
+  "profile": {
+    "title": "معلومات الملف الشخصي",
+    "subtitle": "حدّث بياناتك الشخصية",
+    "fullName": "الاسم الكامل",
+    "nameArabic": "الاسم (بالعربية)",
+    "emailAddress": "البريد الإلكتروني",
+    "emailCannotChange": "لا يمكن تغيير البريد الإلكتروني. تواصل مع المسؤول.",
+    "role": "الدور",
+    "department": "القسم",
+    "jobTitle": "المسمى الوظيفي",
+    "phone": "الهاتف",
+    "saving": "جارٍ الحفظ…",
+    "saveChanges": "حفظ التغييرات"
+  },
+  "security": {
+    "title": "إعدادات الأمان",
+    "subtitle": "إدارة كلمة المرور والمصادقة الثنائية",
+    "changePassword": "تغيير كلمة المرور",
+    "currentPassword": "كلمة المرور الحالية",
+    "newPassword": "كلمة المرور الجديدة",
+    "confirmNewPassword": "تأكيد كلمة المرور الجديدة",
+    "updating": "جارٍ التحديث...",
+    "updatePassword": "تحديث كلمة المرور",
+    "cancel": "إلغاء",
+    "twoFactor": "المصادقة الثنائية",
+    "twoFactorDesc": "أضف طبقة حماية إضافية باستخدام تطبيق مصادقة",
+    "enabled": "مُفعّلة",
+    "setupMfa": "إعداد المصادقة الثنائية",
+    "scanQr": "امسح رمز QR هذا بتطبيق المصادقة لديك (Google Authenticator أو Authy إلخ).",
+    "qrAlt": "رمز QR للمصادقة الثنائية",
+    "manualEntryKey": "مفتاح الإدخال اليدوي"
+  },
+  "notifications": {
+    "title": "قنوات الإشعارات",
+    "subtitle": "اختر كيفية تلقّي التنبيهات. للقواعد حسب كل حدث، استخدم تفضيلات الإشعارات.",
+    "email": "البريد الإلكتروني",
+    "emailDesc": "تلقّي الإشعارات عبر البريد الإلكتروني",
+    "whatsapp": "واتساب",
+    "whatsappDesc": "تلقّي الإشعارات عبر واتساب",
+    "sms": "الرسائل النصية",
+    "smsDesc": "تلقّي الإشعارات عبر الرسائل النصية",
+    "saving": "جارٍ الحفظ…",
+    "saveChannels": "حفظ القنوات",
+    "advancedRules": "قواعد متقدمة"
+  },
+  "languageSection": {
+    "saving": "جارٍ الحفظ…"
+  },
+  "integrations": {
+    "comingSoon": "قريبًا",
+    "underDevelopment": "قسم الإعدادات هذا قيد التطوير"
+  },
   "dz": {
     "headerTitle": "النظام والمنطقة الخطرة",
     "headerUnlocked": "مفتوح. العمليات التدميرية أدناه لا يمكن التراجع عنها.",
@@ -49,6 +118,24 @@
     "alsoWipeTs": "امسح أيضًا أرشيف السلاسل الزمنية", "alsoWipeTsDesc": "يمسح سجل الإنتاج/الكفاءة عالي التردد في InfluxDB في نفس العملية.",
     "confirmPassword": "أكّد كلمة مرورك", "typeReset": "اكتب", "toConfirm": "للتأكيد",
     "cancel": "إلغاء", "resetting": "جارٍ إعادة الضبط…", "permanentlyDelete": "حذف نهائي",
+    "affectedRecords": "السجلات المتأثرة:", "reset": "إعادة ضبط",
+    "toast": {
+      "historianWiped": "تم مسح الأرشيف",
+      "historianWipedDesc": "تم حذف جميع نقاط السلاسل الزمنية من InfluxDB.",
+      "wipeFailed": "فشل المسح",
+      "wipeFailedDesc": "لم يؤكّد InfluxDB عملية الحذف. تحقّق من اتصال الأرشيف.",
+      "resetCompleted": "اكتملت إعادة الضبط",
+      "resetCompletedDesc": "تم حذف {{count}} سجل إنتاج{{tsNote}}.",
+      "tsNoteWiped": " + تم مسح الأرشيف",
+      "tsNoteFailed": " (فشل مسح الأرشيف)",
+      "resetFailed": "فشلت إعادة الضبط",
+      "resetFailedDesc": "تحقّق من كلمة المرور / التأكيد.",
+      "historianPaused": "تم إيقاف الأرشيف",
+      "historianResumed": "تم استئناف الأرشيف",
+      "historianPausedDesc": "تم حظر كتابات السلاسل الزمنية الجديدة — يبقى المستودع فارغًا.",
+      "historianResumedDesc": "تم استئناف استيعاب السلاسل الزمنية.",
+      "actionFailed": "فشل الإجراء"
+    },
     "prod": {
       "productionOrders": "أوامر الإنتاج", "workOrders": "أوامر العمل", "jobOrders": "الأوامر التفصيلية", "productionEvents": "أحداث الإنتاج",
       "batchRecords": "سجلات الدُفعات", "materialConsumptions": "استهلاك المواد", "jobOrderMaterials": "مواد الأوامر التفصيلية",
