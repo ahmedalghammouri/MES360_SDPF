@@ -3213,3 +3213,29 @@ model DashboardPermission {
   @@index([userId])
   @@map("dashboard_permissions")
 }
+
+// ─────────────────────────────────────────────────────────────
+// ATTACHMENTS — polymorphic file/image attachments (instructions + work evidence)
+// Fully additive: no relations to other models → zero conflict. Files live on a
+// local-disk volume; `storageKey` is the path under the upload root. uploadedBy
+// is denormalised (id + name snapshot) so listing needs no joins.
+// ─────────────────────────────────────────────────────────────
+model Attachment {
+  id             String   @id @default(uuid())
+  factoryId      String
+  entityType     String // MAINTENANCE_WO | QUALITY_INSPECTION | NCR | CAPA | QUALITY_PLAN
+  entityId       String
+  category       String   @default("EVIDENCE") // INSTRUCTION | EVIDENCE
+  storageKey     String // relative path under the upload root
+  originalName   String
+  mimeType       String
+  size           Int // bytes
+  description    String?
+  uploadedById   String?
+  uploadedByName String?
+  createdAt      DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([factoryId])
+  @@map("attachments")
+}

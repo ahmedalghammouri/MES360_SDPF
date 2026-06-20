@@ -1,4 +1,17 @@
 {
+  "attach": {
+    "add": "إضافة ملف",
+    "uploaded": "تم رفع الملف",
+    "uploadFailed": "فشل الرفع",
+    "deleted": "تم حذف الملف",
+    "delete": "حذف",
+    "deleteFailed": "تعذّر حذف الملف",
+    "openFailed": "تعذّر فتح الملف",
+    "none": "لا توجد مرفقات بعد — أضِف صورًا أو ملفات.",
+    "noneReadonly": "لا توجد ملفات مرفقة.",
+    "instructions": "التعليمات والإرشادات",
+    "evidence": "الصور والملفات"
+  },
   "picker": {
     "searchMachines": "ابحث عن الماكينات...", "noMachines": "لا توجد ماكينات",
     "searchWorkCenters": "ابحث عن مراكز العمل...", "noResults": "لا توجد نتائج",

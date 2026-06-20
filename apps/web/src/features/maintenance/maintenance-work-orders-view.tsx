@@ -20,6 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { InlineFormPanel, InlineFormSlot } from '@/components/ui/inline-form-panel';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Attachments } from '@/components/ui/attachments';
 import { TableRowActions } from '@/components/ui/table-row-actions';
 import { DeleteDialog } from '@/components/ui/delete-dialog';
 import { ExportMenu } from '@/components/ui/export-menu';
@@ -1017,6 +1018,10 @@ export function MaintenanceWorkOrdersView() {
                   </div>
                 </div>
               )}
+
+              {/* Maintenance instructions/guides + work evidence photos */}
+              <Attachments entityType="MAINTENANCE_WO" entityId={viewWO.id} category="INSTRUCTION" title={t('common:attach.instructions')} />
+              <Attachments entityType="MAINTENANCE_WO" entityId={viewWO.id} category="EVIDENCE" title={t('common:attach.evidence')} />
 
               {viewWO.notes && (
                 <div>

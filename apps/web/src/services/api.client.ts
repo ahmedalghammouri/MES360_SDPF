@@ -94,4 +94,18 @@ export const api = {
 
   delete: <T>(url: string, config?: AxiosRequestConfig) =>
     apiClient.delete<T>(url, config).then((r) => r.data),
+
+  /** Multipart upload (file + fields via FormData). Lets the browser set the
+   *  multipart boundary by clearing the default JSON Content-Type. */
+  upload: <T>(url: string, formData: FormData, config?: AxiosRequestConfig) =>
+    apiClient
+      .post<T>(url, formData, {
+        ...config,
+        headers: { ...(config?.headers ?? {}), 'Content-Type': undefined as unknown as string },
+      })
+      .then((r) => r.data),
+
+  /** Fetch a binary response (e.g. an attachment) as a Blob, with auth applied. */
+  blob: (url: string, config?: AxiosRequestConfig) =>
+    apiClient.get(url, { ...config, responseType: 'blob' }).then((r) => r.data as Blob),
 };

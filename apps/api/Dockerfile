@@ -52,6 +52,10 @@ COPY --from=builder --chown=nestjs:nodejs /app/package.json ./
 COPY --from=builder --chown=nestjs:nodejs /app/tsconfig*.json ./
 
 RUN mkdir -p logs && chown nestjs:nodejs logs
+# Attachment upload root. Creating it here (owned by the runtime user) means a fresh
+# named volume mounted at /app/uploads inherits this ownership, so the non-root
+# process can write uploads. (Recreate the volume if it was made before this line.)
+RUN mkdir -p uploads && chown nestjs:nodejs uploads
 
 USER nestjs
 

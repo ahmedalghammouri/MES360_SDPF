@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
 import { exportRecordToPDF } from '@/lib/export-utils';
+import { Attachments } from '@/components/ui/attachments';
 
 const RESULT_CONFIG: Record<string, { labelKey: string; color: string; icon: any; bg: string }> = {
   PASS:        { labelKey: 'inspDetail.result.PASS',        color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30',  icon: CheckCircle2 },
@@ -198,6 +199,12 @@ export function InspectionDetailView({ inspectionId }: { inspectionId: string })
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{insp.notes}</p>
         </div>
       )}
+
+      {/* Instructions (read) + inspection evidence photos/files */}
+      <div className="rounded-xl border border-border/60 p-4 space-y-4">
+        <Attachments entityType="QUALITY_INSPECTION" entityId={insp.id} category="INSTRUCTION" title={t('common:attach.instructions')} />
+        <Attachments entityType="QUALITY_INSPECTION" entityId={insp.id} category="EVIDENCE" title={t('common:attach.evidence')} />
+      </div>
     </div>
   );
 }

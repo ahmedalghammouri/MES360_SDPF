@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
 import { exportRecordToPDF } from '@/lib/export-utils';
+import { Attachments } from '@/components/ui/attachments';
 
 const STATUS_CFG: Record<string, { labelKey: string; cls: string }> = {
   OPEN: { labelKey: 'capa.status.OPEN', cls: 'text-red-400 border-red-500/30 bg-red-500/10' },
@@ -189,6 +190,11 @@ export function CapaDetailView({ capaId }: { capaId: string }) {
           ) : null}
         </div>
       )}
+
+      {/* Evidence — supporting documents for the corrective/preventive action */}
+      <div className="rounded-xl border border-border/60 p-4">
+        <Attachments entityType="CAPA" entityId={c.id} category="EVIDENCE" title={t('common:attach.evidence')} />
+      </div>
     </div>
   );
 }

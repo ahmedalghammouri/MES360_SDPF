@@ -158,6 +158,7 @@ const navItems: NavItem[] = [
     icon: Wrench,
     children: [
       { label: 'Overview',               href: '/maintenance',                     icon: Gauge         },
+      { label: 'Maintenance Floor',      href: '/maintenance-floor',               icon: Monitor,       badge: 'Tablet', badgeVariant: 'secondary' },
       { label: 'Maint. Scheduling',      href: '/maintenance/scheduling',          icon: Calendar      },
       { label: 'Maintenance Orders',     href: '/maintenance/work-orders',         icon: ClipboardList, dynamicKey: 'openMaintenance', badgeVariant: 'secondary' },
       { label: 'Preventive Maint.',      href: '/maintenance/preventive',          icon: Calendar      },

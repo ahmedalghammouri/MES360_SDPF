@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
 import { exportRecordToPDF } from '@/lib/export-utils';
+import { Attachments } from '@/components/ui/attachments';
 
 const SEV: Record<string, { labelKey: string; cls: string }> = {
   MINOR: { labelKey: 'ncr.severity.MINOR', cls: 'text-blue-400 border-blue-500/30 bg-blue-500/10' },
@@ -160,6 +161,11 @@ export function NcrDetailView({ ncrId }: { ncrId: string }) {
         ) : (
           <p className="text-sm text-muted-foreground">{t('qd.noCapa')}</p>
         )}
+      </div>
+
+      {/* Evidence — defect photos / supporting documents */}
+      <div className="rounded-xl border border-border/60 p-4">
+        <Attachments entityType="NCR" entityId={n.id} category="EVIDENCE" title={t('common:attach.evidence')} />
       </div>
     </div>
   );

@@ -1,3 +1,14 @@
+-- Ensure the UserRole enum exists. Earlier migrations created users.role as TEXT and
+-- never defined this type, so dashboard_permissions.role below would fail. Guarded so it
+-- is a no-op when the type already exists (idempotent for retry / migrate reset).
+DO $$ BEGIN
+  CREATE TYPE "UserRole" AS ENUM (
+    'SUPER_ADMIN', 'FACTORY_ADMIN', 'PLANT_MANAGER', 'PRODUCTION_MANAGER', 'PRODUCTION_SUPERVISOR',
+    'QUALITY_MANAGER', 'QUALITY_ENGINEER', 'MAINTENANCE_MANAGER', 'MAINTENANCE_TECHNICIAN',
+    'ENERGY_MANAGER', 'OPERATOR', 'VIEWER'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 -- CreateEnum
 CREATE TYPE "DashboardSource" AS ENUM ('MES360_NATIVE', 'GRAFANA', 'REPORT', 'EXTERNAL', 'TEMPLATE');
 

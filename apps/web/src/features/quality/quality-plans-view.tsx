@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Attachments } from '@/components/ui/attachments';
 import { InlineFormPanel, InlineFormSlot } from '@/components/ui/inline-form-panel';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -743,6 +744,9 @@ function PlanDetailSheet({ planId, onClose, onEdit }: {
             <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">{t('common.loading')}</div>
           ) : plan ? (
             <div className="flex flex-col gap-4">
+              {/* Plan instruction files / test-setup guides (shown to inspectors on the tablet) */}
+              <Attachments entityType="QUALITY_PLAN" entityId={plan.id} category="INSTRUCTION" title={t('common:attach.instructions')} />
+
               {/* Section header */}
               <div className="flex items-center justify-between">
                 <div>

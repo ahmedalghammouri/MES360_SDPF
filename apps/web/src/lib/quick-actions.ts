@@ -97,6 +97,7 @@ export const QUICK_ACTION_GROUPS: QuickActionGroup[] = [
     accent: 'text-orange-400',
     icon: Wrench,
     actions: [
+      { label: 'Maintenance Floor', href: '/maintenance-floor',       icon: Monitor,       tone: 'text-orange-400' },
       { label: 'Maint. Orders',     href: '/maintenance/work-orders', icon: ClipboardList, tone: 'text-orange-400' },
       { label: 'Preventive',        href: '/maintenance/preventive',  icon: Calendar,      tone: 'text-amber-400' },
       { label: 'Maint. Scheduling', href: '/maintenance/scheduling',  icon: CalendarClock, tone: 'text-yellow-400' },

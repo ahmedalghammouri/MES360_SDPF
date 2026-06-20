@@ -1,4 +1,17 @@
 {
+  "attach": {
+    "add": "Add file",
+    "uploaded": "File uploaded",
+    "uploadFailed": "Upload failed",
+    "deleted": "File removed",
+    "delete": "Remove",
+    "deleteFailed": "Could not remove file",
+    "openFailed": "Could not open file",
+    "none": "No attachments yet — add photos or files.",
+    "noneReadonly": "No files attached.",
+    "instructions": "Instructions & Guides",
+    "evidence": "Photos & Files"
+  },
   "picker": {
     "searchMachines": "Search machines...", "noMachines": "No machines found",
     "searchWorkCenters": "Search work centers...", "noResults": "No results",

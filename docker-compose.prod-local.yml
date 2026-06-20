@@ -33,6 +33,7 @@ volumes:
   minio-data:
   nginx-certs:
   grafana-data:
+  uploads-data:
 
 services:
   # ============================================================
@@ -205,8 +206,11 @@ services:
       JWT_EXPIRES_IN: 8h
       JWT_REFRESH_EXPIRES_IN: 30d
       CORS_ORIGINS: http://localhost:8080,http://109.176.199.133:8080,http://mes360.industry360.sa:8080
+      UPLOAD_DIR: /app/uploads
     ports:
       - "3001:3001"
+    volumes:
+      - uploads-data:/app/uploads
     networks:
       - mes-network
     depends_on:
