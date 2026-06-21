@@ -79,6 +79,14 @@ const EMPTY_FORM = {
   autoStart: false,
 };
 
+/** ISO → value for a <input type="datetime-local"> (local timezone). */
+function toLocalDatetime(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function MetricCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (
     <div className="industrial-card rounded-lg p-3 text-center">
@@ -369,6 +377,8 @@ export function ProductionWorkOrdersView() {
   const [cancelDialog, setCancelDialog] = useState<{ woId: string; orderNumber: string } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [deleteDialog, setDeleteDialog] = useState<{ id: string; orderNumber: string } | null>(null);
+  // Per-routing-step operator pre-assignment for the create form (stepId → operatorId)
+  const [assignments, setAssignments] = useState<Record<string, string>>({});
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -397,6 +407,26 @@ export function ProductionWorkOrdersView() {
   });
   const orders: WorkOrder[] = (workOrdersData as any)?.data ?? [];
   const total: number = (workOrdersData as any)?.total ?? 0;
+
+  // ── Smart preview for the Create form (same intelligence as Auto-Generate):
+  // resolves the routing, computes the realistic finish + material shortages. ──
+  const previewFrom = form.plannedStart ? new Date(form.plannedStart).toISOString() : undefined;
+  const { data: woPreview, isFetching: previewLoading } = useQuery({
+    queryKey: ['wo-create-preview', form.skuId, form.plannedQty, previewFrom],
+    queryFn: () => api.get('/production/work-orders/preview', { params: { skuId: form.skuId, qty: form.plannedQty, from: previewFrom } }),
+    enabled: formOpen && form.skuId !== '__none__' && !!form.plannedQty && parseInt(form.plannedQty, 10) > 0,
+    staleTime: 0,
+  });
+  const prev = woPreview as any;
+  // Auto-fill the planned end with the computed smart finish (until the user edits it).
+  const smartFinish: string | undefined = prev?.smart?.computedFinish;
+  React.useEffect(() => {
+    if (smartFinish && formOpen) {
+      const local = toLocalDatetime(smartFinish);
+      setForm(f => (f.plannedEnd === local ? f : { ...f, plannedEnd: local }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smartFinish, formOpen]);
 
   const { sortedData: sortedOrders } = useSortedData(orders, 'createdAt', 'desc');
   const sel = useRowSelection(sortedOrders);
@@ -431,7 +461,7 @@ export function ProductionWorkOrdersView() {
       queryClient.invalidateQueries({ queryKey: ['production', 'kpis'] });
       queryClient.invalidateQueries({ queryKey: ['production-orders'] });
       toast({ title: t('wo.toast.created') });
-      setFormOpen(false); setForm(EMPTY_FORM);
+      setFormOpen(false); setForm(EMPTY_FORM); setAssignments({});
     },
     onError: (e: any) => toast({ title: t('wo.toast.error'), description: e?.response?.data?.message ?? t('wo.toast.createFailed'), variant: 'destructive' }),
   });
@@ -496,6 +526,9 @@ export function ProductionWorkOrdersView() {
 
   const handleCreate = () => {
     if (form.skuId === '__none__' || !form.plannedQty) return;
+    const assignmentList = Object.entries(assignments)
+      .filter(([, op]) => op && op !== '__none__')
+      .map(([stepId, operatorId]) => ({ stepId, operatorId }));
     createMutation.mutate({
       skuId: form.skuId,
       operatorId: form.operatorId !== '__none__' ? form.operatorId : undefined,
@@ -504,6 +537,7 @@ export function ProductionWorkOrdersView() {
       plannedEnd: form.plannedEnd ? new Date(form.plannedEnd).toISOString() : new Date(Date.now() + 86400000).toISOString(),
       notes: form.notes || undefined,
       autoStart: form.autoStart,
+      ...(assignmentList.length > 0 && { assignments: assignmentList }),
     });
   };
 
@@ -519,7 +553,7 @@ export function ProductionWorkOrdersView() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs"><Download size={13} />{t('common:actions.export')}</Button>
-          <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => { setForm(EMPTY_FORM); setFormOpen(true); }}>
+          <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => { setForm(EMPTY_FORM); setAssignments({}); setFormOpen(true); }}>
             <Plus size={13} />{t('newWorkOrder')}
           </Button>
         </div>
@@ -1088,6 +1122,76 @@ export function ProductionWorkOrdersView() {
             <Label>{t('wform.notes')}</Label>
             <Input value={form.notes} onChange={e => setForm(v => ({ ...v, notes: e.target.value }))} placeholder={t('wform.optionalNotes')} className="mt-1" />
           </div>
+
+          {/* ── Smart preview: routing, realistic finish, material shortages, per-step operators ── */}
+          {form.skuId !== '__none__' && !!form.plannedQty && (
+            <div className="col-span-2 space-y-2.5">
+              {previewLoading && !prev && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground p-3 rounded-lg border border-border/40">
+                  <Clock size={13} className="animate-spin" />{t('wform.preview.computing')}
+                </div>
+              )}
+              {prev && (
+                <>
+                  {/* Smart finish + process summary */}
+                  <div className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold"><BarChart3 size={13} className="text-brand-400" />{t('wform.preview.title')}</div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="flex justify-between"><span className="text-muted-foreground">{t('wform.preview.process')}</span><span className="font-medium truncate ml-2">{prev.process?.name ?? prev.recipe?.name ?? '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">{t('wform.preview.steps')}</span><span className="font-medium">{prev.stepCount ?? 0}</span></div>
+                      {prev.smart && (
+                        <>
+                          <div className="flex justify-between"><span className="text-muted-foreground">{t('wform.preview.workContent')}</span><span className="font-medium">{Math.round((prev.smart.workContentMins ?? 0) / 60 * 10) / 10}h</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">{t('wform.preview.smartFinish')}</span><span className="font-medium text-brand-300">{prev.smart.computedFinish ? formatDate(prev.smart.computedFinish) : '—'}</span></div>
+                        </>
+                      )}
+                    </div>
+                    {prev.warning && (
+                      <div className="flex items-start gap-1.5 text-[11px] text-amber-400"><AlertCircle size={12} className="mt-0.5 shrink-0" />{prev.warning}</div>
+                    )}
+                  </div>
+
+                  {/* Material shortages */}
+                  {Array.isArray(prev.materialShortages) && prev.materialShortages.length > 0 && (
+                    <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-red-400"><AlertCircle size={13} />{t('wform.preview.shortagesTitle', { count: prev.materialShortages.length })}</div>
+                      {prev.materialShortages.map((m: any, i: number) => (
+                        <div key={i} className="flex justify-between text-[11px]">
+                          <span className="truncate">{m.name} <span className="font-mono text-muted-foreground">{m.code}</span></span>
+                          <span className="text-red-400 whitespace-nowrap">{t('wform.preview.short')} {m.short} {m.unit}</span>
+                        </div>
+                      ))}
+                      <p className="text-[10px] text-muted-foreground">{t('wform.preview.shortagesHint')}</p>
+                    </div>
+                  )}
+
+                  {/* Per-step operator assignment */}
+                  {Array.isArray(prev.jobOrdersToCreate) && prev.jobOrdersToCreate.length > 0 && (
+                    <div className="rounded-lg border border-border/40 p-3 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold"><Layers size={13} className="text-brand-400" />{t('wform.preview.assignTitle')}</div>
+                      {prev.jobOrdersToCreate.map((step: any) => (
+                        <div key={step.stepId} className="flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[11px] font-medium truncate">{step.stepNumber}. {step.operationName}</div>
+                            <div className="text-[10px] text-muted-foreground flex items-center gap-1"><Cpu size={9} />{step.machine?.name ?? t('wform.preview.noMachine')}</div>
+                          </div>
+                          <select
+                            value={assignments[step.stepId] ?? '__none__'}
+                            onChange={e => setAssignments(a => ({ ...a, [step.stepId]: e.target.value }))}
+                            className="h-7 w-36 rounded-md border border-border bg-background px-2 text-[11px]"
+                          >
+                            <option value="__none__">{t('wform.preview.unassigned')}</option>
+                            {users.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <label className="col-span-2 flex items-start gap-2.5 p-3 rounded-lg border border-border/60 bg-muted/20 cursor-pointer">
             <Checkbox checked={form.autoStart} onCheckedChange={v => setForm(f => ({ ...f, autoStart: !!v }))} className="mt-0.5" />
             <span className="text-xs">

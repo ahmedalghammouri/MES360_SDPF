@@ -90,6 +90,7 @@ export class ProductionService {
         plannedStart: dto.plannedStart,
         plannedEnd: dto.plannedEnd,
         clearExisting: false,
+        assignments: dto.assignments,
       });
     } catch (err) {
       await this.prisma.workOrder.delete({ where: { id: workOrder.id } }).catch(() => undefined);
@@ -1053,6 +1054,150 @@ export class ProductionService {
       warning: warnings.length > 0 ? warnings.join(' | ') : null,
       mode: 'dispatch', // signals the UI that we create 1 WO + N JOs
       smart, // computed finish time + planned-stoppage breakdown + exceedsDue
+    };
+  }
+
+  /**
+   * Preview for a MANUAL work order (no production order): resolve the routing for
+   * a SKU + quantity, compute the overlap-aware smart finish time, and the material
+   * shortages — the same intelligence the PO auto-generate preview gives, so the
+   * manual "Create Work Order" form can show the realistic end + step plan + any
+   * material shortage before the WO is created.
+   */
+  async previewWorkOrderForSku(
+    factoryId: string | null,
+    skuId: string,
+    qty: number,
+    unit: string | undefined,
+    fromIso?: string,
+  ): Promise<any> {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const sku: any = await this.prisma.sKU.findFirst({ where: { id: skuId, ...factoryFilter } });
+    if (!sku) throw new NotFoundException('Product (SKU) not found');
+    if (!(qty > 0)) throw new BadRequestException('Quantity must be greater than zero');
+
+    const stepIncludes = {
+      where: { isOptional: false },
+      orderBy: { stepNumber: 'asc' } as const,
+      include: {
+        machine: { select: { id: true, name: true, code: true, machineType: true } },
+        workCenterRef: { select: { id: true, name: true, code: true, level: true } },
+        predecessors: { select: { fromStepId: true, type: true, lagMins: true } },
+        materials: { include: { rawMaterial: { select: { id: true, code: true, name: true, unit: true, currentStock: true, reservedStock: true } } } },
+      },
+    };
+
+    const recipe: any = await this.prisma.recipe.findFirst({
+      where: { skuId, status: { in: ['APPROVED', 'REVIEW'] as any }, ...factoryFilter },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      include: { process: { include: { routingSteps: stepIncludes } } },
+    });
+    const process: any = recipe?.process ?? await findProcessForSku<any>(
+      this.prisma, factoryId, skuId, { routingSteps: stepIncludes as any },
+    );
+    const rawSteps: any[] = (process?.routingSteps ?? []).filter((s: any) => !s.isOptional);
+
+    const skuPkg = {
+      unitsPerInner: sku.unitsPerInner ?? 1,
+      innersPerCarton: sku.innersPerCarton ?? 1,
+      cartonsPerPallet: sku.cartonsPerPallet ?? 1,
+    };
+    const ppc = Math.max(1, skuPkg.unitsPerInner * skuPkg.innersPerCarton);
+    let prevQty = unit === 'CARTON' ? qty * ppc : unit === 'PALLET' ? qty * ppc * skuPkg.cartonsPerPallet : qty;
+    let prevUnit = 'PIECE';
+
+    const round3 = (x: number) => Math.round(x * 1000) / 1000;
+    const demand = new Map<string, { qty: number; code: string; name: string; unit: string; available: number }>();
+    const jobOrdersToCreate: any[] = [];
+    for (const step of rawSteps) {
+      const resolvedMachine = await this.resolveStepMachine(step as any, factoryId);
+      const inputUnit = (step as any).inUnit ?? prevUnit;
+      const outputUnit = (step as any).outUnit ?? this.resolveStepOutputUnit((step as any).operationName, inputUnit);
+      const inputQty = this.convertUnits(prevQty, prevUnit, inputUnit, skuPkg);
+      const outputQty = this.convertUnits(inputQty, inputUnit, outputUnit, skuPkg);
+      prevUnit = outputUnit;
+      prevQty = outputQty;
+      const cycleSec: number | null = (step as any).cycleTimeSec ?? ((step as any).cycleTimeMins != null ? (step as any).cycleTimeMins * 60 : null);
+
+      // Aggregate material demand from this step's routing materials.
+      for (const m of (step as any).materials ?? []) {
+        if (!m.rawMaterialId) continue;
+        const add = (m.qtyPerOutputUnit ?? 0) * outputQty;
+        const rm = m.rawMaterial;
+        const cur = demand.get(m.rawMaterialId);
+        if (cur) cur.qty = round3(cur.qty + add);
+        else demand.set(m.rawMaterialId, { qty: round3(add), code: rm?.code ?? m.materialCode ?? '', name: rm?.name ?? m.name ?? '', unit: rm?.unit ?? m.unit ?? '', available: rm ? round3((rm.currentStock ?? 0) - (rm.reservedStock ?? 0)) : 0 });
+      }
+
+      jobOrdersToCreate.push({
+        stepId: (step as any).id,
+        stepNumber: (step as any).stepNumber,
+        operationName: (step as any).operationName,
+        machine: resolvedMachine ? { id: resolvedMachine.id, name: resolvedMachine.name, code: resolvedMachine.code } : null,
+        plannedQtyIn: inputQty,
+        inputUnit,
+        plannedQtyOut: outputQty,
+        outputUnit,
+        cycleTimeSec: cycleSec,
+        estimatedDurationMins: cycleSec != null
+          ? Math.round((outputQty * cycleSec) / 60 + ((step as any).setupTimeMins ?? 0))
+          : (process?.totalCycleTimeMins && rawSteps.length ? process.totalCycleTimeMins / rawSteps.length : null),
+        setupTimeMins: (step as any).setupTimeMins ?? 0,
+        predecessors: (step as any).predecessors ?? [],
+      });
+    }
+
+    // Smart finish time (overlap-aware), identical engine to the PO preview.
+    const horizon = fromIso ? new Date(fromIso).getTime() : Date.now();
+    let smart: any = null;
+    if (jobOrdersToCreate.length > 0) {
+      const machineIds = [...new Set(jobOrdersToCreate.map((s) => s.machine?.id).filter(Boolean) as string[])];
+      const machineFree = await this.seedMachineFree(factoryId, machineIds, horizon);
+      const calendar = await this.buildWorkCalendar(factoryId);
+      const ops: SchedOp[] = jobOrdersToCreate.map((s) => {
+        const dep = (s.predecessors ?? []).find((d: any) => jobOrdersToCreate.some((x) => x.stepId === d.fromStepId));
+        return {
+          id: s.stepId,
+          machineId: s.machine?.id ?? null,
+          durationMs: Math.max((s.estimatedDurationMins ?? 5) * 60_000, 60_000),
+          predecessorId: dep?.fromStepId ?? null,
+          predecessorType: (dep?.type ?? 'FINISH_TO_START') as any,
+          predecessorLagMins: dep?.lagMins ?? 0,
+          sequenceOrder: s.stepNumber,
+        };
+      });
+      if (ops.every((o) => !o.predecessorId)) {
+        const bySeq = [...ops].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+        for (let i = 1; i < bySeq.length; i++) { bySeq[i].predecessorId = bySeq[i - 1].id; bySeq[i].predecessorType = 'FINISH_TO_START' as any; }
+      }
+      const sched = scheduleOps(ops, horizon, machineFree, calendar);
+      const workContentMins = Math.round((sched.finish - horizon) / 60_000);
+      const stoppage = await this.plannedStoppageMins(factoryId, horizon, sched.finish, machineIds);
+      const totalDurationMins = workContentMins + stoppage;
+      const computedFinishMs = horizon + totalDurationMins * 60_000;
+      for (const s of jobOrdersToCreate) {
+        const stt = sched.start.get(s.stepId); const en = sched.end.get(s.stepId);
+        s.plannedStart = stt != null ? new Date(stt).toISOString() : null;
+        s.plannedEnd = en != null ? new Date(en).toISOString() : null;
+      }
+      smart = { computedFinish: new Date(computedFinishMs).toISOString(), workContentMins, plannedStoppageMins: stoppage, totalDurationMins };
+    }
+
+    // Material shortages (current − reserved vs gross requirement).
+    const materialShortages = [...demand.values()]
+      .filter((d) => d.qty > d.available + 1e-6)
+      .map((d) => ({ code: d.code, name: d.name, unit: d.unit, needed: d.qty, available: Math.max(0, d.available), short: round3(d.qty - d.available) }));
+
+    return {
+      sku: { id: sku.id, code: sku.code, name: sku.name, itemNumber: sku.itemNumber, baseUnit: sku.baseUnit },
+      recipe: recipe ? { id: recipe.id, code: recipe.code, version: recipe.version, name: recipe.name, status: recipe.status } : null,
+      process: process ? { id: process.id, name: process.name, version: process.version } : null,
+      jobOrdersToCreate,
+      stepCount: jobOrdersToCreate.length,
+      canGenerate: jobOrdersToCreate.length > 0,
+      smart,
+      materialShortages,
+      warning: jobOrdersToCreate.length === 0 ? 'No approved routing/process found for this product — a single-step work order will be created on a default machine.' : null,
     };
   }
 

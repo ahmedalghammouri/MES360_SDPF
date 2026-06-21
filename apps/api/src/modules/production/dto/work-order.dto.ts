@@ -65,6 +65,10 @@ export class CreateWorkOrderDto {
   @IsOptional()
   @IsBoolean()
   autoStart?: boolean;
+
+  @ApiPropertyOptional({ description: 'Per-routing-step operator pre-assignment: [{ stepId, operatorId }]' })
+  @IsOptional()
+  assignments?: Array<{ stepId: string; operatorId: string }>;
 }
 
 export class UpdateWorkOrderDto {

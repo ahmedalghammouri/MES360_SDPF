@@ -198,6 +198,22 @@ export class ProductionController {
     return this.productionService.getWorkOrderById(user.factoryId, id);
   }
 
+  @Get('work-orders/preview')
+  @ApiOperation({ summary: 'Smart preview for a manual work order: routing, smart finish, material shortages' })
+  @ApiQuery({ name: 'skuId', required: true })
+  @ApiQuery({ name: 'qty', required: true })
+  @ApiQuery({ name: 'unit', required: false })
+  @ApiQuery({ name: 'from', required: false })
+  async previewWorkOrder(
+    @CurrentUser() user: RequestUser,
+    @Query('skuId') skuId: string,
+    @Query('qty') qty: string,
+    @Query('unit') unit?: string,
+    @Query('from') from?: string,
+  ) {
+    return this.productionService.previewWorkOrderForSku(user.factoryId, skuId, parseInt(qty, 10), unit, from);
+  }
+
   @Post('work-orders')
   @RequirePermissions('production:write')
   @AuditLog('PRODUCTION_WO_CREATE')

@@ -36,6 +36,7 @@ type JOWithRefs = {
   machine: { id: string; name: string; code: string; designCapacity: number | null } | null;
   workOrder: {
     id: string; orderNumber: string; priority: Priority; plannedQty: number; plannedEnd: Date | null; skuId: string | null;
+    materialStatus: string | null; materialReadyDate: Date | null;
     productionOrder: { id: string; orderNumber: string } | null;
   };
 };
@@ -70,6 +71,8 @@ export class ApsService {
         workOrder: {
           select: {
             id: true, orderNumber: true, priority: true, plannedQty: true, plannedEnd: true, skuId: true,
+            // Material gate: the WO cannot start before the supplier delivery ETA.
+            materialStatus: true, materialReadyDate: true,
             productionOrder: { select: { id: true, orderNumber: true } },
           },
         },
@@ -160,6 +163,7 @@ export class ApsService {
     // Manual drag/resize overrides pin an op at the user-dropped {start,end};
     // everything else reflows around it respecting relationships + calendar.
     const ovr = new Map((dto.overrides ?? []).map((o) => [o.id, o]));
+    const isDrag = ovr.size > 0; // a drag (overrides present) vs a full recalculate
 
     for (const woJobs of woOrder) {
       // A work order that has already started is re-anchored to the EARLIEST
@@ -169,11 +173,46 @@ export class ApsService {
       const startedActuals = woJobs
         .filter((j) => j.status === JobOrderStatus.EXECUTING || j.status === JobOrderStatus.PAUSED || !!j.actualStart)
         .map((j) => +(j.actualStart ?? j.plannedStart ?? new Date(horizon)));
-      const woHorizon = startedActuals.length ? Math.max(Math.min(...startedActuals), horizon) : horizon;
+      // SUPPLY GATE: a not-yet-started WO cannot begin before its material is
+      // available (the supplier delivery ETA). Recalculate honours that floor so
+      // the plan never starts an order before its raw materials arrive.
+      const woRef = woJobs[0].workOrder;
+      const materialFloor = woRef.materialReadyDate ? +woRef.materialReadyDate : 0;
+      const woHorizon = startedActuals.length
+        ? Math.max(Math.min(...startedActuals), horizon)
+        : Math.max(horizon, materialFloor);
+
+      // ── Dependency-aware drag: only TRUE successors of a dragged op reflow ──
+      // For a drag we keep every other op fixed at its current planned position
+      // (a soft pin) and let only the operations that are downstream-dependent on a
+      // dragged op move — so dragging one step no longer shifts unrelated steps or
+      // its own predecessors. A full recalculate (no overrides) reflows everything.
+      let downstream = new Set<string>();
+      if (isDrag) {
+        const successorsOf = new Map<string, string[]>();
+        for (const j of woJobs) {
+          if (j.predecessorId) {
+            if (!successorsOf.has(j.predecessorId)) successorsOf.set(j.predecessorId, []);
+            successorsOf.get(j.predecessorId)!.push(j.id);
+          }
+        }
+        const stack = woJobs.filter((j) => ovr.has(j.id)).map((j) => j.id);
+        while (stack.length) {
+          const cur = stack.pop()!;
+          for (const succ of successorsOf.get(cur) ?? []) {
+            if (!downstream.has(succ) && !ovr.has(succ)) { downstream.add(succ); stack.push(succ); }
+          }
+        }
+      }
 
       const schedInput: SchedOp[] = woJobs.map((j) => {
         const o = ovr.get(j.id); // only a manual drag pins an op in place
         const dur = o ? Math.max(+new Date(o.end) - +new Date(o.start), 60_000) : this.durationMs(j);
+        // Pin: the dragged op at its dropped start; on a drag, also soft-pin every
+        // op that is NOT a downstream successor of a drag (keep it where it is).
+        let pinnedStart: number | undefined;
+        if (o) pinnedStart = +new Date(o.start);
+        else if (isDrag && !downstream.has(j.id) && j.plannedStart) pinnedStart = +j.plannedStart;
         return {
           id: j.id,
           machineId: j.machineId,
@@ -182,7 +221,7 @@ export class ApsService {
           predecessorType: j.predecessorType,
           predecessorLagMins: j.predecessorLagMins,
           sequenceOrder: j.sequenceOrder,
-          pinnedStart: o ? +new Date(o.start) : undefined,
+          pinnedStart,
         };
       });
 
