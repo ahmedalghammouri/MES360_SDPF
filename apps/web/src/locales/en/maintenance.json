@@ -55,6 +55,11 @@
       "recordAnother": "Record another check"
     }
   },
+  "qfloor": {
+    "title": "Quality Floor",
+    "subtitle": "Record quality checks on the line",
+    "subtitleUser": "Inspector: {{name}}"
+  },
   "ov": {
     "schedule": "Schedule",
     "newWorkOrder": "New Work Order",

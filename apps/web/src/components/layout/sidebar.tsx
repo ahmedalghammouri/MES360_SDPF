@@ -61,6 +61,7 @@ import {
   ArrowLeftRight,
   SlidersHorizontal,
   GitPullRequest,
+  TabletSmartphone,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -96,6 +97,19 @@ const navItems: NavItem[] = [
   { label: 'Home', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Dashboard Center', href: '/dashboard-center', icon: LayoutGrid, badge: 'New', badgeVariant: 'default' },
 
+  // ═══════════════ OPERATION HUB ═══════════════
+  // Operator/technician tablet screens — one place for every shop-floor role.
+  {
+    label: 'Operation Hub',
+    icon: TabletSmartphone,
+    children: [
+      { label: 'Control Panel',     href: '/manufacturing/control', icon: SlidersHorizontal, badge: 'Live', badgeVariant: 'secondary' },
+      { label: 'Shop Floor',        href: '/shop-floor',            icon: Monitor,           badge: 'Live', badgeVariant: 'secondary', openNewTab: true },
+      { label: 'Maintenance Floor', href: '/maintenance-floor',     icon: Wrench,            badge: 'Tablet', badgeVariant: 'outline' },
+      { label: 'Quality Floor',     href: '/quality-floor',         icon: ClipboardCheck,    badge: 'Tablet', badgeVariant: 'outline' },
+    ],
+  },
+
   // ═══════════════ PLANNING & EXECUTION ═══════════════
   // One home per page: planning → orders pipeline → execution → trace → KPIs.
   { section: 'Planning & Execution', label: 'Planning & Execution' },
@@ -117,11 +131,9 @@ const navItems: NavItem[] = [
     icon: Factory,
     children: [
       { label: 'Overview',                href: '/production',                   icon: Gauge          },
-      { label: 'Control Panel',           href: '/manufacturing/control',        icon: SlidersHorizontal, badge: 'Live', badgeVariant: 'secondary' },
       { label: 'Production Orders (PO)',  href: '/production/production-orders', icon: GitCommit      },
       { label: 'Work Orders (WO)',        href: '/production/orders',            icon: ClipboardList, dynamicKey: 'workOrders', badgeVariant: 'secondary' },
       { label: 'Dispatch List (JO)',      href: '/production/job-orders',        icon: Layers         },
-      { label: 'Shopfloor Live',          href: '/shop-floor',                   icon: Monitor,       badge: 'Live', badgeVariant: 'secondary', openNewTab: true },
       { label: 'Downtime',                href: '/production/downtime',          icon: AlertTriangle, dynamicKey: 'openDowntime', badgeVariant: 'destructive' },
       { label: 'Batches & Lots',          href: '/production/batches',           icon: Boxes          },
       { label: 'Scrap Log Audit',         href: '/production/scrap-log',         icon: AlertTriangle, badge: 'Audit', badgeVariant: 'outline' },
@@ -158,7 +170,6 @@ const navItems: NavItem[] = [
     icon: Wrench,
     children: [
       { label: 'Overview',               href: '/maintenance',                     icon: Gauge         },
-      { label: 'Maintenance Floor',      href: '/maintenance-floor',               icon: Monitor,       badge: 'Tablet', badgeVariant: 'secondary' },
       { label: 'Maint. Scheduling',      href: '/maintenance/scheduling',          icon: Calendar      },
       { label: 'Maintenance Orders',     href: '/maintenance/work-orders',         icon: ClipboardList, dynamicKey: 'openMaintenance', badgeVariant: 'secondary' },
       { label: 'Preventive Maint.',      href: '/maintenance/preventive',          icon: Calendar      },

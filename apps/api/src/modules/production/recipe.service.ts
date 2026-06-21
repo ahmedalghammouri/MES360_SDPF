@@ -81,6 +81,13 @@ export class RecipeService {
           sku: { select: { id: true, code: true, name: true, itemNumber: true, brand: true } },
           process: { select: { id: true, name: true, version: true } },
           approvedBy: { select: { id: true, name: true } },
+          // Include the BOM rows so the expandable list shows ingredients (not just the count).
+          ingredients: {
+            include: {
+              rawMaterial: { select: { id: true, code: true, name: true, unit: true, unitCost: true } },
+            },
+            orderBy: [{ phase: 'asc' as const }, { sortOrder: 'asc' as const }],
+          },
           _count: { select: { workOrders: true, ingredients: true } },
         },
         orderBy: [{ sku: { name: 'asc' } }, { version: 'desc' }],

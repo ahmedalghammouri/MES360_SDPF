@@ -10,6 +10,7 @@
   "clearFilters": "Clear filters",
   "shownOfTotal": "{{shown}} of {{total}} apps",
   "categories": {
+    "Operation Hub": "Operation Hub",
     "Planning & Scheduling": "Planning & Scheduling",
     "Production": "Production",
     "Performance & KPIs": "Performance & KPIs",
@@ -50,6 +51,7 @@
   "SPC Charts": "SPC Charts",
   "Quality Records": "Quality Records",
   "Maintenance Floor": "Maintenance Floor",
+  "Quality Floor": "Quality Floor",
   "Maint. Orders": "Maint. Orders",
   "Preventive": "Preventive",
   "Maint. Scheduling": "Maint. Scheduling",

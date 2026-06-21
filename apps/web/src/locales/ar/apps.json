@@ -10,6 +10,7 @@
   "clearFilters": "مسح الفلاتر",
   "shownOfTotal": "{{shown}} من {{total}} تطبيقًا",
   "categories": {
+    "Operation Hub": "مركز التشغيل",
     "Planning & Scheduling": "التخطيط والجدولة",
     "Production": "الإنتاج",
     "Performance & KPIs": "الأداء والمؤشرات",
@@ -50,6 +51,7 @@
   "SPC Charts": "مخططات SPC",
   "Quality Records": "سجلات الجودة",
   "Maintenance Floor": "شاشة الصيانة",
+  "Quality Floor": "شاشة الجودة",
   "Maint. Orders": "أوامر الصيانة",
   "Preventive": "الصيانة الوقائية",
   "Maint. Scheduling": "جدولة الصيانة",

@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Wrench, RefreshCw, Play, Pause, CheckCircle2, Clock, AlertTriangle, Cpu,
-  Package, ChevronRight, Loader2, ClipboardCheck,
+  Package, ChevronRight, Loader2,
 } from 'lucide-react';
 
 import { api } from '@/services/api.client';
@@ -27,7 +27,6 @@ import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Attachments } from '@/components/ui/attachments';
-import { QualityChecksPanel } from './quality-checks-panel';
 import { useToast } from '@/components/ui/use-toast';
 import { cn, formatDate } from '@/lib/utils';
 
@@ -62,7 +61,6 @@ export function MaintenanceFloorView() {
   const userId = useAuthStore((s) => s.user?.id);
   const userName = useAuthStore((s) => s.user?.name);
 
-  const [mode, setMode] = useState<'maintenance' | 'quality'>('maintenance');
   const [tab, setTab] = useState<'active' | 'done'>('active');
   const [detail, setDetail] = useState<MaintWO | null>(null);
   const [completeFor, setCompleteFor] = useState<MaintWO | null>(null);
@@ -130,24 +128,6 @@ export function MaintenanceFloorView() {
         </Button>
       </div>
 
-      {/* Mode: Maintenance work vs Quality checks */}
-      <div className="flex items-center gap-2 px-4 sm:px-6 py-2.5 border-b border-border/40">
-        <button onClick={() => setMode('maintenance')}
-          className={cn('flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors',
-            mode === 'maintenance' ? 'bg-orange-500 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/70')}>
-          <Wrench size={15} /> {t('mfloor.modeMaintenance')}
-        </button>
-        <button onClick={() => setMode('quality')}
-          className={cn('flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors',
-            mode === 'quality' ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/70')}>
-          <ClipboardCheck size={15} /> {t('mfloor.modeQuality')}
-        </button>
-      </div>
-
-      {mode === 'quality' ? (
-        <QualityChecksPanel />
-      ) : (
-      <>
       {/* Tabs */}
       <div className="flex items-center gap-2 px-4 sm:px-6 py-3 border-b border-border/40">
         {(['active', 'done'] as const).map((k) => (
@@ -222,9 +202,6 @@ export function MaintenanceFloorView() {
           </div>
         )}
       </div>
-
-      </>
-      )}
 
       {/* Detail drawer — instructions (read) + evidence upload + spare parts */}
       <Sheet open={!!detail} onOpenChange={(o) => { if (!o) setDetail(null); }}>

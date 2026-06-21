@@ -8,6 +8,7 @@ import {
   Cog, BookOpen, Truck, Layers3,
   Siren, Archive, LayoutDashboard, Router, History, Waves, PackageMinus, FileCheck,
   ScrollText, PackageX, ZapOff, PencilRuler, ArrowLeftRight, Package, FileBarChart, Users,
+  TabletSmartphone,
 } from 'lucide-react';
 
 export interface QuickAction {
@@ -36,6 +37,17 @@ export interface QuickActionGroup {
  */
 export const QUICK_ACTION_GROUPS: QuickActionGroup[] = [
   {
+    category: 'Operation Hub',
+    accent: 'text-indigo-400',
+    icon: TabletSmartphone,
+    actions: [
+      { label: 'Control Panel',     href: '/manufacturing/control', icon: SlidersHorizontal, tone: 'text-primary' },
+      { label: 'Shop Floor',        href: '/shop-floor',            icon: Monitor,           tone: 'text-emerald-400', newTab: true },
+      { label: 'Maintenance Floor', href: '/maintenance-floor',     icon: Wrench,            tone: 'text-orange-400' },
+      { label: 'Quality Floor',     href: '/quality-floor',         icon: ClipboardCheck,    tone: 'text-green-400' },
+    ],
+  },
+  {
     category: 'Planning & Scheduling',
     accent: 'text-cyan-400',
     icon: CalendarRange,
@@ -54,11 +66,9 @@ export const QUICK_ACTION_GROUPS: QuickActionGroup[] = [
     accent: 'text-emerald-400',
     icon: Factory,
     actions: [
-      { label: 'Control Panel',  href: '/manufacturing/control',        icon: SlidersHorizontal, tone: 'text-primary' },
       { label: 'New PO',         href: '/production/production-orders',  icon: GitCommit,         tone: 'text-sky-400' },
       { label: 'Work Orders',    href: '/production/orders',             icon: ClipboardList,     tone: 'text-indigo-400' },
       { label: 'Dispatch (JO)',  href: '/production/job-orders',         icon: Layers,            tone: 'text-violet-400' },
-      { label: 'Shop Floor',     href: '/shop-floor',                    icon: Monitor,           tone: 'text-emerald-400', newTab: true },
       { label: 'Downtime',       href: '/production/downtime',           icon: AlertTriangle,     tone: 'text-red-400' },
       { label: 'Scrap Log',      href: '/production/scrap-log',          icon: PackageX,          tone: 'text-rose-400' },
       { label: 'Batches & Lots', href: '/production/batches',            icon: Boxes,             tone: 'text-blue-400' },
@@ -97,7 +107,6 @@ export const QUICK_ACTION_GROUPS: QuickActionGroup[] = [
     accent: 'text-orange-400',
     icon: Wrench,
     actions: [
-      { label: 'Maintenance Floor', href: '/maintenance-floor',       icon: Monitor,       tone: 'text-orange-400' },
       { label: 'Maint. Orders',     href: '/maintenance/work-orders', icon: ClipboardList, tone: 'text-orange-400' },
       { label: 'Preventive',        href: '/maintenance/preventive',  icon: Calendar,      tone: 'text-amber-400' },
       { label: 'Maint. Scheduling', href: '/maintenance/scheduling',  icon: CalendarClock, tone: 'text-yellow-400' },
@@ -175,6 +184,8 @@ export const CORE_QUICK_ACTIONS: QuickAction[] = [
   { label: 'Work Orders',       href: '/production/orders',      icon: ClipboardList,     tone: 'text-indigo-400' },
   { label: 'Dispatch (JO)',     href: '/production/job-orders',  icon: Layers,            tone: 'text-violet-400' },
   { label: 'Shop Floor',        href: '/shop-floor',            icon: Monitor,           tone: 'text-emerald-400', newTab: true },
+  { label: 'Maintenance Floor', href: '/maintenance-floor',     icon: Wrench,            tone: 'text-orange-400' },
+  { label: 'Quality Floor',     href: '/quality-floor',         icon: ClipboardCheck,    tone: 'text-green-400' },
   { label: 'Downtime',          href: '/production/downtime',    icon: AlertTriangle,     tone: 'text-red-400' },
   { label: 'Factory Analytics', href: '/analytics',             icon: BarChart3,         tone: 'text-fuchsia-400' },
 ];

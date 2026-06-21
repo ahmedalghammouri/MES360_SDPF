@@ -55,6 +55,11 @@
       "recordAnother": "تسجيل فحص آخر"
     }
   },
+  "qfloor": {
+    "title": "شاشة الجودة",
+    "subtitle": "تسجيل فحوصات الجودة على الخط",
+    "subtitleUser": "الفاحص: {{name}}"
+  },
   "ov": {
     "schedule": "الجدول",
     "newWorkOrder": "أمر عمل جديد",
