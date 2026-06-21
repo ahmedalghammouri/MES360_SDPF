@@ -16,8 +16,52 @@
       "loadFailed": "فشل تحميل بيانات التقرير", "unknownError": "حدث خطأ غير معروف", "retry": "إعادة المحاولة",
       "recentReports": "التقارير الأخيرة", "rerun": "إعادة التشغيل",
       "noData": "لا توجد بيانات للفلاتر المحددة.",
-      "showingRows": "عرض {{shown}} من {{total}} صف", "exportToViewAll": "صدّر CSV لعرض كل الصفوف",
+      "showingRows": "عرض {{shown}} من {{total}} صف", "exportToViewAll": "صدّر لعرض كل الصفوف",
+      "showingRange": "عرض {{from}}–{{to}} من {{total}}",
+      "pageOf": "صفحة {{page}} من {{pages}}",
+      "first": "الأولى", "prev": "السابقة", "next": "التالية", "last": "الأخيرة",
+      "exporting": "جارٍ التصدير…",
+      "generatedAt": "تم الإنشاء {{when}}", "recordsCountRaw": "{{count}} سجل",
+      "sheetSummary": "ملخص", "sheetDetail": "تفاصيل",
       "rowsCount_one": "صف واحد", "rowsCount_other": "{{count}} صف",
+      "exportPdf": "تصدير PDF", "exportExcel": "تصدير Excel",
+      "pdf": "PDF", "excel": "Excel", "csv": "CSV",
+      "quickRange": "نطاق سريع",
+      "searchPlaceholder": "بحث في الصفوف...", "allMachines": "كل الماكينات",
+      "preset": { "today": "اليوم", "d7": "7 أيام", "d30": "30 يوماً", "d90": "90 يوماً", "month": "هذا الشهر" },
+      "kpi": {
+        "avgOee": "متوسط الكفاءة", "avgAtOee": "متوسط الكفاءة الزمنية", "avgAvailability": "متوسط الجاهزية",
+        "availability": "الجاهزية", "performance": "الأداء", "quality": "الجودة",
+        "output": "الإنتاج", "downtime": "التوقف (دقيقة)",
+        "machines": "الماكينات", "records": "السجلات",
+        "mttr": "متوسط زمن الإصلاح (ساعة)", "mtbf": "متوسط الزمن بين الأعطال (ساعة)", "completionRate": "معدل الإكمال",
+        "workOrders": "أوامر العمل", "totalCost": "إجمالي التكلفة", "failures": "الأعطال",
+        "inspections": "الفحوص", "passRate": "معدل النجاح", "ncrs": "تقارير عدم المطابقة", "criticalNcrs": "حالات حرجة",
+        "scrapEvents": "أحداث الهالك", "totalScrapQty": "إجمالي كمية الهالك", "categories": "الفئات", "topCategory": "أعلى فئة",
+        "totalSkus": "إجمالي الأصناف", "rawMaterials": "المواد الخام", "spareParts": "قطع الغيار",
+        "lowStock": "أصناف منخفضة المخزون", "materialLots": "دفعات المواد", "stockValue": "قيمة المخزون",
+        "totalConsumption": "إجمالي الاستهلاك", "peakDay": "يوم الذروة", "meters": "العدّادات", "energyTypes": "أنواع الطاقة"
+      },
+      "chart": {
+        "oeeTrend": "اتجاه الكفاءة", "outputGoodScrap": "الإنتاج: سليم مقابل هالك", "byMachine": "متوسط الكفاءة حسب الماكينة",
+        "byType": "حسب النوع", "byStatus": "حسب الحالة", "passFail": "ناجح مقابل راسب", "ncrBySeverity": "عدم المطابقة حسب الخطورة",
+        "scrapPareto": "باريتو الهالك (حسب السبب)", "good": "سليم", "scrap": "هالك",
+        "passed": "ناجح", "failed": "راسب", "unspecified": "غير محدد", "noData": "لا توجد بيانات لهذه الفترة",
+        "energyConsumption": "استهلاك الطاقة حسب النوع"
+      },
+      "energyType": {
+        "ELECTRICITY": "كهرباء", "ELECTRICAL": "كهرباء", "NATURAL_GAS": "غاز طبيعي", "GAS": "غاز",
+        "COMPRESSED_AIR": "هواء مضغوط", "WATER": "ماء", "STEAM": "بخار", "CHILLED_WATER": "ماء مبرّد"
+      },
+      "col": {
+        "date": "التاريخ", "machine": "الماكينة", "planned": "المخطط", "actual": "الفعلي", "good": "السليم",
+        "oee": "الكفاءة", "downtimeMin": "التوقف (دقيقة)", "availability": "الجاهزية", "performance": "الأداء",
+        "quality": "الجودة", "atOee": "الكفاءة الزمنية", "qty": "الكمية", "category": "الفئة", "product": "المنتج",
+        "operation": "العملية", "operator": "المشغّل", "reason": "السبب", "group": "المجموعة", "name": "الاسم",
+        "count": "العدد", "ncrNumber": "رقم عدم المطابقة", "title": "العنوان", "severity": "الخطورة", "status": "الحالة",
+        "detectedAt": "تاريخ الاكتشاف", "metric": "المقياس", "value": "القيمة",
+        "meter": "العدّاد", "type": "النوع", "consumptionKwh": "الاستهلاك (ك.و.س)", "costSar": "التكلفة (ريال)"
+      },
       "type": {
         "production": { "label": "أداء الإنتاج", "desc": "إكمال أوامر العمل والإنتاجية واتجاهات الإنتاج" },
         "quality": { "label": "مقاييس الجودة", "desc": "الفحوص وتقارير عدم المطابقة ومعدلات النجاح" },

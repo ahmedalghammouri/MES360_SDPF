@@ -16,8 +16,52 @@
       "loadFailed": "Failed to load report data", "unknownError": "An unknown error occurred", "retry": "Retry",
       "recentReports": "Recent Reports", "rerun": "Re-run",
       "noData": "No data returned for the selected filters.",
-      "showingRows": "Showing {{shown}} of {{total}} rows", "exportToViewAll": "Export CSV to view all rows",
+      "showingRows": "Showing {{shown}} of {{total}} rows", "exportToViewAll": "Export to view all rows",
+      "showingRange": "Showing {{from}}–{{to}} of {{total}}",
+      "pageOf": "Page {{page}} of {{pages}}",
+      "first": "First", "prev": "Previous", "next": "Next", "last": "Last",
+      "exporting": "Exporting…",
+      "generatedAt": "Generated {{when}}", "recordsCountRaw": "{{count}} record(s)",
+      "sheetSummary": "Summary", "sheetDetail": "Detail",
       "rowsCount_one": "{{count}} row", "rowsCount_other": "{{count}} rows",
+      "exportPdf": "Export PDF", "exportExcel": "Export Excel",
+      "pdf": "PDF", "excel": "Excel", "csv": "CSV",
+      "quickRange": "Quick Range",
+      "searchPlaceholder": "Search rows...", "allMachines": "All machines",
+      "preset": { "today": "Today", "d7": "7d", "d30": "30d", "d90": "90d", "month": "This Month" },
+      "kpi": {
+        "avgOee": "Avg OEE", "avgAtOee": "Avg AT-OEE", "avgAvailability": "Avg Availability",
+        "availability": "Availability", "performance": "Performance", "quality": "Quality",
+        "output": "Output", "downtime": "Downtime (min)",
+        "machines": "Machines", "records": "Records",
+        "mttr": "MTTR (hrs)", "mtbf": "MTBF (hrs)", "completionRate": "Completion Rate",
+        "workOrders": "Work Orders", "totalCost": "Total Cost", "failures": "Failures",
+        "inspections": "Inspections", "passRate": "Pass Rate", "ncrs": "NCRs", "criticalNcrs": "Critical NCRs",
+        "scrapEvents": "Scrap Events", "totalScrapQty": "Total Scrap Qty", "categories": "Categories", "topCategory": "Top Category",
+        "totalSkus": "Total SKUs", "rawMaterials": "Raw Materials", "spareParts": "Spare Parts",
+        "lowStock": "Low Stock Items", "materialLots": "Material Lots", "stockValue": "Stock Value",
+        "totalConsumption": "Total Consumption", "peakDay": "Peak Day", "meters": "Meters", "energyTypes": "Energy Types"
+      },
+      "chart": {
+        "oeeTrend": "OEE Trend", "outputGoodScrap": "Output: Good vs Scrap", "byMachine": "Avg OEE by Machine",
+        "byType": "By Type", "byStatus": "By Status", "passFail": "Pass vs Fail", "ncrBySeverity": "NCRs by Severity",
+        "scrapPareto": "Scrap Pareto (by reason)", "good": "Good", "scrap": "Scrap",
+        "passed": "Passed", "failed": "Failed", "unspecified": "Unspecified", "noData": "No data for this period",
+        "energyConsumption": "Energy Consumption by Type"
+      },
+      "energyType": {
+        "ELECTRICITY": "Electricity", "ELECTRICAL": "Electrical", "NATURAL_GAS": "Natural Gas", "GAS": "Gas",
+        "COMPRESSED_AIR": "Compressed Air", "WATER": "Water", "STEAM": "Steam", "CHILLED_WATER": "Chilled Water"
+      },
+      "col": {
+        "date": "Date", "machine": "Machine", "planned": "Planned", "actual": "Actual", "good": "Good",
+        "oee": "OEE", "downtimeMin": "Downtime (min)", "availability": "Availability", "performance": "Performance",
+        "quality": "Quality", "atOee": "AT-OEE", "qty": "Qty", "category": "Category", "product": "Product",
+        "operation": "Operation", "operator": "Operator", "reason": "Reason", "group": "Group", "name": "Name",
+        "count": "Count", "ncrNumber": "NCR Number", "title": "Title", "severity": "Severity", "status": "Status",
+        "detectedAt": "Detected At", "metric": "Metric", "value": "Value",
+        "meter": "Meter", "type": "Type", "consumptionKwh": "Consumption (kWh)", "costSar": "Cost (SAR)"
+      },
       "type": {
         "production": { "label": "Production Performance", "desc": "WO completion, throughput, output trends" },
         "quality": { "label": "Quality Metrics", "desc": "Inspections, NCRs, pass rates" },
