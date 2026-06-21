@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 import { useTranslation } from 'react-i18next';
 
 import React, { useState } from 'react';
@@ -348,9 +349,12 @@ export function TraceabilityView({ fixedTab }: { fixedTab?: 'log' | 'genealogy' 
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
         <div>
-          <h1 className="text-lg font-bold">
-            {fixedTab === 'genealogy' ? t('traceability.genealogy') : fixedTab === 'log' ? t('traceability.log') : t('traceability.title')}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold">
+              {fixedTab === 'genealogy' ? t('traceability.genealogy') : fixedTab === 'log' ? t('traceability.log') : t('traceability.title')}
+            </h1>
+            <DashboardInfo id="traceability" />
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {fixedTab === 'genealogy'
               ? t('traceability.genealogySubtitle')

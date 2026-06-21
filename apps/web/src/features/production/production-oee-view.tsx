@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 import { useTranslation } from 'react-i18next';
 
 import React, { useMemo, useState } from 'react';
@@ -138,7 +139,7 @@ export function ProductionOEEView() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0 flex-wrap gap-2">
         <div>
-          <h1 className="text-lg font-bold">{t('headers.oee.title')}</h1>
+          <div className="flex items-center gap-2"><h1 className="text-lg font-bold">{t('headers.oee.title')}</h1><DashboardInfo id="production-oee" /></div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('headers.oee.subtitle')}
           </p>

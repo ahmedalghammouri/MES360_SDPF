@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 import { useTranslation } from 'react-i18next';
 
 import React, { useMemo, useState } from 'react';
@@ -445,7 +446,7 @@ export default function ProductionKpiView() {
             <TrendingUp size={18} className="text-brand-400" />
           </div>
           <div>
-            <h1 className="text-lg font-bold">{t('headers.kpiAnalytics.title')}</h1>
+            <div className="flex items-center gap-2"><h1 className="text-lg font-bold">{t('headers.kpiAnalytics.title')}</h1><DashboardInfo id="production-kpi" /></div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {t('headers.kpiAnalytics.subtitle')}
             </p>

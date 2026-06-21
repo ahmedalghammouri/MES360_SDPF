@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 import { useTranslation } from 'react-i18next';
 
 import { motion } from 'framer-motion';
@@ -72,7 +73,7 @@ export function InventoryOverview() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Boxes size={22} className="text-primary" /> {t('headers.overview.title')}</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Boxes size={22} className="text-primary" /> {t('headers.overview.title')}<DashboardInfo id="inventory-overview" /></h1>
           <p className="text-muted-foreground text-sm mt-1">{t('headers.overview.subtitle')}</p>
         </div>
         <div className="flex gap-2 flex-wrap">

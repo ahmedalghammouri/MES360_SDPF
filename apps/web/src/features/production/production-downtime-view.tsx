@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 import { useTranslation } from 'react-i18next';
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
@@ -1788,7 +1789,7 @@ export function ProductionDowntimeView() {
     <div className="flex flex-col gap-6 p-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold">{t('headers.downtime.title')}</h1>
+        <div className="flex items-center gap-2"><h1 className="text-xl font-bold">{t('headers.downtime.title')}</h1><DashboardInfo id="production-downtime" /></div>
         <p className="text-sm text-muted-foreground mt-0.5">
           {t('headers.downtime.subtitle')}
         </p>

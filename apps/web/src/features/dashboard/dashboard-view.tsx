@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -63,7 +64,7 @@ export function DashboardView() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
         <div>
-          <h1 className="text-lg font-bold text-foreground">{t('home')}</h1>
+          <div className="flex items-center gap-2"><h1 className="text-lg font-bold text-foreground">{t('home')}</h1><DashboardInfo id="home-dashboard" /></div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {dateLabel || ' '} · {t('realtimeOverview')}
           </p>

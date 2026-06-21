@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 import { useTranslation } from 'react-i18next';
 
 import { useMemo, useState } from 'react';
@@ -309,7 +310,7 @@ export function EnergyOverview() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t('energy.overview.title')}</h1>
+          <div className="flex items-center gap-2"><h1 className="text-2xl font-bold">{t('energy.overview.title')}</h1><DashboardInfo id="energy-overview" /></div>
           <p className="text-muted-foreground text-sm mt-1">{t('energy.overview.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
