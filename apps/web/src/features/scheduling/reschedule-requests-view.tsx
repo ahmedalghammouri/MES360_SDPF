@@ -47,8 +47,9 @@ interface RescheduleRequest {
 type TFunc = (key: string, opts?: Record<string, unknown>) => string;
 
 const SOURCE_CFG: Record<string, { labelKey: string; cls: string }> = {
-  AUTO_GENERATE: { labelKey: 'scheduling.reschedule.source.AUTO_GENERATE', cls: 'text-sky-400 bg-sky-500/15 border-sky-500/30' },
-  APS_RECALC:    { labelKey: 'scheduling.reschedule.source.APS_RECALC', cls: 'text-violet-400 bg-violet-500/15 border-violet-500/30' },
+  AUTO_GENERATE:    { labelKey: 'scheduling.reschedule.source.AUTO_GENERATE', cls: 'text-sky-400 bg-sky-500/15 border-sky-500/30' },
+  APS_RECALC:       { labelKey: 'scheduling.reschedule.source.APS_RECALC', cls: 'text-violet-400 bg-violet-500/15 border-violet-500/30' },
+  MATERIAL_DELIVERY:{ labelKey: 'scheduling.reschedule.source.MATERIAL_DELIVERY', cls: 'text-amber-400 bg-amber-500/15 border-amber-500/30' },
 };
 const sourceCfg = (t: TFunc, s: string) => {
   const cfg = SOURCE_CFG[s];
@@ -329,6 +330,20 @@ export function RescheduleRequestsView() {
                       {detail.details.makespanHours != null && <div className="text-muted-foreground">Run makespan: <span className="text-foreground">{detail.details.makespanHours}h</span></div>}
                       {Array.isArray(detail.details.updates) && (
                         <div className="text-muted-foreground">Plan covers <span className="text-foreground font-medium">{detail.details.updates.length}</span> operation(s) — approving applies these exact times.</div>
+                      )}
+                      {detail.details.deliveryEta && (
+                        <div className="text-muted-foreground">Material delivery ETA: <span className="text-foreground">{fmtDateTime(detail.details.deliveryEta)}</span>{detail.details.delayDays != null ? <span className="text-amber-400"> (+{detail.details.delayDays}d)</span> : null}</div>
+                      )}
+                      {Array.isArray(detail.details.materials) && detail.details.materials.length > 0 && (
+                        <div className="mt-1.5 space-y-1">
+                          <div className="text-muted-foreground">Short materials ({detail.details.materials.length}):</div>
+                          {detail.details.materials.map((m: any, i: number) => (
+                            <div key={i} className="flex justify-between gap-2 text-[11px] pl-2 border-l border-amber-500/30">
+                              <span className="text-foreground truncate">{m.name ?? m.code} <span className="font-mono text-muted-foreground">{m.code}</span></span>
+                              <span className="text-amber-400 whitespace-nowrap">short {m.shortBy} {m.unit}{m.eta ? ` · ${fmtDateTime(m.eta).slice(0, 10)}` : ''}</span>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   )}

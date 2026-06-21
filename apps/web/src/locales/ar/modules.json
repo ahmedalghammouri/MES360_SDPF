@@ -108,7 +108,7 @@
       "kpiActionRequired": "يتطلب إجراءً", "kpiApproved": "معتمد", "kpiRejected": "مرفوض", "kpiAvgOverrun": "متوسط التجاوز",
       "filterAll": "الكل",
       "status": { "PENDING": "قيد الانتظار", "APPROVED": "معتمد", "REJECTED": "مرفوض" },
-      "source": { "AUTO_GENERATE": "توليد أمر عمل تلقائياً", "APS_RECALC": "إعادة حساب الخطة" },
+      "source": { "AUTO_GENERATE": "توليد أمر عمل تلقائياً", "APS_RECALC": "إعادة حساب الخطة", "MATERIAL_DELIVERY": "توريد المواد" },
       "emptyNone": "لا توجد طلبات إعادة جدولة.", "emptyFiltered": "لا توجد طلبات إعادة جدولة {{status}}.",
       "onTime": "في الموعد", "lateDHM": "متأخر {{d}} ي {{h}} س", "lateHM": "متأخر {{h}} س {{m}} د", "lateM": "متأخر {{m}} د",
       "col": { "productionOrder": "أمر الإنتاج", "source": "المصدر", "requestedBy": "مقدّم الطلب", "proposedWindow": "النافذة المقترحة", "due": "الاستحقاق", "overrun": "التجاوز", "status": "الحالة", "actions": "إجراءات" },

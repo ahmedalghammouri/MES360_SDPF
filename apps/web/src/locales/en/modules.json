@@ -108,7 +108,7 @@
       "kpiActionRequired": "Action required", "kpiApproved": "Approved", "kpiRejected": "Rejected", "kpiAvgOverrun": "Avg overrun",
       "filterAll": "All",
       "status": { "PENDING": "Pending", "APPROVED": "Approved", "REJECTED": "Rejected" },
-      "source": { "AUTO_GENERATE": "Auto-Generate WO", "APS_RECALC": "Recalculate Plan" },
+      "source": { "AUTO_GENERATE": "Auto-Generate WO", "APS_RECALC": "Recalculate Plan", "MATERIAL_DELIVERY": "Material Delivery" },
       "emptyNone": "No reschedule requests.", "emptyFiltered": "No {{status}} reschedule requests.",
       "onTime": "on time", "lateDHM": "{{d}}d {{h}}h late", "lateHM": "{{h}}h {{m}}m late", "lateM": "{{m}}m late",
       "col": { "productionOrder": "Production Order", "source": "Source", "requestedBy": "Requested by", "proposedWindow": "Proposed window", "due": "Due", "overrun": "Overrun", "status": "Status", "actions": "Actions" },

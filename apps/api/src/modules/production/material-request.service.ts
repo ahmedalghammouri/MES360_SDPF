@@ -149,8 +149,10 @@ export class MaterialRequestService {
           reviewedAt: new Date(),
         },
       });
-      // Defer the WO start to the latest committed ETA (shifts the schedule).
-      if (req.workOrderId) await this.production.scheduleWorkOrderForDelivery(req.workOrderId);
+      // Committing an ETA raises a PENDING PO reschedule request for approval (it
+      // does NOT move the WO/PO dates until approved). The WO stays blocked via its
+      // materialStatus / materialReadyDate gate in the meantime.
+      if (req.workOrderId) await this.production.scheduleWorkOrderForDelivery(req.workOrderId, userId);
       this.eventEmitter.emit('production.material-request.scheduled', { id, workOrderId: req.workOrderId, factoryId: req.factoryId });
       return updated;
     }

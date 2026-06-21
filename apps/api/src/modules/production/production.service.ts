@@ -2372,42 +2372,104 @@ export class ProductionService {
   }
 
   /**
-   * When inventory commits delivery dates, defer the WO start to the latest ETA:
-   * shift plannedStart/plannedEnd (and the job orders) so the run begins after the
-   * material arrives. Only shifts WOs not yet started.
+   * When inventory commits delivery dates and the latest ETA pushes the WO start
+   * out, we DO NOT shift the work order directly. Instead we raise a PENDING
+   * reschedule request on the parent PO (with the full material/ETA breakdown) for
+   * approval. Only on approval (reviewRescheduleRequest → applyRescheduleWindow)
+   * are the PO + WO + job-order dates moved to the new window. The WO meanwhile
+   * stays blocked from starting via its materialStatus / materialReadyDate gate.
+   *
+   * A WO with no parent PO has no PO governance, so it is shifted directly.
    */
-  async scheduleWorkOrderForDelivery(workOrderId: string): Promise<void> {
+  async scheduleWorkOrderForDelivery(workOrderId: string, userId: string | null = null): Promise<void> {
     const wo = await this.prisma.workOrder.findUnique({
       where: { id: workOrderId },
-      select: { id: true, status: true, plannedStart: true, plannedEnd: true },
+      select: { id: true, orderNumber: true, factoryId: true, productionOrderId: true, status: true, plannedStart: true, plannedEnd: true },
     });
     if (!wo) return;
+
+    // Always refresh the gate first (sets SCHEDULED_FOR_DELIVERY + materialReadyDate
+    // so the WO/JOs cannot start before the latest ETA).
+    await this.refreshWorkOrderMaterialStatus(workOrderId);
+
     const open = await this.prisma.materialRequest.findMany({
       where: { workOrderId, status: { in: ProductionService.OPEN_REQUEST_STATUSES as any } },
-      select: { deliveryDate: true },
+      include: { rawMaterial: { select: { code: true, name: true } } },
     });
-    const dates = open.map((o) => o.deliveryDate).filter((d): d is Date => !!d);
-    if (dates.length > 0) {
-      const maxDate = new Date(Math.max(...dates.map((d) => +d)));
-      if (['PLANNED', 'RELEASED'].includes(wo.status) && +wo.plannedStart < +maxDate) {
-        const delta = +maxDate - +wo.plannedStart;
-        const jos = await this.prisma.jobOrder.findMany({ where: { workOrderId }, select: { id: true, plannedStart: true, plannedEnd: true } });
-        for (const jo of jos) {
-          await this.prisma.jobOrder.update({
-            where: { id: jo.id },
-            data: {
-              ...(jo.plannedStart && { plannedStart: new Date(+jo.plannedStart + delta) }),
-              ...(jo.plannedEnd && { plannedEnd: new Date(+jo.plannedEnd + delta) }),
-            },
-          });
-        }
-        await this.prisma.workOrder.update({
-          where: { id: workOrderId },
-          data: { plannedStart: maxDate, plannedEnd: new Date(+wo.plannedEnd + delta) },
+    const withEta = open.filter((o) => !!o.deliveryDate);
+    if (withEta.length === 0) return;
+
+    const maxDate = new Date(Math.max(...withEta.map((o) => +o.deliveryDate!)));
+    // Only relevant while the WO has not started and the ETA actually delays it.
+    if (!['PLANNED', 'RELEASED'].includes(wo.status)) return;
+    if (+maxDate <= +wo.plannedStart) return;
+
+    const delta = +maxDate - +wo.plannedStart;
+    const proposedStart = maxDate;
+    const proposedEnd = new Date(+wo.plannedEnd + delta);
+
+    // No parent PO → no PO-level governance; shift the WO + its JOs directly.
+    if (!wo.productionOrderId) {
+      const jos = await this.prisma.jobOrder.findMany({ where: { workOrderId }, select: { id: true, plannedStart: true, plannedEnd: true } });
+      for (const jo of jos) {
+        await this.prisma.jobOrder.update({
+          where: { id: jo.id },
+          data: {
+            ...(jo.plannedStart && { plannedStart: new Date(+jo.plannedStart + delta) }),
+            ...(jo.plannedEnd && { plannedEnd: new Date(+jo.plannedEnd + delta) }),
+          },
         });
       }
+      await this.prisma.workOrder.update({ where: { id: workOrderId }, data: { plannedStart: proposedStart, plannedEnd: proposedEnd } });
+      return;
     }
-    await this.refreshWorkOrderMaterialStatus(workOrderId);
+
+    // Raise (or update) a PENDING PO reschedule request for approval. Do NOT move
+    // any dates yet — approval is what applies the new window.
+    const po = await this.prisma.productionOrder.findUnique({ where: { id: wo.productionOrderId }, select: { plannedEnd: true, orderNumber: true } });
+    const reason =
+      `Material delivery: latest supplier ETA ${maxDate.toISOString().slice(0, 10)} for ${withEta.length} short material(s) — ` +
+      `WO ${wo.orderNumber} start deferred from ${wo.plannedStart.toISOString().slice(0, 10)} to ${maxDate.toISOString().slice(0, 10)}.`;
+    const details = {
+      origin: 'Material Shortage Delivery',
+      workOrder: wo.orderNumber,
+      originalStart: wo.plannedStart.toISOString(),
+      originalEnd: wo.plannedEnd.toISOString(),
+      deliveryEta: maxDate.toISOString(),
+      delayDays: Math.round(delta / 86_400_000),
+      materials: withEta.map((o) => ({
+        requestNumber: o.requestNumber,
+        code: (o.rawMaterial as any)?.code ?? null,
+        name: (o.rawMaterial as any)?.name ?? null,
+        shortBy: o.quantityShort,
+        unit: o.unit,
+        eta: o.deliveryDate?.toISOString() ?? null,
+      })),
+    } as any;
+
+    const existing = await this.prisma.rescheduleRequest.findFirst({
+      where: { factoryId: wo.factoryId, productionOrderId: wo.productionOrderId, status: 'PENDING' },
+    });
+    const data = {
+      proposedStart,
+      proposedEnd,
+      dueDate: po?.plannedEnd ?? null,
+      reason,
+      source: 'MATERIAL_DELIVERY',
+      workOrderId: wo.id,
+      details,
+    };
+    if (existing) {
+      await this.prisma.rescheduleRequest.update({ where: { id: existing.id }, data });
+    } else {
+      await this.prisma.rescheduleRequest.create({
+        data: { factoryId: wo.factoryId, productionOrderId: wo.productionOrderId, requestedById: userId, status: 'PENDING', ...data },
+      });
+    }
+    this.eventEmitter.emit('production.reschedule.requested', {
+      workOrderId, productionOrderId: wo.productionOrderId, factoryId: wo.factoryId, source: 'MATERIAL_DELIVERY', proposedStart, proposedEnd,
+    });
+    this.logger.warn(`Material delivery reschedule request raised for PO ${po?.orderNumber ?? wo.productionOrderId} (WO ${wo.orderNumber} → ${maxDate.toISOString().slice(0, 10)})`);
   }
 
   /** Throw if a WO cannot start yet because of an open material gate. */
