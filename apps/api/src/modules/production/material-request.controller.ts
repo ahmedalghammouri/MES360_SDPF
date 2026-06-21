@@ -19,21 +19,33 @@ export class MaterialRequestController {
   @ApiOperation({ summary: 'List material-shortage requests raised to inventory' })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'archived', required: false })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   async list(
     @CurrentUser() user: RequestUser,
     @Query('search') search?: string,
     @Query('status') status?: string,
+    @Query('archived') archived?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.service.list(user.factoryId, {
       search,
       status,
+      archived,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
     });
+  }
+
+  @Post('bulk')
+  @ApiOperation({ summary: 'Bulk action on material requests: cancel / archive / unarchive / delete' })
+  async bulk(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: { action: 'cancel' | 'archive' | 'unarchive' | 'delete'; ids: string[] },
+  ) {
+    return this.service.bulk(user.factoryId, user.id, dto.action, dto.ids);
   }
 
   @Get('stats')

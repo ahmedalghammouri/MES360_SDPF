@@ -215,6 +215,7 @@ const navItems: NavItem[] = [
         ],
       },
       { label: 'Stock Movements',        href: '/inventory/stock-movements',       icon: ArrowLeftRight },
+      { label: 'Location Transfers',     href: '/inventory/location-movements',    icon: ArrowLeftRight },
       { label: 'Reports & Analytics',    href: '/inventory/reports',               icon: BarChart3     },
     ],
   },

@@ -6,11 +6,25 @@ import { ProductionService } from './production.service';
 const OPEN_STATUSES = ['PENDING', 'ACKNOWLEDGED', 'PARTIALLY_FULFILLED'] as const;
 const round3 = (x: number) => Math.round(x * 1000) / 1000;
 
+export interface MaterialReceiptLotDto {
+  lotNumber: string;
+  quantity: number;
+  supplierLot?: string;
+  supplierName?: string;
+  expiryDate?: string;
+  storageLocationId?: string;
+  binNumber?: string;
+  notes?: string;
+}
+
 export interface RespondMaterialRequestDto {
   // FULFILL = receive/adjust stock now; SET_DELIVERY = commit a supplier ETA;
   // CANCEL = drop the request (e.g. WO rescheduled or superseded).
   action: 'FULFILL' | 'SET_DELIVERY' | 'CANCEL';
-  quantity?: number; // FULFILL: qty to add to raw-material stock (default = remaining shortage)
+  quantity?: number; // FULFILL (direct adjust): qty to add to raw-material stock
+  // FULFILL by lots: receive one or more material lots linked to this request.
+  // When present, stock is rolled up from the lots and `quantity` is ignored.
+  lots?: MaterialReceiptLotDto[];
   deliveryDate?: string; // SET_DELIVERY: ISO date the material will be available
   notes?: string;
 }
@@ -28,11 +42,13 @@ export class MaterialRequestService {
   // ── List (inventory response queue) ──────────────────────────
   async list(
     factoryId: string | null,
-    filters: { search?: string; status?: string; page?: number; limit?: number },
+    filters: { search?: string; status?: string; archived?: string; page?: number; limit?: number },
   ) {
-    const { search, status, page = 1, limit = 20 } = filters;
+    const { search, status, archived, page = 1, limit = 20 } = filters;
     const where: any = {
       ...(factoryId ? { factoryId } : {}),
+      // archived: 'archived' → only archived; 'all' → both; default → active only.
+      ...(archived === 'archived' ? { NOT: { archivedAt: null } } : archived === 'all' ? {} : { archivedAt: null }),
       ...(status ? { status } : { status: { in: OPEN_STATUSES as any } }),
       ...(search && {
         OR: [
@@ -157,35 +173,94 @@ export class MaterialRequestService {
       return updated;
     }
 
-    // FULFILL — receive/adjust raw-material stock now.
+    // FULFILL — receive/adjust raw-material stock now. Two modes:
+    //   • by lots  → create one or more MaterialLots linked to this request (FEFO-
+    //     traceable, per-location), each rolling into the master currentStock.
+    //   • direct   → bump the master currentStock by a single quantity.
     const rm = req.rawMaterial;
-    const addQty = dto.quantity != null ? Number(dto.quantity) : round3(Math.max(0, req.quantityShort - req.quantityFulfilled));
-    if (!(addQty > 0)) throw new BadRequestException('Quantity to fulfill must be greater than zero.');
+    const useLots = Array.isArray(dto.lots) && dto.lots.length > 0;
 
+    let addQty = 0;
     const stockBefore = rm.currentStock;
-    const stockAfter = round3(stockBefore + addQty);
 
+    if (useLots) {
+      const lots = dto.lots!.filter((l) => Number(l.quantity) > 0 && l.lotNumber?.trim());
+      if (lots.length === 0) throw new BadRequestException('Provide at least one lot with a lot number and a positive quantity.');
+      let running = stockBefore;
+      for (const l of lots) {
+        const q = round3(Number(l.quantity));
+        const before = running;
+        const after = round3(before + q);
+        const lot = await this.prisma.materialLot.create({
+          data: {
+            factoryId: rm.factoryId,
+            rawMaterialId: rm.id,
+            materialCode: rm.code,
+            materialName: rm.name,
+            lotNumber: l.lotNumber.trim(),
+            supplierLot: l.supplierLot,
+            supplierName: l.supplierName ?? rm.supplierName ?? undefined,
+            quantity: q,
+            remainingQty: q,
+            unit: rm.unit,
+            status: 'ACTIVE',
+            expiryDate: l.expiryDate ? new Date(l.expiryDate) : undefined,
+            storageLocationId: l.storageLocationId ?? rm.storageLocationId ?? undefined,
+            binNumber: l.binNumber,
+            notes: l.notes ?? `Received for ${req.requestNumber}`,
+            materialRequestId: req.id,
+          },
+        });
+        await this.prisma.stockMovement.create({
+          data: {
+            factoryId: rm.factoryId,
+            entityType: 'RAW_MATERIAL',
+            entityId: rm.id,
+            entityCode: rm.code,
+            entityName: rm.name,
+            movementType: 'RECEIPT',
+            quantity: q,
+            unitCost: rm.unitCost,
+            totalCost: rm.unitCost != null ? round3(rm.unitCost * q) : null,
+            stockBefore: before,
+            stockAfter: after,
+            referenceType: 'MATERIAL_REQUEST',
+            referenceId: req.id,
+            referenceNumber: req.requestNumber,
+            performedById: userId,
+            notes: `Lot ${lot.lotNumber} received for ${req.requestNumber}`,
+          },
+        });
+        addQty = round3(addQty + q);
+        running = after;
+      }
+    } else {
+      addQty = dto.quantity != null ? round3(Number(dto.quantity)) : round3(Math.max(0, req.quantityShort - req.quantityFulfilled));
+      if (!(addQty > 0)) throw new BadRequestException('Quantity to fulfill must be greater than zero.');
+      await this.prisma.stockMovement.create({
+        data: {
+          factoryId: rm.factoryId,
+          entityType: 'RAW_MATERIAL',
+          entityId: rm.id,
+          entityCode: rm.code,
+          entityName: rm.name,
+          movementType: 'RECEIPT',
+          quantity: addQty,
+          unitCost: rm.unitCost,
+          totalCost: rm.unitCost != null ? round3(rm.unitCost * addQty) : null,
+          stockBefore,
+          stockAfter: round3(stockBefore + addQty),
+          referenceType: 'MATERIAL_REQUEST',
+          referenceId: req.id,
+          referenceNumber: req.requestNumber,
+          performedById: userId,
+          notes: dto.notes ?? `Fulfilled material request ${req.requestNumber}`,
+        },
+      });
+    }
+
+    const stockAfter = round3(stockBefore + addQty);
     await this.prisma.rawMaterial.update({ where: { id: rm.id }, data: { currentStock: stockAfter } });
-    await this.prisma.stockMovement.create({
-      data: {
-        factoryId: rm.factoryId,
-        entityType: 'RAW_MATERIAL',
-        entityId: rm.id,
-        entityCode: rm.code,
-        entityName: rm.name,
-        movementType: 'RECEIPT',
-        quantity: addQty,
-        unitCost: rm.unitCost,
-        totalCost: rm.unitCost != null ? round3(rm.unitCost * addQty) : null,
-        stockBefore,
-        stockAfter,
-        referenceType: 'MATERIAL_REQUEST',
-        referenceId: req.id,
-        referenceNumber: req.requestNumber,
-        performedById: userId,
-        notes: dto.notes ?? `Fulfilled material request ${req.requestNumber}`,
-      },
-    });
 
     const liveAvailable = round3(stockAfter - rm.reservedStock);
     const covered = liveAvailable + 1e-6 >= req.quantityNeeded;
@@ -210,7 +285,7 @@ export class MaterialRequestService {
         entityCode: rm.code,
         eventType: 'STOCK_IN',
         quantity: addQty,
-        eventData: { requestNumber: req.requestNumber, fulfilled: covered, stockAfter },
+        eventData: { requestNumber: req.requestNumber, fulfilled: covered, stockAfter, viaLots: useLots, lotsCreated: useLots ? dto.lots!.filter((l) => Number(l.quantity) > 0).length : 0 },
         performedById: userId,
         relatedType: 'MATERIAL_REQUEST',
         relatedId: req.id,
@@ -220,6 +295,42 @@ export class MaterialRequestService {
     if (req.workOrderId) await this.production.refreshWorkOrderMaterialStatus(req.workOrderId);
     this.eventEmitter.emit('production.material-request.fulfilled', { id, workOrderId: req.workOrderId, factoryId: req.factoryId, covered });
     return updated;
+  }
+
+  // ── Bulk actions (cancel / archive / unarchive / delete) ─────
+  async bulk(
+    factoryId: string | null,
+    userId: string | null,
+    action: 'cancel' | 'archive' | 'unarchive' | 'delete',
+    ids: string[],
+  ): Promise<{ affected: number }> {
+    if (!Array.isArray(ids) || ids.length === 0) throw new BadRequestException('No requests selected.');
+    const where = { id: { in: ids }, ...(factoryId ? { factoryId } : {}) };
+    const rows = await this.prisma.materialRequest.findMany({ where, select: { id: true, workOrderId: true, status: true } });
+    if (rows.length === 0) return { affected: 0 };
+
+    const touchedWOs = new Set<string>();
+    if (action === 'delete') {
+      await this.prisma.materialRequest.deleteMany({ where: { id: { in: rows.map((r) => r.id) } } });
+      rows.forEach((r) => r.workOrderId && touchedWOs.add(r.workOrderId));
+    } else if (action === 'archive') {
+      await this.prisma.materialRequest.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { archivedAt: new Date() } });
+    } else if (action === 'unarchive') {
+      await this.prisma.materialRequest.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { archivedAt: null } });
+    } else if (action === 'cancel') {
+      // Only open requests can be cancelled.
+      const cancellable = rows.filter((r) => OPEN_STATUSES.includes(r.status as any));
+      await this.prisma.materialRequest.updateMany({
+        where: { id: { in: cancellable.map((r) => r.id) } },
+        data: { status: 'CANCELLED', reviewedById: userId, reviewedAt: new Date() },
+      });
+      cancellable.forEach((r) => r.workOrderId && touchedWOs.add(r.workOrderId));
+    }
+
+    // cancel/delete can change a WO's material gate → refresh affected WOs.
+    for (const woId of touchedWOs) await this.production.refreshWorkOrderMaterialStatus(woId);
+    this.eventEmitter.emit('production.material-request.bulk', { factoryId, action, count: rows.length });
+    return { affected: rows.length };
   }
 
   // ── Auto-resolve when raw-material stock arrives elsewhere ────

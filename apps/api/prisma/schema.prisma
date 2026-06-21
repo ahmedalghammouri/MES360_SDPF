@@ -122,6 +122,7 @@ model Factory {
   rescheduleRequests     RescheduleRequest[]
   finishedGoodsLots      FinishedGoodsLot[]
   materialRequests       MaterialRequest[]
+  storageTransfers       StorageTransfer[]
 
   @@map("factories")
 }
@@ -950,6 +951,7 @@ model MaterialLot {
   storageLocationId String? // FK to StorageLocation
   binNumber         String?
   notes             String?
+  materialRequestId String? // received to fulfil this material-shortage request
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
@@ -957,8 +959,10 @@ model MaterialLot {
   rawMaterial        RawMaterial?          @relation(fields: [rawMaterialId], references: [id])
   storageLocationRef StorageLocation?      @relation(fields: [storageLocationId], references: [id])
   unitRef            UnitOfMeasure?        @relation(fields: [unitId], references: [id])
+  materialRequest    MaterialRequest?      @relation(fields: [materialRequestId], references: [id])
   consumptions       MaterialConsumption[]
   jobOrderMaterials  JobOrderMaterial[]
+  storageTransfers   StorageTransfer[]
 
   @@unique([factoryId, lotNumber, materialCode])
   @@map("material_lots")
@@ -2551,6 +2555,7 @@ enum MovementType {
   RESERVATION // soft reserve (pending approval)
   RELEASE // release reservation (WO cancelled)
   CONSUMPTION // production consumption
+  TRANSFER // moved between storage locations
 }
 
 // ============================================================
@@ -2660,6 +2665,8 @@ model StorageLocation {
   spareParts       SparePart[]
   skus             SKU[]
   finishedGoodsLots FinishedGoodsLot[]
+  transfersFrom    StorageTransfer[]  @relation("TransferFrom")
+  transfersTo      StorageTransfer[]  @relation("TransferTo")
 
   @@unique([factoryId, code])
   @@map("storage_locations")
@@ -2746,6 +2753,7 @@ model MaterialRequest {
   fulfilledAt       DateTime?
   notes             String?
   responseNotes     String?
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
@@ -2753,11 +2761,41 @@ model MaterialRequest {
   workOrder       WorkOrder?       @relation(fields: [workOrderId], references: [id])
   productionOrder ProductionOrder? @relation(fields: [productionOrderId], references: [id])
   rawMaterial     RawMaterial      @relation(fields: [rawMaterialId], references: [id])
+  materialLots    MaterialLot[]
 
   @@index([factoryId, status])
   @@index([workOrderId])
   @@index([rawMaterialId])
   @@map("material_requests")
+}
+
+// A physical stock move of an item between two storage locations. Records the
+// move, repoints the item/lot location, writes a TRANSFER ledger entry + trace
+// event, and notifies the factory. The audit source of truth for relocations.
+model StorageTransfer {
+  id             String          @id @default(uuid())
+  factoryId      String
+  transferNumber String          @unique
+  entityType     StockEntityType // RAW_MATERIAL | SPARE_PART | PRODUCT
+  entityId       String
+  entityCode     String
+  entityName     String
+  materialLotId  String? // when moving a specific material lot
+  fromLocationId String?
+  toLocationId   String?
+  quantity       Float
+  unit           String?
+  notes          String?
+  performedById  String?
+  createdAt      DateTime        @default(now())
+
+  factory      Factory          @relation(fields: [factoryId], references: [id])
+  fromLocation StorageLocation? @relation("TransferFrom", fields: [fromLocationId], references: [id])
+  toLocation   StorageLocation? @relation("TransferTo", fields: [toLocationId], references: [id])
+  materialLot  MaterialLot?     @relation(fields: [materialLotId], references: [id])
+
+  @@index([factoryId, createdAt])
+  @@map("storage_transfers")
 }
 
 // ============================================================
