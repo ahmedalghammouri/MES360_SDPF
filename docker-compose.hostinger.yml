@@ -165,8 +165,11 @@ services:
       # Same-origin in the browser means CORS is not strictly needed, but set the
       # real domain so any cross-origin tooling is accepted.
       CORS_ORIGINS: https://${APP_DOMAIN}
+      UPLOAD_DIR: /app/uploads
     # Schema + seed are handled by migrate-seed; the api just runs the server.
     command: node dist/main.js
+    volumes:
+      - uploads-data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -252,6 +255,8 @@ volumes:
   mosquitto_data:
     driver: local
   mosquitto_log:
+    driver: local
+  uploads-data:
     driver: local
 
 networks:

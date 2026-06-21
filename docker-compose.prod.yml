@@ -132,10 +132,13 @@ services:
       JWT_EXPIRES_IN: 8h
       JWT_REFRESH_EXPIRES_IN: 30d
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      UPLOAD_DIR: /app/uploads
     # Production image CMD is `node dist/main.js`; sync the Prisma schema first.
     command: >
       sh -c "node node_modules/.bin/prisma db push --accept-data-loss &&
              node dist/main.js"
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -208,6 +211,8 @@ volumes:
   mosquitto_log:
     driver: local
   nginx_cache:
+    driver: local
+  uploads_data:
     driver: local
 
 networks:
