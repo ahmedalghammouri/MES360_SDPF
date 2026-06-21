@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { StockMovementsService } from './stock-movements.service';
 import { findProcessForSku, processCoveredSkusWhere } from '../../common/process-scope.util';
@@ -10,6 +11,7 @@ export class InventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stockMovements: StockMovementsService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -400,6 +402,8 @@ export class InventoryService {
         referenceNumber: dto.lotNumber,
         notes: `Lot ${dto.lotNumber} received`,
       });
+      // Receipt may clear open WO material-shortage requests → auto-resolve.
+      this.eventEmitter.emit('inventory.raw-material.stock-changed', { rawMaterialId: master.id, factoryId });
     }
 
     return lot;
@@ -1003,8 +1007,19 @@ export class InventoryService {
         },
         skus: {
           where: { isActive: true },
-          select: { id: true, code: true, name: true, itemNumber: true, category: true },
+          select: { id: true, code: true, name: true, itemNumber: true, category: true, currentStock: true, baseUnit: true },
           orderBy: { name: 'asc' },
+        },
+        finishedGoodsLots: {
+          where: { status: 'ACTIVE', remainingQty: { gt: 0 } },
+          select: {
+            id: true, lotNumber: true, quantity: true, remainingQty: true, unit: true,
+            producedQty: true, producedUnit: true, producedAt: true, expiryDate: true,
+            sku: { select: { code: true, name: true, itemNumber: true } },
+            workOrder: { select: { orderNumber: true } },
+          },
+          orderBy: { producedAt: 'desc' },
+          take: 200,
         },
       },
     });
@@ -1013,7 +1028,8 @@ export class InventoryService {
     const rawMaterials = (loc as any).rawMaterials as { id: string; code: string; name: string; category: string | null; unit: string; currentStock: number; minStock: number; unitCost: number | null }[];
     const materialLots = (loc as any).materialLots as { id: string; lotNumber: string; materialCode: string; materialName: string; quantity: number; remainingQty: number | null; unit: string; status: string; receivedAt: Date; expiryDate: Date | null; binNumber: string | null; rawMaterial: { code: string; name: string; category: string | null } | null }[];
     const spareParts = (loc as any).spareParts as { id: string; partNumber: string; name: string; category: string | null; stockQty: number; minStockQty: number; unitCost: number | null; binNumber: string | null }[];
-    const skus = (loc as any).skus as { id: string; code: string; name: string; itemNumber: string | null; category: string | null }[];
+    const skus = (loc as any).skus as { id: string; code: string; name: string; itemNumber: string | null; category: string | null; currentStock?: number; baseUnit?: string }[];
+    const finishedGoodsLots = (loc as any).finishedGoodsLots ?? [];
 
     const stockValue =
       rawMaterials.reduce((s, r) => s + r.currentStock * (r.unitCost ?? 0), 0) +
@@ -1048,6 +1064,7 @@ export class InventoryService {
         stockValue: parseFloat((p.stockQty * (p.unitCost ?? 0)).toFixed(2)),
       })),
       skus,
+      finishedGoodsLots,
     };
   }
 

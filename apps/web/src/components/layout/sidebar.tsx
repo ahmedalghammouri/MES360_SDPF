@@ -211,6 +211,7 @@ const navItems: NavItem[] = [
           { label: 'Material Lots',      href: '/inventory/materials',             icon: Layers3       },
           { label: 'Spare Parts',        href: '/inventory/spare-parts',           icon: PackageSearch },
           { label: 'Spare Part Req.',    href: '/inventory/spare-requests',        icon: Truck         },
+          { label: 'Material Requests',  href: '/inventory/material-requests',     icon: ClipboardList },
         ],
       },
       { label: 'Stock Movements',        href: '/inventory/stock-movements',       icon: ArrowLeftRight },

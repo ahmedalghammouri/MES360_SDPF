@@ -22,6 +22,16 @@
     "ON_HOLD": "On Hold",
     "CANCELLED": "Cancelled"
   },
+  "materialGate": {
+    "awaiting": "Awaiting Materials",
+    "scheduled": "Materials ETA {{date}}"
+  },
+  "autoGen": {
+    "materialShort": {
+      "title": "{{count}} material shortage(s) — WO awaiting materials",
+      "desc": "A request was sent to inventory. The work order cannot start until materials are available."
+    }
+  },
   "col": {
     "order": "Order #",
     "product": "Product",

@@ -96,6 +96,11 @@ export class ProductionService {
       throw err;
     }
 
+    // Material-availability gate: raise shortage requests to inventory and flag the
+    // WO "Awaiting Materials" if any step material is short (non-blocking — the WO is
+    // created either way and simply cannot start until materials are available).
+    await this.checkWorkOrderMaterials(workOrder.id, userId);
+
     const full = await this.getWorkOrderById(resolvedFactoryId, workOrder.id);
     this.eventEmitter.emit('production.work-order.created', { workOrder: full, factoryId: resolvedFactoryId });
     this.logger.log(`Work order ${orderNumber} created with ${full.totalSteps} routed job orders`);
@@ -294,7 +299,7 @@ export class ProductionService {
       throw new BadRequestException(`Cannot update a ${wo.status} work order`);
     }
 
-    return this.prisma.workOrder.update({
+    const updated = await this.prisma.workOrder.update({
       where: { id },
       data: {
         ...(dto.plannedQty !== undefined && { plannedQty: dto.plannedQty }),
@@ -306,6 +311,14 @@ export class ProductionService {
         ...(dto.notes !== undefined && { notes: dto.notes }),
       },
     });
+
+    // Editing quantity or schedule can change material demand — re-evaluate the
+    // shortage gate (and any open requests) for a WO that hasn't started yet.
+    if ((dto.plannedQty !== undefined || dto.plannedStart) && ['PLANNED', 'RELEASED'].includes(updated.status)) {
+      await this.checkWorkOrderMaterials(id, null);
+    }
+
+    return updated;
   }
 
   async deleteWorkOrder(factoryId: string | null, id: string) {
@@ -362,33 +375,48 @@ export class ProductionService {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
 
+    // Scope: a PO is in-scope when it has a WO that — by its header machine OR any
+    // of its job-order steps — runs on the selected area/line/machine. A PO that
+    // has NO work orders yet (just created, not dispatched to a line) is not tied
+    // to any line, so it must stay visible under every scope — otherwise newly
+    // created production orders vanish until their WOs are generated.
+    const woScopeOr =
+      (filters.machineId || filters.lineId || filters.areaId)
+        ? filters.machineId
+          ? [{ jobOrders: { some: { machineId: filters.machineId } } }]
+          : filters.lineId
+            ? [{ lineId: filters.lineId }, { jobOrders: { some: { machine: { lineId: filters.lineId } } } }]
+            : [{ line: { areaId: filters.areaId } }, { jobOrders: { some: { machine: { line: { areaId: filters.areaId } } } } }]
+        : null;
+
+    const scopeMatch: Prisma.ProductionOrderWhereInput | null = woScopeOr
+      ? {
+          OR: [
+            { workOrders: { some: { deletedAt: null, OR: woScopeOr as any } } },
+            { workOrders: { none: { deletedAt: null } } }, // not yet dispatched → always visible
+          ],
+        }
+      : null;
+
+    const searchMatch: Prisma.ProductionOrderWhereInput | null = filters.search
+      ? {
+          OR: [
+            { orderNumber: { contains: filters.search, mode: 'insensitive' } },
+            { sapOrderNumber: { contains: filters.search, mode: 'insensitive' } },
+            { customer: { contains: filters.search, mode: 'insensitive' } },
+            { sku: { name: { contains: filters.search, mode: 'insensitive' } } },
+          ],
+        }
+      : null;
+
+    const andConds = [scopeMatch, searchMatch].filter(Boolean) as Prisma.ProductionOrderWhereInput[];
+
     const where: Prisma.ProductionOrderWhereInput = {
       ...factoryFilter,
       deletedAt: null,
       ...archivedWhere(filters.archived),
       ...(filters.status && { status: filters.status as any }),
-      // Scope: PO is in-scope when it has a WO that — by its header machine OR any
-      // of its job-order steps — runs on the selected area/line/machine.
-      ...((filters.machineId || filters.lineId || filters.areaId) && {
-        workOrders: {
-          some: {
-            deletedAt: null,
-            OR: filters.machineId
-              ? [{ jobOrders: { some: { machineId: filters.machineId } } }]
-              : filters.lineId
-                ? [{ lineId: filters.lineId }, { jobOrders: { some: { machine: { lineId: filters.lineId } } } }]
-                : [{ line: { areaId: filters.areaId } }, { jobOrders: { some: { machine: { line: { areaId: filters.areaId } } } } }],
-          },
-        },
-      }),
-      ...(filters.search && {
-        OR: [
-          { orderNumber: { contains: filters.search, mode: 'insensitive' } },
-          { sapOrderNumber: { contains: filters.search, mode: 'insensitive' } },
-          { customer: { contains: filters.search, mode: 'insensitive' } },
-          { sku: { name: { contains: filters.search, mode: 'insensitive' } } },
-        ],
-      }),
+      ...(andConds.length > 0 && { AND: andConds }),
     };
 
     const [data, total] = await Promise.all([
@@ -1203,6 +1231,10 @@ export class ProductionService {
       });
     }
 
+    // Material-availability gate (same as manual creation): raise shortage requests
+    // and flag the WO if any step material is short.
+    const materialCheck = await this.checkWorkOrderMaterials(wo.id, userId);
+
     this.logger.log(
       `Auto-generated WO ${wo.orderNumber} + ${joResult.created} job orders for PO ${po.orderNumber}`,
     );
@@ -1212,6 +1244,7 @@ export class ProductionService {
       jobOrders: joResult.jobOrders,
       process: preview.process,
       warning: preview.warning,
+      materialShortages: materialCheck.shortages,
     };
   }
 
@@ -1434,11 +1467,18 @@ export class ProductionService {
   async startWorkOrder(factoryId: string | null, userId: string | null, workOrderId: string, operatorId?: string) {
     const wo = await this.assertTransition(factoryId, workOrderId, 'IN_PROGRESS');
 
+    // Material gate: an Awaiting-Materials WO cannot start, and a delivery-scheduled
+    // WO cannot start before its materialReadyDate (the supplier ETA).
+    this.assertMaterialsClearedToStart(wo);
+
     const updated = await this.prisma.workOrder.update({
       where: { id: workOrderId },
       data: {
         status: 'IN_PROGRESS',
         actualStart: new Date(),
+        // Materials accepted at start — clear the gate so its job orders can run.
+        materialStatus: 'OK',
+        materialReadyDate: null,
         ...(userId && { startedById: userId }),
         ...(operatorId && { operatorId }),
       },
@@ -2010,7 +2050,7 @@ export class ProductionService {
    *     this is what the Genealogy explorer walks.
    */
   private async recordTraceability(
-    wo: { id: string; factoryId: string; orderNumber: string; skuId: string | null; plannedQty: number; actualStart: Date | null },
+    wo: { id: string; factoryId: string; orderNumber: string; skuId: string | null; plannedQty: number; actualStart: Date | null; productionOrderId: string | null },
     userId: string,
     actualQty: number,
     goodQty: number,
@@ -2048,6 +2088,10 @@ export class ProductionService {
           endTime: actualEnd,
         },
       });
+
+      // 1b) Post the produced good qty into a FINISHED_GOODS storage location
+      // (base-unit converted), bump SKU on-hand + write the RECEIPT movement/link.
+      await this.postFinishedGoods(wo, batch, goodQty, userId, actualEnd);
 
       // 2+3) Steps — STEP_COMPLETED trace events + idempotent material consumption
       const jos = await this.prisma.jobOrder.findMany({
@@ -2174,6 +2218,337 @@ export class ProductionService {
     } catch (err) {
       // Reservation is advisory — never block the WO lifecycle
       this.logger.error('Material reservation adjustment failed', err);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // MATERIAL-SHORTAGE GATE  (block WO start until raw materials available)
+  // ────────────────────────────────────────────────────────────
+
+  private static readonly OPEN_REQUEST_STATUSES = ['PENDING', 'ACKNOWLEDGED', 'PARTIALLY_FULFILLED'] as const;
+
+  /** Base-unit conversion via the SKU packaging ladder (PIECE/INNER/CARTON/PALLET). */
+  private toBaseUnits(
+    qty: number,
+    fromUnit: string | null | undefined,
+    baseUnit: string | null | undefined,
+    pkg: { unitsPerInner?: number | null; innersPerCarton?: number | null; cartonsPerPallet?: number | null },
+  ): number {
+    const inner = pkg.unitsPerInner || 1;
+    const carton = (pkg.innersPerCarton || 1) * inner;
+    const pallet = (pkg.cartonsPerPallet || 1) * carton;
+    const ladder: Record<string, number> = { PIECE: 1, EA: 1, PCS: 1, UNIT: 1, INNER: inner, CARTON: carton, PALLET: pallet };
+    const norm = (u: string | null | undefined) => ladder[(u || '').toUpperCase()] ?? 1;
+    return Math.round((qty * norm(fromUnit)) / norm(baseUnit) * 1000) / 1000;
+  }
+
+  /** Aggregate step-material demand of a WO from its job orders' routing-step materials. */
+  private async computeStepMaterialDemand(workOrderId: string) {
+    const jos = await this.prisma.jobOrder.findMany({
+      where: { workOrderId },
+      include: { routingStep: { include: { materials: true } } },
+    });
+    const round3 = (x: number) => Math.round(x * 1000) / 1000;
+    const demand = new Map<string, { qty: number; code: string; name: string; unit: string }>();
+    for (const jo of jos) {
+      for (const m of jo.routingStep?.materials ?? []) {
+        if (!m.rawMaterialId) continue;
+        const add = m.qtyPerOutputUnit * (jo.plannedQtyOut ?? 0);
+        const cur = demand.get(m.rawMaterialId);
+        if (cur) cur.qty = round3(cur.qty + add);
+        else demand.set(m.rawMaterialId, { qty: round3(add), code: m.materialCode ?? m.rawMaterialId, name: m.name ?? m.materialCode ?? '', unit: m.unit ?? '' });
+      }
+    }
+    return demand;
+  }
+
+  /**
+   * Compute material shortages for a WO and (optionally) raise PENDING material
+   * requests to inventory for every short raw material. Never throws — material
+   * gating must not break WO creation. Refreshes the WO's materialStatus at the end.
+   */
+  async checkWorkOrderMaterials(
+    workOrderId: string,
+    userId: string | null,
+    opts: { createRequests?: boolean } = {},
+  ): Promise<{ shortages: Array<{ rawMaterialId: string; code: string; name: string; unit: string; needed: number; available: number; short: number }> }> {
+    const round3 = (x: number) => Math.round(x * 1000) / 1000;
+    try {
+      const wo = await this.prisma.workOrder.findUnique({
+        where: { id: workOrderId },
+        select: { id: true, factoryId: true, orderNumber: true, productionOrderId: true, priority: true },
+      });
+      if (!wo) return { shortages: [] };
+
+      const demand = await this.computeStepMaterialDemand(workOrderId);
+      const shortages: Array<{ rawMaterialId: string; code: string; name: string; unit: string; needed: number; available: number; short: number }> = [];
+
+      for (const [rmId, d] of demand) {
+        if (d.qty <= 0) continue;
+        const rm = await this.prisma.rawMaterial.findUnique({
+          where: { id: rmId },
+          select: { id: true, code: true, name: true, unit: true, currentStock: true, reservedStock: true },
+        });
+        if (!rm) continue;
+        const available = round3(rm.currentStock - rm.reservedStock);
+        if (d.qty > available + 1e-6) {
+          shortages.push({ rawMaterialId: rmId, code: rm.code, name: rm.name, unit: rm.unit ?? d.unit, needed: d.qty, available: Math.max(0, available), short: round3(d.qty - available) });
+        }
+      }
+
+      if (opts.createRequests !== false && shortages.length > 0) {
+        for (const s of shortages) {
+          const existing = await this.prisma.materialRequest.findFirst({
+            where: { workOrderId, rawMaterialId: s.rawMaterialId, status: { in: ProductionService.OPEN_REQUEST_STATUSES as any } },
+          });
+          if (existing) {
+            await this.prisma.materialRequest.update({
+              where: { id: existing.id },
+              data: { quantityNeeded: s.needed, quantityAvailable: s.available, quantityShort: s.short, unit: s.unit },
+            });
+          } else {
+            const requestNumber = await this.generateMaterialRequestNumber(wo.factoryId);
+            await this.prisma.materialRequest.create({
+              data: {
+                factoryId: wo.factoryId,
+                workOrderId,
+                productionOrderId: wo.productionOrderId,
+                rawMaterialId: s.rawMaterialId,
+                requestNumber,
+                quantityNeeded: s.needed,
+                quantityAvailable: s.available,
+                quantityShort: s.short,
+                unit: s.unit,
+                status: 'PENDING',
+                priority: wo.priority as any,
+                requestedById: userId,
+              },
+            });
+            await this.prisma.traceEvent.create({
+              data: {
+                factoryId: wo.factoryId,
+                entityType: 'RAW_MATERIAL',
+                entityId: s.rawMaterialId,
+                entityCode: s.code,
+                eventType: 'MATERIAL_REQUESTED',
+                quantity: s.short,
+                eventData: { workOrder: wo.orderNumber, needed: s.needed, available: s.available, shortBy: s.short, unit: s.unit, requestNumber },
+                performedById: userId,
+                relatedType: 'PROD_WO',
+                relatedId: workOrderId,
+              },
+            }).catch(() => undefined);
+          }
+        }
+        this.eventEmitter.emit('production.material-shortage.raised', { workOrderId, factoryId: wo.factoryId, shortages });
+        this.logger.warn(`WO ${wo.orderNumber} — ${shortages.length} material shortage(s) raised to inventory`);
+      }
+
+      await this.refreshWorkOrderMaterialStatus(workOrderId);
+      return { shortages };
+    } catch (err) {
+      this.logger.error('Material shortage check failed', err as Error);
+      return { shortages: [] };
+    }
+  }
+
+  /** Derive a WO's materialStatus + materialReadyDate from its open material requests. */
+  async refreshWorkOrderMaterialStatus(workOrderId: string): Promise<void> {
+    const open = await this.prisma.materialRequest.findMany({
+      where: { workOrderId, status: { in: ProductionService.OPEN_REQUEST_STATUSES as any } },
+      select: { deliveryDate: true },
+    });
+    if (open.length === 0) {
+      await this.prisma.workOrder.update({ where: { id: workOrderId }, data: { materialStatus: 'OK', materialReadyDate: null } });
+      return;
+    }
+    const dates = open.map((o) => o.deliveryDate).filter((d): d is Date => !!d);
+    if (dates.length === open.length && dates.length > 0) {
+      const max = new Date(Math.max(...dates.map((d) => +d)));
+      await this.prisma.workOrder.update({ where: { id: workOrderId }, data: { materialStatus: 'SCHEDULED_FOR_DELIVERY', materialReadyDate: max } });
+    } else {
+      await this.prisma.workOrder.update({ where: { id: workOrderId }, data: { materialStatus: 'AWAITING_MATERIALS', materialReadyDate: null } });
+    }
+  }
+
+  /**
+   * When inventory commits delivery dates, defer the WO start to the latest ETA:
+   * shift plannedStart/plannedEnd (and the job orders) so the run begins after the
+   * material arrives. Only shifts WOs not yet started.
+   */
+  async scheduleWorkOrderForDelivery(workOrderId: string): Promise<void> {
+    const wo = await this.prisma.workOrder.findUnique({
+      where: { id: workOrderId },
+      select: { id: true, status: true, plannedStart: true, plannedEnd: true },
+    });
+    if (!wo) return;
+    const open = await this.prisma.materialRequest.findMany({
+      where: { workOrderId, status: { in: ProductionService.OPEN_REQUEST_STATUSES as any } },
+      select: { deliveryDate: true },
+    });
+    const dates = open.map((o) => o.deliveryDate).filter((d): d is Date => !!d);
+    if (dates.length > 0) {
+      const maxDate = new Date(Math.max(...dates.map((d) => +d)));
+      if (['PLANNED', 'RELEASED'].includes(wo.status) && +wo.plannedStart < +maxDate) {
+        const delta = +maxDate - +wo.plannedStart;
+        const jos = await this.prisma.jobOrder.findMany({ where: { workOrderId }, select: { id: true, plannedStart: true, plannedEnd: true } });
+        for (const jo of jos) {
+          await this.prisma.jobOrder.update({
+            where: { id: jo.id },
+            data: {
+              ...(jo.plannedStart && { plannedStart: new Date(+jo.plannedStart + delta) }),
+              ...(jo.plannedEnd && { plannedEnd: new Date(+jo.plannedEnd + delta) }),
+            },
+          });
+        }
+        await this.prisma.workOrder.update({
+          where: { id: workOrderId },
+          data: { plannedStart: maxDate, plannedEnd: new Date(+wo.plannedEnd + delta) },
+        });
+      }
+    }
+    await this.refreshWorkOrderMaterialStatus(workOrderId);
+  }
+
+  /** Throw if a WO cannot start yet because of an open material gate. */
+  private assertMaterialsClearedToStart(wo: { orderNumber: string; materialStatus: string; materialReadyDate: Date | null }) {
+    if (wo.materialStatus === 'AWAITING_MATERIALS') {
+      throw new BadRequestException(
+        `Work order ${wo.orderNumber} is awaiting materials — it cannot start until the open material request(s) are fulfilled by inventory.`,
+      );
+    }
+    if (wo.materialStatus === 'SCHEDULED_FOR_DELIVERY' && wo.materialReadyDate && new Date() < wo.materialReadyDate) {
+      throw new BadRequestException(
+        `Work order ${wo.orderNumber} is scheduled to start after the material delivery date (${wo.materialReadyDate.toISOString().slice(0, 16).replace('T', ' ')}). It cannot start before then.`,
+      );
+    }
+  }
+
+  private async generateMaterialRequestNumber(factoryId: string): Promise<string> {
+    const year = new Date().getFullYear();
+    const count = await this.prisma.materialRequest.count({ where: { factoryId } });
+    return `MR-${year}-${String(count + 1).padStart(4, '0')}`;
+  }
+
+  /**
+   * Post produced finished goods into a FINISHED_GOODS storage location on WO
+   * completion: create a FinishedGoodsLot (base-unit converted), bump SKU on-hand,
+   * write a RECEIPT stock movement + PRODUCED_FROM trace link. Idempotent per WO.
+   */
+  private async postFinishedGoods(
+    wo: { id: string; factoryId: string; orderNumber: string; skuId: string | null; productionOrderId: string | null },
+    batch: { id: string; batchNumber: string; lotNumber: string | null },
+    goodQty: number,
+    userId: string | null,
+    producedAt: Date,
+  ): Promise<void> {
+    try {
+      if (!wo.skuId || goodQty <= 0) return;
+      const already = await this.prisma.finishedGoodsLot.findFirst({ where: { workOrderId: wo.id }, select: { id: true } });
+      if (already) return; // idempotent — re-completion must not double-post
+
+      const sku = await this.prisma.sKU.findUnique({
+        where: { id: wo.skuId },
+        select: { id: true, code: true, name: true, baseUnit: true, currentStock: true, storageLocationId: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true },
+      });
+      if (!sku) return;
+
+      // Production unit: the PO unit (e.g. CARTON) when linked, else the base unit.
+      let producedUnit = sku.baseUnit;
+      if (wo.productionOrderId) {
+        const po = await this.prisma.productionOrder.findUnique({ where: { id: wo.productionOrderId }, select: { unit: true } });
+        if (po?.unit) producedUnit = po.unit;
+      }
+      const baseQty = this.toBaseUnits(goodQty, producedUnit, sku.baseUnit, sku);
+
+      // Resolve a finished-goods location: the SKU's own, else the factory's FG zone.
+      let locId = sku.storageLocationId;
+      if (!locId) {
+        const loc = await this.prisma.storageLocation.findFirst({ where: { factoryId: wo.factoryId, zone: 'FINISHED_GOODS', isActive: true }, select: { id: true } });
+        locId = loc?.id ?? null;
+      }
+
+      const fgLot = await this.prisma.finishedGoodsLot.create({
+        data: {
+          factoryId: wo.factoryId,
+          skuId: sku.id,
+          workOrderId: wo.id,
+          batchRecordId: batch.id,
+          storageLocationId: locId,
+          lotNumber: batch.lotNumber ?? `FG-${wo.orderNumber}`,
+          quantity: baseQty,
+          remainingQty: baseQty,
+          unit: sku.baseUnit,
+          producedQty: goodQty,
+          producedUnit,
+          status: 'ACTIVE',
+          producedAt,
+        },
+      });
+
+      const stockBefore = sku.currentStock ?? 0;
+      await this.prisma.sKU.update({ where: { id: sku.id }, data: { currentStock: { increment: baseQty } } });
+
+      await this.prisma.stockMovement.create({
+        data: {
+          factoryId: wo.factoryId,
+          entityType: 'PRODUCT',
+          entityId: sku.id,
+          entityCode: sku.code,
+          entityName: sku.name,
+          movementType: 'RECEIPT',
+          quantity: baseQty,
+          stockBefore,
+          stockAfter: Math.round((stockBefore + baseQty) * 1000) / 1000,
+          referenceType: 'PRODUCTION_WO',
+          referenceId: wo.id,
+          referenceNumber: wo.orderNumber,
+          performedById: userId,
+          notes: `Finished goods received from ${batch.batchNumber} (${goodQty} ${producedUnit} → ${baseQty} ${sku.baseUnit})`,
+        },
+      });
+
+      await this.prisma.traceabilityLink.create({
+        data: {
+          factoryId: wo.factoryId,
+          parentType: 'WORK_ORDER',
+          parentId: wo.id,
+          childType: 'FINISHED_GOODS_LOT',
+          childId: fgLot.id,
+          linkType: 'PRODUCED_FROM',
+          qty: baseQty,
+          unit: sku.baseUnit,
+        },
+      }).catch(() => undefined);
+
+      await this.prisma.traceEvent.create({
+        data: {
+          factoryId: wo.factoryId,
+          entityType: 'PRODUCT',
+          entityId: sku.id,
+          entityCode: sku.code,
+          eventType: 'STOCK_IN',
+          quantity: baseQty,
+          eventData: {
+            lot: fgLot.lotNumber,
+            storageLocationId: locId,
+            producedQty: goodQty,
+            producedUnit,
+            baseUnit: sku.baseUnit,
+            workOrder: wo.orderNumber,
+            batchNumber: batch.batchNumber,
+          },
+          performedById: userId,
+          performedAt: producedAt,
+          relatedType: 'PROD_WO',
+          relatedId: wo.id,
+        },
+      }).catch(() => undefined);
+
+      this.logger.log(`WO ${wo.orderNumber} — posted ${baseQty} ${sku.baseUnit} finished goods to inventory`);
+    } catch (err) {
+      // Finished-goods posting must never block production completion
+      this.logger.error('Finished-goods posting failed', err as Error);
     }
   }
 
@@ -2625,6 +3000,9 @@ export class ProductionService {
       availability: wo.availability,
       performance: wo.performance,
       quality: wo.quality,
+      // Material-availability gate
+      materialStatus: wo.materialStatus ?? 'OK',
+      materialReadyDate: wo.materialReadyDate?.toISOString?.() ?? wo.materialReadyDate ?? null,
     };
   }
 
@@ -3103,9 +3481,16 @@ export class ProductionService {
             routingStepId: true, actualStart: true,
           },
         },
+        workOrder: { select: { orderNumber: true, materialStatus: true, materialReadyDate: true } },
       },
     });
     if (!jo) throw new NotFoundException('Job order not found');
+
+    // Material gate: a job order cannot start while its WO is awaiting materials or
+    // is scheduled to start after a (future) supplier delivery date.
+    if (status === 'EXECUTING' && (jo as any).workOrder) {
+      this.assertMaterialsClearedToStart((jo as any).workOrder);
+    }
 
     const VALID_JO_TRANSITIONS: Record<string, string[]> = {
       SCHEDULED: ['READY', 'CANCELLED'],

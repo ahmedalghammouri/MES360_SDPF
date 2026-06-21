@@ -6,6 +6,7 @@
     "materials": { "title": "Material Lots" },
     "spareParts": { "title": "Spare Parts" },
     "spareRequests": { "title": "Spare Part Requests", "subtitle": "Pending requests from maintenance work orders — issue parts to fulfill them" },
+    "materialRequests": { "title": "Material Requests", "subtitle": "Raw-material shortages raised by work orders — fulfill stock or commit a delivery date to release the order" },
     "stockMovements": { "title": "Stock Movements", "subtitle": "Universal inventory ledger — every receipt, issue, adjustment, reservation and consumption." },
     "storage": { "title": "Storage Locations", "subtitle": "Warehouse zones, bins, and storage areas — click any location to view contents" },
     "bom": { "title": "Bill of Materials", "subtitle": "Define raw material requirements for each finished product" },
@@ -241,6 +242,41 @@
       "restored": "Raw material restored", "created": "Raw material created successfully", "updated": "Raw material updated", "deleted": "Raw material deleted",
       "error": "Error", "stockAdjusted": "Stock adjusted",
       "failArchive": "Failed to archive", "failRestore": "Failed to restore", "failCreate": "Failed to create material", "failUpdate": "Failed to update material", "failDelete": "Failed to delete material", "failAdjust": "Failed to adjust stock"
+    }
+  },
+  "matReqView": {
+    "kpi": {
+      "open": "Open Requests", "openHint": "awaiting inventory action",
+      "awaiting": "Awaiting Response", "awaitingHint": "no delivery date yet",
+      "scheduled": "Delivery Scheduled", "scheduledHint": "supplier ETA committed",
+      "highCritical": "High / Critical", "highCriticalHint": "urgent work orders blocked"
+    },
+    "status": { "pending": "Pending", "scheduled": "Scheduled", "partial": "Partial", "fulfilled": "Fulfilled", "cancelled": "Cancelled" },
+    "filter": { "open": "Open" },
+    "tableTitle": "Material Shortage Requests",
+    "search": "Search requests…",
+    "col": { "request": "Request", "wo": "Work Order", "material": "Material", "needed": "Needed", "available": "Available", "short": "Short", "status": "Status", "eta": "Delivery ETA", "supplier": "Supplier" },
+    "leadDays": "{{count}}d lead",
+    "empty": "No material requests",
+    "emptyHint": "Work orders with full material availability raise no requests",
+    "respond": "Respond",
+    "respondTitle": "Respond to Material Request",
+    "respondDesc": "{{material}} for work order {{wo}}",
+    "respondSuccess": "Request updated",
+    "respondFailed": "Failed to update request",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "submitting": "Submitting…",
+    "action": { "fulfill": "Fulfill Stock", "setEta": "Set Delivery", "cancel": "Cancel Req." },
+    "summary": { "material": "Material", "wo": "Work Order", "needed": "Needed", "available": "Available now", "short": "Still short", "supplier": "Supplier" },
+    "field": {
+      "qtyToAdd": "Quantity to receive",
+      "qtyHint": "Adds to raw-material stock. {{count}} {{unit}} needed to fully cover this request.",
+      "eta": "Delivery date & time",
+      "etaHint": "The work order start will be deferred to this date and cannot start before it.",
+      "cancelWarn": "Cancelling this request leaves the shortage unresolved. The work order stays blocked unless another request covers it.",
+      "notes": "Notes (optional)",
+      "notesPlaceholder": "e.g. PO #, supplier confirmation…"
     }
   },
   "spareRequestsView": {

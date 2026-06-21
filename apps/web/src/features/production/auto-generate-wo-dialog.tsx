@@ -145,10 +145,19 @@ export function AutoGenerateWODialog({ po, open, onClose, onDone }: Props) {
       qc.invalidateQueries({ queryKey: ['production', 'kpis'] });
       qc.invalidateQueries({ queryKey: ['job-orders'] });
       const joCount = res?.jobOrdersCreated ?? 0;
-      toast({
-        title: `Work order created + ${joCount} job order${joCount !== 1 ? 's' : ''} dispatched`,
-        description: `Linked to ${po.orderNumber}`,
-      });
+      const shortages = res?.materialShortages ?? [];
+      if (shortages.length > 0) {
+        toast({
+          variant: 'destructive',
+          title: t('autoGen.materialShort.title', { count: shortages.length, defaultValue: '{{count}} material shortage(s) — WO awaiting materials' }),
+          description: t('autoGen.materialShort.desc', { defaultValue: 'A request was sent to inventory. The work order cannot start until materials are available.' }),
+        });
+      } else {
+        toast({
+          title: `Work order created + ${joCount} job order${joCount !== 1 ? 's' : ''} dispatched`,
+          description: `Linked to ${po.orderNumber}`,
+        });
+      }
       onDone?.();
       onClose();
     },

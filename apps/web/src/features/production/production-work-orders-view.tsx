@@ -60,6 +60,7 @@ interface WorkOrder {
   plannedQty: number; actualQty: number; goodQty: number; scrapQty: number; reworkQty?: number;
   progress: number; oee?: number; availability?: number; performance?: number; quality?: number;
   plannedStart: string; plannedEnd: string; actualStart?: string; actualEnd?: string;
+  materialStatus?: 'OK' | 'AWAITING_MATERIALS' | 'SCHEDULED_FOR_DELIVERY'; materialReadyDate?: string | null;
 }
 
 interface WorkOrderDetail extends WorkOrder {
@@ -610,6 +611,18 @@ export function ProductionWorkOrdersView() {
                         <Badge variant={STATUS_COLORS[order.status] ?? 'secondary'} className="text-[10px] h-5">
                           {t(`status.${order.status}`, { defaultValue: order.status })}
                         </Badge>
+                        {order.materialStatus && order.materialStatus !== 'OK' && (
+                          <div className={cn(
+                            'mt-1 inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap',
+                            order.materialStatus === 'AWAITING_MATERIALS'
+                              ? 'text-red-400 bg-red-500/10 border-red-500/30'
+                              : 'text-blue-400 bg-blue-500/10 border-blue-500/30',
+                          )}>
+                            {order.materialStatus === 'AWAITING_MATERIALS'
+                              ? t('materialGate.awaiting', { defaultValue: 'Awaiting Materials' })
+                              : t('materialGate.scheduled', { defaultValue: 'Materials ETA {{date}}', date: order.materialReadyDate ? formatDate(order.materialReadyDate) : '' })}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn('text-[10px] h-5', PRIORITY_CLS[order.priority] ?? '')}>

@@ -120,6 +120,8 @@ model Factory {
   jobOrders              JobOrder[]
   scrapLogs              ScrapLog[]
   rescheduleRequests     RescheduleRequest[]
+  finishedGoodsLots      FinishedGoodsLot[]
+  materialRequests       MaterialRequest[]
 
   @@map("factories")
 }
@@ -601,6 +603,7 @@ model SKU {
   innersPerCarton  Int      @default(1)
   cartonsPerPallet Int      @default(1)
   baseUnit         String   @default("EA") // legacy text (kept in sync with baseUnitRef.code)
+  currentStock     Float    @default(0) // finished-goods on-hand in base units (sum of active finished_goods_lots)
   isActive         Boolean  @default(true)
   metadata         Json?
   createdAt        DateTime @default(now())
@@ -626,6 +629,7 @@ model SKU {
   processLinks           ManufacturingProcessSku[]
   recipes                Recipe[]
   changeRequests         ChangeRequest[]
+  finishedGoodsLots      FinishedGoodsLot[]
 
   @@unique([factoryId, itemNumber])
   @@index([factoryId])
@@ -689,6 +693,7 @@ model ProductionOrder {
   sku                SKU?                @relation(fields: [skuId], references: [id])
   workOrders         WorkOrder[]
   rescheduleRequests RescheduleRequest[]
+  materialRequests   MaterialRequest[]
 
   @@index([factoryId, status])
   @@map("production_orders")
@@ -780,6 +785,12 @@ model WorkOrder {
   plannedCycleTime  Float? // seconds per unit
   recipeId          String? // locked recipe at WO creation
   recipeVersion     String?
+  // Material availability gate (driven by material_requests). OK = every step
+  // material is in stock; AWAITING_MATERIALS = an open shortage request blocks
+  // start; SCHEDULED_FOR_DELIVERY = start deferred until materialReadyDate (the
+  // latest supplier delivery ETA submitted by inventory).
+  materialStatus    MaterialAvailability @default(OK)
+  materialReadyDate DateTime? // earliest allowed start (latest supplier delivery ETA)
   notes             String?
   createdById       String?
   startedById       String?
@@ -811,6 +822,8 @@ model WorkOrder {
   jobOrders            JobOrder[]
   scrapLogs            ScrapLog[]
   rescheduleRequests   RescheduleRequest[]
+  finishedGoodsLots    FinishedGoodsLot[]
+  materialRequests     MaterialRequest[]
 
   @@index([factoryId, status])
   @@index([factoryId, plannedStart])
@@ -2430,6 +2443,7 @@ model RawMaterial {
   bomItems           BOMItem[]
   recipeIngredients  RecipeIngredient[]
   routingStepUses    RoutingStepMaterial[]
+  materialRequests   MaterialRequest[]
 
   @@unique([factoryId, code])
   @@map("raw_materials")
@@ -2640,14 +2654,110 @@ model StorageLocation {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  factory      Factory       @relation(fields: [factoryId], references: [id])
-  rawMaterials RawMaterial[]
-  materialLots MaterialLot[]
-  spareParts   SparePart[]
-  skus         SKU[]
+  factory          Factory            @relation(fields: [factoryId], references: [id])
+  rawMaterials     RawMaterial[]
+  materialLots     MaterialLot[]
+  spareParts       SparePart[]
+  skus             SKU[]
+  finishedGoodsLots FinishedGoodsLot[]
 
   @@unique([factoryId, code])
   @@map("storage_locations")
+}
+
+// ============================================================
+// FINISHED GOODS & MATERIAL-SHORTAGE GOVERNANCE
+// ============================================================
+
+// Work-order material gate. Drives whether a WO can be started.
+enum MaterialAvailability {
+  OK // all step materials available — WO can start
+  AWAITING_MATERIALS // open shortage request(s); start blocked until fulfilled
+  SCHEDULED_FOR_DELIVERY // start deferred until materialReadyDate (supplier ETA)
+}
+
+// Lifecycle of a material-shortage request raised to the inventory team.
+enum MaterialRequestStatus {
+  PENDING // raised, awaiting inventory action
+  ACKNOWLEDGED // inventory committed a delivery date (ETA)
+  PARTIALLY_FULFILLED // some qty supplied, still short
+  FULFILLED // stock now covers the requirement
+  CANCELLED // dropped (WO cancelled / rescheduled / superseded)
+}
+
+// A produced finished-goods lot, posted into a FINISHED_GOODS storage location
+// when a work order completes. quantity/remainingQty are in the SKU base unit
+// (converted from the WO production unit via the packaging ladder). The per-WO
+// BatchRecord carries the genealogy; this row is the on-hand stock + location.
+model FinishedGoodsLot {
+  id                String      @id @default(uuid())
+  factoryId         String
+  skuId             String
+  workOrderId       String?
+  batchRecordId     String?
+  storageLocationId String?
+  lotNumber         String
+  quantity          Float // produced good qty in base units
+  remainingQty      Float // on-hand remaining (dispatch / issue decrements)
+  unit              String // SKU base unit (e.g. EA / PCS)
+  producedQty       Float? // original produced good qty in the WO production unit
+  producedUnit      String? // WO production unit (e.g. CARTON)
+  status            BatchStatus @default(ACTIVE)
+  producedAt        DateTime    @default(now())
+  expiryDate        DateTime?
+  notes             String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  factory            Factory          @relation(fields: [factoryId], references: [id])
+  sku                SKU              @relation(fields: [skuId], references: [id])
+  workOrder          WorkOrder?       @relation(fields: [workOrderId], references: [id])
+  storageLocationRef StorageLocation? @relation(fields: [storageLocationId], references: [id])
+
+  @@index([factoryId, skuId])
+  @@index([storageLocationId])
+  @@index([workOrderId])
+  @@map("finished_goods_lots")
+}
+
+// A request to the inventory team to replenish a raw material that is short for
+// a work order. Mirrors the spare-part request flow. Inventory responds by
+// adjusting stock (fulfilling) or committing a delivery date, which reschedules
+// the WO start. requestedById / reviewedById reference User ids (resolved on read).
+model MaterialRequest {
+  id                String                @id @default(uuid())
+  factoryId         String
+  workOrderId       String?
+  productionOrderId String?
+  rawMaterialId     String
+  requestNumber     String                @unique
+  quantityNeeded    Float // gross requirement for the WO
+  quantityAvailable Float // available (current − reserved) snapshot at request time
+  quantityShort     Float // needed − available
+  quantityFulfilled Float                 @default(0) // qty supplied so far
+  unit              String
+  status            MaterialRequestStatus @default(PENDING)
+  priority          Priority              @default(MEDIUM)
+  deliveryDate      DateTime? // supplier ETA committed by inventory
+  requestedAt       DateTime              @default(now())
+  requestedById     String?
+  reviewedById      String?
+  reviewedAt        DateTime?
+  fulfilledAt       DateTime?
+  notes             String?
+  responseNotes     String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  factory         Factory          @relation(fields: [factoryId], references: [id])
+  workOrder       WorkOrder?       @relation(fields: [workOrderId], references: [id])
+  productionOrder ProductionOrder? @relation(fields: [productionOrderId], references: [id])
+  rawMaterial     RawMaterial      @relation(fields: [rawMaterialId], references: [id])
+
+  @@index([factoryId, status])
+  @@index([workOrderId])
+  @@index([rawMaterialId])
+  @@map("material_requests")
 }
 
 // ============================================================

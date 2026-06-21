@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { StockMovementsService } from './stock-movements.service';
 import { TraceabilityService } from '../traceability/traceability.service';
@@ -29,6 +30,7 @@ export class RawMaterialsService {
     private readonly prisma: PrismaService,
     private readonly stockMovements: StockMovementsService,
     private readonly traceability: TraceabilityService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -298,6 +300,11 @@ export class RawMaterialsService {
       performedById: userId ?? null,
       notes: reason,
     });
+
+    // Replenishment may clear open WO material-shortage requests → auto-resolve.
+    if (quantity > 0) {
+      this.eventEmitter.emit('inventory.raw-material.stock-changed', { rawMaterialId: material.id, factoryId: material.factoryId });
+    }
 
     return this.enrichMaterial(updated);
   }
