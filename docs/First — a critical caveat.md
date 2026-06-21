@@ -41,3 +41,6 @@ Don't run docker system prune -af --volumes (whole-host nuke) if anything else r
 The env file is mandatory — last deploy every secret defaulted to blank, which would break Postgres/auth. Fill real values and use --env-file .env.hostinger (or cp .env.hostinger .env).
 After it's up, the fresh uploads-data volume is created writable by the nestjs user (Dockerfile fix), so attachment uploads work and persist — provided the hostinger compose you cloned actually contains the uploads-volume change (see the caveat above).
 Want me to (a) prepare the GitHub push of the local fixes so the fresh clone is complete, or (b) give you the exact lines to paste into the server's compose after cloning if you'd rather not push?
+
+
+cp .env.hostinger .env  &&  docker compose -f docker-compose.hostinger.yml up -d --build
