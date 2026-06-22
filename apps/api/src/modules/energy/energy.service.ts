@@ -108,7 +108,9 @@ export class EnergyService {
 
     let totalMTD = monthlySummaries.reduce((s, r) => s + r.totalConsumption, 0);
     let costMTD = monthlySummaries.reduce((s, r) => s + (r.cost ?? 0), 0);
-    let totalToday = dailySummaries.reduce((s, r) => s + r.totalConsumption, 0);
+    // Today's headline is ELECTRICAL only — summing kWh + m³ + L into one number is
+    // physically meaningless. Per-type figures live in `byType`; cost (SAR) is comparable.
+    let todayElectrical = dailySummaries.filter((r) => r.meter.type === 'ELECTRICAL').reduce((s, r) => s + r.totalConsumption, 0);
 
     let byType: Record<string, number> = {};
     for (const s of monthlySummaries) {
@@ -132,10 +134,11 @@ export class EnergyService {
       for (const [mid, cons] of mtd.byMeter) costMTD += cons * (rates.get(mid) ?? 0);
     }
     if (!dailySummaries.length) {
-      totalToday = (await this.consumptionFromReadings(factoryId, meterWhere, dayStart, now)).total;
+      todayElectrical = (await this.consumptionFromReadings(factoryId, meterWhere, dayStart, now)).byType['ELECTRICAL'] ?? 0;
     }
 
-    // Trend: last 7 days daily totals
+    // Trend: last 7 days ELECTRICAL daily totals (single unit = kWh, so the chart
+    // is physically meaningful — gas/water/air are shown separately in byType).
     const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     const trendSummaries = await this.prisma.energySummary.findMany({
@@ -146,24 +149,31 @@ export class EnergyService {
 
     const byDate: Record<string, number> = {};
     for (const s of trendSummaries) {
+      if (s.meter.type !== 'ELECTRICAL') continue;
       const d = s.periodStart.toISOString().slice(5, 10); // MM-DD
       byDate[d] = (byDate[d] ?? 0) + s.totalConsumption;
     }
-    // Reading-based fallback: per-day consumption deltas for the last 7 days.
+    // Reading-based fallback: per-day ELECTRICAL consumption for the last 7 days.
     if (!trendSummaries.length) {
       for (let i = 6; i >= 0; i--) {
         const dStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
         const dEnd = new Date(dStart); dEnd.setDate(dEnd.getDate() + 1);
         const day = dStart.toISOString().slice(5, 10);
-        byDate[day] = (await this.consumptionFromReadings(factoryId, meterWhere, dStart, dEnd)).total;
+        byDate[day] = (await this.consumptionFromReadings(factoryId, meterWhere, dStart, dEnd)).byType['ELECTRICAL'] ?? 0;
       }
     }
 
+    // Headline consumption is ELECTRICAL kWh (single unit). The full multi-utility
+    // picture is in `byType`; the all-utilities sum is exposed separately, not as
+    // the headline (mixing kWh/m³/L into one figure is not physically meaningful).
+    const electricalMtd = byType['ELECTRICAL'] ?? 0;
     return {
       meterCount,
-      totalConsumptionMtd: parseFloat(totalMTD.toFixed(2)),
+      totalConsumptionMtd: parseFloat(electricalMtd.toFixed(2)),
+      totalConsumptionUnit: 'kWh',
+      totalConsumptionAllMtd: parseFloat(totalMTD.toFixed(2)),
       totalCostMtd: parseFloat(costMTD.toFixed(2)),
-      totalConsumptionToday: parseFloat(totalToday.toFixed(2)),
+      totalConsumptionToday: parseFloat(todayElectrical.toFixed(2)),
       byType,
       trend: Object.entries(byDate).map(([date, value]) => ({ date, value: parseFloat(value.toFixed(2)) })),
     };

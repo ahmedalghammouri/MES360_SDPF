@@ -1,5 +1,6 @@
 'use client';
 import { DashboardInfo } from '@/components/ui/dashboard-info';
+import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { useTranslation } from 'react-i18next';
 
 import React, { useState } from 'react';
@@ -174,7 +175,7 @@ export function QualityOverview() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
         <div>
-          <div className="flex items-center gap-2"><h1 className="text-lg font-bold">{t('headers.overview.title')}</h1><DashboardInfo id="quality-overview" /></div>
+          <div className="flex items-center gap-2"><h1 className="text-lg font-bold">{t('headers.overview.title')}</h1><DashboardInfo id="quality-overview" /><DataModeBadge mode="period" /></div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('headers.overview.subtitle')}
           </p>

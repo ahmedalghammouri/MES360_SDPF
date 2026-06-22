@@ -1,5 +1,6 @@
 'use client';
 import { DashboardInfo } from '@/components/ui/dashboard-info';
+import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { useTranslation } from 'react-i18next';
 
 import { useMemo, useState } from 'react';
@@ -174,7 +175,7 @@ function EnergyContextPanel() {
                       ))}
                     </Pie>
                     <Tooltip
-                      contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 11 }}
+                      contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--popover-foreground))', borderRadius: '8px', fontSize: 11 }}
                       formatter={(v: number) => [`${v} kWh`]}
                     />
                   </PieChart>
@@ -310,7 +311,7 @@ export function EnergyOverview() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2"><h1 className="text-2xl font-bold">{t('energy.overview.title')}</h1><DashboardInfo id="energy-overview" /></div>
+          <div className="flex items-center gap-2"><h1 className="text-2xl font-bold">{t('energy.overview.title')}</h1><DashboardInfo id="energy-overview" /><DataModeBadge mode="period" /></div>
           <p className="text-muted-foreground text-sm mt-1">{t('energy.overview.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -387,10 +388,10 @@ export function EnergyOverview() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
                 <Tooltip
-                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                  contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--popover-foreground))', borderRadius: '8px' }}
                 />
                 {energyTypes.length > 0 ? energyTypes.map(type => (
                   <Area
@@ -425,10 +426,10 @@ export function EnergyOverview() {
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={byTypeChart} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis dataKey="type" type="category" tick={{ fontSize: 10, fill: '#94a3b8' }} width={100} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis dataKey="type" type="category" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} width={100} />
                 <Tooltip
-                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                  contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--popover-foreground))', borderRadius: '8px' }}
                 />
                 <Bar dataKey="value" fill="#6366f1" name={t('energy.consumption')} radius={[0, 4, 4, 0]} />
               </BarChart>
