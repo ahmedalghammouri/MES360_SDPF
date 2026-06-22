@@ -53,6 +53,24 @@ export class QualityController {
     return this.qualityService.getKPIs(user.factoryId, { areaId, lineId, machineId });
   }
 
+  @Get('cockpit')
+  @ApiOperation({ summary: 'Quality Intelligence command-center cockpit' })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  async getCockpit(
+    @CurrentUser() user: RequestUser,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.qualityService.getQualityCockpit(user.factoryId, { areaId, lineId, machineId }, { dateFrom, dateTo });
+  }
+
   // ────────────────────────────────────────────────────────────
   // INSPECTIONS
   // ────────────────────────────────────────────────────────────

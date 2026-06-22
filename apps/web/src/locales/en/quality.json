@@ -9,6 +9,34 @@
     "spc": { "title": "SPC Control Charts", "subtitle": "Statistical process control" },
     "reports": { "title": "Quality Reports and Analytics", "subtitle": "Monitor, analyse, and export quality performance data" }
   },
+  "cockpit": {
+    "title": "Quality Intelligence",
+    "subtitle": "FPY, defect Pareto, NCR & CAPA analytics",
+    "sections": {
+      "trend": "First-Pass Yield Trend",
+      "pareto": "Defect Pareto — by NCR category",
+      "ncr": "Non-Conformance Mix",
+      "capa": "CAPA Funnel",
+      "inspections": "Inspection Outcomes"
+    },
+    "kpi": {
+      "fpy": "First-Pass Yield",
+      "scrapRate": "Scrap Rate",
+      "reworkRate": "Rework Rate",
+      "openNCRs": "Open NCRs",
+      "openCAPAs": "Open CAPAs",
+      "cpk": "Process Cpk"
+    },
+    "bySeverity": "NCR by Severity",
+    "byStatus": "NCR by Status",
+    "noDefects": "No non-conformances in range",
+    "noInspections": "No inspections in range",
+    "units": "units",
+    "severity": { "CRITICAL": "Critical", "MAJOR": "Major", "MINOR": "Minor" },
+    "ncrStatus": { "OPEN": "Open", "IN_REVIEW": "In Review", "CAPA_PENDING": "CAPA Pending", "RESOLVED": "Resolved", "CLOSED": "Closed" },
+    "capaStatus": { "OPEN": "Open", "IN_PROGRESS": "In Progress", "VERIFIED": "Verified", "CLOSED": "Closed" },
+    "result": { "PASS": "Pass", "CONDITIONAL": "Conditional", "FAIL": "Fail", "PENDING": "Pending" }
+  },
   "common": {
     "export": "Export",
     "refresh": "Refresh",

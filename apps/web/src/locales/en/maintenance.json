@@ -18,6 +18,33 @@
   "selectRow": "Select row",
   "unassigned": "Unassigned",
   "loading": "Loading…",
+  "cockpit": {
+    "title": "Reliability Command Center",
+    "subtitle": "Asset reliability, MTTR/MTBF, PM compliance & failure analysis",
+    "sections": {
+      "trend": "Reliability Trend (MTTR / MTBF)",
+      "assets": "Asset Reliability — Worst Offenders",
+      "workload": "Work Order Workload",
+      "fmea": "Top Failure Modes by RPN"
+    },
+    "kpi": {
+      "openWOs": "Open WOs",
+      "overdue": "Overdue",
+      "mttr": "MTTR (hrs)",
+      "mtbf": "MTBF (hrs)",
+      "availability": "Availability",
+      "pmCompliance": "PM Compliance"
+    },
+    "byStatus": "Work Orders by Status",
+    "byType": "Work by Type",
+    "aging": "Open WO Aging",
+    "agingBuckets": { "lt1d": "< 1 day", "d1to3": "1–3 days", "d3to7": "3–7 days", "gt7d": "> 7 days" },
+    "assetCol": { "asset": "Asset", "failures": "Failures", "mttr": "MTTR (hrs)" },
+    "fmeaCol": { "mode": "Failure Mode", "asset": "Asset", "rpn": "RPN", "sod": "S·O·D" },
+    "noFailures": "No failures recorded in scope",
+    "noFmea": "No failure modes defined in scope",
+    "failuresUnit": "failures"
+  },
   "mfloor": {
     "title": "Maintenance Floor",
     "subtitle": "Your assigned maintenance work",

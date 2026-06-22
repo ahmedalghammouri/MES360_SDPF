@@ -1,6 +1,10 @@
 {
   "Insights Studio": "استوديو التحليلات",
   "Overview": "نظرة عامة",
+  "Command Centers": "مراكز القيادة",
+  "Command Center": "مركز القيادة",
+  "Energy Command Center": "مركز قيادة الطاقة",
+  "Executive Multi-Plant": "النظرة التنفيذية متعددة المصانع",
   "Planning & Execution": "التخطيط والتنفيذ",
   "Asset & Quality": "الأصول والجودة",
   "Materials & Products": "المواد والمنتجات",
@@ -52,6 +56,7 @@
   "Operation Hub": "مركز التشغيل",
   "Quality Floor": "شاشة الجودة",
   "Maintenance": "الصيانة",
+  "Reliability Center": "مركز الموثوقية",
   "Maintenance Floor": "شاشة الصيانة",
   "Maint. Scheduling": "جدولة الصيانة",
   "Maintenance Orders": "أوامر الصيانة",
@@ -62,6 +67,7 @@
   "Reports & Analytics": "التقارير والتحليلات",
 
   "Quality": "الجودة",
+  "Quality Intelligence": "ذكاء الجودة",
   "Quality Plans": "خطط الجودة",
   "Quality Records": "سجلات الجودة",
   "Inspections": "الفحوصات",

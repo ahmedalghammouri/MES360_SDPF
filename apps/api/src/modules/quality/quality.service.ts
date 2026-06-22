@@ -108,6 +108,106 @@ export class QualityService {
   }
 
   /**
+   * Quality Intelligence cockpit — the native quality command-center payload. Composes
+   * the day KPIs with a windowed FPY trend, a defect Pareto (NCR by category), NCR
+   * severity + status mix, inspection-outcome mix and the CAPA funnel. Scope-aware.
+   */
+  async getQualityCockpit(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+    range?: { dateFrom?: string; dateTo?: string },
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const machineIds = await this.scopeMachineIds(factoryId, scope);
+    const machineScope = machineIds ? { machineId: { in: machineIds } } : {};
+
+    const now = new Date();
+    const to = range?.dateTo ? new Date(`${range.dateTo}T23:59:59.999`) : now;
+    const from = range?.dateFrom
+      ? new Date(`${range.dateFrom}T00:00:00`)
+      : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+    const spanMs = Math.max(to.getTime() - from.getTime(), 86_400_000);
+    const multiDay = spanMs > 36 * 3_600_000;
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+
+    const [kpis, inspections, ncrs, capaGroups] = await Promise.all([
+      this.getKPIs(factoryId, scope),
+      this.prisma.inspectionResult.findMany({
+        where: { ...factoryFilter, ...machineScope, inspectedAt: { gte: from, lte: to } },
+        select: { inspectedAt: true, totalQty: true, passQty: true, failQty: true, result: true },
+      }),
+      this.prisma.nCR.findMany({
+        where: { ...factoryFilter, ...machineScope, detectedAt: { gte: from, lte: to } },
+        select: { defectCategory: true, severity: true, status: true, quantity: true },
+      }),
+      this.prisma.cAPA.groupBy({ by: ['status'], where: { ...factoryFilter }, _count: { _all: true } }),
+    ]);
+
+    // FPY trend, bucketed by day (or hour for same-day windows).
+    const buckets: { start: number; label: string; pass: number; total: number }[] = [];
+    {
+      const step = multiDay ? 86_400_000 : 3_600_000;
+      const d = new Date(from);
+      if (multiDay) d.setHours(0, 0, 0, 0); else d.setMinutes(0, 0, 0);
+      while (d.getTime() <= to.getTime() && buckets.length < 90) {
+        buckets.push({
+          start: d.getTime(),
+          label: multiDay ? `${d.getMonth() + 1}/${d.getDate()}` : `${d.getHours()}:00`,
+          pass: 0, total: 0,
+        });
+        d.setTime(d.getTime() + step);
+      }
+    }
+    const stepMs = multiDay ? 86_400_000 : 3_600_000;
+    for (const i of inspections) {
+      const t = i.inspectedAt.getTime();
+      const b = buckets.find((x) => t >= x.start && t < x.start + stepMs);
+      if (b) { b.pass += i.passQty; b.total += i.totalQty; }
+    }
+    const fpyTrend = buckets.map((b) => ({ time: b.label, fpy: b.total > 0 ? r1((b.pass / b.total) * 100) : 0 }));
+
+    // Defect Pareto from NCR (by category, weighted by affected quantity).
+    const byCat: Record<string, { quantity: number; count: number }> = {};
+    for (const n of ncrs) {
+      const key = n.defectCategory || 'OTHER';
+      if (!byCat[key]) byCat[key] = { quantity: 0, count: 0 };
+      byCat[key].quantity += n.quantity ?? 0;
+      byCat[key].count += 1;
+    }
+    const sortedCats = Object.entries(byCat)
+      .map(([category, v]) => ({ category, ...v }))
+      .sort((a, b) => b.quantity - a.quantity);
+    const totalQty = sortedCats.reduce((s, c) => s + c.quantity, 0);
+    let cum = 0;
+    const defectPareto = sortedCats.map((c) => {
+      cum += c.quantity;
+      return { ...c, cumulative: totalQty > 0 ? Math.round((cum / totalQty) * 100) : 0 };
+    });
+
+    // NCR severity + status mix.
+    const sevOrder: Severity[] = [Severity.CRITICAL, Severity.MAJOR, Severity.MINOR];
+    const ncrBySeverity = sevOrder.map((s) => ({ severity: s, count: ncrs.filter((n) => n.severity === s).length }));
+    const ncrByStatus = Object.values(NCRStatus).map((s) => ({ status: s, count: ncrs.filter((n) => n.status === s).length }));
+
+    // Inspection-outcome mix.
+    const inspectionByResult = ['PASS', 'CONDITIONAL', 'FAIL', 'PENDING'].map((res) => ({
+      result: res, count: inspections.filter((i) => i.result === res).length,
+    }));
+
+    return {
+      scope: scope && (scope.areaId || scope.lineId || scope.machineId) ? scope : null,
+      kpis,
+      fpyTrend,
+      defectPareto,
+      ncrBySeverity,
+      ncrByStatus,
+      inspectionByResult,
+      capaByStatus: capaGroups.map((g) => ({ status: g.status, count: g._count._all })),
+      generatedAt: now.toISOString(),
+    };
+  }
+
+  /**
    * Process-capability index from today's SPC measurements that carry spec limits.
    * Cpk = min((USL−µ)/3σ, (µ−LSL)/3σ). Returns null when there is not enough data
    * (≥2 samples with a non-zero σ) — the UI then renders "—" instead of a fake value.

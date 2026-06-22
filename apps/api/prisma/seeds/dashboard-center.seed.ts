@@ -45,7 +45,9 @@ const CATEGORIES: CategorySeed[] = [
 
 const NATIVE: DashboardSeed[] = [
   // Overview
+  { slug: 'command-center', title: 'Command Center', description: 'Unified flagship cockpit — production OEE, energy & utilities, losses and an executive cross-unit rollup in one scope-aware screen.', source: DashboardSource.MES360_NATIVE, type: DashboardType.EXECUTIVE, categoryKey: 'overview', icon: 'Gauge', route: '/command-center', tags: ['oee', 'energy', 'executive', 'realtime', 'cockpit'], supportedScopes: ['FACTORY', 'AREA', 'LINE', 'MACHINE'] },
   { slug: 'operations-overview', title: 'Operations Overview', description: 'Real-time plant operations, OEE, machines and alarms.', source: DashboardSource.MES360_NATIVE, type: DashboardType.OPERATIONAL, categoryKey: 'overview', icon: 'LayoutDashboard', route: '/dashboard', tags: ['oee', 'realtime', 'operations'] },
+  { slug: 'executive-multiplant', title: 'Executive Multi-Plant', description: 'Enterprise rollup across factories — OEE, output, energy cost, alarms, NCRs and maintenance backlog with factory comparison.', source: DashboardSource.MES360_NATIVE, type: DashboardType.EXECUTIVE, categoryKey: 'overview', icon: 'Factory', route: '/executive', tags: ['executive', 'multiplant', 'enterprise', 'oee'], supportedScopes: ['FACTORY'] },
   { slug: 'ai-intelligence', title: 'AI Intelligence', description: 'Rule-based insights, anomaly detection, equipment health.', source: DashboardSource.MES360_NATIVE, type: DashboardType.ANALYTICS, categoryKey: 'analytics', icon: 'Sparkles', route: '/ai', tags: ['ai', 'insights', 'predictive'] },
 
   // Production
@@ -60,13 +62,16 @@ const NATIVE: DashboardSeed[] = [
 
   // Quality
   { slug: 'quality-overview', title: 'Quality Overview', description: 'Inspections, NCR, CAPA and SPC.', source: DashboardSource.MES360_NATIVE, type: DashboardType.QUALITY, categoryKey: 'quality', icon: 'ShieldCheck', route: '/quality', tags: ['quality', 'spc', 'ncr'] },
+  { slug: 'quality-intelligence', title: 'Quality Intelligence', description: 'FPY trend, defect Pareto, NCR severity & status mix, CAPA funnel and inspection outcomes.', source: DashboardSource.MES360_NATIVE, type: DashboardType.QUALITY, categoryKey: 'quality', icon: 'TrendingUp', route: '/quality/intelligence', tags: ['quality', 'fpy', 'defects', 'ncr', 'capa'], supportedScopes: ['FACTORY', 'AREA', 'LINE', 'MACHINE'] },
   { slug: 'quality-spc', title: 'SPC Charts', description: 'Statistical process control charts.', source: DashboardSource.MES360_NATIVE, type: DashboardType.ANALYTICS, categoryKey: 'quality', icon: 'LineChart', route: '/quality/spc', tags: ['spc', 'control'] },
 
   // Maintenance
   { slug: 'maintenance-overview', title: 'Maintenance Overview', description: 'Work orders, MTTR/MTBF and PM compliance.', source: DashboardSource.MES360_NATIVE, type: DashboardType.MAINTENANCE, categoryKey: 'maintenance', icon: 'Wrench', route: '/maintenance', tags: ['maintenance', 'mttr', 'mtbf'] },
+  { slug: 'reliability-cockpit', title: 'Reliability Command Center', description: 'Asset reliability, MTTR/MTBF trend, PM compliance, WO workload & top failure modes by RPN.', source: DashboardSource.MES360_NATIVE, type: DashboardType.MAINTENANCE, categoryKey: 'maintenance', icon: 'Activity', route: '/maintenance/reliability', tags: ['maintenance', 'reliability', 'mttr', 'mtbf', 'fmea', 'rpn'], supportedScopes: ['FACTORY', 'AREA', 'LINE', 'MACHINE'] },
 
   // Energy
   { slug: 'energy-overview', title: 'Energy Overview', description: 'Consumption, cost and waste analysis.', source: DashboardSource.MES360_NATIVE, type: DashboardType.ENERGY, categoryKey: 'energy', icon: 'Zap', route: '/energy', tags: ['energy', 'kwh', 'cost'] },
+  { slug: 'energy-command-center', title: 'Energy Command Center', description: 'Live power, multi-utility consumption trend, standby waste, energy split (running/idle/downtime) and specific energy (kWh/unit).', source: DashboardSource.MES360_NATIVE, type: DashboardType.ENERGY, categoryKey: 'energy', icon: 'Zap', route: '/energy/command-center', tags: ['energy', 'power', 'cost', 'waste', 'kwh-per-unit'], supportedScopes: ['FACTORY', 'AREA', 'LINE', 'MACHINE'] },
 
   // Inventory
   { slug: 'inventory-overview', title: 'Inventory Overview', description: 'Stock, spare parts and storage.', source: DashboardSource.MES360_NATIVE, type: DashboardType.OPERATIONAL, categoryKey: 'inventory', icon: 'Package', route: '/inventory', tags: ['inventory', 'stock'] },

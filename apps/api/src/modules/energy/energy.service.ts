@@ -179,6 +179,71 @@ export class EnergyService {
     };
   }
 
+  /**
+   * Energy Command Center cockpit — composes the scope-aware overview, live power and
+   * the multi-utility consumption trend with a production-energy waste split
+   * (running / idle / downtime kWh) and specific energy (kWh/unit) from EnergyWOSummary,
+   * plus the live top consumers. One round-trip for the native energy command page.
+   */
+  async getEnergyCockpit(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+    range?: { dateFrom?: string; dateTo?: string },
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const now = new Date();
+    const to = range?.dateTo ? new Date(`${range.dateTo}T23:59:59.999`) : now;
+    const from = range?.dateFrom ? new Date(`${range.dateFrom}T00:00:00`) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+    const [overview, live, consumption, woSummaries] = await Promise.all([
+      this.getOverview(factoryId, scope),
+      this.getLivePower(factoryId, scope),
+      this.getConsumption(factoryId, { from: iso(from), to: iso(to), periodType: 'DAILY', ...scope }),
+      this.prisma.energyWOSummary.findMany({
+        where: { ...factoryFilter, computedAt: { gte: from, lte: to } },
+        select: { runningKwh: true, idleKwh: true, downtimeKwh: true, anomalyCount: true, kwhPerUnit: true },
+      }),
+    ]);
+
+    // Production-energy waste split + specific energy (factory-level, over the window).
+    let runningKwh = 0, idleKwh = 0, downtimeKwh = 0, anomalyCount = 0;
+    const perUnit: number[] = [];
+    for (const w of woSummaries) {
+      runningKwh += w.runningKwh ?? 0;
+      idleKwh += w.idleKwh ?? 0;
+      downtimeKwh += w.downtimeKwh ?? 0;
+      anomalyCount += w.anomalyCount ?? 0;
+      if (w.kwhPerUnit != null && w.kwhPerUnit > 0) perUnit.push(w.kwhPerUnit);
+    }
+    const round2 = (n: number) => parseFloat(n.toFixed(2));
+    const avgKwhPerUnit = perUnit.length ? round2(perUnit.reduce((s, v) => s + v, 0) / perUnit.length) : null;
+
+    // Live top consumers — scope-aware, by instantaneous power.
+    const topConsumers = [...(live?.meters ?? [])]
+      .filter((m) => (m.powerKw ?? 0) > 0)
+      .sort((a, b) => (b.powerKw ?? 0) - (a.powerKw ?? 0))
+      .slice(0, 8)
+      .map((m) => ({ meterId: m.meterId, name: m.name, type: m.type, powerKw: m.powerKw, standby: m.standby, machineState: m.machineState }));
+
+    return {
+      scope: scope && (scope.areaId || scope.lineId || scope.machineId) ? scope : null,
+      overview,
+      live,
+      consumption,
+      waste: {
+        runningKwh: round2(runningKwh),
+        idleKwh: round2(idleKwh),
+        downtimeKwh: round2(downtimeKwh),
+        anomalyCount,
+        avgKwhPerUnit,
+        woCount: woSummaries.length,
+      },
+      topConsumers,
+      generatedAt: now.toISOString(),
+    };
+  }
+
   // ────────────────────────────────────────────────────────────
   // METERS
   // ────────────────────────────────────────────────────────────

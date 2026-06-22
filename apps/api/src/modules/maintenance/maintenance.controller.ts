@@ -71,6 +71,23 @@ export class MaintenanceController {
     return this.maintenanceService.getReliabilityTrend(user.factoryId, n, { areaId, lineId, machineId });
   }
 
+  @Get('reliability-cockpit')
+  @ApiOperation({ summary: 'Maintenance & Reliability command-center cockpit' })
+  @ApiQuery({ name: 'months', required: false, type: Number })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  async getReliabilityCockpit(
+    @CurrentUser() user: RequestUser,
+    @Query('months') months?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+  ) {
+    const n = months ? Math.min(Math.max(parseInt(months, 10) || 6, 1), 24) : 6;
+    return this.maintenanceService.getReliabilityCockpit(user.factoryId, { areaId, lineId, machineId }, n);
+  }
+
   // ────────────────────────────────────────────────────────────
   // WORK ORDERS
   // ────────────────────────────────────────────────────────────

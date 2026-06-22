@@ -114,7 +114,8 @@
     "collapse": "Collapse",
     "wholeFactory": "Whole factory",
     "noHierarchy": "No hierarchy",
-    "scopedTo": "Scoped to"
+    "scopedTo": "Scoped to",
+    "appliesOnAnalytics": "Selection applies on analytics & dashboard pages."
   },
   "rowActions": {
     "label": "Row actions"

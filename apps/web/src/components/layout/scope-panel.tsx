@@ -11,7 +11,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ChevronRight, ChevronDown, Factory, LayoutGrid, GitBranch, Cpu, PanelLeftClose, PanelLeftOpen, Filter, Check,
+  ChevronRight, ChevronDown, Factory, LayoutGrid, GitBranch, Cpu, PanelLeftClose, PanelLeftOpen, Filter, Check, Info,
 } from 'lucide-react';
 import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
@@ -68,7 +68,7 @@ function Node({ node, depth }: { node: TreeNode; depth: number }) {
   );
 }
 
-export function ScopePanel() {
+export function ScopePanel({ passive = false }: { passive?: boolean }) {
   const { t } = useTranslation('common');
   const { scope, setScope, collapsed, toggleCollapsed } = useScopeStore();
 
@@ -102,6 +102,13 @@ export function ScopePanel() {
           <PanelLeftClose size={15} />
         </button>
       </div>
+
+      {passive && (
+        <div className="mx-2 mt-2 flex items-start gap-1.5 rounded-md bg-muted/40 px-2 py-1.5 text-[10px] leading-snug text-muted-foreground">
+          <Info size={12} className="mt-px shrink-0 text-primary/70" />
+          <span>{t('scope.appliesOnAnalytics')}</span>
+        </div>
+      )}
 
       <button
         onClick={() => setScope(null)}

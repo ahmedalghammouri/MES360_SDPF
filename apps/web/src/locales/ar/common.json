@@ -114,7 +114,8 @@
     "collapse": "طي",
     "wholeFactory": "المصنع بالكامل",
     "noHierarchy": "لا يوجد هيكل",
-    "scopedTo": "محصور في"
+    "scopedTo": "محصور في",
+    "appliesOnAnalytics": "يُطبَّق الاختيار على صفحات التحليلات واللوحات."
   },
   "rowActions": {
     "label": "إجراءات الصف"

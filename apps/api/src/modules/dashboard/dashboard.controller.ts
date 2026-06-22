@@ -38,6 +38,44 @@ export class DashboardController {
     );
   }
 
+  @Get('command-center')
+  @ApiOperation({ summary: 'Unified Command Center cockpit (OEE + production + losses + energy + executive rollup)' })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'timeframe', required: false, description: 'today | shift | week | month | custom' })
+  @ApiQuery({ name: 'dateFrom', required: false, description: 'ISO date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'dateTo', required: false, description: 'ISO date (YYYY-MM-DD)' })
+  async getCommandCenter(
+    @CurrentUser() user: RequestUser,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+    @Query('timeframe') timeframe?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.dashboardService.getCommandCenter(
+      user.factoryId,
+      { areaId, lineId, machineId },
+      { timeframe, dateFrom, dateTo },
+    );
+  }
+
+  @Get('executive')
+  @ApiOperation({ summary: 'Executive multi-plant cockpit (enterprise rollup across factories)' })
+  @ApiQuery({ name: 'timeframe', required: false })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  async getExecutive(
+    @CurrentUser() user: RequestUser,
+    @Query('timeframe') timeframe?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.dashboardService.getExecutive(user.factoryId, { timeframe, dateFrom, dateTo });
+  }
+
   @Get('kpis')
   @ApiOperation({ summary: 'Get current shift KPIs' })
   @ApiQuery({ name: 'areaId', required: false })

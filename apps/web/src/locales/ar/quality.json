@@ -9,6 +9,34 @@
     "spc": { "title": "مخططات ضبط العمليات SPC", "subtitle": "الضبط الإحصائي للعمليات" },
     "reports": { "title": "تقارير وتحليلات الجودة", "subtitle": "مراقبة وتحليل وتصدير بيانات أداء الجودة" }
   },
+  "cockpit": {
+    "title": "ذكاء الجودة",
+    "subtitle": "نسبة العبور من أول مرة، باريتو العيوب، وتحليلات NCR و CAPA",
+    "sections": {
+      "trend": "اتجاه نسبة العبور من أول مرة (FPY)",
+      "pareto": "باريتو العيوب — حسب فئة عدم المطابقة",
+      "ncr": "توزيع حالات عدم المطابقة",
+      "capa": "مسار الإجراءات التصحيحية CAPA",
+      "inspections": "نتائج الفحوصات"
+    },
+    "kpi": {
+      "fpy": "العبور من أول مرة",
+      "scrapRate": "نسبة الهالك",
+      "reworkRate": "نسبة إعادة العمل",
+      "openNCRs": "حالات عدم مطابقة مفتوحة",
+      "openCAPAs": "إجراءات CAPA مفتوحة",
+      "cpk": "قدرة العملية Cpk"
+    },
+    "bySeverity": "عدم المطابقة حسب الخطورة",
+    "byStatus": "عدم المطابقة حسب الحالة",
+    "noDefects": "لا حالات عدم مطابقة في المدى",
+    "noInspections": "لا فحوصات في المدى",
+    "units": "وحدة",
+    "severity": { "CRITICAL": "حرجة", "MAJOR": "كبيرة", "MINOR": "صغيرة" },
+    "ncrStatus": { "OPEN": "مفتوحة", "IN_REVIEW": "قيد المراجعة", "CAPA_PENDING": "بانتظار CAPA", "RESOLVED": "محلولة", "CLOSED": "مغلقة" },
+    "capaStatus": { "OPEN": "مفتوحة", "IN_PROGRESS": "قيد التنفيذ", "VERIFIED": "تم التحقق", "CLOSED": "مغلقة" },
+    "result": { "PASS": "ناجح", "CONDITIONAL": "مشروط", "FAIL": "فاشل", "PENDING": "معلّق" }
+  },
   "common": {
     "export": "تصدير",
     "refresh": "تحديث",

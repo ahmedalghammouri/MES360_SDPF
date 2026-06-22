@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { KpiService } from '../production/kpi.service';
 import { ShiftService } from '../shift/shift.service';
+import { EnergyService } from '../energy/energy.service';
 
 @Injectable()
 export class DashboardService {
@@ -9,7 +10,86 @@ export class DashboardService {
     private readonly prisma: PrismaService,
     private readonly kpi: KpiService,
     private readonly shift: ShiftService,
+    private readonly energy: EnergyService,
   ) {}
+
+  /**
+   * Command Center — the unified flagship cockpit. Composes the existing engines in
+   * one round-trip so the native React command-center page renders production OEE,
+   * losses, energy and an executive (cross-unit) rollup from a single call. Honors
+   * the active analysis scope (area/line/machine) + time window, exactly like every
+   * other dashboard surface.
+   */
+  async getCommandCenter(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+    range?: { timeframe?: string; dateFrom?: string; dateTo?: string },
+  ) {
+    const [ops, energyOverview, livePower, executive] = await Promise.all([
+      this.getOverview(factoryId, scope, range),
+      this.energy.getOverview(factoryId, scope).catch(() => null),
+      this.energy.getLivePower(factoryId, scope).catch(() => null),
+      this.getExecutiveBreakdown(factoryId, range).catch(() => null),
+    ]);
+
+    return {
+      scope: scope && (scope.areaId || scope.lineId || scope.machineId) ? scope : null,
+      ops,
+      energy: energyOverview ? { ...energyOverview, live: livePower } : null,
+      executive,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Executive "zoom-out" comparison for the Command Center. When the caller has no
+   * factory context (enterprise / SUPER_ADMIN) it compares OEE + output + energy cost
+   * across all active factories; within a factory it compares the factory's areas.
+   * Intentionally ignores the area/line/machine scope (this IS the wide-angle view).
+   */
+  private async getExecutiveBreakdown(
+    factoryId: string | null,
+    range?: { timeframe?: string; dateFrom?: string; dateTo?: string },
+  ) {
+    const win = this.resolveWindow(range);
+    const bucket: 'hour' | 'day' = win.multiDay ? 'day' : 'hour';
+
+    if (!factoryId) {
+      const factories = await this.prisma.factory.findMany({
+        where: { isActive: true },
+        select: { id: true, code: true, name: true, nameAr: true },
+      });
+      const rows = await Promise.all(
+        factories.map(async (f) => {
+          const [a, e] = await Promise.all([
+            this.kpi.oeeAnalytics(f.id, win.from, win.to, undefined, bucket),
+            this.energy.getOverview(f.id).catch(() => null),
+          ]);
+          return {
+            id: f.id, code: f.code, name: f.name, nameAr: f.nameAr,
+            oee: a.current.oee, output: a.totalOutput, costMtd: e?.totalCostMtd ?? 0,
+          };
+        }),
+      );
+      return { dimension: 'factory' as const, rows: rows.sort((x, y) => y.oee - x.oee) };
+    }
+
+    const areas = await this.prisma.area.findMany({
+      where: { factoryId, isActive: true },
+      select: { id: true, code: true, name: true, nameAr: true },
+    });
+    const rows = await Promise.all(
+      areas.map(async (ar) => {
+        const machineIds = await this.scopeMachineIds(factoryId, { areaId: ar.id });
+        if (!machineIds || machineIds.length === 0) {
+          return { id: ar.id, code: ar.code, name: ar.name, nameAr: ar.nameAr, oee: 0, output: 0, costMtd: 0 };
+        }
+        const a = await this.kpi.oeeAnalytics(factoryId, win.from, win.to, machineIds, bucket);
+        return { id: ar.id, code: ar.code, name: ar.name, nameAr: ar.nameAr, oee: a.current.oee, output: a.totalOutput, costMtd: 0 };
+      }),
+    );
+    return { dimension: 'area' as const, rows: rows.sort((x, y) => y.oee - x.oee) };
+  }
 
   /** Resolve an analysis scope (area/line/machine) to the machine ids it covers. */
   private async scopeMachineIds(
@@ -58,6 +138,67 @@ export class DashboardService {
     const prevFrom = new Date(from.getTime() - spanMs);
     const multiDay = spanMs > 36 * 3_600_000;
     return { from, to, prevFrom, prevTo, spanMs, multiDay };
+  }
+
+  /**
+   * Executive multi-plant cockpit — enterprise rollup across factories. For each active
+   * factory: window OEE (+ A/P/Q) and output, energy cost/consumption MTD, and open
+   * alarm / NCR / maintenance counts, plus enterprise totals. A factory-scoped user
+   * sees only their own factory row (the page still renders).
+   */
+  async getExecutive(
+    factoryId: string | null,
+    range?: { timeframe?: string; dateFrom?: string; dateTo?: string },
+  ) {
+    const win = this.resolveWindow(range);
+    const bucket: 'hour' | 'day' = win.multiDay ? 'day' : 'hour';
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+
+    const factories = await this.prisma.factory.findMany({
+      where: { isActive: true, ...(factoryId ? { id: factoryId } : {}) },
+      select: { id: true, code: true, name: true, nameAr: true },
+    });
+
+    const rows = await Promise.all(
+      factories.map(async (f) => {
+        const [a, e, alarms, ncrs, maint] = await Promise.all([
+          this.kpi.oeeAnalytics(f.id, win.from, win.to, undefined, bucket),
+          this.energy.getOverview(f.id).catch(() => null),
+          this.prisma.alarmEvent.count({ where: { factoryId: f.id, resolvedAt: null } }),
+          this.prisma.nCR.count({ where: { factoryId: f.id, status: 'OPEN' } }),
+          this.prisma.maintenanceWO.count({ where: { factoryId: f.id, status: { in: ['OPEN', 'ASSIGNED', 'IN_PROGRESS'] }, deletedAt: null } }),
+        ]);
+        return {
+          id: f.id, code: f.code, name: f.name, nameAr: f.nameAr,
+          oee: a.current.oee, availability: a.current.availability, performance: a.current.performance, quality: a.current.quality,
+          output: a.totalOutput,
+          costMtd: e?.totalCostMtd ?? 0,
+          electricalMtd: e?.totalConsumptionMtd ?? 0,
+          activeAlarms: alarms, openNCRs: ncrs, openMaintenance: maint,
+        };
+      }),
+    );
+    rows.sort((x, y) => y.oee - x.oee);
+
+    const totalOutput = rows.reduce((s, r) => s + r.output, 0);
+    const weight = rows.reduce((s, r) => s + (r.output || 1), 0);
+    const avgOee = rows.length ? r1(rows.reduce((s, r) => s + r.oee * (r.output || 1), 0) / weight) : 0;
+
+    return {
+      rows,
+      totals: {
+        factories: rows.length,
+        avgOee,
+        totalOutput,
+        totalCostMtd: r2(rows.reduce((s, r) => s + r.costMtd, 0)),
+        totalElectricalMtd: r2(rows.reduce((s, r) => s + r.electricalMtd, 0)),
+        totalAlarms: rows.reduce((s, r) => s + r.activeAlarms, 0),
+        totalOpenNCRs: rows.reduce((s, r) => s + r.openNCRs, 0),
+        totalOpenMaintenance: rows.reduce((s, r) => s + r.openMaintenance, 0),
+      },
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   async getOverview(

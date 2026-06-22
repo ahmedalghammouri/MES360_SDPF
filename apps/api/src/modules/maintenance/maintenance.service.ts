@@ -261,6 +261,104 @@ export class MaintenanceService {
     return buckets;
   }
 
+  /**
+   * Reliability cockpit — the native Maintenance command-center payload. Composes the
+   * existing reliability KPIs + MTTR/MTBF trend with WO status/type breakdowns, an
+   * asset-reliability ranking (failures + per-machine MTTR), open-WO aging buckets and
+   * the top failure modes by RPN. Scope-aware (area/line/machine) like every KPI surface.
+   */
+  async getReliabilityCockpit(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+    months = 6,
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const machineIds = await this.scopeMachineIds(factoryId, scope);
+    const woScope = machineIds ? { machineId: { in: machineIds } } : {};
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+
+    const [kpis, reliabilityTrend, statusGroups, typeGroups, correctiveWOs, openWOs, failureModes] = await Promise.all([
+      this.getKPIs(factoryId, scope),
+      this.getReliabilityTrend(factoryId, months, scope),
+      this.prisma.maintenanceWO.groupBy({
+        by: ['status'], where: { ...factoryFilter, ...woScope, deletedAt: null }, _count: { _all: true },
+      }),
+      this.prisma.maintenanceWO.groupBy({
+        by: ['type'], where: { ...factoryFilter, ...woScope, deletedAt: null, createdAt: { gte: periodStart } }, _count: { _all: true },
+      }),
+      this.prisma.maintenanceWO.findMany({
+        where: {
+          ...factoryFilter, ...woScope,
+          type: { in: [MaintType.CORRECTIVE, MaintType.EMERGENCY] },
+          createdAt: { gte: periodStart }, deletedAt: null,
+        },
+        select: { machineId: true, actualHours: true, status: true, machine: { select: { name: true, code: true } } },
+      }),
+      this.prisma.maintenanceWO.findMany({
+        where: {
+          ...factoryFilter, ...woScope,
+          status: { in: [MaintStatus.OPEN, MaintStatus.ASSIGNED, MaintStatus.IN_PROGRESS, MaintStatus.AWAITING_PARTS, MaintStatus.ON_HOLD] },
+          deletedAt: null,
+        },
+        select: { createdAt: true, dueDate: true },
+      }),
+      this.prisma.failureMode.findMany({
+        where: { ...factoryFilter, ...(machineIds ? { machineId: { in: machineIds } } : {}) },
+        orderBy: { rpn: 'desc' }, take: 8,
+        select: {
+          id: true, code: true, description: true, rpn: true,
+          severityScore: true, occurrenceScore: true, detectionScore: true,
+          machine: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    // Asset reliability — failures + per-machine MTTR over the window.
+    const byMachine = new Map<string, { machineId: string; name: string; code: string | null; failures: number; repairHours: number; repairs: number }>();
+    for (const w of correctiveWOs) {
+      if (!w.machineId) continue;
+      const e = byMachine.get(w.machineId) ?? { machineId: w.machineId, name: w.machine?.name ?? '—', code: w.machine?.code ?? null, failures: 0, repairHours: 0, repairs: 0 };
+      e.failures += 1;
+      if (w.status === MaintStatus.COMPLETED && w.actualHours != null) { e.repairHours += w.actualHours; e.repairs += 1; }
+      byMachine.set(w.machineId, e);
+    }
+    const assetReliability = [...byMachine.values()]
+      .map((e) => ({ machineId: e.machineId, name: e.name, code: e.code, failures: e.failures, mttr: e.repairs > 0 ? r1(e.repairHours / e.repairs) : 0 }))
+      .sort((a, b) => b.failures - a.failures)
+      .slice(0, 10);
+
+    // Open-WO aging buckets + overdue count.
+    const aging = { lt1d: 0, d1to3: 0, d3to7: 0, gt7d: 0 };
+    let overdue = 0;
+    for (const w of openWOs) {
+      const days = (now.getTime() - w.createdAt.getTime()) / 86_400_000;
+      if (days < 1) aging.lt1d += 1;
+      else if (days < 3) aging.d1to3 += 1;
+      else if (days < 7) aging.d3to7 += 1;
+      else aging.gt7d += 1;
+      if (w.dueDate && w.dueDate < now) overdue += 1;
+    }
+
+    return {
+      scope: scope && (scope.areaId || scope.lineId || scope.machineId) ? scope : null,
+      kpis,
+      reliabilityTrend,
+      woByStatus: statusGroups.map((g) => ({ status: g.status, count: g._count._all })),
+      woByType: typeGroups.map((g) => ({ type: g.type, count: g._count._all })),
+      assetReliability,
+      topFailureModes: failureModes.map((f) => ({
+        id: f.id, code: f.code, description: f.description, machine: f.machine?.name ?? null,
+        rpn: f.rpn, severity: f.severityScore, occurrence: f.occurrenceScore, detection: f.detectionScore,
+      })),
+      aging,
+      openTotal: openWOs.length,
+      overdue,
+      generatedAt: now.toISOString(),
+    };
+  }
+
   // ────────────────────────────────────────────────────────────
   // WORK ORDER CRUD
   // ────────────────────────────────────────────────────────────

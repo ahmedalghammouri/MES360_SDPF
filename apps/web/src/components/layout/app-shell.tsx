@@ -19,11 +19,12 @@ interface AppShellProps {
 // Pages where selecting a hierarchy node actually re-scopes the data (backend filter wired).
 // Keep this list honest: only show the scope panel where it has a real effect.
 const SCOPE_EXACT = new Set([
-  '/dashboard', '/production', '/manufacturing',
+  '/dashboard', '/command-center', '/production', '/manufacturing',
   '/production/kpi', '/production/oee', '/manufacturing/kpi', '/manufacturing/oee',
   '/production/downtime', '/production/orders', '/production/production-orders',
   '/production/reports', '/quality/reports',
-  '/energy',
+  '/maintenance/reliability', '/quality/intelligence',
+  '/energy', '/energy/command-center',
   '/ai', // AI Intelligence — all panels re-scope by area/line/machine
 ]);
 const SCOPE_PREFIX = ['/scheduling']; // ScheduleView Gantt/Calendar pages
@@ -38,7 +39,11 @@ export function AppShell({ children }: AppShellProps) {
   useLiveKpi(); // live JO→WO→PO OEE/status updates
   useNotificationFeed(); // live per-user notification toasts + bell badge
 
-  const showScope = isScopeRoute(pathname ?? '');
+  // The scope tree is shown on every platform page for a consistent shell.
+  // On routes wired to a backend filter it actively re-scopes data; elsewhere it
+  // is "passive" (selection persists globally and applies once you reach an
+  // analytics/dashboard page) — see ScopePanel.
+  const scopeActive = isScopeRoute(pathname ?? '');
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -48,7 +53,7 @@ export function AppShell({ children }: AppShellProps) {
         className="flex flex-1 overflow-hidden transition-[margin] duration-300 ease-in-out"
         style={{ marginInlineStart: isCollapsed ? '64px' : '260px' }}
       >
-        {showScope && <ScopePanel />}
+        <ScopePanel passive={!scopeActive} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Topbar />
           <main className="relative flex-1 overflow-auto">

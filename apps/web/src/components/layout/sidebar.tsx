@@ -95,7 +95,17 @@ const navItems: NavItem[] = [
   { section: 'Overview', label: 'Overview' },
   { label: 'Apps', href: '/apps', icon: Grip },
   { label: 'Home', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Dashboard Center', href: '/dashboard-center', icon: LayoutGrid, badge: 'New', badgeVariant: 'default' },
+
+  // ═══════════════ COMMAND CENTERS ═══════════════
+  // Every cross-domain dashboard & analytics cockpit lives here — one expressive
+  // home for visual, KPI-driven decision screens. New native command centers land here.
+  { section: 'Command Centers', label: 'Command Centers' },
+  { label: 'Command Center', href: '/command-center', icon: Gauge, badge: 'New', badgeVariant: 'default' },
+  { label: 'Energy Command Center', href: '/energy/command-center', icon: Zap, badge: 'New', badgeVariant: 'default' },
+  { label: 'Executive Multi-Plant', href: '/executive', icon: Factory, badge: 'New', badgeVariant: 'default' },
+  { label: 'Dashboard Center', href: '/dashboard-center', icon: LayoutGrid },
+  { label: 'Factory Analytics', href: '/analytics', icon: LayoutGrid },
+  { label: 'Insights Studio', href: '/analytics/insights', icon: TrendingUp },
 
   // ═══════════════ OPERATION HUB ═══════════════
   // Operator/technician tablet screens — one place for every shop-floor role.
@@ -152,8 +162,6 @@ const navItems: NavItem[] = [
     label: 'Performance & KPIs',
     icon: TrendingUp,
     children: [
-      { label: 'Factory Analytics',       href: '/analytics',                    icon: LayoutGrid },
-      { label: 'Insights Studio',         href: '/analytics/insights',           icon: TrendingUp },
       { label: 'Production KPIs',         href: '/production/kpi',               icon: Gauge      },
       { label: 'OEE Analytics',           href: '/production/oee',               icon: LineChart  },
       { label: 'Machine KPIs',            href: '/manufacturing/kpi',            icon: Cpu        },
@@ -171,6 +179,7 @@ const navItems: NavItem[] = [
     icon: Wrench,
     children: [
       { label: 'Overview',               href: '/maintenance',                     icon: Gauge         },
+      { label: 'Reliability Center',     href: '/maintenance/reliability',         icon: Activity, badge: 'New', badgeVariant: 'default' },
       { label: 'Maint. Scheduling',      href: '/maintenance/scheduling',          icon: Calendar      },
       { label: 'Maintenance Orders',     href: '/maintenance/work-orders',         icon: ClipboardList, dynamicKey: 'openMaintenance', badgeVariant: 'secondary' },
       { label: 'Preventive Maint.',      href: '/maintenance/preventive',          icon: Calendar      },
@@ -185,6 +194,7 @@ const navItems: NavItem[] = [
     icon: ShieldCheck,
     children: [
       { label: 'Overview',               href: '/quality',                         icon: Activity      },
+      { label: 'Quality Intelligence',   href: '/quality/intelligence',            icon: TrendingUp, badge: 'New', badgeVariant: 'default' },
       { label: 'Quality Plans',          href: '/quality/plans',                   icon: ClipboardList },
       { label: 'Quality Records',        href: '/quality/records',                 icon: ClipboardCheck },
       { label: 'Inspections',            href: '/quality/inspections',             icon: ClipboardCheck },

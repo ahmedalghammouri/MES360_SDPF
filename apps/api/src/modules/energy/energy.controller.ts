@@ -31,6 +31,24 @@ export class EnergyController {
     return this.energyService.getOverview(user.factoryId, { areaId, lineId, machineId });
   }
 
+  @Get('cockpit')
+  @ApiOperation({ summary: 'Energy Command Center cockpit (overview + live + consumption + waste + specific energy)' })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  async getCockpit(
+    @CurrentUser() user: RequestUser,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.energyService.getEnergyCockpit(user.factoryId, { areaId, lineId, machineId }, { dateFrom, dateTo });
+  }
+
   @Get('live')
   @ApiOperation({ summary: 'Live power per meter + standby/no-production detection' })
   @ApiQuery({ name: 'areaId', required: false })
