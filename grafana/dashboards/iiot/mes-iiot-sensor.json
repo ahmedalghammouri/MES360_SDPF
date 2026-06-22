@@ -1,7 +1,7 @@
 {
   "uid": "mes-iiot-sensor",
   "title": "Sensor Analytics",
-  "description": "Live tag values and telemetry rate.",
+  "description": "Live tag values and historized process telemetry.",
   "tags": [
     "mes360",
     "iiot"
@@ -241,7 +241,66 @@
     },
     {
       "id": 2,
-      "title": "Telemetry (InfluxDB)",
+      "title": "Historized Tags",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COUNT(*) AS value FROM tag_definitions t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND t.\"historizationEnabled\"=true"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 3,
+      "title": "Process Telemetry (InfluxDB · measurement \"tag\")",
       "type": "timeseries",
       "datasource": {
         "type": "influxdb",
@@ -254,7 +313,7 @@
             "type": "influxdb",
             "uid": "mes_influxdb"
           },
-          "query": "from(bucket: \"mes_timeseries\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)"
+          "query": "from(bucket: \"mes_timeseries\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tag\" and r._field == \"value\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"tagCode\"])"
         }
       ],
       "fieldConfig": {
@@ -289,7 +348,7 @@
       }
     },
     {
-      "id": 3,
+      "id": 4,
       "title": "Latest Tag Values",
       "type": "table",
       "datasource": {
@@ -304,7 +363,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT td.name AS \"Tag\", tcv.value AS \"Value\", tcv.\"timestamp\" AS \"Updated\" FROM tag_current_values tcv JOIN tag_definitions td ON td.id=tcv.\"tagId\" ORDER BY tcv.\"timestamp\" DESC LIMIT 60"
+          "rawSql": "SELECT td.name AS \"Tag\", td.code AS \"Code\", tcv.value AS \"Value\", td.unit AS \"Unit\", tcv.\"timestamp\" AS \"Updated\" FROM tag_current_values tcv JOIN tag_definitions td ON td.id=tcv.\"tagId\" ORDER BY tcv.\"timestamp\" DESC LIMIT 60"
         }
       ],
       "fieldConfig": {

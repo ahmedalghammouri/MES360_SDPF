@@ -152,6 +152,12 @@ services:
       INFLUX_ORG: ${INFLUX_ORG:-mes360}
       INFLUX_BUCKET: ${INFLUX_BUCKET:-mes_timeseries}
       MQTT_BROKER_URL: mqtt://mosquitto:1883
+      # Grafana embedding for the Dashboard Center. Server-side calls use the internal
+      # service; the iframe (kiosk) URL is the public domain served under /grafana.
+      GRAFANA_URL: http://grafana:3000
+      GRAFANA_PUBLIC_URL: https://${APP_DOMAIN}/grafana
+      GRAFANA_DEFAULT_ORG_ID: "1"
+      GRAFANA_FACTORY_VAR: factory
       MINIO_ENDPOINT: minio
       MINIO_PORT: "9000"
       MINIO_USE_SSL: "false"
@@ -243,6 +249,61 @@ services:
       start_period: 30s
       retries: 3
 
+  # Grafana dashboard suite — embedded in the MES360° Dashboard Center.
+  # Served same-origin under https://APP_DOMAIN/grafana via Traefik (serve_from_sub_path),
+  # so the embedded iframe shares the app domain (no CORS / third-party-cookie issues).
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mes-grafana-prod
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      # Served under a sub-path behind Traefik.
+      GF_SERVER_ROOT_URL: https://${APP_DOMAIN}/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # Embedding inside the MES360° Dashboard Center + anonymous read-only viewer.
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_SECURITY_COOKIE_SAMESITE: "lax"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_NAME: "Main Org."
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_USERS_DEFAULT_THEME: "dark"
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: "5s"
+      GF_PLUGINS_PREINSTALL: "redis-datasource,marcusolsson-treemap-panel"
+      # Datasource connection (consumed by provisioning/datasources/datasources.yaml).
+      MES_PG_HOST: postgres
+      MES_PG_PORT: "5432"
+      MES_PG_DB: ${POSTGRES_DB:-mes360}
+      MES_PG_USER: ${POSTGRES_USER:-mes_user}
+      MES_PG_PASSWORD: ${POSTGRES_PASSWORD}
+      MES_INFLUX_URL: http://influxdb:8086
+      MES_INFLUX_ORG: ${INFLUX_ORG:-mes360}
+      MES_INFLUX_BUCKET: ${INFLUX_BUCKET:-mes_timeseries}
+      MES_INFLUX_TOKEN: ${INFLUX_TOKEN}
+      # No Prometheus service on Hostinger; the datasource is provisioned but unused
+      # (MQTT monitoring is driven from Postgres/InfluxDB instead).
+      MES_PROM_URL: http://prometheus:9090
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    networks:
+      - mes-network
+    labels:
+      - traefik.enable=true
+      # Grafana under /grafana — priority between api (100) and web (1).
+      - traefik.http.routers.mes-grafana.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/grafana`)
+      - traefik.http.routers.mes-grafana.entrypoints=websecure
+      - traefik.http.routers.mes-grafana.tls.certresolver=letsencrypt
+      - traefik.http.routers.mes-grafana.priority=50
+      - traefik.http.services.mes-grafana.loadbalancer.server.port=3000
+
 volumes:
   postgres_data:
     driver: local
@@ -257,6 +318,8 @@ volumes:
   mosquitto_log:
     driver: local
   uploads-data:
+    driver: local
+  grafana_data:
     driver: local
 
 networks:

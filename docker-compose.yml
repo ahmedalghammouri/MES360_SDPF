@@ -145,6 +145,13 @@ services:
       INFLUX_ORG: mes360
       INFLUX_BUCKET: mes_timeseries
       MQTT_BROKER_URL: mqtt://mosquitto:1883
+      # Grafana embedding for the Dashboard Center.
+      #  - GRAFANA_URL: server-side base (internal docker network) for API calls.
+      #  - GRAFANA_PUBLIC_URL: browser-facing base used to build iframe (kiosk) URLs.
+      GRAFANA_URL: http://grafana:3000
+      GRAFANA_PUBLIC_URL: http://localhost:3003
+      GRAFANA_DEFAULT_ORG_ID: "1"
+      GRAFANA_FACTORY_VAR: factory
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_USE_SSL: "false"
@@ -241,6 +248,11 @@ services:
       # Embedding inside the MES360° Dashboard Center
       GF_SECURITY_ALLOW_EMBEDDING: "true"
       GF_SECURITY_COOKIE_SAMESITE: "lax"
+      # Anonymous Viewer so embedded panels render in the Dashboard Center without a
+      # Grafana login wall (read-only; admin still required to edit/provision).
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_NAME: "Main Org."
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
       GF_USERS_DEFAULT_THEME: "dark"
       GF_DASHBOARDS_MIN_REFRESH_INTERVAL: "5s"
       # Plugins used by the dashboard library (GF_PLUGINS_PREINSTALL replaces the

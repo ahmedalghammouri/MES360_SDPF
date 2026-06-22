@@ -319,7 +319,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "currencyUSD",
+          "unit": "currency:SAR ",
           "decimals": 0,
           "color": {
             "mode": "thresholds"
@@ -378,7 +378,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "currencyUSD",
+          "unit": "currency:SAR ",
           "color": {
             "mode": "palette-classic"
           },

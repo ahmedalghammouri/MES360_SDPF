@@ -1,7 +1,7 @@
 {
   "uid": "mes-iiot-device-health",
   "title": "Device Health",
-  "description": "Connected/disconnected devices.",
+  "description": "Field device connectivity across PLCs, meters, sensors and drives.",
   "tags": [
     "mes360",
     "iiot"
@@ -196,7 +196,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND UPPER(t.status)='ONLINE'"
+          "rawSql": "SELECT COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND UPPER(t.status)='CONNECTED'"
         }
       ],
       "fieldConfig": {
@@ -255,7 +255,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND t.\"isActive\"=true AND UPPER(t.status)<>'ONLINE'"
+          "rawSql": "SELECT COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND t.\"isActive\"=true AND UPPER(t.status)='DISCONNECTED'"
         }
       ],
       "fieldConfig": {
@@ -300,6 +300,65 @@
     },
     {
       "id": 3,
+      "title": "Errored",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND UPPER(t.status)='ERROR'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 4,
       "title": "Total Devices",
       "type": "stat",
       "datasource": {
@@ -351,14 +410,14 @@
         "orientation": "auto"
       },
       "gridPos": {
-        "x": 8,
+        "x": 12,
         "y": 0,
         "w": 4,
         "h": 4
       }
     },
     {
-      "id": 4,
+      "id": 5,
       "title": "Status Mix",
       "type": "piechart",
       "datasource": {
@@ -403,14 +462,114 @@
         }
       },
       "gridPos": {
-        "x": 12,
+        "x": 16,
         "y": 0,
         "w": 8,
         "h": 8
       }
     },
     {
-      "id": 5,
+      "id": 6,
+      "title": "By Protocol",
+      "type": "piechart",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.protocol AS metric, COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') GROUP BY t.protocol"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "id": 7,
+      "title": "By Type",
+      "type": "barchart",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.type AS metric, COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') GROUP BY t.type ORDER BY value DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "hue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "vertical",
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        },
+        "xTickLabelRotation": -30
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 8,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "id": 8,
       "title": "Device Status",
       "type": "table",
       "datasource": {
@@ -425,7 +584,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT t.name AS \"Device\", t.\"deviceCode\" AS \"Code\", t.protocol AS \"Protocol\", t.status AS \"Status\", t.\"lastSeenAt\" AS \"Last Seen\" FROM devices t JOIN factories f ON f.id=t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY t.\"lastSeenAt\" DESC NULLS LAST LIMIT 60"
+          "rawSql": "SELECT t.name AS \"Device\", t.\"deviceCode\" AS \"Code\", t.type AS \"Type\", t.protocol AS \"Protocol\", t.status AS \"Status\", t.\"lastSeenAt\" AS \"Last Seen\" FROM devices t JOIN factories f ON f.id=t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY t.\"lastSeenAt\" DESC NULLS LAST LIMIT 60"
         }
       ],
       "fieldConfig": {
@@ -446,8 +605,8 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 8,
-        "w": 16,
+        "y": 16,
+        "w": 24,
         "h": 9
       }
     }

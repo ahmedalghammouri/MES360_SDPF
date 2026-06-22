@@ -18,6 +18,9 @@ const INFLUX = { type: 'influxdb', uid: 'mes_influxdb' };
 const PROM = { type: 'prometheus', uid: 'mes_prometheus' };
 const EXPR = { type: '__expr__', uid: '__expr__' };
 
+// Saudi Riyal — Grafana has no built-in SAR unit, so use its custom-currency syntax.
+const SAR = 'currency:SAR ';
+
 // ── Standard factory-context template variables ──────────────────
 // Values are passed in by the Dashboard Center embed URL (var-factory=<code>,
 // var-area=<id>, …). Each is also a query variable so users can pick manually.
@@ -516,7 +519,7 @@ D('maintenance', mkDash({
     stat('Open WOs', `SELECT COUNT(*) AS value FROM maintenance_wos t ${MWO} AND t.status IN ('OPEN','ASSIGNED','IN_PROGRESS')`, { steps: [{ color: 'blue', value: null }] }),
     stat('Overdue', `SELECT COUNT(*) AS value FROM maintenance_wos t ${MWO} AND t."dueDate" < NOW() AND t.status NOT IN ('COMPLETED','CANCELLED')`, { steps: [{ color: 'red', value: null }] }),
     stat('MTTR (h)', `SELECT ROUND(COALESCE(AVG(t."actualHours"),0)::numeric,1) AS value FROM maintenance_wos t ${MWO} AND t.status='COMPLETED' AND $__timeFilter(t."completedAt")`, { unit: 'h', steps: BAD_HIGH }),
-    stat('Cost', `SELECT ROUND(COALESCE(SUM(t."totalCost"),0)::numeric,0) AS value FROM maintenance_wos t ${MWO} AND $__timeFilter(t."createdAt")`, { unit: 'currencyUSD' }),
+    stat('Cost', `SELECT ROUND(COALESCE(SUM(t."totalCost"),0)::numeric,0) AS value FROM maintenance_wos t ${MWO} AND $__timeFilter(t."createdAt")`, { unit: SAR }),
     piechart('WO by Type', `SELECT t.type AS metric, COUNT(*) AS value FROM maintenance_wos t ${MWO} GROUP BY t.type`, { w: 8 }),
     timeseries('Completed WOs Trend', [pgTarget(`SELECT $__timeGroupAlias(t."completedAt",$__interval), COUNT(*) AS "Completed" FROM maintenance_wos t ${MWO} AND $__timeFilter(t."completedAt") GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 16 }),
   ],
@@ -560,7 +563,7 @@ D('maintenance', mkDash({
   panels: [
     stat('Spare SKUs', `SELECT COUNT(*) AS value FROM spare_parts t ${F_JOIN}`),
     stat('Below Min', `SELECT COUNT(*) AS value FROM spare_parts t ${F_JOIN} WHERE t."stockQty" < t."minStockQty"`, { steps: [{ color: 'red', value: null }] }),
-    stat('Stock Value', `SELECT ROUND(COALESCE(SUM(t."stockQty"*COALESCE(t."unitCost",0)),0)::numeric,0) AS value FROM spare_parts t ${F_JOIN}`, { unit: 'currencyUSD' }),
+    stat('Stock Value', `SELECT ROUND(COALESCE(SUM(t."stockQty"*COALESCE(t."unitCost",0)),0)::numeric,0) AS value FROM spare_parts t ${F_JOIN}`, { unit: SAR }),
     table('Low Stock Spares', `SELECT t."partNumber" AS "Part #", t.name AS "Name", t."stockQty" AS "Stock", t."minStockQty" AS "Min", t."unitCost" AS "Unit Cost" FROM spare_parts t JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE} AND t."stockQty" < t."minStockQty" ORDER BY (t."minStockQty"-t."stockQty") DESC LIMIT 50`),
   ],
 }));
@@ -575,8 +578,8 @@ D('maintenance', mkDash({
     stat('Open WOs', `SELECT COUNT(*) AS value FROM maintenance_wos t ${MWO} AND t.status IN ('OPEN','ASSIGNED','IN_PROGRESS')`, { steps: [{ color: 'blue', value: null }] }),
     stat('Overdue PM', `SELECT COUNT(*) AS value FROM maintenance_wos t ${MWO} AND t.type='PREVENTIVE' AND t."dueDate" < NOW() AND t.status NOT IN ('COMPLETED','CANCELLED')`, { steps: [{ color: 'red', value: null }] }),
     stat('Completion %', `SELECT CASE WHEN COUNT(*)>0 THEN ROUND(100.0*COUNT(*) FILTER (WHERE t.status='COMPLETED')/COUNT(*),1) ELSE 0 END AS value FROM maintenance_wos t ${MWO}`, { unit: 'percent', steps: OEE_STEPS }),
-    stat('Maintenance Cost', `SELECT ROUND(COALESCE(SUM(t."totalCost"),0)::numeric,0) AS value FROM maintenance_wos t ${MWO} AND $__timeFilter(t."createdAt")`, { unit: 'currencyUSD' }),
-    timeseries('Cost Trend', [pgTarget(`SELECT $__timeGroupAlias(t."createdAt",$__interval), SUM(t."totalCost") AS "Cost" FROM maintenance_wos t ${MWO} AND $__timeFilter(t."createdAt") GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 24, unit: 'currencyUSD' }),
+    stat('Maintenance Cost', `SELECT ROUND(COALESCE(SUM(t."totalCost"),0)::numeric,0) AS value FROM maintenance_wos t ${MWO} AND $__timeFilter(t."createdAt")`, { unit: SAR }),
+    timeseries('Cost Trend', [pgTarget(`SELECT $__timeGroupAlias(t."createdAt",$__interval), SUM(t."totalCost") AS "Cost" FROM maintenance_wos t ${MWO} AND $__timeFilter(t."createdAt") GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 24, unit: SAR }),
   ],
 }));
 
@@ -664,7 +667,7 @@ D('inventory', mkDash({
     stat('Raw Material SKUs', `SELECT COUNT(*) AS value FROM raw_materials t ${F_JOIN} WHERE ${F_WHERE}`),
     stat('Spare SKUs', `SELECT COUNT(*) AS value FROM spare_parts t ${F_JOIN} WHERE ${F_WHERE}`),
     stat('Reorder Alerts', `SELECT (SELECT COUNT(*) FROM raw_materials r JOIN factories f ON f.id=r."factoryId" WHERE ('$factory'='' OR f.code='$factory') AND r."currentStock" < COALESCE(r."reorderPoint", r."minStock")) + (SELECT COUNT(*) FROM spare_parts s JOIN factories f ON f.id=s."factoryId" WHERE ('$factory'='' OR f.code='$factory') AND s."stockQty" < s."minStockQty") AS value`, { steps: [{ color: 'red', value: null }] }),
-    stat('RM Stock Value', `SELECT ROUND(COALESCE(SUM(t."currentStock"*COALESCE(t."unitCost",0)),0)::numeric,0) AS value FROM raw_materials t ${F_JOIN} WHERE ${F_WHERE}`, { unit: 'currencyUSD' }),
+    stat('RM Stock Value', `SELECT ROUND(COALESCE(SUM(t."currentStock"*COALESCE(t."unitCost",0)),0)::numeric,0) AS value FROM raw_materials t ${F_JOIN} WHERE ${F_WHERE}`, { unit: SAR }),
     table('Below Reorder Point', `SELECT t.code AS "Code", t.name AS "Material", t."currentStock" AS "Stock", t."minStock" AS "Min", t."reorderPoint" AS "Reorder" FROM raw_materials t JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE} AND t."currentStock" < COALESCE(t."reorderPoint",t."minStock") ORDER BY (COALESCE(t."reorderPoint",t."minStock")-t."currentStock") DESC LIMIT 50`),
   ],
 }));
@@ -675,8 +678,8 @@ D('inventory', mkDash({
   panels: [
     stat('SKUs', `SELECT COUNT(*) AS value FROM raw_materials t ${F_JOIN} WHERE ${F_WHERE}`),
     stat('Below Safety', `SELECT COUNT(*) AS value FROM raw_materials t ${F_JOIN} WHERE ${F_WHERE} AND t."currentStock" < t."minStock"`, { steps: [{ color: 'red', value: null }] }),
-    stat('Total Value', `SELECT ROUND(COALESCE(SUM(t."currentStock"*COALESCE(t."unitCost",0)),0)::numeric,0) AS value FROM raw_materials t ${F_JOIN} WHERE ${F_WHERE}`, { unit: 'currencyUSD' }),
-    barchart('Top Value Materials', `SELECT t.name AS metric, ROUND((t."currentStock"*COALESCE(t."unitCost",0))::numeric,0) AS value FROM raw_materials t ${F_JOIN} WHERE ${F_WHERE} ORDER BY value DESC LIMIT 12`, { w: 24, unit: 'currencyUSD', horizontal: true }),
+    stat('Total Value', `SELECT ROUND(COALESCE(SUM(t."currentStock"*COALESCE(t."unitCost",0)),0)::numeric,0) AS value FROM raw_materials t ${F_JOIN} WHERE ${F_WHERE}`, { unit: SAR }),
+    barchart('Top Value Materials', `SELECT t.name AS metric, ROUND((t."currentStock"*COALESCE(t."unitCost",0))::numeric,0) AS value FROM raw_materials t ${F_JOIN} WHERE ${F_WHERE} ORDER BY value DESC LIMIT 12`, { w: 24, unit: SAR, horizontal: true }),
   ],
 }));
 
@@ -697,7 +700,7 @@ D('inventory', mkDash({
   panels: [
     stat('SKUs', `SELECT COUNT(*) AS value FROM spare_parts t ${F_JOIN} WHERE ${F_WHERE}`),
     stat('Below Min', `SELECT COUNT(*) AS value FROM spare_parts t ${F_JOIN} WHERE ${F_WHERE} AND t."stockQty" < t."minStockQty"`, { steps: [{ color: 'red', value: null }] }),
-    stat('Value', `SELECT ROUND(COALESCE(SUM(t."stockQty"*COALESCE(t."unitCost",0)),0)::numeric,0) AS value FROM spare_parts t ${F_JOIN} WHERE ${F_WHERE}`, { unit: 'currencyUSD' }),
+    stat('Value', `SELECT ROUND(COALESCE(SUM(t."stockQty"*COALESCE(t."unitCost",0)),0)::numeric,0) AS value FROM spare_parts t ${F_JOIN} WHERE ${F_WHERE}`, { unit: SAR }),
     table('Spare Parts', `SELECT t."partNumber" AS "Part #", t.name AS "Name", t."stockQty" AS "Stock", t."minStockQty" AS "Min", t."unitCost" AS "Unit Cost" FROM spare_parts t JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE} ORDER BY (t."minStockQty"-t."stockQty") DESC LIMIT 60`),
   ],
 }));
@@ -798,44 +801,59 @@ D('traceability', mkDash({
 }));
 
 // ── IIOT ────────────────────────────────────────────────────────
+// Device.status enum = CONNECTED | DISCONNECTED | ERROR (NOT "ONLINE").
 D('iiot', mkDash({
   uid: 'mes-iiot-device-health', title: 'Device Health', tags: ['iiot'],
-  description: 'Connected/disconnected devices.', refresh: '15s', time: 'now-6h',
+  description: 'Field device connectivity across PLCs, meters, sensors and drives.', refresh: '15s', time: 'now-6h',
   panels: [
-    stat('Connected', `SELECT COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} AND UPPER(t.status)='ONLINE'`, { steps: [{ color: 'green', value: null }] }),
-    stat('Disconnected', `SELECT COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} AND t."isActive"=true AND UPPER(t.status)<>'ONLINE'`, { steps: [{ color: 'red', value: null }] }),
+    stat('Connected', `SELECT COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} AND UPPER(t.status)='CONNECTED'`, { steps: [{ color: 'green', value: null }] }),
+    stat('Disconnected', `SELECT COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} AND t."isActive"=true AND UPPER(t.status)='DISCONNECTED'`, { steps: [{ color: 'red', value: null }] }),
+    stat('Errored', `SELECT COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} AND UPPER(t.status)='ERROR'`, { steps: [{ color: 'orange', value: null }] }),
     stat('Total Devices', `SELECT COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE}`),
     piechart('Status Mix', `SELECT t.status AS metric, COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} GROUP BY t.status`, { w: 8 }),
-    table('Device Status', `SELECT t.name AS "Device", t."deviceCode" AS "Code", t.protocol AS "Protocol", t.status AS "Status", t."lastSeenAt" AS "Last Seen" FROM devices t JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE} ORDER BY t."lastSeenAt" DESC NULLS LAST LIMIT 60`, { w: 16 }),
+    piechart('By Protocol', `SELECT t.protocol AS metric, COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} GROUP BY t.protocol`, { w: 8 }),
+    barchart('By Type', `SELECT t.type AS metric, COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} GROUP BY t.type ORDER BY value DESC`, { w: 8 }),
+    table('Device Status', `SELECT t.name AS "Device", t."deviceCode" AS "Code", t.type AS "Type", t.protocol AS "Protocol", t.status AS "Status", t."lastSeenAt" AS "Last Seen" FROM devices t JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE} ORDER BY t."lastSeenAt" DESC NULLS LAST LIMIT 60`),
   ],
 }));
 
+// Real edge gateways live in the `gateways` table (status ONLINE|OFFLINE|ERROR + heartbeat).
 D('iiot', mkDash({
   uid: 'mes-iiot-gateway', title: 'Gateway Status', tags: ['iiot'],
-  description: 'Edge gateway / driver connectivity.', refresh: '15s',
+  description: 'Edge gateway fleet — heartbeat, version and the devices each polls.', refresh: '15s',
   panels: [
-    stat('Gateways Online', `SELECT COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} AND t.type ILIKE '%gateway%' AND UPPER(t.status)='ONLINE'`, { steps: [{ color: 'green', value: null }] }),
-    table('Gateways / Drivers', `SELECT t.name AS "Gateway", t.protocol AS "Protocol", t."ipAddress" AS "IP", t.status AS "Status", t."lastSeenAt" AS "Last Seen" FROM devices t JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE} ORDER BY t.name LIMIT 60`),
+    stat('Gateways Online', `SELECT COUNT(*) AS value FROM gateways g JOIN factories f ON f.id=g."factoryId" WHERE ${"('$factory' = '' OR f.code = '$factory')"} AND g."isActive"=true AND UPPER(g.status)='ONLINE'`, { steps: [{ color: 'green', value: null }] }),
+    stat('Offline / Error', `SELECT COUNT(*) AS value FROM gateways g JOIN factories f ON f.id=g."factoryId" WHERE ${"('$factory' = '' OR f.code = '$factory')"} AND g."isActive"=true AND UPPER(g.status)<>'ONLINE'`, { steps: [{ color: 'red', value: null }] }),
+    stat('Polled Devices', `SELECT COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} AND t."gatewayId" IS NOT NULL`, { steps: [{ color: 'blue', value: null }] }),
+    table('Edge Gateways', `SELECT g.name AS "Gateway", g.hostname AS "Host", g.version AS "Version", g.status AS "Status", g."lastHeartbeatAt" AS "Last Heartbeat", (SELECT COUNT(*) FROM devices d WHERE d."gatewayId"=g.id) AS "Devices" FROM gateways g JOIN factories f ON f.id=g."factoryId" WHERE ${"('$factory' = '' OR f.code = '$factory')"} ORDER BY g.name LIMIT 60`),
   ],
 }));
 
+// No mosquitto Prometheus exporter is provisioned → drive MQTT monitoring from what we
+// actually persist: MQTT-protocol devices, edge-gateway heartbeats and live tag ingestion.
 D('iiot', mkDash({
   uid: 'mes-iiot-mqtt', title: 'MQTT Monitoring', tags: ['iiot', 'mqtt'],
-  description: 'MQTT broker throughput (Prometheus exporter).', refresh: '15s',
+  description: 'MQTT edge connectivity and tag ingestion (devices, gateways, live tags).', refresh: '15s', time: 'now-3h',
   panels: [
-    promPanel('MQTT Messages Received/s', `rate(mosquitto_messages_received_total[5m])`, { w: 12, legend: 'received' }),
-    promPanel('MQTT Connected Clients', `mosquitto_connected_clients`, { w: 12, legend: 'clients' }),
-    promPanel('MQTT Bytes/s', `rate(mosquitto_bytes_received_total[5m])`, { w: 24, unit: 'Bps', legend: 'bytes/s' }),
+    stat('MQTT Devices', `SELECT COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} AND UPPER(t.protocol)='MQTT'`, { steps: [{ color: 'blue', value: null }] }),
+    stat('MQTT Connected', `SELECT COUNT(*) AS value FROM devices t ${F_JOIN} WHERE ${F_WHERE} AND UPPER(t.protocol)='MQTT' AND UPPER(t.status)='CONNECTED'`, { steps: [{ color: 'green', value: null }] }),
+    stat('Gateways Online', `SELECT COUNT(*) AS value FROM gateways g JOIN factories f ON f.id=g."factoryId" WHERE ${"('$factory' = '' OR f.code = '$factory')"} AND UPPER(g.status)='ONLINE'`, { steps: [{ color: 'green', value: null }] }),
+    stat('Tags Updated (5m)', `SELECT COUNT(*) AS value FROM tag_current_values WHERE "timestamp" > NOW()-INTERVAL '5 minutes'`, { steps: [{ color: 'green', value: null }] }),
+    timeseries('Tag Ingestion Rate (updates/interval)', [pgTarget(`SELECT $__timeGroupAlias(tcv."timestamp",$__interval), COUNT(*) AS "Updates" FROM tag_current_values tcv WHERE $__timeFilter(tcv."timestamp") GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 24 }),
+    table('MQTT Devices & Last Seen', `SELECT t.name AS "Device", t."deviceCode" AS "Code", t.status AS "Status", t."lastSeenAt" AS "Last Seen", t."lastError" AS "Last Error" FROM devices t JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE} AND UPPER(t.protocol)='MQTT' ORDER BY t."lastSeenAt" DESC NULLS LAST LIMIT 50`),
   ],
 }));
 
+// Live process telemetry is historized to InfluxDB measurement "tag" (field "value",
+// tag key "tagCode"); current values are mirrored to Postgres tag_current_values.
 D('iiot', mkDash({
   uid: 'mes-iiot-sensor', title: 'Sensor Analytics', tags: ['iiot'],
-  description: 'Live tag values and telemetry rate.', refresh: '15s', time: 'now-3h',
+  description: 'Live tag values and historized process telemetry.', refresh: '15s', time: 'now-3h',
   panels: [
     stat('Active Tags', `SELECT COUNT(*) AS value FROM tag_current_values`),
-    influxPanel('Telemetry (InfluxDB)', `from(bucket: "mes_timeseries")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "telemetry")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)`, { w: 24 }),
-    table('Latest Tag Values', `SELECT td.name AS "Tag", tcv.value AS "Value", tcv."timestamp" AS "Updated" FROM tag_current_values tcv JOIN tag_definitions td ON td.id=tcv."tagId" ORDER BY tcv."timestamp" DESC LIMIT 60`),
+    stat('Historized Tags', `SELECT COUNT(*) AS value FROM tag_definitions t ${F_JOIN} WHERE ${F_WHERE} AND t."historizationEnabled"=true`, { steps: [{ color: 'blue', value: null }] }),
+    influxPanel('Process Telemetry (InfluxDB · measurement "tag")', `from(bucket: "mes_timeseries")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "tag" and r._field == "value")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: ["_time", "_value", "tagCode"])`, { w: 24 }),
+    table('Latest Tag Values', `SELECT td.name AS "Tag", td.code AS "Code", tcv.value AS "Value", td.unit AS "Unit", tcv."timestamp" AS "Updated" FROM tag_current_values tcv JOIN tag_definitions td ON td.id=tcv."tagId" ORDER BY tcv."timestamp" DESC LIMIT 60`),
   ],
 }));
 

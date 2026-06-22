@@ -3,10 +3,11 @@
 # Auto-loaded on Grafana boot. Stable UIDs are referenced by every
 # provisioned dashboard panel, so they MUST NOT change.
 #
-# NOTE: values are literal (matching docker-compose service names).
-# Grafana provisioning does NOT support shell-style ${VAR:-default}.
-# For per-environment overrides, edit these values or use Grafana's
-# own env syntax ($VAR / ${VAR}) with the variable guaranteed to be set.
+# Credentials/hosts come from MES_* environment variables set on the grafana
+# container (see each docker-compose). Grafana expands $VAR / ${VAR} in provisioning
+# files (shell-style ${VAR:-default} is NOT supported, so each MES_* var MUST be set).
+# This keeps the file identical across dev and prod while letting each environment
+# inject its own secrets (e.g. Hostinger's strong POSTGRES_PASSWORD / INFLUX_TOKEN).
 # ════════════════════════════════════════════════════════════════
 apiVersion: 1
 
@@ -21,14 +22,14 @@ datasources:
     uid: mes_postgres
     type: postgres
     access: proxy
-    url: postgres:5432
+    url: $MES_PG_HOST:$MES_PG_PORT
     # Root-level `database` was deprecated in Grafana 11+; the Postgres plugin now
     # reads jsonData.database. Both are set for backward/forward compatibility.
-    database: mes360
-    user: mes_user
+    database: $MES_PG_DB
+    user: $MES_PG_USER
     isDefault: true
     jsonData:
-      database: mes360
+      database: $MES_PG_DB
       sslmode: disable
       postgresVersion: 1600
       timescaledb: false
@@ -36,7 +37,7 @@ datasources:
       maxIdleConns: 5
       connMaxLifetime: 14400
     secureJsonData:
-      password: mes_password
+      password: $MES_PG_PASSWORD
     editable: false
 
   # ── Time-series telemetry (IIoT / energy / process) ────────────
@@ -44,14 +45,14 @@ datasources:
     uid: mes_influxdb
     type: influxdb
     access: proxy
-    url: http://influxdb:8086
+    url: $MES_INFLUX_URL
     jsonData:
       version: Flux
-      organization: mes360
-      defaultBucket: mes_timeseries
+      organization: $MES_INFLUX_ORG
+      defaultBucket: $MES_INFLUX_BUCKET
       tlsSkipVerify: true
     secureJsonData:
-      token: mes-influx-super-secret-token
+      token: $MES_INFLUX_TOKEN
     editable: false
 
   # ── Infrastructure / service metrics ───────────────────────────
@@ -59,7 +60,7 @@ datasources:
     uid: mes_prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: $MES_PROM_URL
     jsonData:
       httpMethod: POST
       timeInterval: 15s

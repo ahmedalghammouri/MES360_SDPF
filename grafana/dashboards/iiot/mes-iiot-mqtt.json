@@ -1,7 +1,7 @@
 {
   "uid": "mes-iiot-mqtt",
   "title": "MQTT Monitoring",
-  "description": "MQTT broker throughput (Prometheus exporter).",
+  "description": "MQTT edge connectivity and tag ingestion (devices, gateways, live tags).",
   "tags": [
     "mes360",
     "iiot",
@@ -12,7 +12,7 @@
   "editable": true,
   "graphTooltip": 1,
   "time": {
-    "from": "now-24h",
+    "from": "now-3h",
     "to": "now"
   },
   "timezone": "",
@@ -183,134 +183,278 @@
   "panels": [
     {
       "id": 1,
-      "title": "MQTT Messages Received/s",
-      "type": "timeseries",
+      "title": "MQTT Devices",
+      "type": "stat",
       "datasource": {
-        "type": "prometheus",
-        "uid": "mes_prometheus"
+        "type": "postgres",
+        "uid": "mes_postgres"
       },
       "targets": [
         {
           "refId": "A",
+          "format": "table",
           "datasource": {
-            "type": "prometheus",
-            "uid": "mes_prometheus"
+            "type": "postgres",
+            "uid": "mes_postgres"
           },
-          "expr": "rate(mosquitto_messages_received_total[5m])",
-          "legendFormat": "received"
+          "rawSql": "SELECT COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND UPPER(t.protocol)='MQTT'"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 0,
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 2,
-            "showPoints": "never"
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []
       },
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi"
-        }
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
       },
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 12,
-        "h": 8
+        "w": 4,
+        "h": 4
       }
     },
     {
       "id": 2,
-      "title": "MQTT Connected Clients",
-      "type": "timeseries",
+      "title": "MQTT Connected",
+      "type": "stat",
       "datasource": {
-        "type": "prometheus",
-        "uid": "mes_prometheus"
+        "type": "postgres",
+        "uid": "mes_postgres"
       },
       "targets": [
         {
           "refId": "A",
+          "format": "table",
           "datasource": {
-            "type": "prometheus",
-            "uid": "mes_prometheus"
+            "type": "postgres",
+            "uid": "mes_postgres"
           },
-          "expr": "mosquitto_connected_clients",
-          "legendFormat": "clients"
+          "rawSql": "SELECT COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND UPPER(t.protocol)='MQTT' AND UPPER(t.status)='CONNECTED'"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 0,
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 2,
-            "showPoints": "never"
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []
       },
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi"
-        }
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
       },
       "gridPos": {
-        "x": 12,
+        "x": 4,
         "y": 0,
-        "w": 12,
-        "h": 8
+        "w": 4,
+        "h": 4
       }
     },
     {
       "id": 3,
-      "title": "MQTT Bytes/s",
-      "type": "timeseries",
+      "title": "Gateways Online",
+      "type": "stat",
       "datasource": {
-        "type": "prometheus",
-        "uid": "mes_prometheus"
+        "type": "postgres",
+        "uid": "mes_postgres"
       },
       "targets": [
         {
           "refId": "A",
+          "format": "table",
           "datasource": {
-            "type": "prometheus",
-            "uid": "mes_prometheus"
+            "type": "postgres",
+            "uid": "mes_postgres"
           },
-          "expr": "rate(mosquitto_bytes_received_total[5m])",
-          "legendFormat": "bytes/s"
+          "rawSql": "SELECT COUNT(*) AS value FROM gateways g JOIN factories f ON f.id=g.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND UPPER(g.status)='ONLINE'"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "Bps",
+          "unit": "short",
+          "decimals": 0,
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 4,
+      "title": "Tags Updated (5m)",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COUNT(*) AS value FROM tag_current_values WHERE \"timestamp\" > NOW()-INTERVAL '5 minutes'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 5,
+      "title": "Tag Ingestion Rate (updates/interval)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT $__timeGroupAlias(tcv.\"timestamp\",$__interval), COUNT(*) AS \"Updates\" FROM tag_current_values tcv WHERE $__timeFilter(tcv.\"timestamp\") GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
           "custom": {
             "drawStyle": "line",
-            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "showPoints": "never"
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisLabel": "",
+            "gradientMode": "opacity"
+          },
+          "color": {
+            "mode": "palette-classic"
           }
         },
         "overrides": []
@@ -318,17 +462,61 @@
       "options": {
         "legend": {
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
       },
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 4,
         "w": 24,
         "h": 8
+      }
+    },
+    {
+      "id": 6,
+      "title": "MQTT Devices & Last Seen",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT t.name AS \"Device\", t.\"deviceCode\" AS \"Code\", t.status AS \"Status\", t.\"lastSeenAt\" AS \"Last Seen\", t.\"lastError\" AS \"Last Error\" FROM devices t JOIN factories f ON f.id=t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND UPPER(t.protocol)='MQTT' ORDER BY t.\"lastSeenAt\" DESC NULLS LAST LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        },
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 9
       }
     }
   ]

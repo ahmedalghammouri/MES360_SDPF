@@ -1,7 +1,7 @@
 {
   "uid": "mes-iiot-gateway",
   "title": "Gateway Status",
-  "description": "Edge gateway / driver connectivity.",
+  "description": "Edge gateway fleet — heartbeat, version and the devices each polls.",
   "tags": [
     "mes360",
     "iiot"
@@ -196,7 +196,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND t.type ILIKE '%gateway%' AND UPPER(t.status)='ONLINE'"
+          "rawSql": "SELECT COUNT(*) AS value FROM gateways g JOIN factories f ON f.id=g.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND g.\"isActive\"=true AND UPPER(g.status)='ONLINE'"
         }
       ],
       "fieldConfig": {
@@ -241,7 +241,125 @@
     },
     {
       "id": 2,
-      "title": "Gateways / Drivers",
+      "title": "Offline / Error",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COUNT(*) AS value FROM gateways g JOIN factories f ON f.id=g.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND g.\"isActive\"=true AND UPPER(g.status)<>'ONLINE'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 3,
+      "title": "Polled Devices",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "mes_postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {
+            "type": "postgres",
+            "uid": "mes_postgres"
+          },
+          "rawSql": "SELECT COUNT(*) AS value FROM devices t JOIN factories f ON f.id = t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') AND t.\"gatewayId\" IS NOT NULL"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 4,
+      "title": "Edge Gateways",
       "type": "table",
       "datasource": {
         "type": "postgres",
@@ -255,7 +373,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT t.name AS \"Gateway\", t.protocol AS \"Protocol\", t.\"ipAddress\" AS \"IP\", t.status AS \"Status\", t.\"lastSeenAt\" AS \"Last Seen\" FROM devices t JOIN factories f ON f.id=t.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY t.name LIMIT 60"
+          "rawSql": "SELECT g.name AS \"Gateway\", g.hostname AS \"Host\", g.version AS \"Version\", g.status AS \"Status\", g.\"lastHeartbeatAt\" AS \"Last Heartbeat\", (SELECT COUNT(*) FROM devices d WHERE d.\"gatewayId\"=g.id) AS \"Devices\" FROM gateways g JOIN factories f ON f.id=g.\"factoryId\" WHERE ('$factory' = '' OR f.code = '$factory') ORDER BY g.name LIMIT 60"
         }
       ],
       "fieldConfig": {
