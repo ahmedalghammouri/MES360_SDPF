@@ -66,6 +66,28 @@ const OEE_METRICS: ExplainerMetric[] = [
 ];
 
 export const EXPLAINERS: Record<string, Explainer> = {
+  // ── Insights Studio (grouped analytics) ──────────────────────
+  'insights-studio': {
+    title: { en: 'Insights Studio', ar: 'استوديو التحليلات' },
+    summary: {
+      en: 'A single analytical canvas: pick a grouping dimension (Shift / Production Order / Work Order / Machine / Time) and every chart re-aggregates OEE, output, scrap and the A·P·Q breakdown for the selected period and scope.',
+      ar: 'لوحة تحليلية موحّدة: اختر بُعد التجميع (وردية/أمر إنتاج/أمر عمل/آلة/زمن) فتُعيد كل الرسوم تجميع OEE والإنتاج والهدر وتفصيل A·P·Q للفترة والنطاق المختارين.',
+    },
+    metrics: [
+      { name: { en: 'OEE by group', ar: 'OEE حسب المجموعة' }, formula: 'time-weighted rollup per group', desc: { en: 'Compare effectiveness across shifts/orders/machines to find the best and worst performers.', ar: 'قارن الفعالية بين الورديات/الأوامر/الآلات لإيجاد الأفضل والأسوأ.' }, benchmark: { en: 'World-class ≥ 85%.', ar: 'عالمي ≥ 85%.' } },
+      { name: { en: 'Output (good vs scrap)', ar: 'الإنتاج (سليم مقابل هدر)' }, desc: { en: 'Produced quantity split into good and scrap per group — shows where quality losses concentrate.', ar: 'الكمية المنتَجة مقسّمة سليم/هدر لكل مجموعة — تُظهر أين تتركّز خسائر الجودة.' } },
+      { name: { en: 'A·P·Q by group', ar: 'A·P·Q حسب المجموعة' }, desc: { en: 'The three OEE factors side by side per group — pinpoints whether availability, speed or quality is the constraint.', ar: 'عوامل OEE الثلاثة جنبًا إلى جنب لكل مجموعة — تحدّد ما إذا كان القيد في الجاهزية أو السرعة أو الجودة.' } },
+    ],
+    dataSources: [
+      { en: 'GET /production/oee/calculate (period KPIs) + GET /production/oee/trend?groupBy=… (grouped rollups) — same time-weighted engine as every OEE page.', ar: 'GET /production/oee/calculate (مؤشرات الفترة) + GET /production/oee/trend?groupBy=… (تجميعات) — نفس المحرك المرجّح بالزمن لكل صفحات OEE.' },
+    ],
+    howToUse: [
+      { en: 'Group by Shift to compare crews; by Work Order to audit a run; by Machine to rank equipment; by Time to see the trend.', ar: 'جمّع حسب الوردية لمقارنة الفرق؛ حسب أمر العمل لتدقيق تشغيلة؛ حسب الآلة لترتيب المعدّات؛ حسب الزمن لرؤية الاتجاه.' },
+    ],
+    notes: [
+      { en: 'Everything here is PERIOD data (the badge marks it) — it responds to the time range and scope, unlike live machine-state cards elsewhere.', ar: 'كل ما هنا بيانات فترة (تُعلّمها الشارة) — تستجيب للفترة والنطاق، بخلاف بطاقات حالة الآلة اللحظية في صفحات أخرى.' },
+    ],
+  },
   // ── Production ───────────────────────────────────────────────
   'production-overview': {
     title: { en: 'Production Overview', ar: 'نظرة عامة على الإنتاج' },

@@ -1940,6 +1940,7 @@ export class ProductionService {
     timeframe: string = 'day',
     dateFrom?: string,
     dateTo?: string,
+    drill: { workOrderId?: string; productionOrderId?: string } = {},
   ) {
     // Per-machine OEE comes from JOB ORDERS (a routed WO spans many machines), so
     // every machine that ran a step is counted — not just the WO header machine.
@@ -1960,7 +1961,7 @@ export class ProductionService {
     }
     const bucket: 'hour' | 'day' = tf === 'day' || tf === 'shift' ? 'hour' : 'day';
 
-    const a = await this.kpiService.oeeAnalytics(factoryId, from, to, machineIds, bucket);
+    const a = await this.kpiService.oeeAnalytics(factoryId, from, to, machineIds, bucket, drill);
     return {
       current: a.current, // includes oee/availability/performance/quality + oeeTb/availabilityTb
       // flat aliases for the Machine OEE view + legacy consumers
@@ -1989,6 +1990,7 @@ export class ProductionService {
     timeframe: string = 'week',
     dateFrom?: string,
     dateTo?: string,
+    drill: { workOrderId?: string; productionOrderId?: string } = {},
   ) {
     const machineIds = await this.kpiService.resolveScopeMachineIds(factoryId, scope);
     const tf = String(timeframe || 'week').toLowerCase();
@@ -2003,7 +2005,7 @@ export class ProductionService {
       else from.setDate(to.getDate() - 7); // week (default)
     }
     const gb = (['machine', 'workOrder', 'productionOrder', 'shift'].includes(groupBy) ? groupBy : 'workOrder') as any;
-    const rows = await this.kpiService.oeeGroupedTrend(factoryId, from, to, machineIds, gb);
+    const rows = await this.kpiService.oeeGroupedTrend(factoryId, from, to, machineIds, gb, drill);
     return { groupBy: gb, from: from.toISOString(), to: to.toISOString(), rows };
   }
 

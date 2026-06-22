@@ -1,4 +1,10 @@
 {
+  "dataMode": {
+    "live": "Live",
+    "period": "Period",
+    "liveHint": "Real-time value — not affected by the time / PO / WO filters",
+    "periodHint": "Saved data over the selected period — responds to the time / PO / WO filters"
+  },
   "attach": {
     "add": "Add file",
     "uploaded": "File uploaded",

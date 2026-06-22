@@ -80,8 +80,10 @@ export class ProductionController {
     @Query('areaId') areaId?: string,
     @Query('lineId') lineId?: string,
     @Query('machineId') machineId?: string,
+    @Query('workOrderId') workOrderId?: string,
+    @Query('productionOrderId') productionOrderId?: string,
   ) {
-    return this.productionService.getOEESummary(user.factoryId, { areaId, lineId, machineId }, timeframe ?? 'day', dateFrom, dateTo);
+    return this.productionService.getOEESummary(user.factoryId, { areaId, lineId, machineId }, timeframe ?? 'day', dateFrom, dateTo, { workOrderId, productionOrderId });
   }
 
   @Get('oee/trend')
@@ -102,8 +104,10 @@ export class ProductionController {
     @Query('areaId') areaId?: string,
     @Query('lineId') lineId?: string,
     @Query('machineId') machineId?: string,
+    @Query('workOrderId') workOrderId?: string,
+    @Query('productionOrderId') productionOrderId?: string,
   ) {
-    return this.productionService.getOeeGroupedTrend(user.factoryId, { areaId, lineId, machineId }, groupBy ?? 'workOrder', timeframe ?? 'week', dateFrom, dateTo);
+    return this.productionService.getOeeGroupedTrend(user.factoryId, { areaId, lineId, machineId }, groupBy ?? 'workOrder', timeframe ?? 'week', dateFrom, dateTo, { workOrderId, productionOrderId });
   }
 
   @Post('oee/calculate')

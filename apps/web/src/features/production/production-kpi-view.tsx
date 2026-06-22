@@ -1,5 +1,6 @@
 'use client';
 import { DashboardInfo } from '@/components/ui/dashboard-info';
+import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { useTranslation } from 'react-i18next';
 
 import React, { useMemo, useState } from 'react';
@@ -260,12 +261,18 @@ export default function ProductionKpiView() {
   });
   const oeeRecords = Array.isArray(oeeRecordsResp?.data) ? oeeRecordsResp.data : [];
 
+  // Resolve the selected PO (the filter holds its order-number) to its id so the
+  // OEE engine can drill the cards to that PO. woFilter already holds the WO id.
+  const poId = poFilter ? productionOrders.find((p) => p.orderNumber === poFilter)?.id : undefined;
+
   // Canonical, scope+time OEE from the SAME engine the OEE Analytics page uses
-  // (time-weighted rollup) — so the OEE/A/P/Q cards reconcile across every screen
-  // instead of a page-local simple average of records.
+  // (time-weighted rollup) — now ALSO drilled by the PO / WO filter so the
+  // OEE/A/P/Q/Output/Scrap cards react to the same filters as the tables.
   const { data: oeeCalc } = useQuery({
-    queryKey: ['production', 'oee-calc', timeKey, key],
-    queryFn: () => api.get<any>('/production/oee/calculate', { params: { ...filter, dateFrom, dateTo } }),
+    queryKey: ['production', 'oee-calc', timeKey, key, poId ?? '', woFilter],
+    queryFn: () => api.get<any>('/production/oee/calculate', {
+      params: { ...filter, dateFrom, dateTo, productionOrderId: poId || undefined, workOrderId: woFilter || undefined },
+    }),
     refetchInterval: 60_000,
   });
 
@@ -457,7 +464,7 @@ export default function ProductionKpiView() {
             <TrendingUp size={18} className="text-brand-400" />
           </div>
           <div>
-            <div className="flex items-center gap-2"><h1 className="text-lg font-bold">{t('headers.kpiAnalytics.title')}</h1><DashboardInfo id="production-kpi" /></div>
+            <div className="flex items-center gap-2"><h1 className="text-lg font-bold">{t('headers.kpiAnalytics.title')}</h1><DashboardInfo id="production-kpi" /><DataModeBadge mode="period" /></div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {t('headers.kpiAnalytics.subtitle')}
             </p>

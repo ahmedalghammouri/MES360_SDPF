@@ -239,6 +239,23 @@
       "countSaved": "Count saved", "failedSaveCount": "Failed to save count", "failedAssign": "Failed to assign operator"
     }
   },
+  "insights": {
+    "title": "Insights Studio",
+    "subtitle": "Group every production metric by shift, production order, work order, machine or time — over the selected period and scope.",
+    "periodSummary": "Period summary",
+    "groupBy": "Group by:",
+    "output": "Output",
+    "scrap": "Scrap",
+    "good": "Good",
+    "oeeTrend": "OEE Trend",
+    "oeeBy": "OEE by group",
+    "outputBy": "Output (good vs scrap) by group",
+    "apqBy": "Availability · Performance · Quality by group",
+    "detail": "Detail",
+    "noData": "No data for this period",
+    "noGroupData": "No production in this period for the selected grouping",
+    "group": { "shift": "Shift", "po": "Production Order", "wo": "Work Order", "machine": "Machine", "time": "Time", "label": "Group" }
+  },
   "oeev": {
     "allMachines": "All machines",
     "deepAnalysis": "Deep analysis",

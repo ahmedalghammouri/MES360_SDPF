@@ -153,6 +153,7 @@ const navItems: NavItem[] = [
     icon: TrendingUp,
     children: [
       { label: 'Factory Analytics',       href: '/analytics',                    icon: LayoutGrid },
+      { label: 'Insights Studio',         href: '/analytics/insights',           icon: TrendingUp },
       { label: 'Production KPIs',         href: '/production/kpi',               icon: Gauge      },
       { label: 'OEE Analytics',           href: '/production/oee',               icon: LineChart  },
       { label: 'Machine KPIs',            href: '/manufacturing/kpi',            icon: Cpu        },

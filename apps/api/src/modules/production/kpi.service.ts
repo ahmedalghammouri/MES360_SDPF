@@ -312,11 +312,15 @@ export class KpiService {
     to: Date,
     machineIds: string[] | undefined,
     bucket: 'hour' | 'day' = 'hour',
+    opts: { workOrderId?: string; productionOrderId?: string } = {},
   ) {
     const jos = await this.prisma.jobOrder.findMany({
       where: {
         ...(factoryId ? { factoryId } : {}),
         ...(machineIds ? { machineId: { in: machineIds } } : {}),
+        // PO / WO drill-down — so every OEE card & chart reacts to the PO/WO filter.
+        ...(opts.workOrderId ? { workOrderId: opts.workOrderId } : {}),
+        ...(opts.productionOrderId ? { workOrder: { productionOrderId: opts.productionOrderId } } : {}),
         OR: [{ actualStart: { gte: from, lte: to } }, { actualEnd: { gte: from, lte: to } }],
       },
       select: { ...JO_SELECT_ANALYTICS, machine: { select: { id: true, name: true, code: true } } },
@@ -400,11 +404,14 @@ export class KpiService {
     to: Date,
     machineIds: string[] | undefined,
     groupBy: 'machine' | 'workOrder' | 'productionOrder' | 'shift',
+    opts: { workOrderId?: string; productionOrderId?: string } = {},
   ) {
     const jos = await this.prisma.jobOrder.findMany({
       where: {
         ...(factoryId ? { factoryId } : {}),
         ...(machineIds ? { machineId: { in: machineIds } } : {}),
+        ...(opts.workOrderId ? { workOrderId: opts.workOrderId } : {}),
+        ...(opts.productionOrderId ? { workOrder: { productionOrderId: opts.productionOrderId } } : {}),
         OR: [{ actualStart: { gte: from, lte: to } }, { actualEnd: { gte: from, lte: to } }],
       },
       select: {
