@@ -105,7 +105,7 @@ export function ExecutiveView() {
                         </td>
                         <td className={cn('px-3 py-2.5 text-center font-bold tabular-nums', getOEEColor(r.oee))}>{r.oee.toFixed(1)}%</td>
                         <td className="px-3 py-2.5 text-center tabular-nums text-muted-foreground">{r.availability.toFixed(0)} / {r.performance.toFixed(0)} / {r.quality.toFixed(0)}</td>
-                        <td className="px-3 py-2.5 text-end tabular-nums">{r.output.toLocaleString()}</td>
+                        <td className="px-3 py-2.5 text-end tabular-nums">{Math.round(r.output).toLocaleString()}</td>
                         <td className="px-3 py-2.5 text-end tabular-nums">{r.costMtd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                         <td className={cn('px-3 py-2.5 text-center tabular-nums', r.activeAlarms > 0 && 'text-rose-500 font-semibold')}>{r.activeAlarms}</td>
                         <td className={cn('px-3 py-2.5 text-center tabular-nums', r.openNCRs > 0 && 'text-amber-500 font-semibold')}>{r.openNCRs}</td>

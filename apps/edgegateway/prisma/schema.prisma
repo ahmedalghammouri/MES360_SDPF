@@ -120,6 +120,9 @@ model Factory {
   jobOrders              JobOrder[]
   scrapLogs              ScrapLog[]
   rescheduleRequests     RescheduleRequest[]
+  finishedGoodsLots      FinishedGoodsLot[]
+  materialRequests       MaterialRequest[]
+  storageTransfers       StorageTransfer[]
 
   @@map("factories")
 }
@@ -210,6 +213,7 @@ enum LineType {
 // ============================================================
 
 model Machine {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id                String      @id @default(uuid())
   factoryId         String
   areaId            String?
@@ -572,6 +576,7 @@ model UnitOfMeasure {
 }
 
 model SKU {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id               String   @id @default(uuid())
   factoryId        String
   familyId         String?
@@ -599,6 +604,7 @@ model SKU {
   innersPerCarton  Int      @default(1)
   cartonsPerPallet Int      @default(1)
   baseUnit         String   @default("EA") // legacy text (kept in sync with baseUnitRef.code)
+  currentStock     Float    @default(0) // finished-goods on-hand in base units (sum of active finished_goods_lots)
   isActive         Boolean  @default(true)
   metadata         Json?
   createdAt        DateTime @default(now())
@@ -624,6 +630,7 @@ model SKU {
   processLinks           ManufacturingProcessSku[]
   recipes                Recipe[]
   changeRequests         ChangeRequest[]
+  finishedGoodsLots      FinishedGoodsLot[]
 
   @@unique([factoryId, itemNumber])
   @@index([factoryId])
@@ -654,6 +661,7 @@ model BOMComponent {
 
 // PRODUCTION ORDER (ERP / SAP level)
 model ProductionOrder {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id             String                @id @default(uuid())
   factoryId      String
   orderNumber    String                @unique
@@ -686,6 +694,7 @@ model ProductionOrder {
   sku                SKU?                @relation(fields: [skuId], references: [id])
   workOrders         WorkOrder[]
   rescheduleRequests RescheduleRequest[]
+  materialRequests   MaterialRequest[]
 
   @@index([factoryId, status])
   @@map("production_orders")
@@ -747,6 +756,7 @@ enum ProductionOrderStatus {
 
 // WORK ORDER (shop floor execution)
 model WorkOrder {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id                String          @id @default(uuid())
   factoryId         String
   productionOrderId String?
@@ -776,6 +786,12 @@ model WorkOrder {
   plannedCycleTime  Float? // seconds per unit
   recipeId          String? // locked recipe at WO creation
   recipeVersion     String?
+  // Material availability gate (driven by material_requests). OK = every step
+  // material is in stock; AWAITING_MATERIALS = an open shortage request blocks
+  // start; SCHEDULED_FOR_DELIVERY = start deferred until materialReadyDate (the
+  // latest supplier delivery ETA submitted by inventory).
+  materialStatus    MaterialAvailability @default(OK)
+  materialReadyDate DateTime? // earliest allowed start (latest supplier delivery ETA)
   notes             String?
   createdById       String?
   startedById       String?
@@ -807,6 +823,8 @@ model WorkOrder {
   jobOrders            JobOrder[]
   scrapLogs            ScrapLog[]
   rescheduleRequests   RescheduleRequest[]
+  finishedGoodsLots    FinishedGoodsLot[]
+  materialRequests     MaterialRequest[]
 
   @@index([factoryId, status])
   @@index([factoryId, plannedStart])
@@ -912,6 +930,7 @@ enum BatchStatus {
 
 // MATERIAL LOT (incoming raw materials, packaging)
 model MaterialLot {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id                String      @id @default(uuid())
   factoryId         String
   rawMaterialId     String? // optional link to RawMaterial master
@@ -932,6 +951,7 @@ model MaterialLot {
   storageLocationId String? // FK to StorageLocation
   binNumber         String?
   notes             String?
+  materialRequestId String? // received to fulfil this material-shortage request
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
@@ -939,8 +959,10 @@ model MaterialLot {
   rawMaterial        RawMaterial?          @relation(fields: [rawMaterialId], references: [id])
   storageLocationRef StorageLocation?      @relation(fields: [storageLocationId], references: [id])
   unitRef            UnitOfMeasure?        @relation(fields: [unitId], references: [id])
+  materialRequest    MaterialRequest?      @relation(fields: [materialRequestId], references: [id])
   consumptions       MaterialConsumption[]
   jobOrderMaterials  JobOrderMaterial[]
+  storageTransfers   StorageTransfer[]
 
   @@unique([factoryId, lotNumber, materialCode])
   @@map("material_lots")
@@ -1249,6 +1271,7 @@ model MachineRuntimeHours {
 // ============================================================
 
 model QualityPlan {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id                String    @id @default(uuid())
   factoryId         String
   skuId             String?
@@ -1292,6 +1315,7 @@ model QualityParameter {
 }
 
 model InspectionResult {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id               String            @id @default(uuid())
   factoryId        String
   planId           String?
@@ -1342,6 +1366,7 @@ enum InspectionResult2 {
 }
 
 model NCR {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id               String    @id @default(uuid())
   factoryId        String
   ncrNumber        String    @unique
@@ -1393,6 +1418,7 @@ enum Severity {
 }
 
 model CAPA {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id            String     @id @default(uuid())
   factoryId     String
   capaNumber    String     @unique
@@ -1499,13 +1525,28 @@ model FailureMode {
   isActive          Boolean          @default(true)
   createdAt         DateTime         @default(now())
 
-  machine Machine @relation(fields: [machineId], references: [id])
+  machine    Machine                    @relation(fields: [machineId], references: [id])
+  workOrders MaintenanceWOFailureMode[]
 
   @@index([machineId])
   @@map("failure_modes")
 }
 
+/// Join table linking a maintenance work order to multiple FMEA failure modes.
+model MaintenanceWOFailureMode {
+  woId          String
+  failureModeId String
+
+  wo          MaintenanceWO @relation(fields: [woId], references: [id], onDelete: Cascade)
+  failureMode FailureMode   @relation(fields: [failureModeId], references: [id], onDelete: Cascade)
+
+  @@id([woId, failureModeId])
+  @@index([failureModeId])
+  @@map("maintenance_wo_failure_modes")
+}
+
 model PMPlan {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id                String    @id @default(uuid())
   factoryId         String
   machineId         String
@@ -1585,6 +1626,7 @@ enum PMTaskStatus {
 }
 
 model MaintenanceWO {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id                    String      @id @default(uuid())
   factoryId             String
   woNumber              String      @unique
@@ -1621,6 +1663,7 @@ model MaintenanceWO {
   requestedBy  User?              @relation("MaintRequestedBy", fields: [requestedById], references: [id])
   productionWO WorkOrder?         @relation("MaintLinkedProdWO", fields: [productionWOId], references: [id])
   sparesUsed   MaintWOSparePart[]
+  failureModes MaintenanceWOFailureMode[]
 
   @@index([factoryId, status])
   @@index([machineId])
@@ -1647,6 +1690,7 @@ enum MaintStatus {
 }
 
 model SparePart {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id                String   @id @default(uuid())
   factoryId         String
   partNumber        String
@@ -2372,6 +2416,7 @@ model AuditLog {
 // ============================================================
 
 model RawMaterial {
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
   id                String   @id @default(uuid())
   factoryId         String
   code              String // SAP / internal material code
@@ -2402,6 +2447,7 @@ model RawMaterial {
   bomItems           BOMItem[]
   recipeIngredients  RecipeIngredient[]
   routingStepUses    RoutingStepMaterial[]
+  materialRequests   MaterialRequest[]
 
   @@unique([factoryId, code])
   @@map("raw_materials")
@@ -2509,6 +2555,7 @@ enum MovementType {
   RESERVATION // soft reserve (pending approval)
   RELEASE // release reservation (WO cancelled)
   CONSUMPTION // production consumption
+  TRANSFER // moved between storage locations
 }
 
 // ============================================================
@@ -2612,14 +2659,143 @@ model StorageLocation {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  factory      Factory       @relation(fields: [factoryId], references: [id])
-  rawMaterials RawMaterial[]
-  materialLots MaterialLot[]
-  spareParts   SparePart[]
-  skus         SKU[]
+  factory          Factory            @relation(fields: [factoryId], references: [id])
+  rawMaterials     RawMaterial[]
+  materialLots     MaterialLot[]
+  spareParts       SparePart[]
+  skus             SKU[]
+  finishedGoodsLots FinishedGoodsLot[]
+  transfersFrom    StorageTransfer[]  @relation("TransferFrom")
+  transfersTo      StorageTransfer[]  @relation("TransferTo")
 
   @@unique([factoryId, code])
   @@map("storage_locations")
+}
+
+// ============================================================
+// FINISHED GOODS & MATERIAL-SHORTAGE GOVERNANCE
+// ============================================================
+
+// Work-order material gate. Drives whether a WO can be started.
+enum MaterialAvailability {
+  OK // all step materials available — WO can start
+  AWAITING_MATERIALS // open shortage request(s); start blocked until fulfilled
+  SCHEDULED_FOR_DELIVERY // start deferred until materialReadyDate (supplier ETA)
+}
+
+// Lifecycle of a material-shortage request raised to the inventory team.
+enum MaterialRequestStatus {
+  PENDING // raised, awaiting inventory action
+  ACKNOWLEDGED // inventory committed a delivery date (ETA)
+  PARTIALLY_FULFILLED // some qty supplied, still short
+  FULFILLED // stock now covers the requirement
+  CANCELLED // dropped (WO cancelled / rescheduled / superseded)
+}
+
+// A produced finished-goods lot, posted into a FINISHED_GOODS storage location
+// when a work order completes. quantity/remainingQty are in the SKU base unit
+// (converted from the WO production unit via the packaging ladder). The per-WO
+// BatchRecord carries the genealogy; this row is the on-hand stock + location.
+model FinishedGoodsLot {
+  id                String      @id @default(uuid())
+  factoryId         String
+  skuId             String
+  workOrderId       String?
+  batchRecordId     String?
+  storageLocationId String?
+  lotNumber         String
+  quantity          Float // produced good qty in base units
+  remainingQty      Float // on-hand remaining (dispatch / issue decrements)
+  unit              String // SKU base unit (e.g. EA / PCS)
+  producedQty       Float? // original produced good qty in the WO production unit
+  producedUnit      String? // WO production unit (e.g. CARTON)
+  status            BatchStatus @default(ACTIVE)
+  producedAt        DateTime    @default(now())
+  expiryDate        DateTime?
+  notes             String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  factory            Factory          @relation(fields: [factoryId], references: [id])
+  sku                SKU              @relation(fields: [skuId], references: [id])
+  workOrder          WorkOrder?       @relation(fields: [workOrderId], references: [id])
+  storageLocationRef StorageLocation? @relation(fields: [storageLocationId], references: [id])
+
+  @@index([factoryId, skuId])
+  @@index([storageLocationId])
+  @@index([workOrderId])
+  @@map("finished_goods_lots")
+}
+
+// A request to the inventory team to replenish a raw material that is short for
+// a work order. Mirrors the spare-part request flow. Inventory responds by
+// adjusting stock (fulfilling) or committing a delivery date, which reschedules
+// the WO start. requestedById / reviewedById reference User ids (resolved on read).
+model MaterialRequest {
+  id                String                @id @default(uuid())
+  factoryId         String
+  workOrderId       String?
+  productionOrderId String?
+  rawMaterialId     String
+  requestNumber     String                @unique
+  quantityNeeded    Float // gross requirement for the WO
+  quantityAvailable Float // available (current − reserved) snapshot at request time
+  quantityShort     Float // needed − available
+  quantityFulfilled Float                 @default(0) // qty supplied so far
+  unit              String
+  status            MaterialRequestStatus @default(PENDING)
+  priority          Priority              @default(MEDIUM)
+  deliveryDate      DateTime? // supplier ETA committed by inventory
+  requestedAt       DateTime              @default(now())
+  requestedById     String?
+  reviewedById      String?
+  reviewedAt        DateTime?
+  fulfilledAt       DateTime?
+  notes             String?
+  responseNotes     String?
+  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  factory         Factory          @relation(fields: [factoryId], references: [id])
+  workOrder       WorkOrder?       @relation(fields: [workOrderId], references: [id])
+  productionOrder ProductionOrder? @relation(fields: [productionOrderId], references: [id])
+  rawMaterial     RawMaterial      @relation(fields: [rawMaterialId], references: [id])
+  materialLots    MaterialLot[]
+
+  @@index([factoryId, status])
+  @@index([workOrderId])
+  @@index([rawMaterialId])
+  @@map("material_requests")
+}
+
+// A physical stock move of an item between two storage locations. Records the
+// move, repoints the item/lot location, writes a TRANSFER ledger entry + trace
+// event, and notifies the factory. The audit source of truth for relocations.
+model StorageTransfer {
+  id             String          @id @default(uuid())
+  factoryId      String
+  transferNumber String          @unique
+  entityType     StockEntityType // RAW_MATERIAL | SPARE_PART | PRODUCT
+  entityId       String
+  entityCode     String
+  entityName     String
+  materialLotId  String? // when moving a specific material lot
+  fromLocationId String?
+  toLocationId   String?
+  quantity       Float
+  unit           String?
+  notes          String?
+  performedById  String?
+  createdAt      DateTime        @default(now())
+
+  factory      Factory          @relation(fields: [factoryId], references: [id])
+  fromLocation StorageLocation? @relation("TransferFrom", fields: [fromLocationId], references: [id])
+  toLocation   StorageLocation? @relation("TransferTo", fields: [toLocationId], references: [id])
+  materialLot  MaterialLot?     @relation(fields: [materialLotId], references: [id])
+
+  @@index([factoryId, createdAt])
+  @@map("storage_transfers")
 }
 
 // ============================================================
@@ -3184,4 +3360,30 @@ model DashboardPermission {
   @@index([dashboardId])
   @@index([userId])
   @@map("dashboard_permissions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ATTACHMENTS — polymorphic file/image attachments (instructions + work evidence)
+// Fully additive: no relations to other models → zero conflict. Files live on a
+// local-disk volume; `storageKey` is the path under the upload root. uploadedBy
+// is denormalised (id + name snapshot) so listing needs no joins.
+// ─────────────────────────────────────────────────────────────
+model Attachment {
+  id             String   @id @default(uuid())
+  factoryId      String
+  entityType     String // MAINTENANCE_WO | QUALITY_INSPECTION | NCR | CAPA | QUALITY_PLAN
+  entityId       String
+  category       String   @default("EVIDENCE") // INSTRUCTION | EVIDENCE
+  storageKey     String // relative path under the upload root
+  originalName   String
+  mimeType       String
+  size           Int // bytes
+  description    String?
+  uploadedById   String?
+  uploadedByName String?
+  createdAt      DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([factoryId])
+  @@map("attachments")
 }

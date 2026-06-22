@@ -1,6 +1,6 @@
 {
   "gatewayName": "Local Dev Gateway",
-  "factoryCode": "SIDCO",
+  "factoryCode": "SDPF",
   "databaseUrl": "postgresql://mes_user:mes_password@localhost:5433/mes360?schema=public",
   "mqttBrokerUrl": "mqtt://localhost:1883",
   "influxUrl": "http://localhost:8086",

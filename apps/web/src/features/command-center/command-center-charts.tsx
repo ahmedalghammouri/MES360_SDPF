@@ -204,7 +204,7 @@ export function ExecutiveComparison({
         type: 'line',
         yAxisIndex: 1,
         smooth: true,
-        data: rows.map((r) => r.output),
+        data: rows.map((r) => Math.round(r.output)),
         lineStyle: { color: '#06b6d4', width: 2 },
         itemStyle: { color: '#06b6d4' },
       },
