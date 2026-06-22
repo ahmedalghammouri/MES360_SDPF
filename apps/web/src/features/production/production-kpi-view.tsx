@@ -172,6 +172,9 @@ function PrimaryKpiCard({
   const { t } = useTranslation(['production', 'common']);
   const pct = Math.min(100, (value / target) * 100);
   const gap = value - target;
+  // Percentages keep one decimal; unit counts show as whole, grouped numbers.
+  const isPct = unit === '%';
+  const fmt = (v: number) => (isPct ? v.toFixed(1) : Math.round(v).toLocaleString());
 
   return (
     <motion.div
@@ -188,7 +191,7 @@ function PrimaryKpiCard({
 
       <div className="flex items-end gap-2">
         <span className={cn('text-3xl font-bold tabular-nums', oeeColor(value))}>
-          {value.toFixed(1)}
+          {fmt(value)}
         </span>
         <span className="text-sm text-muted-foreground mb-1">{unit}</span>
         <div className={cn('flex items-center gap-0.5 ml-auto text-xs font-medium', trendColor(trend))}>
@@ -204,7 +207,7 @@ function PrimaryKpiCard({
           <span>{t('kpiv.vsTarget', { target, unit })}</span>
           <span className={cn('font-medium', gap >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
             {gap >= 0 ? '+' : ''}
-            {gap.toFixed(1)}{unit}
+            {fmt(gap)}{unit}
           </span>
         </div>
         <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
@@ -257,32 +260,34 @@ export default function ProductionKpiView() {
   });
   const oeeRecords = Array.isArray(oeeRecordsResp?.data) ? oeeRecordsResp.data : [];
 
+  // Canonical, scope+time OEE from the SAME engine the OEE Analytics page uses
+  // (time-weighted rollup) — so the OEE/A/P/Q cards reconcile across every screen
+  // instead of a page-local simple average of records.
+  const { data: oeeCalc } = useQuery({
+    queryKey: ['production', 'oee-calc', timeKey, key],
+    queryFn: () => api.get<any>('/production/oee/calculate', { params: { ...filter, dateFrom, dateTo } }),
+    refetchInterval: 60_000,
+  });
+
   const { data: workOrdersResp, isLoading: woLoading } = useQuery({
     queryKey: ['production', 'work-orders', 200, key],
     queryFn: () => api.get<WorkOrdersResponse>('/production/work-orders', { params: { limit: 200, ...filter } }),
     refetchInterval: 60_000,
   });
 
-  // --- Time-windowed, scope-filtered OEE summary (records are already scoped server-side) ---
+  // --- OEE summary from the canonical rollup (matches OEE Analytics exactly) ---
   const summary = useMemo(() => {
-    const start = new Date(dateFrom);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(dateTo);
-    end.setHours(23, 59, 59, 999);
-    const recs = oeeRecords.filter((r: any) => {
-      const d = new Date(r.recordDate);
-      return d >= start && d <= end;
-    });
-    const n = recs.length;
-    const avg = (k: string) => (n ? recs.reduce((s, r: any) => s + (r[k] ?? 0), 0) / n : 0);
+    const r1 = (v: any) => Math.round((Number(v) || 0) * 10) / 10;
+    const c: any = oeeCalc ?? {};
     return {
-      oee: Math.round(avg('oee') * 10) / 10,
-      availability: Math.round(avg('availability') * 10) / 10,
-      performance: Math.round(avg('performance') * 10) / 10,
-      quality: Math.round(avg('quality') * 10) / 10,
-      totalOutput: recs.reduce((s, r: any) => s + (r.totalOutput ?? 0), 0),
+      oee: r1(c.oee ?? c.current?.oee),
+      availability: r1(c.availability ?? c.current?.availability),
+      performance: r1(c.performance ?? c.current?.performance),
+      quality: r1(c.quality ?? c.current?.quality),
+      // Output is base-unit normalised → round to whole units for display.
+      totalOutput: Math.round(Number(c.totalCount ?? 0)),
     };
-  }, [oeeRecords, dateFrom, dateTo]);
+  }, [oeeCalc]);
 
   // --- Derived metrics ---
   const allWorkOrders = workOrdersResp?.data ?? [];
@@ -628,14 +633,16 @@ export default function ProductionKpiView() {
                 <tbody className="divide-y divide-border/30">
                   {kpiRows.map((row) => {
                     const gap = row.actual - row.target;
+                    // Percentages keep one decimal; unit counts show as whole numbers.
+                    const rfmt = (v: number) => (row.unit === '%' ? v.toFixed(1) : Math.round(v).toLocaleString());
                     return (
                       <tr key={row.metric} className="h-10">
                         <td className="pr-2 font-medium text-foreground/80">{row.metric}</td>
                         <td className={cn('pr-2 tabular-nums font-bold', oeeColor(row.actual))}>
-                          {row.actual.toFixed(1)}{row.unit}
+                          {rfmt(row.actual)}{row.unit}
                         </td>
                         <td className="pr-2 text-muted-foreground tabular-nums">
-                          {row.target}{row.unit}
+                          {rfmt(row.target)}{row.unit}
                         </td>
                         <td
                           className={cn(
@@ -644,7 +651,7 @@ export default function ProductionKpiView() {
                           )}
                         >
                           {gap >= 0 ? '+' : ''}
-                          {gap.toFixed(1)}{row.unit}
+                          {rfmt(gap)}{row.unit}
                         </td>
                         <td>{statusChip(gap, t)}</td>
                       </tr>

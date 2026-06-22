@@ -58,18 +58,44 @@ function oeeBarColor(v: number): string {
   return '#ef4444';
 }
 
+// Theme-aware chart colours — adapt to light/dark instead of hardcoded dark hex.
+const AXIS_TICK = { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } as const;
+const AXIS_TICK_STRONG = { fontSize: 10, fill: 'hsl(var(--foreground))' } as const;
+const TOOLTIP_STYLE = { background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--popover-foreground))' } as const;
+const TOOLTIP_LABEL = { color: 'hsl(var(--popover-foreground))' } as const;
+const GRID_STROKE = 'hsl(var(--border))';
+
+const GROUP_OPTIONS = [
+  { value: 'time', labelKey: 'oeev.groupBy.time' },
+  { value: 'productionOrder', labelKey: 'oeev.groupBy.po' },
+  { value: 'workOrder', labelKey: 'oeev.groupBy.wo' },
+  { value: 'shift', labelKey: 'oeev.groupBy.shift' },
+  { value: 'machine', labelKey: 'oeev.groupBy.machine' },
+] as const;
+type GroupBy = (typeof GROUP_OPTIONS)[number]['value'];
+
 export function ProductionOEEView() {
   const { t } = useTranslation(['production', 'common']);
   const qc = useQueryClient();
   const { filter, key } = useScope();
   const { params: timeParams, key: timeKey, preset: timeframe } = useTimeRange();
   const [machineFilter, setMachineFilter] = useState<string>('ALL');
+  const [groupBy, setGroupBy] = useState<GroupBy>('time');
 
   const { data: oeeData, isLoading, isFetching } = useQuery({
     queryKey: ['production', 'oee', timeKey, key],
     queryFn: () => api.get<OeeCalcResponse>('/production/oee/calculate', { params: { ...timeParams, ...filter } }),
     refetchInterval: 30_000,
   });
+
+  // Grouped OEE (per PO / WO / shift / machine) for the trend chart's "Group by".
+  const { data: groupedResp, isFetching: groupedLoading } = useQuery({
+    queryKey: ['production', 'oee-trend', groupBy, timeKey, key],
+    queryFn: () => api.get<{ rows: { key: string; label: string; oee: number; availability: number; performance: number; quality: number; output: number }[] }>('/production/oee/trend', { params: { groupBy, ...timeParams, ...filter } }),
+    enabled: groupBy !== 'time',
+    refetchInterval: 30_000,
+  });
+  const groupedRows = (groupedResp as any)?.rows ?? [];
 
   const equipment: EquipmentOee[] = oeeData?.byEquipment ?? [];
   const filteredEq = machineFilter === 'ALL' ? equipment : equipment.filter(e => e.name === machineFilter);
@@ -228,37 +254,75 @@ export function ProductionOEEView() {
           {/* OEE trend */}
           <div className="col-span-12 lg:col-span-8">
             <div className="industrial-card rounded-xl p-4 h-full">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <Activity size={14} className="text-primary" />
-                <h3 className="text-sm font-semibold">OEE Trend</h3>
-                <span className="text-[10px] text-muted-foreground ml-auto">target {WORLD_CLASS}%</span>
+                <h3 className="text-sm font-semibold">{t('oeev.oeeTrend', { defaultValue: 'OEE Trend' })}</h3>
+                {/* Group-by: time line, or OEE per PO / WO / Shift / Machine */}
+                <div className="flex items-center gap-0.5 rounded-lg border border-border/50 p-0.5 ml-auto">
+                  {GROUP_OPTIONS.map(o => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => setGroupBy(o.value)}
+                      className={cn('px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors',
+                        groupBy === o.value ? 'bg-brand-500/20 text-brand-300' : 'text-muted-foreground hover:text-foreground')}
+                    >
+                      {t(o.labelKey)}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[10px] text-muted-foreground">{t('oeev.target', { defaultValue: 'target' })} {WORLD_CLASS}%</span>
               </div>
-              {isLoading ? (
-                <div className="shimmer h-52 rounded" />
-              ) : trend.length === 0 ? (
-                <div className="h-52 flex items-center justify-center text-xs text-muted-foreground">No trend data for this timeframe</div>
+              {groupBy === 'time' ? (
+                isLoading ? (
+                  <div className="shimmer h-52 rounded" />
+                ) : trend.length === 0 ? (
+                  <div className="h-52 flex items-center justify-center text-xs text-muted-foreground">{t('oeev.noTrend', { defaultValue: 'No trend data for this timeframe' })}</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={210}>
+                    <AreaChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
+                      <defs>
+                        <linearGradient id="oeeFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#6366f1" stopOpacity={0.45} />
+                          <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} strokeOpacity={0.4} />
+                      <XAxis dataKey="period" tick={AXIS_TICK} />
+                      <YAxis domain={[0, 100]} tick={AXIS_TICK} />
+                      <ReTooltip
+                        contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL} itemStyle={TOOLTIP_LABEL}
+                        formatter={(v: any, name: any) => [`${Number(v).toFixed(1)}%`, name === 'oeeTb' ? 'OEE (Time-Based)' : 'OEE (Schedule)']}
+                      />
+                      <ReferenceLine y={WORLD_CLASS} stroke="#22c55e" strokeDasharray="6 4" strokeOpacity={0.6} />
+                      <Area type="monotone" dataKey="oee" name="oee" stroke="#818cf8" strokeWidth={2} fill="url(#oeeFill)" />
+                      {/* Time-based OEE (AT-OEE) overlaid as a dashed line for comparison */}
+                      <Area type="monotone" dataKey="oeeTb" name="oeeTb" stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" fill="none" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )
               ) : (
-                <ResponsiveContainer width="100%" height={210}>
-                  <AreaChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
-                    <defs>
-                      <linearGradient id="oeeFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.45} />
-                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
-                    <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                    <ReTooltip
-                      contentStyle={{ background: '#13151f', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 8, fontSize: 12 }}
-                      formatter={(v: any, name: any) => [`${Number(v).toFixed(1)}%`, name === 'oeeTb' ? 'OEE (Time-Based)' : 'OEE (Schedule)']}
-                    />
-                    <ReferenceLine y={WORLD_CLASS} stroke="#22c55e" strokeDasharray="6 4" strokeOpacity={0.6} />
-                    <Area type="monotone" dataKey="oee" name="oee" stroke="#818cf8" strokeWidth={2} fill="url(#oeeFill)" />
-                    {/* Time-based OEE (AT-OEE) overlaid as a dashed line for comparison */}
-                    <Area type="monotone" dataKey="oeeTb" name="oeeTb" stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" fill="none" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                groupedLoading && groupedRows.length === 0 ? (
+                  <div className="shimmer h-52 rounded" />
+                ) : groupedRows.length === 0 ? (
+                  <div className="h-52 flex items-center justify-center text-xs text-muted-foreground">{t('oeev.noGroupData', { defaultValue: 'No production in this window for the selected grouping' })}</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={Math.max(210, Math.min(groupedRows.length, 12) * 34)}>
+                    <BarChart data={groupedRows.slice(0, 12)} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} strokeOpacity={0.4} horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} tick={AXIS_TICK} />
+                      <YAxis type="category" dataKey="label" width={130} tick={AXIS_TICK_STRONG} />
+                      <ReTooltip
+                        contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL} itemStyle={TOOLTIP_LABEL}
+                        formatter={(v: any, n: any) => [`${Number(v).toFixed(1)}%`, n === 'oee' ? 'OEE' : n]}
+                      />
+                      <ReferenceLine x={WORLD_CLASS} stroke="#22c55e" strokeDasharray="6 4" strokeOpacity={0.6} />
+                      <Bar dataKey="oee" radius={[0, 4, 4, 0]} barSize={16}>
+                        {groupedRows.slice(0, 12).map((r: any) => <Cell key={r.key} fill={oeeBarColor(r.oee)} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )
               )}
             </div>
           </div>
@@ -275,11 +339,11 @@ export function ProductionOEEView() {
               ) : (
                 <ResponsiveContainer width="100%" height={Math.max(180, filteredEq.length * 38)}>
                   <BarChart data={filteredEq} layout="vertical" margin={{ top: 0, right: 28, bottom: 0, left: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" horizontal={false} />
-                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                    <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 10, fill: '#cbd5e1' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} strokeOpacity={0.4} horizontal={false} />
+                    <XAxis type="number" domain={[0, 100]} tick={AXIS_TICK} />
+                    <YAxis type="category" dataKey="name" width={120} tick={AXIS_TICK_STRONG} />
                     <ReTooltip
-                      contentStyle={{ background: '#13151f', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 8, fontSize: 12 }}
+                      contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL} itemStyle={TOOLTIP_LABEL}
                       formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'OEE']}
                     />
                     <ReferenceLine x={WORLD_CLASS} stroke="#22c55e" strokeDasharray="6 4" strokeOpacity={0.6} />

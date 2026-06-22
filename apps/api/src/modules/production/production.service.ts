@@ -1947,6 +1947,32 @@ export class ProductionService {
     };
   }
 
+  /** OEE grouped by Production Order / Work Order / Shift / Machine for the trend chart. */
+  async getOeeGroupedTrend(
+    factoryId: string | null,
+    scope: { areaId?: string; lineId?: string; machineId?: string },
+    groupBy: string,
+    timeframe: string = 'week',
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
+    const machineIds = await this.kpiService.resolveScopeMachineIds(factoryId, scope);
+    const tf = String(timeframe || 'week').toLowerCase();
+    const now = new Date();
+    const to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : now;
+    let from: Date;
+    if (dateFrom) from = new Date(dateFrom);
+    else {
+      from = new Date(to);
+      if (tf === 'month') from.setDate(to.getDate() - 30);
+      else if (tf === 'day' || tf === 'shift') from.setHours(0, 0, 0, 0);
+      else from.setDate(to.getDate() - 7); // week (default)
+    }
+    const gb = (['machine', 'workOrder', 'productionOrder', 'shift'].includes(groupBy) ? groupBy : 'workOrder') as any;
+    const rows = await this.kpiService.oeeGroupedTrend(factoryId, from, to, machineIds, gb);
+    return { groupBy: gb, from: from.toISOString(), to: to.toISOString(), rows };
+  }
+
   async getOEERecords(factoryId: string | null, filters: {
     machineId?: string;
     areaId?: string;

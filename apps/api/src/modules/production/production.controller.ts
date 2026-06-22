@@ -84,6 +84,28 @@ export class ProductionController {
     return this.productionService.getOEESummary(user.factoryId, { areaId, lineId, machineId }, timeframe ?? 'day', dateFrom, dateTo);
   }
 
+  @Get('oee/trend')
+  @ApiOperation({ summary: 'OEE grouped by machine | workOrder | productionOrder | shift for the trend chart' })
+  @ApiQuery({ name: 'groupBy', required: false, description: 'machine | workOrder | productionOrder | shift' })
+  @ApiQuery({ name: 'timeframe', required: false })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  async getOeeGroupedTrend(
+    @CurrentUser() user: RequestUser,
+    @Query('groupBy') groupBy?: string,
+    @Query('timeframe') timeframe?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+  ) {
+    return this.productionService.getOeeGroupedTrend(user.factoryId, { areaId, lineId, machineId }, groupBy ?? 'workOrder', timeframe ?? 'week', dateFrom, dateTo);
+  }
+
   @Post('oee/calculate')
   @ApiOperation({ summary: 'Calculate OEE from manual input values' })
   calculateOEE(@Body() body: {

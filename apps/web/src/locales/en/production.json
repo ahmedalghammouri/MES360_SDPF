@@ -230,6 +230,25 @@
       "countSaved": "Count saved", "failedSaveCount": "Failed to save count", "failedAssign": "Failed to assign operator"
     }
   },
+  "oeev": {
+    "allMachines": "All machines",
+    "deepAnalysis": "Deep analysis",
+    "exportCsv": "Export CSV",
+    "machine": "Machine",
+    "oeeTrend": "OEE Trend",
+    "target": "target",
+    "noTrend": "No trend data for this timeframe",
+    "noGroupData": "No production in this window for the selected grouping",
+    "groupBy": { "time": "Time", "po": "PO", "wo": "WO", "shift": "Shift", "machine": "Machine" },
+    "factorLower": { "availability": "availability", "performance": "performance", "quality": "quality" },
+    "bestLeads": "{{name}} leads at {{oee}}% OEE",
+    "bestLeadsWorldClass": "{{name}} is world-class at {{oee}}% OEE",
+    "bottleneck": "{{name}} is the bottleneck at {{oee}}% — lowest {{factor}} ({{value}}%)",
+    "plantBelowTarget": "Plant is {{gap}}% below the {{target}}% target — weakest factor is {{factor}} ({{value}}%)",
+    "plantExceedsTarget": "Plant meets the {{target}}% world-class target",
+    "trendImproved": "OEE improved {{delta}}% over the {{timeframe}}",
+    "trendDeclined": "OEE declined {{delta}}% over the {{timeframe}}"
+  },
   "wform": {
     "createTitle": "Create Work Order",
     "preview": {

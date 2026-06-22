@@ -231,15 +231,34 @@ export class KpiService {
     };
   }
 
-  /** Per-JO RollupChild for asset-hierarchy OEE (availability = run/planned span, like the JO page). */
-  private joRollupChild(jo: JoLite): RollupChild {
-    const plannedSpan = jo.plannedStart && jo.plannedEnd
-      ? (new Date(jo.plannedEnd).getTime() - new Date(jo.plannedStart).getTime()) / 60_000
-      : 0;
+  /**
+   * Per-JO RollupChild for asset-hierarchy OEE (availability = run/planned span).
+   *
+   * PPT (planned production time) is CLAMPED to the analysis window when one is
+   * given: a job order planned over weeks (e.g. a WO rescheduled months out for a
+   * material delivery) must NOT contribute its whole multi-week planned span to a
+   * one-week OEE — that single JO would otherwise collapse the aggregate
+   * availability (the classic "plant OEE 1.4% while every machine is 99%" bug).
+   * PPT is floored at the in-window actual run so availability never exceeds 100%.
+   */
+  private joRollupChild(jo: JoLite, win?: { from: number; to: number }): RollupChild {
+    const ps = jo.plannedStart ? new Date(jo.plannedStart).getTime() : null;
+    const pe = jo.plannedEnd ? new Date(jo.plannedEnd).getTime() : null;
+    let plannedSpan = ps != null && pe != null ? (pe - ps) / 60_000 : 0;
+    if (win && ps != null && pe != null) {
+      // Only the planned time that falls inside the analysis window counts.
+      plannedSpan = Math.max(0, Math.min(pe, win.to) - Math.max(ps, win.from)) / 60_000;
+    }
     const actualSpan = this.spanMin(jo.actualStart, jo.actualEnd);
-    const ppt = plannedSpan > 0 ? plannedSpan : actualSpan;
+    let ppt = plannedSpan > 0 ? plannedSpan : actualSpan;
+    if (actualSpan > ppt) ppt = actualSpan; // ran longer than planned-in-window → PPT ≥ run
     const good = jo.actualQtyGood ?? 0;
     const total = good + (jo.actualQtyRejected ?? 0);
+    // A job order that produced NOTHING (e.g. a PAUSED step whose actualEnd is null,
+    // so spanMin counts now−start as "run") has no production to measure OEE on.
+    // Counting its open-ended run with zero earned time drags the aggregate
+    // Performance down — so exclude no-output operations from the rollup entirely.
+    if (total <= 0) return { ppt: 0, runTime: 0, idealRunTime: 0, totalCount: 0, goodCount: 0 };
     // idealRunTime (earned minutes) stays in the step's OWN unit → time is unit-safe,
     // and the rollup re-derives idealCycleTime = idealRunTime/totalCount so A/P are
     // unaffected by the unit of totalCount.
@@ -320,7 +339,8 @@ export class KpiService {
       : [];
 
     const all = jos as unknown as JoLite[];
-    const current = this.oee.rollup(all.map((j) => this.joRollupChild(j)));
+    const win = { from: from.getTime(), to: to.getTime() };
+    const current = this.oee.rollup(all.map((j) => this.joRollupChild(j, win)));
     const currentTb = this.timeBasedOee(all, downtime, current.performance, current.quality);
 
     const perMachine = new Map<string, { name: string; code: string | null; jos: JoLite[] }>();
@@ -342,14 +362,14 @@ export class KpiService {
     }
 
     const byEquipment = [...perMachine.entries()].map(([id, { name, code, jos: mjos }]) => {
-      const b = this.oee.rollup(mjos.map((j) => this.joRollupChild(j)));
+      const b = this.oee.rollup(mjos.map((j) => this.joRollupChild(j, win)));
       const tb = this.timeBasedOee(mjos, downtime, b.performance, b.quality);
       return { machineId: id, name, code, oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality, availabilityTb: tb.availabilityTb, oeeTb: tb.oeeTb, output: b.totalCount };
     }).sort((a, b) => b.oee - a.oee);
 
     const trend = [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b))
       .map(([period, bjos]) => {
-        const b = this.oee.rollup(bjos.map((j) => this.joRollupChild(j)));
+        const b = this.oee.rollup(bjos.map((j) => this.joRollupChild(j, win)));
         const tb = this.timeBasedOee(bjos, downtime, b.performance, b.quality);
         return { period, oee: b.oee, oeeTb: tb.oeeTb };
       });
@@ -366,6 +386,75 @@ export class KpiService {
       byEquipment,
       trend,
     };
+  }
+
+  /**
+   * OEE grouped by a business dimension instead of time buckets — so a chart can
+   * show OEE per Production Order / Work Order / Shift / Machine over the window,
+   * not just a sparse time line. Each group is a proper time-weighted rollup
+   * (same engine + window-clamped PPT as the headline OEE).
+   */
+  async oeeGroupedTrend(
+    factoryId: string | null,
+    from: Date,
+    to: Date,
+    machineIds: string[] | undefined,
+    groupBy: 'machine' | 'workOrder' | 'productionOrder' | 'shift',
+  ) {
+    const jos = await this.prisma.jobOrder.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        ...(machineIds ? { machineId: { in: machineIds } } : {}),
+        OR: [{ actualStart: { gte: from, lte: to } }, { actualEnd: { gte: from, lte: to } }],
+      },
+      select: {
+        ...JO_SELECT,
+        outputUnit: true,
+        plannedQtyOut: true,
+        workOrderId: true,
+        machine: { select: { name: true, code: true } },
+        workOrder: {
+          select: {
+            orderNumber: true,
+            productionOrderId: true,
+            sku: { select: { baseUnit: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true } },
+            productionOrder: { select: { orderNumber: true } },
+            shiftInstance: { select: { id: true, shiftDate: true, shiftTemplate: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+
+    const win = { from: from.getTime(), to: to.getTime() };
+    const groups = new Map<string, { label: string; children: RollupChild[] }>();
+    for (const jo of jos as any[]) {
+      let key: string | null = null;
+      let label = '';
+      if (groupBy === 'machine') { key = jo.machineId; label = jo.machine?.name ?? jo.machine?.code ?? '—'; }
+      else if (groupBy === 'workOrder') { key = jo.workOrderId; label = jo.workOrder?.orderNumber ?? '—'; }
+      else if (groupBy === 'productionOrder') { key = jo.workOrder?.productionOrderId ?? '__direct'; label = jo.workOrder?.productionOrder?.orderNumber ?? 'Direct WOs'; }
+      else { // shift
+        const si = jo.workOrder?.shiftInstance;
+        key = si?.id ?? '__noshift';
+        label = si ? `${si.shiftTemplate?.name ?? 'Shift'} · ${new Date(si.shiftDate).toISOString().slice(0, 10)}` : 'Unassigned';
+      }
+      if (!key) continue;
+      const g = groups.get(key) ?? { label, children: [] as RollupChild[] };
+      g.children.push(this.joRollupChild(jo as unknown as JoLite, win));
+      groups.set(key, g);
+    }
+
+    return [...groups.entries()]
+      .map(([key, g]) => {
+        const b = this.oee.rollup(g.children);
+        return {
+          key, label: g.label,
+          oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+          output: Math.round(b.totalCount), good: Math.round(b.goodCount),
+        };
+      })
+      .filter((r) => r.output > 0)
+      .sort((a, b) => b.output - a.output);
   }
 
   /**
@@ -420,8 +509,9 @@ export class KpiService {
         })) as unknown as DtLite[]
       : [];
 
+    const recWin = { from: from.getTime(), to: to.getTime() };
     return jos.map((jo) => {
-      const b = this.oee.rollup([this.joRollupChild(jo as unknown as JoLite)]);
+      const b = this.oee.rollup([this.joRollupChild(jo as unknown as JoLite, recWin)]);
       const tb = this.timeBasedOee([jo as unknown as JoLite], downtime, b.performance, b.quality);
       // Planned output (base-unit normalised, like total/good) so reports can show a real
       // Planned vs Actual instead of Planned == Actual.
@@ -490,11 +580,12 @@ export class KpiService {
     ]);
 
     // bucket per-JO RollupChild by machine
+    const hierWin = { from: from.getTime(), to: to.getTime() };
     const byMachine = new Map<string, RollupChild[]>();
     for (const jo of jobOrders as JoLite[]) {
       if (!jo.machineId) continue;
       const arr = byMachine.get(jo.machineId) ?? [];
-      arr.push(this.joRollupChild(jo));
+      arr.push(this.joRollupChild(jo, hierWin));
       byMachine.set(jo.machineId, arr);
     }
     const allChildren: RollupChild[] = [...byMachine.values()].flat();

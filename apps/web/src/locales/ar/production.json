@@ -230,6 +230,25 @@
       "countSaved": "تم حفظ العدّ", "failedSaveCount": "فشل حفظ العدّ", "failedAssign": "فشل إسناد المشغّل"
     }
   },
+  "oeev": {
+    "allMachines": "كل الآلات",
+    "deepAnalysis": "تحليل معمّق",
+    "exportCsv": "تصدير CSV",
+    "machine": "آلة",
+    "oeeTrend": "اتجاه OEE",
+    "target": "الهدف",
+    "noTrend": "لا توجد بيانات اتجاه لهذه الفترة",
+    "noGroupData": "لا يوجد إنتاج في هذه الفترة للتجميع المحدد",
+    "groupBy": { "time": "الزمن", "po": "أمر إنتاج", "wo": "أمر عمل", "shift": "وردية", "machine": "آلة" },
+    "factorLower": { "availability": "الجاهزية", "performance": "الأداء", "quality": "الجودة" },
+    "bestLeads": "{{name}} الأعلى بنسبة OEE {{oee}}%",
+    "bestLeadsWorldClass": "{{name}} بمستوى عالمي عند OEE {{oee}}%",
+    "bottleneck": "{{name}} هو الاختناق عند {{oee}}% — الأدنى في {{factor}} ({{value}}%)",
+    "plantBelowTarget": "المصنع أدنى من الهدف {{target}}% بمقدار {{gap}}% — أضعف عامل هو {{factor}} ({{value}}%)",
+    "plantExceedsTarget": "المصنع يحقق الهدف العالمي {{target}}%",
+    "trendImproved": "تحسّن OEE بمقدار {{delta}}% خلال {{timeframe}}",
+    "trendDeclined": "انخفض OEE بمقدار {{delta}}% خلال {{timeframe}}"
+  },
   "wform": {
     "createTitle": "إنشاء أمر عمل",
     "preview": {
