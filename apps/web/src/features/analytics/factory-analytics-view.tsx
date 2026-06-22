@@ -187,7 +187,7 @@ export function FactoryAnalyticsView() {
                           <td className="py-2 px-2 text-center tabular-nums text-cyan-400/70">{(m.availabilityTb ?? 0).toFixed(1)}%</td>
                           <td className="py-2 px-2 text-center tabular-nums text-muted-foreground">{(m.performance ?? 0).toFixed(1)}%</td>
                           <td className="py-2 px-2 text-center tabular-nums text-muted-foreground">{(m.quality ?? 0).toFixed(1)}%</td>
-                          <td className="py-2 px-2 text-right tabular-nums text-foreground">{(m.output ?? 0).toLocaleString()}</td>
+                          <td className="py-2 px-2 text-right tabular-nums text-foreground">{(m.output ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -243,15 +243,15 @@ export function FactoryAnalyticsView() {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center p-2 rounded-lg bg-muted/20">
-                  <div className="text-sm font-bold tabular-nums text-foreground">{(oee?.totalCount ?? 0).toLocaleString()}</div>
+                  <div className="text-sm font-bold tabular-nums text-foreground">{(oee?.totalCount ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</div>
                   <div className="text-[10px] text-muted-foreground">{t('analytics.outTotal')}</div>
                 </div>
                 <div className="text-center p-2 rounded-lg bg-muted/20">
-                  <div className="text-sm font-bold tabular-nums text-emerald-400">{(oee?.goodCount ?? 0).toLocaleString()}</div>
+                  <div className="text-sm font-bold tabular-nums text-emerald-400">{(oee?.goodCount ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</div>
                   <div className="text-[10px] text-muted-foreground">{t('analytics.outGood')}</div>
                 </div>
                 <div className="text-center p-2 rounded-lg bg-muted/20">
-                  <div className="text-sm font-bold tabular-nums text-red-400">{Math.max(0, (oee?.totalCount ?? 0) - (oee?.goodCount ?? 0)).toLocaleString()}</div>
+                  <div className="text-sm font-bold tabular-nums text-red-400">{Math.max(0, (oee?.totalCount ?? 0) - (oee?.goodCount ?? 0)).toLocaleString(undefined, { maximumFractionDigits: 1 })}</div>
                   <div className="text-[10px] text-muted-foreground">{t('analytics.outScrap')}</div>
                 </div>
               </div>

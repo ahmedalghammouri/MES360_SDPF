@@ -67,8 +67,8 @@ export function InsightsStudioView() {
     { label: t('cards.availability'), value: `${r1(c.availability)}%`, icon: Activity, color: 'text-sky-400' },
     { label: t('cards.performance'), value: `${r1(c.performance)}%`, icon: Activity, color: 'text-violet-400' },
     { label: t('cards.quality'), value: `${r1(c.quality)}%`, icon: CheckCircle2, color: 'text-emerald-400' },
-    { label: t('insights.output'), value: totalOutput.toLocaleString(), icon: Package, color: 'text-amber-400' },
-    { label: t('insights.scrap'), value: scrap.toLocaleString(), icon: Package, color: scrap > 0 ? 'text-red-400' : 'text-muted-foreground' },
+    { label: t('insights.output'), value: r1(totalOutput).toLocaleString(), icon: Package, color: 'text-amber-400' },
+    { label: t('insights.scrap'), value: r1(scrap).toLocaleString(), icon: Package, color: scrap > 0 ? 'text-red-400' : 'text-muted-foreground' },
   ];
 
   // Output good-vs-scrap per group (stacked)
@@ -248,8 +248,8 @@ export function InsightsStudioView() {
                       <td className="text-end tabular-nums text-muted-foreground">{r.availability.toFixed(1)}%</td>
                       <td className="text-end tabular-nums text-muted-foreground">{r.performance.toFixed(1)}%</td>
                       <td className="text-end tabular-nums text-muted-foreground">{r.quality.toFixed(1)}%</td>
-                      <td className="text-end tabular-nums">{r.output.toLocaleString()}</td>
-                      <td className="text-end tabular-nums text-green-400">{r.good.toLocaleString()}</td>
+                      <td className="text-end tabular-nums">{r1(r.output).toLocaleString()}</td>
+                      <td className="text-end tabular-nums text-green-400">{r1(r.good).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
