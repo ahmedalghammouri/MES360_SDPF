@@ -9,7 +9,7 @@ import {
   Filter, ChevronLeft, GitMerge, ArrowDownCircle,
   GitBranch, Shuffle, Check, X, Package, Box, Boxes,
   User, BarChart2, Monitor, AlertTriangle,
-  MoreVertical, Ban, Workflow, List, UserPlus,
+  MoreVertical, Ban, Workflow, List, UserPlus, Trash2, Archive,
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -327,6 +327,8 @@ function WOCard({
   mode: 'list' | 'pdm';
 }) {
   const { t } = useTranslation(['production', 'common']);
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const [completingId,   setCompletingId]   = useState<string | null>(null);
   const [completeQty,    setCompleteQty]    = useState<string>('');
   const [loggingId,      setLoggingId]      = useState<string | null>(null);
@@ -335,6 +337,28 @@ function WOCard({
   const [logReason,      setLogReason]      = useState<string>('');
   const [logCategory,    setLogCategory]    = useState<string>('OTHER');
   const [assigningOpId,  setAssigningOpId]  = useState<string | null>(null);
+
+  // WO-level delete / archive from the dispatch card. Delete auto-routes on the
+  // backend: a not-started WO is deleted (its job orders go with it), a started
+  // one is archived (history preserved). Archive always preserves.
+  const refreshLists = () => {
+    qc.invalidateQueries({ queryKey: ['job-orders'] });
+    qc.invalidateQueries({ queryKey: ['production', 'work-orders'] });
+    qc.invalidateQueries({ queryKey: ['production-orders'] });
+  };
+  const deleteWO = useMutation({
+    mutationFn: () => api.delete(`/production/work-orders/${wo!.id}`),
+    onSuccess: (res: any) => {
+      refreshLists();
+      toast({ title: res?.action === 'archived' ? t('joWoActions.archivedToast', { defaultValue: 'Work order archived (had started)' }) : t('joWoActions.deletedToast', { defaultValue: 'Work order deleted' }), variant: 'success' });
+    },
+    onError: (e: any) => toast({ variant: 'destructive', title: t('joWoActions.failed', { defaultValue: 'Action failed' }), description: e?.response?.data?.message }),
+  });
+  const archiveWO = useMutation({
+    mutationFn: () => api.patch(`/archive/work-orders/${wo!.id}/archive`, {}),
+    onSuccess: () => { refreshLists(); toast({ title: t('joWoActions.archivedToast', { defaultValue: 'Work order archived' }), variant: 'success' }); },
+    onError: (e: any) => toast({ variant: 'destructive', title: t('joWoActions.failed', { defaultValue: 'Action failed' }), description: e?.response?.data?.message }),
+  });
 
   const sorted   = [...jobs].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
   const done     = jobs.filter((j) => j.status === 'COMPLETE').length;
@@ -369,6 +393,30 @@ function WOCard({
               <div className="h-full bg-brand-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
             </div>
             <span className="text-[10px] text-muted-foreground w-6 text-right">{progress}%</span>
+            {/* WO-level actions: archive / delete (delete auto-archives a started WO) */}
+            {wo?.id && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-1 rounded hover:bg-muted/40 text-muted-foreground" aria-label={t('joWoActions.menu', { defaultValue: 'Work order actions' })}>
+                  <MoreVertical className="w-3.5 h-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuLabel className="text-[10px] font-mono text-muted-foreground">{wo?.orderNumber}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled={archiveWO.isPending} onClick={() => archiveWO.mutate()}>
+                  <Archive className="w-3.5 h-3.5 mr-2" />{t('joWoActions.archive', { defaultValue: 'Archive' })}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-red-400 focus:text-red-400"
+                  disabled={deleteWO.isPending}
+                  onClick={() => { if (window.confirm(t('joWoActions.confirmDelete', { defaultValue: 'Delete this work order? A not-started WO and its job orders are removed; a started WO is archived instead.' }))) deleteWO.mutate(); }}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-2" />{t('joWoActions.delete', { defaultValue: 'Delete' })}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            )}
           </div>
         </div>
         {wo?.sku && (

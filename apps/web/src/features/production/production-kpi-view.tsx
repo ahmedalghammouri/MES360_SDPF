@@ -286,6 +286,7 @@ export default function ProductionKpiView() {
       quality: r1(c.quality ?? c.current?.quality),
       // Output is base-unit normalised → round to whole units for display.
       totalOutput: Math.round(Number(c.totalCount ?? 0)),
+      goodOutput: Math.round(Number(c.goodCount ?? 0)),
     };
   }, [oeeCalc]);
 
@@ -301,8 +302,6 @@ export default function ProductionKpiView() {
       return true;
     });
   }, [allWorkOrders, woFilter, poFilter]);
-  const totalWOs = (poFilter || woFilter) ? workOrders.length : (workOrdersResp?.total ?? workOrders.length);
-
   // WO options for the filter dropdown (respect the PO filter so it cascades).
   const woOptions = useMemo(
     () => allWorkOrders
@@ -311,27 +310,34 @@ export default function ProductionKpiView() {
     [allWorkOrders, poFilter],
   );
 
-  const completedWOs = useMemo(
-    () => workOrders.filter((w) => w.status === 'COMPLETED'),
-    [workOrders],
+  // Every headline figure is scoped to the SELECTED PERIOD so the whole page is
+  // internally consistent (no "OEE 0% today but FPY 60% all-time" contradiction):
+  //   • OEE / Output / Scrap / First-Pass-Yield come from the windowed OEE engine.
+  //   • Completion counts only the WOs relevant to the window, excluding cancelled
+  //     (a cancelled order is removed from the plan, so it must not drag it down).
+  const fromMs = new Date(dateFrom).getTime();
+  const toMs = new Date(dateTo).getTime() + 86_399_999;
+  const inWindow = (w: any) => {
+    const ae = w.actualEnd ? +new Date(w.actualEnd) : null;
+    if (ae != null) return ae >= fromMs && ae <= toMs;                 // completed → by completion date
+    const ps = w.plannedStart ? +new Date(w.plannedStart) : null;
+    const pe = w.plannedEnd ? +new Date(w.plannedEnd) : null;
+    if (ps == null && pe == null) return true;
+    return (ps == null || ps <= toMs) && (pe == null || pe >= fromMs); // else schedule overlaps window
+  };
+  const windowWOs = useMemo(
+    () => workOrders.filter((w) => w.status !== 'CANCELLED' && inWindow(w)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [workOrders, dateFrom, dateTo],
   );
+  const completedCount = windowWOs.filter((w) => w.status === 'COMPLETED').length;
+  const totalWOs = windowWOs.length;
+  const completionRate = totalWOs > 0 ? (completedCount / totalWOs) * 100 : 0;
 
-  // First-Pass Yield = Σ good / Σ (good + scrap) across completed WOs.
-  // (Global ratio of totals — NOT an average of per-WO percentages, which would
-  //  over-weight small orders and mismatch the platform's other quality figures.)
-  const firstPassYield = useMemo(() => {
-    const good = completedWOs.reduce((acc, w) => acc + (w.goodQty ?? 0), 0);
-    const scrap = completedWOs.reduce((acc, w) => acc + (w.scrapQty ?? 0), 0);
-    const produced = good + scrap;
-    return produced > 0 ? (good / produced) * 100 : 0;
-  }, [completedWOs]);
-
-  const completionRate = totalWOs > 0 ? (completedWOs.length / totalWOs) * 100 : 0;
-
-  const totalScrap = useMemo(
-    () => workOrders.reduce((acc, w) => acc + (w.scrapQty ?? 0), 0),
-    [workOrders],
-  );
+  // First-Pass Yield = good ÷ total produced, from the windowed engine (consistent
+  // with Output/Scrap). 0 when nothing was produced in the selected period.
+  const firstPassYield = summary.totalOutput > 0 ? (summary.goodOutput / summary.totalOutput) * 100 : 0;
+  const totalScrap = Math.max(0, summary.totalOutput - summary.goodOutput);
 
   // --- Radar data ---
   const radarData = useMemo(
@@ -545,7 +551,7 @@ export default function ProductionKpiView() {
             trend={0}
             target={95}
             icon={<CheckCircle2 size={16} />}
-            benchmarkNote={t('kpiv.benchWorkOrders', { done: completedWOs.length, total: totalWOs })}
+            benchmarkNote={t('kpiv.benchWorkOrders', { done: completedCount, total: totalWOs })}
           />
         </div>
 

@@ -322,20 +322,31 @@ export class ProductionService {
     return updated;
   }
 
+  /**
+   * Remove a work order. Production rule:
+   *   • NOT started yet (no actualStart, status PLANNED/RELEASED) → DELETE it; its
+   *     job orders disappear with it (the dispatch list filters out JOs of a
+   *     deleted WO, so nothing is orphaned).
+   *   • Work has STARTED (actualStart set, or IN_PROGRESS/COMPLETED, or a CANCELLED
+   *     run that had begun) → ARCHIVE instead, to preserve the production history.
+   */
   async deleteWorkOrder(factoryId: string | null, id: string) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const wo = await this.prisma.workOrder.findFirst({
       where: { id, ...factoryFilter, deletedAt: null },
+      select: { id: true, orderNumber: true, status: true, actualStart: true },
     });
     if (!wo) throw new NotFoundException('Work order not found');
-    if (wo.status === 'IN_PROGRESS') {
-      throw new ConflictException('Cannot delete an in-progress work order. Hold or cancel it first.');
-    }
 
-    await this.prisma.workOrder.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    const started = !!wo.actualStart || ['IN_PROGRESS', 'COMPLETED'].includes(wo.status);
+    if (started) {
+      await this.prisma.workOrder.update({ where: { id }, data: { archivedAt: new Date() } });
+      this.logger.log(`WO ${wo.orderNumber} archived (work had started — history preserved)`);
+      return { action: 'archived' as const, orderNumber: wo.orderNumber };
+    }
+    await this.prisma.workOrder.update({ where: { id }, data: { deletedAt: new Date() } });
+    this.logger.log(`WO ${wo.orderNumber} deleted (not started — job orders removed with it)`);
+    return { action: 'deleted' as const, orderNumber: wo.orderNumber };
   }
 
   // ────────────────────────────────────────────────────────────
@@ -610,20 +621,43 @@ export class ProductionService {
     });
   }
 
+  /**
+   * Remove a production order and CASCADE to its work orders + job orders.
+   * Per the production rule:
+   *   • A WO that has NOT started → deleted (its job orders go with it).
+   *   • A WO that HAS started → archived (history preserved).
+   *   • The PO itself is archived if ANY of its WOs had started, else deleted.
+   * Job orders are never orphaned — the dispatch list filters out JOs whose WO is
+   * deleted/archived.
+   */
   async deleteProductionOrder(factoryId: string | null, id: string) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const po = await this.prisma.productionOrder.findFirst({
       where: { id, ...factoryFilter, deletedAt: null },
-      include: { workOrders: { where: { deletedAt: null, status: { notIn: ['CANCELLED'] } } } },
+      include: { workOrders: { where: { deletedAt: null }, select: { id: true, status: true, actualStart: true } } },
     });
     if (!po) throw new NotFoundException('Production order not found');
-    if (!['PLANNED', 'CANCELLED'].includes(po.status)) {
-      throw new BadRequestException(`Only PLANNED or CANCELLED orders can be deleted (current: ${po.status})`);
+
+    const isStarted = (w: { status: string; actualStart: Date | null }) =>
+      !!w.actualStart || ['IN_PROGRESS', 'COMPLETED'].includes(w.status);
+    const anyStarted = po.workOrders.some(isStarted);
+
+    const now = new Date();
+    for (const w of po.workOrders) {
+      await this.prisma.workOrder.update({
+        where: { id: w.id },
+        data: isStarted(w) ? { archivedAt: now } : { deletedAt: now },
+      });
     }
-    if (po.workOrders.length > 0) {
-      throw new BadRequestException('Cannot delete PO with active work orders. Cancel them first.');
+
+    if (anyStarted) {
+      await this.prisma.productionOrder.update({ where: { id }, data: { archivedAt: now } });
+      this.logger.log(`PO ${po.orderNumber} archived with ${po.workOrders.length} WO(s) — some had started`);
+      return { action: 'archived' as const };
     }
-    await this.prisma.productionOrder.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.prisma.productionOrder.update({ where: { id }, data: { deletedAt: now } });
+    this.logger.log(`PO ${po.orderNumber} deleted with ${po.workOrders.length} not-started WO(s)`);
+    return { action: 'deleted' as const };
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -3291,9 +3325,13 @@ export class ProductionService {
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.workOrderId ? { workOrderId: filters.workOrderId } : {}),
       ...(machineFilter ? { machineId: { in: machineFilter } } : {}),
-      ...(filters.productionOrderId
-        ? { workOrder: { productionOrderId: filters.productionOrderId } }
-        : {}),
+      // Never show job orders of a deleted or archived work order — otherwise the
+      // dispatch list keeps rendering the steps of WOs that were removed/cancelled.
+      workOrder: {
+        deletedAt: null,
+        archivedAt: null,
+        ...(filters.productionOrderId ? { productionOrderId: filters.productionOrderId } : {}),
+      },
     };
 
     const jos = await this.prisma.jobOrder.findMany({

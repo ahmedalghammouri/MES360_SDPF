@@ -26,6 +26,15 @@
     "awaiting": "Awaiting Materials",
     "scheduled": "Materials ETA {{date}}"
   },
+  "joWoActions": {
+    "menu": "Work order actions",
+    "archive": "Archive",
+    "delete": "Delete",
+    "confirmDelete": "Delete this work order? A not-started WO and its job orders are removed; a started WO is archived instead.",
+    "archivedToast": "Work order archived (history preserved)",
+    "deletedToast": "Work order deleted",
+    "failed": "Action failed"
+  },
   "autoGen": {
     "materialShort": {
       "title": "{{count}} material shortage(s) — WO awaiting materials",
