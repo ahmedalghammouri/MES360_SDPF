@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
-import { OEEService, RollupChild } from './oee.service';
+import { OEEService, RollupChild, OEEBreakdown } from './oee.service';
 import { toBaseUnits } from '../../common/units.util';
 
 /**
@@ -25,6 +25,7 @@ type JoLite = {
   sequenceOrder: number;
   // optional — only the analytics queries enrich these for base-unit-correct output
   outputUnit?: string | null;
+  workOrderId?: string | null; // groups a routed WO's steps so output = its FINAL step
   workOrder?: { sku?: SkuPkg | null } | null;
 };
 type DtLite = {
@@ -51,6 +52,7 @@ const JO_SELECT_ANALYTICS = {
   ...JO_SELECT,
   outputUnit: true,
   plannedQtyOut: true,
+  workOrderId: true,
   workOrder: { select: { sku: { select: { baseUnit: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true } } } },
 } as const;
 
@@ -282,6 +284,78 @@ export class KpiService {
     };
   }
 
+  /**
+   * Output / good / scrap for ANY multi-step scope (line, area, factory, plant).
+   *
+   * A routed work order flows the SAME physical batch through serial steps
+   * (Filling → Cartoning → Palletising → Wrapping), each recording its own qty in
+   * its own unit. Summing every step's count multiplies one batch by the number of
+   * steps (the "10 pallets reported as 2 500" bug). The truthful line output is the
+   * GOOD output of the FINAL step; scrap is the sum of rejects at EVERY step (units
+   * lost anywhere on the line). Everything is normalised to the SKU base unit so
+   * inners + cartons + pallets are comparable. Grouped per work order, then summed.
+   */
+  private finalStepCounts(jos: JoLite[]): { total: number; good: number; scrap: number } {
+    const groups = new Map<string, JoLite[]>();
+    for (const jo of jos) {
+      const k = jo.workOrderId ?? `__jo_${jo.id}`; // un-routed JOs stand alone
+      const arr = groups.get(k) ?? [];
+      arr.push(jo);
+      groups.set(k, arr);
+    }
+    let good = 0;
+    let scrap = 0;
+    for (const arr of groups.values()) {
+      const ordered = [...arr].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+      const sku = ordered[0]?.workOrder?.sku ?? null;
+      const toBase = (qty: number, unit?: string | null) =>
+        sku && unit ? toBaseUnits(qty, unit, sku) : qty;
+      // Good = FINAL step's good output (what actually left the line).
+      const final = ordered[ordered.length - 1];
+      good += toBase(final.actualQtyGood ?? 0, final.outputUnit);
+      // Scrap = rejects at every step (a unit can be lost at any stage).
+      for (const jo of ordered) scrap += toBase(jo.actualQtyRejected ?? 0, jo.outputUnit);
+    }
+    return { good, scrap, total: good + scrap };
+  }
+
+  /**
+   * Weighted OEE for a set of job orders. Availability/Performance are time-weighted
+   * across every JO (each machine's run vs planned + earned minutes), while the
+   * count-based metrics (output, good, scrap → Quality) use {@link finalStepCounts}
+   * so a routed WO is never multi-counted. This is the single aggregation primitive
+   * for any scope above a single step.
+   */
+  private aggregateJos(jos: JoLite[], win?: { from: number; to: number }): OEEBreakdown {
+    let ppt = 0, runTime = 0, idealRunTime = 0;
+    for (const jo of jos) {
+      const c = this.joRollupChild(jo, win);
+      ppt += c.ppt; runTime += c.runTime; idealRunTime += c.idealRunTime;
+    }
+    const counts = this.finalStepCounts(jos);
+    return this.oee.calculateDetailed({
+      plannedProductionTime: ppt,
+      unplannedDowntime: Math.max(0, ppt - runTime),
+      // Re-derive cycle so calculateDetailed reproduces the summed earned minutes
+      // exactly → Performance is unchanged; only counts/Quality are corrected.
+      idealCycleTime: counts.total > 0 ? idealRunTime / counts.total : 0,
+      totalCount: counts.total,
+      goodCount: counts.good,
+    });
+  }
+
+  /** Hierarchy node built from JOs (final-step counts) instead of pre-summed children. */
+  private nodeFromJos(id: string, name: string, code: string | null, type: string, jos: JoLite[], win: { from: number; to: number }, childNodes?: unknown[]) {
+    const b = this.aggregateJos(jos, win);
+    return {
+      id, name, code, type,
+      oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+      output: b.totalCount, good: b.goodCount,
+      losses: b.losses,
+      children: childNodes ?? [],
+    };
+  }
+
   /** Resolve an analysis scope to the covered machine ids (undefined = whole factory). */
   async resolveScopeMachineIds(
     factoryId: string | null,
@@ -344,7 +418,7 @@ export class KpiService {
 
     const all = jos as unknown as JoLite[];
     const win = { from: from.getTime(), to: to.getTime() };
-    const current = this.oee.rollup(all.map((j) => this.joRollupChild(j, win)));
+    const current = this.aggregateJos(all, win);
     const currentTb = this.timeBasedOee(all, downtime, current.performance, current.quality);
 
     const perMachine = new Map<string, { name: string; code: string | null; jos: JoLite[] }>();
@@ -366,14 +440,14 @@ export class KpiService {
     }
 
     const byEquipment = [...perMachine.entries()].map(([id, { name, code, jos: mjos }]) => {
-      const b = this.oee.rollup(mjos.map((j) => this.joRollupChild(j, win)));
+      const b = this.aggregateJos(mjos, win);
       const tb = this.timeBasedOee(mjos, downtime, b.performance, b.quality);
       return { machineId: id, name, code, oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality, availabilityTb: tb.availabilityTb, oeeTb: tb.oeeTb, output: b.totalCount };
     }).sort((a, b) => b.oee - a.oee);
 
     const trend = [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b))
       .map(([period, bjos]) => {
-        const b = this.oee.rollup(bjos.map((j) => this.joRollupChild(j, win)));
+        const b = this.aggregateJos(bjos, win);
         const tb = this.timeBasedOee(bjos, downtime, b.performance, b.quality);
         return { period, oee: b.oee, oeeTb: tb.oeeTb };
       });
@@ -433,7 +507,7 @@ export class KpiService {
     });
 
     const win = { from: from.getTime(), to: to.getTime() };
-    const groups = new Map<string, { label: string; children: RollupChild[] }>();
+    const groups = new Map<string, { label: string; jos: JoLite[] }>();
     for (const jo of jos as any[]) {
       let key: string | null = null;
       let label = '';
@@ -446,14 +520,14 @@ export class KpiService {
         label = si ? `${si.shiftTemplate?.name ?? 'Shift'} · ${new Date(si.shiftDate).toISOString().slice(0, 10)}` : 'Unassigned';
       }
       if (!key) continue;
-      const g = groups.get(key) ?? { label, children: [] as RollupChild[] };
-      g.children.push(this.joRollupChild(jo as unknown as JoLite, win));
+      const g = groups.get(key) ?? { label, jos: [] as JoLite[] };
+      g.jos.push(jo as unknown as JoLite);
       groups.set(key, g);
     }
 
     return [...groups.entries()]
       .map(([key, g]) => {
-        const b = this.oee.rollup(g.children);
+        const b = this.aggregateJos(g.jos, win);
         return {
           key, label: g.label,
           oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
@@ -586,16 +660,18 @@ export class KpiService {
       }),
     ]);
 
-    // bucket per-JO RollupChild by machine
+    // Bucket JOs by machine. Output/good/scrap roll up via final-step counts
+    // (finalStepCounts) so a routed WO is never multi-counted up the hierarchy;
+    // per-machine nodes still reflect each machine's own throughput.
     const hierWin = { from: from.getTime(), to: to.getTime() };
-    const byMachine = new Map<string, RollupChild[]>();
+    const byMachine = new Map<string, JoLite[]>();
     for (const jo of jobOrders as JoLite[]) {
       if (!jo.machineId) continue;
       const arr = byMachine.get(jo.machineId) ?? [];
-      arr.push(this.joRollupChild(jo, hierWin));
+      arr.push(jo);
       byMachine.set(jo.machineId, arr);
     }
-    const allChildren: RollupChild[] = [...byMachine.values()].flat();
+    const allJos: JoLite[] = [...byMachine.values()].flat();
 
     // Build Area → Line → Machine tree (only branches that have machines with data or exist)
     type Bucket = { id: string; name: string; code: string | null; lines: Map<string, { id: string; name: string; code: string | null; machines: typeof machines }> };
@@ -613,18 +689,18 @@ export class KpiService {
       ab.lines.get(lineId)!.machines.push(m);
     }
 
-    const childrenOf = (ms: typeof machines): RollupChild[] => ms.flatMap(m => byMachine.get(m.id) ?? []);
+    const josOf = (ms: typeof machines): JoLite[] => ms.flatMap(m => byMachine.get(m.id) ?? []);
 
     const tree = [...areas.values()].map(ab => {
       const lineNodes = [...ab.lines.values()].map(ln => {
-        const machineNodes = ln.machines.map(m => this.nodeFromChildren(m.id, m.name, m.code, 'MACHINE', byMachine.get(m.id) ?? []));
-        return this.nodeFromChildren(ln.id, ln.name, ln.code, 'LINE', childrenOf(ln.machines), machineNodes);
+        const machineNodes = ln.machines.map(m => this.nodeFromJos(m.id, m.name, m.code, 'MACHINE', byMachine.get(m.id) ?? [], hierWin));
+        return this.nodeFromJos(ln.id, ln.name, ln.code, 'LINE', josOf(ln.machines), hierWin, machineNodes);
       });
       const areaMachines = [...ab.lines.values()].flatMap(l => l.machines);
-      return this.nodeFromChildren(ab.id, ab.name, ab.code, 'AREA', childrenOf(areaMachines), lineNodes);
+      return this.nodeFromJos(ab.id, ab.name, ab.code, 'AREA', josOf(areaMachines), hierWin, lineNodes);
     }).sort((a, b) => b.oee - a.oee);
 
-    const plant = this.oee.rollup(allChildren);
+    const plant = this.aggregateJos(allJos, hierWin);
 
     // Pareto by reason code
     const paretoMap = new Map<string, { reasonCode: string; minutes: number; events: number }>();

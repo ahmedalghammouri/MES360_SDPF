@@ -46,14 +46,22 @@ function runSeed(file) {
   const count = await alreadySeeded();
 
   if (count > 0) {
-    console.log(`✅ Master data already present (${count} enterprise) — skipping seed.`);
-    return;
+    console.log(`✅ Master data already present (${count} enterprise) — skipping master seed.`);
+  } else {
+    console.log('▶ Empty database detected — loading master data (no production/manufacturing data)...');
+    runSeed('seed-ncc-master.ts'); // users, factories, machines, SKUs, materials, shifts, downtime tree
   }
 
-  console.log('▶ Empty database detected — loading master data (no production/manufacturing data)...');
-  runSeed('seed-ncc-master.ts');      // users, factories, machines, SKUs, materials, shifts, downtime tree
-  runSeed('seed-dashboard-center.ts'); // dashboard catalog (config, not production data)
-  console.log('\n✅ Master data + dashboard catalog seeded. Login: admin@mes360.sa / admin@mes360.sa@admin@mes360.sa');
+  // The Dashboard Center catalog is idempotent CONFIG (slug/key-keyed upserts), NOT
+  // production data — so (re)seed it on EVERY boot. This self-heals an empty catalog
+  // and picks up newly added dashboards on each deploy, regardless of DB state.
+  // A catalog failure must never block the stack from starting → log, don't exit.
+  try {
+    runSeed('seed-dashboard-center.ts');
+  } catch (e) {
+    console.error('⚠ Dashboard Center seed failed (non-fatal):', e?.message ?? e);
+  }
+  console.log('\n✅ Init complete. Login: admin@mes360.sa');
 })().catch((e) => {
   console.error('❌ prod-init failed:', e);
   process.exit(1);

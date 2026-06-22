@@ -43,12 +43,13 @@ function queryVar(name, label, sql, { multi = false } = {}) {
 }
 
 function standardVars() {
-  // Default factory = SIDCO (Saudi Industrial Detergent Company).
+  // Default factory = "All" (allValue '' → every factory). NOT pinned to one plant,
+  // so a dashboard opened directly is never artificially scoped to a factory with no
+  // data. The Dashboard Center embed still injects var-factory=<code> for context.
   const factory = queryVar('factory', 'Factory',
     `SELECT name AS "__text", code AS "__value" FROM factories WHERE "isActive" = true ORDER BY name`,
     { multi: false });
-  factory.current = { selected: true, text: 'Saudi Industrial Detergent Company', value: 'SIDCO' };
-  factory.options = [{ selected: true, text: 'Saudi Industrial Detergent Company', value: 'SIDCO' }];
+  factory.current = { selected: true, text: 'All', value: '$__all' };
 
   return [
     factory,

@@ -35,16 +35,10 @@
         "multi": false,
         "current": {
           "selected": true,
-          "text": "Saudi Industrial Detergent Company",
-          "value": "SIDCO"
+          "text": "All",
+          "value": "$__all"
         },
-        "options": [
-          {
-            "selected": true,
-            "text": "Saudi Industrial Detergent Company",
-            "value": "SIDCO"
-          }
-        ],
+        "options": [],
         "sort": 1,
         "hide": 0
       },
