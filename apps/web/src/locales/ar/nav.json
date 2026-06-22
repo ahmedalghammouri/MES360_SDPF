@@ -1,7 +1,12 @@
 {
   "Insights Studio": "استوديو التحليلات",
   "Overview": "نظرة عامة",
+  "Dashboards": "اللوحات",
   "Command Centers": "مراكز القيادة",
+  "Production & OEE": "الإنتاج والكفاءة",
+  "Reliability & Quality": "الموثوقية والجودة",
+  "Energy": "الطاقة",
+  "Catalog & AI": "الكتالوج والذكاء الاصطناعي",
   "Command Center": "مركز القيادة",
   "Energy Command Center": "مركز قيادة الطاقة",
   "Executive Multi-Plant": "النظرة التنفيذية متعددة المصانع",

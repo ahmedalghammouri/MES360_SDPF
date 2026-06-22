@@ -6,7 +6,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Grip,
-  LayoutDashboard,
   LayoutGrid,
   Factory,
   ShieldCheck,
@@ -91,21 +90,58 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  // ═══════════════ OVERVIEW ═══════════════
-  { section: 'Overview', label: 'Overview' },
   { label: 'Apps', href: '/apps', icon: Grip },
-  { label: 'Home', href: '/dashboard', icon: LayoutDashboard },
 
-  // ═══════════════ COMMAND CENTERS ═══════════════
-  // Every cross-domain dashboard & analytics cockpit lives here — one expressive
-  // home for visual, KPI-driven decision screens. New native command centers land here.
-  { section: 'Command Centers', label: 'Command Centers' },
-  { label: 'Command Center', href: '/command-center', icon: Gauge, badge: 'New', badgeVariant: 'default' },
-  { label: 'Energy Command Center', href: '/energy/command-center', icon: Zap, badge: 'New', badgeVariant: 'default' },
-  { label: 'Executive Multi-Plant', href: '/executive', icon: Factory, badge: 'New', badgeVariant: 'default' },
-  { label: 'Dashboard Center', href: '/dashboard-center', icon: LayoutGrid },
-  { label: 'Factory Analytics', href: '/analytics', icon: LayoutGrid },
-  { label: 'Insights Studio', href: '/analytics/insights', icon: TrendingUp },
+  // ═══════════════ DASHBOARDS ═══════════════
+  // Every dashboard/analytics screen lives here under one section, split into
+  // expressive categories. Operational pages keep their own domain sections below.
+  { section: 'Dashboards', label: 'Dashboards' },
+  {
+    label: 'Command Centers',
+    icon: Gauge,
+    children: [
+      { label: 'Command Center',        href: '/command-center',        icon: Gauge,   badge: 'New', badgeVariant: 'default' },
+      { label: 'Energy Command Center', href: '/energy/command-center', icon: Zap,     badge: 'New', badgeVariant: 'default' },
+      { label: 'Executive Multi-Plant', href: '/executive',             icon: Factory, badge: 'New', badgeVariant: 'default' },
+    ],
+  },
+  {
+    label: 'Production & OEE',
+    icon: TrendingUp,
+    children: [
+      { label: 'Factory Analytics',  href: '/analytics',          icon: LayoutGrid },
+      { label: 'Insights Studio',    href: '/analytics/insights', icon: TrendingUp },
+      { label: 'Production KPIs',    href: '/production/kpi',      icon: Gauge      },
+      { label: 'OEE Analytics',      href: '/production/oee',      icon: LineChart  },
+      { label: 'Machine KPIs',       href: '/manufacturing/kpi',   icon: Cpu        },
+      { label: 'Machine OEE',        href: '/manufacturing/oee',   icon: Activity   },
+      { label: 'Manufacturing Hub',  href: '/manufacturing',       icon: Cog        },
+    ],
+  },
+  {
+    label: 'Reliability & Quality',
+    icon: ShieldCheck,
+    children: [
+      { label: 'Reliability Center',   href: '/maintenance/reliability', icon: Activity   },
+      { label: 'Quality Intelligence', href: '/quality/intelligence',    icon: TrendingUp },
+    ],
+  },
+  {
+    label: 'Energy',
+    icon: Zap,
+    children: [
+      { label: 'Energy Dashboard', href: '/energy',         icon: Zap       },
+      { label: 'Energy Analytics', href: '/energy/reports', icon: BarChart3 },
+    ],
+  },
+  {
+    label: 'Catalog & AI',
+    icon: Sparkles,
+    children: [
+      { label: 'Dashboard Center', href: '/dashboard-center', icon: LayoutGrid },
+      { label: 'AI Intelligence',  href: '/ai',               icon: Sparkles, badge: 'New', badgeVariant: 'default' },
+    ],
+  },
 
   // ═══════════════ OPERATION HUB ═══════════════
   // Operator/technician tablet screens — one place for every shop-floor role.
@@ -158,19 +194,6 @@ const navItems: NavItem[] = [
       { label: 'Material Consumption', href: '/traceability/consumption',  icon: Boxes     },
     ],
   },
-  {
-    label: 'Performance & KPIs',
-    icon: TrendingUp,
-    children: [
-      { label: 'Production KPIs',         href: '/production/kpi',               icon: Gauge      },
-      { label: 'OEE Analytics',           href: '/production/oee',               icon: LineChart  },
-      { label: 'Machine KPIs',            href: '/manufacturing/kpi',            icon: Cpu        },
-      { label: 'Machine OEE',             href: '/manufacturing/oee',            icon: Activity   },
-      { label: 'Energy Dashboard',        href: '/energy',                       icon: Zap        },
-      { label: 'Energy Analytics',        href: '/energy/reports',               icon: BarChart3  },
-      { label: 'Manufacturing Hub',       href: '/manufacturing',                icon: Cog        },
-    ],
-  },
 
   // ═══════════════ ASSET & QUALITY ═══════════════
   { section: 'Asset & Quality', label: 'Asset & Quality' },
@@ -179,7 +202,6 @@ const navItems: NavItem[] = [
     icon: Wrench,
     children: [
       { label: 'Overview',               href: '/maintenance',                     icon: Gauge         },
-      { label: 'Reliability Center',     href: '/maintenance/reliability',         icon: Activity, badge: 'New', badgeVariant: 'default' },
       { label: 'Maint. Scheduling',      href: '/maintenance/scheduling',          icon: Calendar      },
       { label: 'Maintenance Orders',     href: '/maintenance/work-orders',         icon: ClipboardList, dynamicKey: 'openMaintenance', badgeVariant: 'secondary' },
       { label: 'Preventive Maint.',      href: '/maintenance/preventive',          icon: Calendar      },
@@ -194,7 +216,6 @@ const navItems: NavItem[] = [
     icon: ShieldCheck,
     children: [
       { label: 'Overview',               href: '/quality',                         icon: Activity      },
-      { label: 'Quality Intelligence',   href: '/quality/intelligence',            icon: TrendingUp, badge: 'New', badgeVariant: 'default' },
       { label: 'Quality Plans',          href: '/quality/plans',                   icon: ClipboardList },
       { label: 'Quality Records',        href: '/quality/records',                 icon: ClipboardCheck },
       { label: 'Inspections',            href: '/quality/inspections',             icon: ClipboardCheck },
@@ -279,7 +300,6 @@ const navItems: NavItem[] = [
       { label: 'Maintenance Reports',    href: '/reports/maintenance',             icon: Wrench        },
     ],
   },
-  { label: 'AI Intelligence', href: '/ai', icon: Sparkles, badge: 'New', badgeVariant: 'default' },
   { label: 'Notifications', href: '/notifications', icon: Bell, badgeDynamic: true, badgeVariant: 'destructive' },
 ];
 

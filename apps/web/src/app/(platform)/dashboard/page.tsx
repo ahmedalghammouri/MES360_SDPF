@@ -1,8 +1,7 @@
-import type { Metadata } from 'next';
-import { DashboardView } from '@/features/dashboard/dashboard-view';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Home' };
-
+// The former "Home" dashboard was fully superseded by the Command Center.
+// Keep this route as a permanent redirect so existing links/bookmarks still work.
 export default function DashboardPage() {
-  return <DashboardView />;
+  redirect('/command-center');
 }
