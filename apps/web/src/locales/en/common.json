@@ -117,6 +117,11 @@
     "scopedTo": "Scoped to",
     "appliesOnAnalytics": "Selection applies on analytics & dashboard pages."
   },
+  "atOee": {
+    "schedule": "OEE",
+    "tb": "AT-OEE",
+    "hint": "Toggle schedule-based OEE vs time-based (AT-OEE)"
+  },
   "rowActions": {
     "label": "Row actions"
   },

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { MaintStatus, MaintType, NCRStatus, Severity } from '@prisma/client';
+import { KpiService } from '../production/kpi.service';
 
 export type InsightType = 'anomaly' | 'optimization' | 'prediction' | 'energy';
 export type InsightSeverity = 'high' | 'medium' | 'low';
@@ -58,7 +59,10 @@ function clamp(n: number, min: number, max: number) {
 
 @Injectable()
 export class AiService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly kpi: KpiService,
+  ) {}
 
   /** Resolve an analysis scope (area/line/machine) to the machine ids it covers (undefined = whole factory). */
   private async scopeMachineIds(
@@ -152,14 +156,12 @@ export class AiService {
           },
           orderBy: { detectedAt: 'desc' },
         }),
-        this.prisma.oEERecord.aggregate({
-          where: { ...factoryFilter, ...machineScope, recordDate: { gte: since7 } },
-          _avg: { oee: true },
-        }),
-        this.prisma.oEERecord.aggregate({
-          where: { ...factoryFilter, ...machineScope, recordDate: { gte: prev7, lt: since7 } },
-          _avg: { oee: true },
-        }),
+        this.kpi.snapshotsEnabled()
+          ? this.kpi.snapshotScope(factoryId, since7, now, machineIds).then((b) => ({ _avg: { oee: b.oee } }))
+          : this.prisma.oEERecord.aggregate({ where: { ...factoryFilter, ...machineScope, recordDate: { gte: since7 } }, _avg: { oee: true } }),
+        this.kpi.snapshotsEnabled()
+          ? this.kpi.snapshotScope(factoryId, prev7, since7, machineIds).then((b) => ({ _avg: { oee: b.oee } }))
+          : this.prisma.oEERecord.aggregate({ where: { ...factoryFilter, ...machineScope, recordDate: { gte: prev7, lt: since7 } }, _avg: { oee: true } }),
       ]);
 
     // ── Per-machine downtime aggregation (recent vs previous half) ──

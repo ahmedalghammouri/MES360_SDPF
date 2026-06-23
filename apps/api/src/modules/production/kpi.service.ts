@@ -597,6 +597,58 @@ export class KpiService {
    * not just a sparse time line. Each group is a proper time-weighted rollup
    * (same engine + window-clamped PPT as the headline OEE).
    */
+  /** Fact-store rollup grouped by a business dimension (twin of oeeGroupedTrend). */
+  async snapshotGrouped(
+    factoryId: string | null, from: Date, to: Date, machineIds: string[] | undefined,
+    groupBy: 'machine' | 'workOrder' | 'productionOrder' | 'shift',
+  ) {
+    if (machineIds && machineIds.length === 0) return [];
+    const colSql: Record<string, string> = {
+      machine: '"machineId"',
+      workOrder: '"workOrderId"',
+      productionOrder: `COALESCE("productionOrderId",'__direct')`,
+      shift: `COALESCE("shiftInstanceId",'__noshift')`,
+    };
+    const col = Prisma.raw(colSql[groupBy] ?? '"machineId"');
+    const where = this.snapWhere(factoryId, from, to, machineIds);
+    const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      WITH scoped AS (SELECT * FROM production_snapshots WHERE ${where}),
+           fin AS (SELECT ${col} AS gk, "workOrderId" AS wo, MAX("sequenceOrder") ms FROM scoped GROUP BY ${col}, "workOrderId")
+      SELECT ${col} AS key, ${this.snapMetricCols('f')}
+      FROM scoped s JOIN fin f ON f.gk = ${col} AND f.wo = s."workOrderId"
+      GROUP BY ${col}`);
+
+    // Resolve human labels for the keys (one lightweight lookup per dimension).
+    const keys = rows.map((r) => r.key).filter((k) => k && !String(k).startsWith('__'));
+    const labels = new Map<string, string>();
+    if (groupBy === 'machine' && keys.length) {
+      (await this.prisma.machine.findMany({ where: { id: { in: keys } }, select: { id: true, name: true, code: true } }))
+        .forEach((m) => labels.set(m.id, m.name ?? m.code ?? '—'));
+    } else if (groupBy === 'workOrder' && keys.length) {
+      (await this.prisma.workOrder.findMany({ where: { id: { in: keys } }, select: { id: true, orderNumber: true } }))
+        .forEach((w) => labels.set(w.id, w.orderNumber));
+    } else if (groupBy === 'productionOrder' && keys.length) {
+      (await this.prisma.productionOrder.findMany({ where: { id: { in: keys } }, select: { id: true, orderNumber: true } }))
+        .forEach((p) => labels.set(p.id, p.orderNumber));
+    } else if (groupBy === 'shift' && keys.length) {
+      (await this.prisma.shiftInstance.findMany({ where: { id: { in: keys } }, select: { id: true, shiftDate: true, shiftTemplate: { select: { name: true } } } }))
+        .forEach((s) => labels.set(s.id, `${s.shiftTemplate?.name ?? 'Shift'} · ${new Date(s.shiftDate).toISOString().slice(0, 10)}`));
+    }
+    const fallback = groupBy === 'productionOrder' ? 'Direct WOs' : groupBy === 'shift' ? 'Unassigned' : '—';
+
+    return rows
+      .map((r) => {
+        const b = this.snapMetrics(r.good, r.scrap, r.ppt, r.run, r.down, r.earned);
+        return {
+          key: r.key, label: labels.get(r.key) ?? fallback,
+          oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+          output: Math.round(b.totalCount), good: Math.round(b.goodCount),
+        };
+      })
+      .filter((r) => r.output > 0)
+      .sort((a, b) => b.output - a.output);
+  }
+
   async oeeGroupedTrend(
     factoryId: string | null,
     from: Date,
@@ -605,6 +657,10 @@ export class KpiService {
     groupBy: 'machine' | 'workOrder' | 'productionOrder' | 'shift',
     opts: { workOrderId?: string; productionOrderId?: string } = {},
   ) {
+    if (this.snapshotsEnabled() && !opts.workOrderId && !opts.productionOrderId) {
+      return this.snapshotGrouped(factoryId, from, to, machineIds, groupBy);
+    }
+
     const jos = await this.prisma.jobOrder.findMany({
       where: {
         ...(factoryId ? { factoryId } : {}),

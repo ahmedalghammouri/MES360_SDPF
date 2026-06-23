@@ -8,6 +8,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
+import { ScopeBadge } from '@/components/ui/scope-badge';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { MTTRMTBFChart } from '@/components/charts/mttr-mtbf-chart';
 import { SectionTitle } from '@/features/command-center/command-center-charts';
@@ -64,6 +65,7 @@ export function ReliabilityView() {
             <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" />
             {t('common:status.live')}
           </div>
+          <ScopeBadge />
           <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-xs" onClick={handleRefresh}>
             <RefreshCw size={13} className={cn(isRefreshing && 'animate-spin')} />
             {t('common:actions.refresh')}

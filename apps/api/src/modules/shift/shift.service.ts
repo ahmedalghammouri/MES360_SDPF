@@ -5,6 +5,7 @@ import { Prisma, DowntimeCategory, DowntimeReasonCode } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
 import { toBaseUnits, convertUnits } from '../../common/units.util';
+import { KpiService } from '../production/kpi.service';
 import {
   CreateShiftTemplateDto, UpdateShiftTemplateDto, GenerateInstancesDto,
   ListInstancesQueryDto, StartShiftDto, CompleteShiftDto,
@@ -14,7 +15,10 @@ import {
 
 @Injectable()
 export class ShiftService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly kpi: KpiService,
+  ) {}
 
   private requireFactory(factoryId: string | null): string {
     if (!factoryId) {
@@ -455,10 +459,15 @@ export class ShiftService {
         },
         orderBy: { sortOrder: 'asc' },
       }),
-      this.prisma.oEERecord.findMany({
-        where: { factoryId: fid, recordDate: { gte: new Date(from.getFullYear(), from.getMonth(), from.getDate()) } },
-        select: { machineId: true, oee: true, availability: true, performance: true, quality: true },
-      }),
+      // Per-machine OEE fallback — from the fact store (final-step per machine) when
+      // enabled, else the legacy per-machine OEERecord rows.
+      this.kpi.snapshotsEnabled()
+        ? this.kpi.snapshotAggregate(fid, new Date(from.getFullYear(), from.getMonth(), from.getDate()), to, undefined)
+            .then((a) => a.byEquipment.map((e) => ({ machineId: e.machineId, oee: e.oee, availability: e.availability, performance: e.performance, quality: e.quality })))
+        : this.prisma.oEERecord.findMany({
+            where: { factoryId: fid, recordDate: { gte: new Date(from.getFullYear(), from.getMonth(), from.getDate()) } },
+            select: { machineId: true, oee: true, availability: true, performance: true, quality: true },
+          }),
       // Active job orders give each machine its output UNIT + product packaging, so
       // production can be normalised to the base unit before aggregating.
       this.prisma.jobOrder.findMany({

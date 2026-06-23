@@ -8,6 +8,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
+import { ScopeBadge } from '@/components/ui/scope-badge';
 import { TimeRangeFilter } from '@/components/ui/time-range-filter';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { SectionTitle } from '@/features/command-center/command-center-charts';
@@ -48,6 +49,7 @@ export function QualityIntelligenceView() {
             <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" />
             {t('common:status.live')}
           </div>
+          <ScopeBadge />
           <TimeRangeFilter />
           <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-xs" onClick={handleRefresh}>
             <RefreshCw size={13} className={cn(isRefreshing && 'animate-spin')} />

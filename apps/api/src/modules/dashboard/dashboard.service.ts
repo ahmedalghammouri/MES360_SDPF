@@ -426,11 +426,14 @@ export class DashboardService {
         where: { ...factoryFilter, startTime: { gte: from, lte: to } },
         _sum: { targetQty: true },
       }),
-      // Actual output = recorded OEE output within the window
-      this.prisma.oEERecord.aggregate({
-        where: { ...factoryFilter, ...machineScope, recordDate: { gte: from, lte: to } },
-        _sum: { totalOutput: true },
-      }),
+      // Actual output within the window — from the fact store (final-step, no
+      // routed-WO double-counting) when enabled, else the legacy OEERecord sum.
+      this.kpi.snapshotsEnabled()
+        ? this.kpi.snapshotScope(factoryId, from, to, machineIds).then((b) => ({ _sum: { totalOutput: b.totalCount } }))
+        : this.prisma.oEERecord.aggregate({
+            where: { ...factoryFilter, ...machineScope, recordDate: { gte: from, lte: to } },
+            _sum: { totalOutput: true },
+          }),
     ]);
 
     return {

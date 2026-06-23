@@ -224,27 +224,97 @@ const BAD_HIGH = [{ color: 'green', value: null }, { color: 'orange', value: 5 }
 const DASHBOARDS = [];
 const D = (folder, def) => DASHBOARDS.push({ folder, def });
 
-// scoped OEE base where-clause
+// scoped OEE base where-clause (legacy oee_records — kept for non-OEE panels)
 const OEE_W = `${F_JOIN} WHERE $__timeFilter(t."recordDate") AND ${F_WHERE} AND ${M_WHERE}`;
+
+// ── Fact-store (production_snapshots) SQL — the canonical OEE/output source ──────
+// Mirrors the app's kpi.snapshotAggregate EXACTLY: good = Σ FINAL-step per WO
+// (scope-relative via MAX(sequenceOrder)); scrap = Σ all steps; A/P/Q/OEE recomputed
+// from summed base-unit quantities. Avoids the routed-WO double-count of oee_records.
+const SNAP_SCOPE = `('$factory'='' OR t."factoryId" IN (SELECT id FROM factories WHERE code='$factory'))
+    AND ('$area'='' OR t."areaId"='$area')
+    AND ('$line'='' OR t."lineId"='$line')
+    AND ('$machine'='' OR t."machineId"='$machine')`;
+// One-row rollup `agg(good,scrap,ppt,run,earned)` for the current scope + time range.
+const SNAP_AGG = `WITH scoped AS (
+    SELECT t."workOrderId" wo, t."sequenceOrder" seq, t."goodBase" gb, t."scrapBase" sb,
+           t."plannedMin" pm, t."runMin" rm, t."idealRunMin" irm
+    FROM production_snapshots t
+    WHERE t.granularity='MINUTE' AND $__timeFilter(t."bucketStart") AND ${SNAP_SCOPE}),
+  fin AS (SELECT wo, MAX(seq) ms FROM scoped GROUP BY wo),
+  agg AS (SELECT COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,
+                 COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned
+          FROM scoped s JOIN fin f ON f.wo=s.wo)`;
+const A_PCT = `LEAST(100,100.0*run/NULLIF(ppt,0))`;
+const P_PCT = `LEAST(100,100.0*earned/NULLIF(run,0))`;
+const Q_PCT = `100.0*good/NULLIF(good+scrap,0)`;
+const OEE_PCT = `(${A_PCT})*(${P_PCT})*(${Q_PCT})/10000`;
+const snapVal = (expr) => `${SNAP_AGG} SELECT ROUND(COALESCE(${expr},0)::numeric,2) AS value FROM agg`;
+
+// Time-bucketed rollup for trends (final step per WO within each interval).
+const SNAP_TS = `WITH scoped AS (
+    SELECT $__timeGroup(t."bucketStart",$__interval) tg, t."workOrderId" wo, t."sequenceOrder" seq,
+           t."goodBase" gb, t."scrapBase" sb, t."plannedMin" pm, t."runMin" rm, t."idealRunMin" irm
+    FROM production_snapshots t
+    WHERE t.granularity='MINUTE' AND $__timeFilter(t."bucketStart") AND ${SNAP_SCOPE}),
+  fin AS (SELECT tg, wo, MAX(seq) ms FROM scoped GROUP BY tg, wo)`;
+const gGood = `SUM(s.gb) FILTER (WHERE s.seq=f.ms)`;
+const gOEE = `(LEAST(100,100.0*SUM(s.rm)/NULLIF(SUM(s.pm),0)))*(LEAST(100,100.0*SUM(s.irm)/NULLIF(SUM(s.rm),0)))*(100.0*${gGood}/NULLIF(${gGood}+SUM(s.sb),0))/10000`;
+const snapTs = (expr, alias) => `${SNAP_TS} SELECT s.tg AS time, ${expr} AS "${alias}" FROM scoped s JOIN fin f ON f.tg=s.tg AND f.wo=s.wo GROUP BY s.tg ORDER BY s.tg`;
+
+// Grouped rollup by a dimension column. `metricExpr` uses grouped sums gG/gS/gP/gR/gE.
+const gG = `SUM(s.gb) FILTER (WHERE s.seq=f.ms)`, gS = `SUM(s.sb)`, gP = `SUM(s.pm)`, gR = `SUM(s.rm)`, gE = `SUM(s.irm)`;
+const gByOEE = `(LEAST(100,100.0*${gR}/NULLIF(${gP},0)))*(LEAST(100,100.0*${gE}/NULLIF(${gR},0)))*(100.0*${gG}/NULLIF(${gG}+${gS},0))/10000`;
+const gByOutput = `${gG}+${gS}`;
+const snapBy = (col, joinTbl, nameCol, metricExpr) => `WITH scoped AS (
+    SELECT t.${col} gk, t."workOrderId" wo, t."sequenceOrder" seq, t."goodBase" gb, t."scrapBase" sb,
+           t."plannedMin" pm, t."runMin" rm, t."idealRunMin" irm
+    FROM production_snapshots t
+    WHERE t.granularity='MINUTE' AND $__timeFilter(t."bucketStart") AND ${SNAP_SCOPE} AND t.${col} IS NOT NULL),
+  fin AS (SELECT gk, wo, MAX(seq) ms FROM scoped GROUP BY gk, wo)
+  SELECT ${nameCol} AS metric, ROUND((${metricExpr})::numeric,1) AS value
+  FROM scoped s JOIN fin f ON f.gk=s.gk AND f.wo=s.wo
+  ${joinTbl || ''}
+  GROUP BY ${nameCol} ORDER BY value DESC`;
+
+// Cross-factory rollup (ignores $factory scope) → CTE `factagg(fid,good,scrap,ppt,run,earned)`
+// with final-step per WO within each factory. Used by executive scorecards/rollups.
+const SNAP_FACT_AGG = `WITH scoped AS (
+    SELECT t."factoryId" fid, t."workOrderId" wo, t."sequenceOrder" seq, t."goodBase" gb, t."scrapBase" sb,
+           t."plannedMin" pm, t."runMin" rm, t."idealRunMin" irm
+    FROM production_snapshots t WHERE t.granularity='MINUTE' AND $__timeFilter(t."bucketStart")),
+  fin AS (SELECT fid, wo, MAX(seq) ms FROM scoped GROUP BY fid, wo),
+  factagg AS (SELECT s.fid, COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,
+                     COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned
+              FROM scoped s JOIN fin f ON f.fid=s.fid AND f.wo=s.wo GROUP BY s.fid)`;
+// Cross-factory trend (time × factory) → SELECT s.tg AS time, fa.name AS metric, <expr> AS value.
+const snapFactTs = (metricExpr) => `WITH scoped AS (
+    SELECT $__timeGroup(t."bucketStart",$__interval) tg, t."factoryId" fid, t."workOrderId" wo, t."sequenceOrder" seq,
+           t."goodBase" gb, t."scrapBase" sb, t."plannedMin" pm, t."runMin" rm, t."idealRunMin" irm
+    FROM production_snapshots t WHERE t.granularity='MINUTE' AND $__timeFilter(t."bucketStart")),
+  fin AS (SELECT tg, fid, wo, MAX(seq) ms FROM scoped GROUP BY tg, fid, wo)
+  SELECT s.tg AS time, fa.name AS metric, ${metricExpr} AS value
+  FROM scoped s JOIN fin f ON f.tg=s.tg AND f.fid=s.fid AND f.wo=s.wo
+  JOIN factories fa ON fa.id=s.fid GROUP BY s.tg, fa.name ORDER BY s.tg`;
 
 // ── PRODUCTION ───────────────────────────────────────────────────
 D('production', mkDash({
   uid: 'mes-prod-overview', title: 'Production Overview', tags: ['production'],
   description: 'Real-time production output, achievement and losses.',
   panels: [
-    stat('Planned Qty', `SELECT COALESCE(SUM("plannedProductionMin"),0) AS value FROM oee_records t ${OEE_W}`, { steps: [{ color: 'blue', value: null }] }),
-    stat('Actual Output', `SELECT COALESCE(SUM("totalOutput"),0) AS value FROM oee_records t ${OEE_W}`, { steps: [{ color: 'green', value: null }] }),
-    stat('Good Output', `SELECT COALESCE(SUM("goodOutput"),0) AS value FROM oee_records t ${OEE_W}`, { steps: GOOD_HIGH }),
-    stat('Scrap %', `SELECT CASE WHEN SUM("totalOutput")>0 THEN ROUND(100.0*SUM("scrapOutput")/SUM("totalOutput"),2) ELSE 0 END AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: BAD_HIGH }),
-    gauge('OEE', `SELECT COALESCE(AVG(oee),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
-    gauge('Availability', `SELECT COALESCE(AVG(availability),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
-    gauge('Performance', `SELECT COALESCE(AVG(performance),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
-    gauge('Quality', `SELECT COALESCE(AVG(quality),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
+    stat('Planned Time (h)', snapVal('ppt/60.0'), { unit: 'h', steps: [{ color: 'blue', value: null }] }),
+    stat('Actual Output', snapVal('good+scrap'), { steps: [{ color: 'green', value: null }] }),
+    stat('Good Output', snapVal('good'), { steps: GOOD_HIGH }),
+    stat('Scrap %', snapVal('100.0*scrap/NULLIF(good+scrap,0)'), { unit: 'percent', steps: BAD_HIGH }),
+    gauge('OEE', snapVal(OEE_PCT), { steps: OEE_STEPS }),
+    gauge('Availability', snapVal(A_PCT), { steps: OEE_STEPS }),
+    gauge('Performance', snapVal(P_PCT), { steps: OEE_STEPS }),
+    gauge('Quality', snapVal(Q_PCT), { steps: OEE_STEPS }),
     timeseries('Output vs Good (trend)', [
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), SUM("totalOutput") AS "Total Output" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'A'),
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), SUM("goodOutput") AS "Good Output" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'B'),
+      pgTarget(snapTs(`${gGood}+SUM(s.sb)`, 'Total Output'), 'time_series', 'A'),
+      pgTarget(snapTs(gGood, 'Good Output'), 'time_series', 'B'),
     ], { w: 16 }),
-    piechart('Output by Machine', `SELECT m.name AS metric, SUM(t."totalOutput") AS value FROM oee_records t JOIN machines m ON m.id=t."machineId" JOIN factories f ON f.id=t."factoryId" WHERE $__timeFilter(t."recordDate") AND ${F_WHERE} GROUP BY m.name ORDER BY value DESC LIMIT 10`, { w: 8 }),
+    piechart('Output by Machine', snapBy('"machineId"', 'JOIN machines m ON m.id=s.gk', 'm.name', gByOutput), { w: 8 }),
   ],
 }));
 
@@ -317,10 +387,10 @@ D('production', mkDash({
   uid: 'mes-prod-throughput', title: 'Throughput Monitoring', tags: ['production'],
   description: 'Production rate and cycle time.',
   panels: [
-    stat('Avg Rate (u/h)', `SELECT CASE WHEN SUM(t."uptimeMin")>0 THEN ROUND((60.0*SUM(t."totalOutput")/NULLIF(SUM(t."uptimeMin"),0))::numeric,1) ELSE 0 END AS value FROM oee_records t ${OEE_W}`, { steps: GOOD_HIGH }),
-    stat('Runtime (h)', `SELECT ROUND(COALESCE(SUM(t."uptimeMin"),0)::numeric/60.0,1) AS value FROM oee_records t ${OEE_W}`, { unit: 'h' }),
-    timeseries('Throughput (units/interval)', [pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), SUM(t."totalOutput") AS "Output" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 24 }),
-    barchart('Rate by Machine (u/h)', `SELECT m.name AS metric, CASE WHEN SUM(t."uptimeMin")>0 THEN ROUND((60.0*SUM(t."totalOutput")/NULLIF(SUM(t."uptimeMin"),0))::numeric,1) ELSE 0 END AS value FROM oee_records t JOIN machines m ON m.id=t."machineId" JOIN factories f ON f.id=t."factoryId" WHERE $__timeFilter(t."recordDate") AND ${F_WHERE} GROUP BY m.name ORDER BY value DESC LIMIT 12`, { w: 24, horizontal: true }),
+    stat('Avg Rate (u/h)', snapVal('60.0*(good+scrap)/NULLIF(run,0)'), { steps: GOOD_HIGH }),
+    stat('Runtime (h)', snapVal('run/60.0'), { unit: 'h' }),
+    timeseries('Throughput (units/interval)', [pgTarget(snapTs(`${gGood}+SUM(s.sb)`, 'Output'), 'time_series')], { w: 24 }),
+    barchart('Rate by Machine (u/h)', snapBy('"machineId"', 'JOIN machines m ON m.id=s.gk', 'm.name', `60.0*(${gG}+${gS})/NULLIF(${gR},0)`), { w: 24, horizontal: true }),
   ],
 }));
 
@@ -328,52 +398,54 @@ D('production', mkDash({
   uid: 'mes-prod-kpi', title: 'Production KPI Dashboard', tags: ['production', 'kpi'],
   description: 'Consolidated production KPIs.',
   panels: [
-    stat('Achievement %', `SELECT CASE WHEN SUM("plannedProductionMin")>0 THEN ROUND((100.0*SUM("totalOutput")/NULLIF(SUM("plannedProductionMin"),0))::numeric,1) ELSE 0 END AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: OEE_STEPS }),
-    stat('Yield %', `SELECT CASE WHEN SUM("totalOutput")>0 THEN ROUND(100.0*SUM("goodOutput")/SUM("totalOutput"),1) ELSE 0 END AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: OEE_STEPS }),
-    stat('Scrap %', `SELECT CASE WHEN SUM("totalOutput")>0 THEN ROUND(100.0*SUM("scrapOutput")/SUM("totalOutput"),2) ELSE 0 END AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: BAD_HIGH }),
-    stat('Downtime %', `SELECT CASE WHEN SUM("plannedProductionMin")>0 THEN ROUND((100.0*SUM("downtimeMin")/NULLIF(SUM("plannedProductionMin"),0))::numeric,1) ELSE 0 END AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: BAD_HIGH }),
-    gauge('OEE', `SELECT COALESCE(AVG(oee),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
-    gauge('Availability', `SELECT COALESCE(AVG(availability),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
+    stat('Performance %', snapVal(P_PCT), { unit: 'percent', steps: OEE_STEPS }),
+    stat('Yield %', snapVal(Q_PCT), { unit: 'percent', steps: OEE_STEPS }),
+    stat('Scrap %', snapVal('100.0*scrap/NULLIF(good+scrap,0)'), { unit: 'percent', steps: BAD_HIGH }),
+    stat('Downtime %', snapVal('100.0*(ppt-run)/NULLIF(ppt,0)'), { unit: 'percent', steps: BAD_HIGH }),
+    gauge('OEE', snapVal(OEE_PCT), { steps: OEE_STEPS }),
+    gauge('Availability', snapVal(A_PCT), { steps: OEE_STEPS }),
     timeseries('OEE Components Trend', [
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(availability) AS "Availability" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'A'),
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(performance) AS "Performance" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'B'),
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(quality) AS "Quality" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'C'),
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(oee) AS "OEE" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'D'),
+      pgTarget(snapTs('LEAST(100,100.0*SUM(s.rm)/NULLIF(SUM(s.pm),0))', 'Availability'), 'time_series', 'A'),
+      pgTarget(snapTs('LEAST(100,100.0*SUM(s.irm)/NULLIF(SUM(s.rm),0))', 'Performance'), 'time_series', 'B'),
+      pgTarget(snapTs(`100.0*${gGood}/NULLIF(${gGood}+SUM(s.sb),0)`, 'Quality'), 'time_series', 'C'),
+      pgTarget(snapTs(gOEE, 'OEE'), 'time_series', 'D'),
     ], { w: 24, unit: 'percent' }),
   ],
 }));
 
 // ── OEE (in Production folder per catalog, but spec lists separately → put in production) ──
-const oeeDash = (uid, title, groupCol, groupJoin, groupName) => mkDash({
+// snapCol/snapJoin/snapName describe the fact-store grouping (column on
+// production_snapshots → label table). OEE per group = scope-relative final step.
+const oeeDash = (uid, title, snapCol, snapJoin, snapName, groupName) => mkDash({
   uid, title, tags: ['oee', 'production'],
   description: `OEE breakdown by ${groupName}.`,
   panels: [
-    gauge('OEE', `SELECT COALESCE(AVG(oee),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
-    gauge('Availability', `SELECT COALESCE(AVG(availability),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
-    gauge('Performance', `SELECT COALESCE(AVG(performance),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
-    gauge('Quality', `SELECT COALESCE(AVG(quality),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
-    barchart(`OEE by ${groupName}`, `SELECT ${groupCol} AS metric, ROUND(AVG(t.oee)::numeric,1) AS value FROM oee_records t ${groupJoin} JOIN factories f ON f.id=t."factoryId" WHERE $__timeFilter(t."recordDate") AND ${F_WHERE} GROUP BY 1 ORDER BY value DESC LIMIT 15`, { w: 24, unit: 'percent', horizontal: true }),
-    timeseries('OEE Trend', [pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(oee) AS "OEE" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 24, unit: 'percent' }),
+    gauge('OEE', snapVal(OEE_PCT), { steps: OEE_STEPS }),
+    gauge('Availability', snapVal(A_PCT), { steps: OEE_STEPS }),
+    gauge('Performance', snapVal(P_PCT), { steps: OEE_STEPS }),
+    gauge('Quality', snapVal(Q_PCT), { steps: OEE_STEPS }),
+    barchart(`OEE by ${groupName}`, snapBy(snapCol, snapJoin, snapName, gByOEE), { w: 24, unit: 'percent', horizontal: true }),
+    timeseries('OEE Trend', [pgTarget(snapTs(gOEE, 'OEE'), 'time_series')], { w: 24, unit: 'percent' }),
   ],
 });
 
-D('production', oeeDash('mes-oee-executive', 'OEE Executive', `f.name`, ``, 'Factory'));
-D('production', oeeDash('mes-oee-factory', 'OEE by Factory', `f.name`, ``, 'Factory'));
-D('production', oeeDash('mes-oee-line', 'OEE by Line', `COALESCE(l.name,'Unassigned')`, `JOIN machines m ON m.id=t."machineId" LEFT JOIN production_lines l ON l.id=m."lineId"`, 'Line'));
-D('production', oeeDash('mes-oee-machine', 'OEE by Machine', `m.name`, `JOIN machines m ON m.id=t."machineId"`, 'Machine'));
+D('production', oeeDash('mes-oee-executive', 'OEE Executive', '"factoryId"', 'JOIN factories fa ON fa.id=s.gk', 'fa.name', 'Factory'));
+D('production', oeeDash('mes-oee-factory', 'OEE by Factory', '"factoryId"', 'JOIN factories fa ON fa.id=s.gk', 'fa.name', 'Factory'));
+D('production', oeeDash('mes-oee-line', 'OEE by Line', '"lineId"', 'JOIN production_lines l ON l.id=s.gk', `COALESCE(l.name,'Unassigned')`, 'Line'));
+D('production', oeeDash('mes-oee-machine', 'OEE by Machine', '"machineId"', 'JOIN machines m ON m.id=s.gk', 'm.name', 'Machine'));
 D('production', mkDash({
   uid: 'mes-oee-trend', title: 'OEE Trend Analysis', tags: ['oee', 'production'],
   description: 'Long-range OEE and loss decomposition.',
   panels: [
     timeseries('OEE & Components', [
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(oee) AS "OEE" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'A'),
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(availability) AS "Availability" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'B'),
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(performance) AS "Performance" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'C'),
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(quality) AS "Quality" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'D'),
+      pgTarget(snapTs(gOEE, 'OEE'), 'time_series', 'A'),
+      pgTarget(snapTs('LEAST(100,100.0*SUM(s.rm)/NULLIF(SUM(s.pm),0))', 'Availability'), 'time_series', 'B'),
+      pgTarget(snapTs('LEAST(100,100.0*SUM(s.irm)/NULLIF(SUM(s.rm),0))', 'Performance'), 'time_series', 'C'),
+      pgTarget(snapTs(`100.0*${gGood}/NULLIF(${gGood}+SUM(s.sb),0)`, 'Quality'), 'time_series', 'D'),
     ], { w: 24, unit: 'percent' }),
-    stat('Planned Time (h)', `SELECT ROUND(COALESCE(SUM("plannedProductionMin"),0)::numeric/60.0,1) AS value FROM oee_records t ${OEE_W}`, { unit: 'h' }),
-    stat('Runtime (h)', `SELECT ROUND(COALESCE(SUM("uptimeMin"),0)::numeric/60.0,1) AS value FROM oee_records t ${OEE_W}`, { unit: 'h', steps: [{ color: 'green', value: null }] }),
-    stat('Stop Time (h)', `SELECT ROUND(COALESCE(SUM("downtimeMin"),0)::numeric/60.0,1) AS value FROM oee_records t ${OEE_W}`, { unit: 'h', steps: BAD_HIGH }),
+    stat('Planned Time (h)', snapVal('ppt/60.0'), { unit: 'h' }),
+    stat('Runtime (h)', snapVal('run/60.0'), { unit: 'h', steps: [{ color: 'green', value: null }] }),
+    stat('Stop Time (h)', snapVal('(ppt-run)/60.0'), { unit: 'h', steps: BAD_HIGH }),
     stat('Micro Stops', `SELECT COUNT(*) AS value FROM downtime_events t ${F_JOIN} WHERE $__timeFilter(t."startTime") AND ${F_WHERE} AND t."durationMinutes" < 5`, { steps: [{ color: 'orange', value: null }] }),
   ],
 }));
@@ -452,9 +524,9 @@ D('manufacturing', mkDash({
     stat('WIP (Job Orders)', `SELECT COUNT(*) AS value FROM job_orders j JOIN work_orders t ON t.id=j."workOrderId" JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE} AND j.status IN ('READY','EXECUTING','PAUSED')`, { steps: [{ color: 'blue', value: null }] }),
     stat('WOs In Progress', `SELECT COUNT(*) AS value FROM work_orders t ${F_JOIN} WHERE ${F_WHERE} AND t.status='IN_PROGRESS' AND t."deletedAt" IS NULL`, { steps: [{ color: 'blue', value: null }] }),
     stat('Completed Today', `SELECT COUNT(*) AS value FROM work_orders t ${F_JOIN} WHERE ${F_WHERE} AND t.status='COMPLETED' AND t."actualEnd"::date = NOW()::date AND t."deletedAt" IS NULL`, { steps: [{ color: 'green', value: null }] }),
-    stat('Avg OEE', `SELECT COALESCE(AVG(oee),0) AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: OEE_STEPS }),
+    stat('Avg OEE', snapVal(OEE_PCT), { unit: 'percent', steps: OEE_STEPS }),
     piechart('Job Order Status', `SELECT j.status AS metric, COUNT(*) AS value FROM job_orders j JOIN work_orders t ON t.id=j."workOrderId" JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE} GROUP BY j.status`, { w: 8 }),
-    timeseries('Output Trend', [pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), SUM(t."totalOutput") AS "Output" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 16 }),
+    timeseries('Output Trend', [pgTarget(snapTs(`${gGood}+SUM(s.sb)`, 'Output'), 'time_series')], { w: 16 }),
   ],
 }));
 
@@ -506,7 +578,7 @@ D('manufacturing', mkDash({
   description: 'Cycle time and utilization by process step.',
   panels: [
     stat('Avg Cycle (s)', `SELECT ROUND(COALESCE(AVG(j."idealCycleTimeSec"),0)::numeric,1) AS value FROM job_orders j JOIN work_orders t ON t.id=j."workOrderId" JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE}`, { unit: 's' }),
-    stat('Utilization %', `SELECT COALESCE(AVG(availability),0) AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: OEE_STEPS }),
+    stat('Utilization %', snapVal(A_PCT), { unit: 'percent', steps: OEE_STEPS }),
     barchart('Avg Cycle by Operation (s)', `SELECT j."operationName" AS metric, ROUND(AVG(j."idealCycleTimeSec")::numeric,1) AS value FROM job_orders j JOIN work_orders t ON t.id=j."workOrderId" JOIN factories f ON f.id=t."factoryId" WHERE ${F_WHERE} AND j."idealCycleTimeSec" IS NOT NULL GROUP BY j."operationName" ORDER BY value DESC LIMIT 12`, { w: 24, unit: 's', horizontal: true }),
   ],
 }));
@@ -590,10 +662,10 @@ D('quality', mkDash({
   uid: 'mes-qual-overview', title: 'Quality Overview', tags: ['quality'],
   description: 'FPY, defects and non-conformance.',
   panels: [
-    stat('FPY %', `SELECT CASE WHEN SUM(t."totalOutput")>0 THEN ROUND(100.0*SUM(t."goodOutput")/SUM(t."totalOutput"),1) ELSE 0 END AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: OEE_STEPS }),
+    stat('FPY %', snapVal(Q_PCT), { unit: 'percent', steps: OEE_STEPS }),
     stat('Open NCRs', `SELECT COUNT(*) AS value FROM ncrs t ${NCR_W} AND t.status NOT IN ('RESOLVED','CLOSED')`, { steps: [{ color: 'orange', value: null }] }),
     stat('Critical NCRs', `SELECT COUNT(*) AS value FROM ncrs t ${NCR_W} AND t.severity='CRITICAL' AND t.status NOT IN ('RESOLVED','CLOSED')`, { steps: [{ color: 'red', value: null }] }),
-    stat('Scrap %', `SELECT CASE WHEN SUM(t."totalOutput")>0 THEN ROUND(100.0*SUM(t."scrapOutput")/SUM(t."totalOutput"),2) ELSE 0 END AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: BAD_HIGH }),
+    stat('Scrap %', snapVal('100.0*scrap/NULLIF(good+scrap,0)'), { unit: 'percent', steps: BAD_HIGH }),
     piechart('NCR by Severity', `SELECT t.severity AS metric, COUNT(*) AS value FROM ncrs t ${NCR_W} GROUP BY t.severity`, { w: 8 }),
     timeseries('NCR Trend', [pgTarget(`SELECT $__timeGroupAlias(t."detectedAt",$__interval), COUNT(*) AS "NCRs" FROM ncrs t ${NCR_W} AND $__timeFilter(t."detectedAt") GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 16 }),
   ],
@@ -655,7 +727,7 @@ D('quality', mkDash({
   uid: 'mes-qual-defects', title: 'Defect Analytics', tags: ['quality'],
   description: 'Defect rate and top defects.',
   panels: [
-    stat('Defect Rate %', `SELECT CASE WHEN SUM(t."totalOutput")>0 THEN ROUND(100.0*SUM(t."scrapOutput")/SUM(t."totalOutput"),2) ELSE 0 END AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: BAD_HIGH }),
+    stat('Defect Rate %', snapVal('100.0*scrap/NULLIF(good+scrap,0)'), { unit: 'percent', steps: BAD_HIGH }),
     barchart('Top Defect Categories', `SELECT t."defectCategory" AS metric, SUM(t.quantity) AS value FROM ncrs t ${NCR_W} AND $__timeFilter(t."detectedAt") GROUP BY t."defectCategory" ORDER BY value DESC LIMIT 12`, { w: 24, horizontal: true }),
   ],
 }));
@@ -863,13 +935,13 @@ D('executive', mkDash({
   uid: 'mes-exec-cockpit', title: 'Executive Manufacturing Cockpit', tags: ['executive'],
   description: 'Single-screen plant performance.',
   panels: [
-    gauge('OEE', `SELECT COALESCE(AVG(oee),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
-    stat('Output', `SELECT COALESCE(SUM("totalOutput"),0) AS value FROM oee_records t ${OEE_W}`, { steps: [{ color: 'green', value: null }] }),
-    stat('FPY %', `SELECT CASE WHEN SUM("totalOutput")>0 THEN ROUND(100.0*SUM("goodOutput")/SUM("totalOutput"),1) ELSE 0 END AS value FROM oee_records t ${OEE_W}`, { unit: 'percent', steps: OEE_STEPS }),
+    gauge('OEE', snapVal(OEE_PCT), { steps: OEE_STEPS }),
+    stat('Output', snapVal('good+scrap'), { steps: [{ color: 'green', value: null }] }),
+    stat('FPY %', snapVal(Q_PCT), { unit: 'percent', steps: OEE_STEPS }),
     stat('Open NCRs', `SELECT COUNT(*) AS value FROM ncrs t ${NCR_W} AND t.status NOT IN ('RESOLVED','CLOSED')`, { steps: [{ color: 'orange', value: null }] }),
     stat('Open Maint. WOs', `SELECT COUNT(*) AS value FROM maintenance_wos t ${MWO} AND t.status IN ('OPEN','ASSIGNED','IN_PROGRESS')`, { steps: [{ color: 'orange', value: null }] }),
     stat('Reorder Alerts', `SELECT COUNT(*) AS value FROM raw_materials t ${F_JOIN} WHERE ${F_WHERE} AND t."currentStock" < COALESCE(t."reorderPoint",t."minStock")`, { steps: [{ color: 'red', value: null }] }),
-    timeseries('OEE Trend (all factories)', [pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(oee) AS "OEE" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 24, unit: 'percent' }),
+    timeseries('OEE Trend (all factories)', [pgTarget(snapTs(gOEE, 'OEE'), 'time_series')], { w: 24, unit: 'percent' }),
   ],
 }));
 
@@ -877,9 +949,9 @@ D('executive', mkDash({
   uid: 'mes-exec-factory-compare', title: 'Factory Comparison', tags: ['executive'],
   description: 'Side-by-side factory KPIs.',
   panels: [
-    barchart('OEE by Factory', `SELECT f.name AS metric, ROUND(AVG(t.oee)::numeric,1) AS value FROM oee_records t JOIN factories f ON f.id=t."factoryId" WHERE $__timeFilter(t."recordDate") GROUP BY f.name ORDER BY value DESC`, { w: 12, unit: 'percent' }),
-    barchart('Output by Factory', `SELECT f.name AS metric, SUM(t."totalOutput") AS value FROM oee_records t JOIN factories f ON f.id=t."factoryId" WHERE $__timeFilter(t."recordDate") GROUP BY f.name ORDER BY value DESC`, { w: 12 }),
-    table('Factory Scorecard', `SELECT f.name AS "Factory", ROUND(AVG(t.oee)::numeric,1) AS "OEE %", ROUND(AVG(t.availability)::numeric,1) AS "Avail %", ROUND(AVG(t.quality)::numeric,1) AS "Quality %", SUM(t."totalOutput") AS "Output" FROM oee_records t JOIN factories f ON f.id=t."factoryId" WHERE $__timeFilter(t."recordDate") GROUP BY f.name ORDER BY 2 DESC`),
+    barchart('OEE by Factory', snapBy('"factoryId"', 'JOIN factories fa ON fa.id=s.gk', 'fa.name', gByOEE), { w: 12, unit: 'percent' }),
+    barchart('Output by Factory', snapBy('"factoryId"', 'JOIN factories fa ON fa.id=s.gk', 'fa.name', gByOutput), { w: 12 }),
+    table('Factory Scorecard', `${SNAP_FACT_AGG} SELECT fa.name AS "Factory", ROUND((${OEE_PCT})::numeric,1) AS "OEE %", ROUND((${A_PCT})::numeric,1) AS "Avail %", ROUND((${Q_PCT})::numeric,1) AS "Quality %", ROUND((good+scrap)::numeric,0) AS "Output" FROM factagg JOIN factories fa ON fa.id=factagg.fid ORDER BY 2 DESC`),
   ],
 }));
 
@@ -887,8 +959,8 @@ D('executive', mkDash({
   uid: 'mes-exec-multiplant', title: 'Multi-Plant Performance', tags: ['executive'],
   description: 'Enterprise-wide trend across plants.',
   panels: [
-    timeseries('OEE by Factory (trend)', [pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), f.name AS metric, AVG(t.oee) AS value FROM oee_records t JOIN factories f ON f.id=t."factoryId" WHERE $__timeFilter(t."recordDate") GROUP BY 1, f.name ORDER BY 1`, 'time_series')], { w: 24, unit: 'percent' }),
-    timeseries('Output by Factory (trend)', [pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), f.name AS metric, SUM(t."totalOutput") AS value FROM oee_records t JOIN factories f ON f.id=t."factoryId" WHERE $__timeFilter(t."recordDate") GROUP BY 1, f.name ORDER BY 1`, 'time_series')], { w: 24 }),
+    timeseries('OEE by Factory (trend)', [pgTarget(snapFactTs(gOEE), 'time_series')], { w: 24, unit: 'percent' }),
+    timeseries('Output by Factory (trend)', [pgTarget(snapFactTs(`${gGood}+SUM(s.sb)`), 'time_series')], { w: 24 }),
   ],
 }));
 
@@ -896,13 +968,13 @@ D('executive', mkDash({
   uid: 'mes-exec-corporate-kpi', title: 'Corporate KPI Dashboard', tags: ['executive', 'kpi'],
   description: 'Corporate KPI rollup across all domains.',
   panels: [
-    stat('Avg OEE', `SELECT COALESCE(AVG(oee),0) AS value FROM oee_records t WHERE $__timeFilter(t."recordDate")`, { unit: 'percent', steps: OEE_STEPS }),
-    stat('Total Output', `SELECT COALESCE(SUM("totalOutput"),0) AS value FROM oee_records t WHERE $__timeFilter(t."recordDate")`, { steps: [{ color: 'green', value: null }] }),
-    stat('FPY %', `SELECT CASE WHEN SUM("totalOutput")>0 THEN ROUND(100.0*SUM("goodOutput")/SUM("totalOutput"),1) ELSE 0 END AS value FROM oee_records t WHERE $__timeFilter(t."recordDate")`, { unit: 'percent', steps: OEE_STEPS }),
+    stat('Avg OEE', snapVal(OEE_PCT), { unit: 'percent', steps: OEE_STEPS }),
+    stat('Total Output', snapVal('good+scrap'), { steps: [{ color: 'green', value: null }] }),
+    stat('FPY %', snapVal(Q_PCT), { unit: 'percent', steps: OEE_STEPS }),
     stat('Open NCRs', `SELECT COUNT(*) AS value FROM ncrs t WHERE t.status NOT IN ('RESOLVED','CLOSED')`, { steps: [{ color: 'orange', value: null }] }),
     stat('Open Maint.', `SELECT COUNT(*) AS value FROM maintenance_wos t WHERE t.status IN ('OPEN','ASSIGNED','IN_PROGRESS') AND t."deletedAt" IS NULL`, { steps: [{ color: 'orange', value: null }] }),
     stat('Energy kWh', `SELECT ROUND(COALESCE(SUM(t.value),0)::numeric,0) AS value FROM energy_readings t WHERE $__timeFilter(t."timestamp")`, { unit: 'kwatth' }),
-    table('Per-Factory Rollup', `SELECT f.name AS "Factory", ROUND(AVG(o.oee)::numeric,1) AS "OEE %", SUM(o."totalOutput") AS "Output", (SELECT COUNT(*) FROM ncrs n WHERE n."factoryId"=f.id AND n.status NOT IN ('RESOLVED','CLOSED')) AS "Open NCRs", (SELECT COUNT(*) FROM maintenance_wos mw WHERE mw."factoryId"=f.id AND mw.status IN ('OPEN','ASSIGNED','IN_PROGRESS') AND mw."deletedAt" IS NULL) AS "Open Maint" FROM oee_records o JOIN factories f ON f.id=o."factoryId" WHERE $__timeFilter(o."recordDate") GROUP BY f.id, f.name ORDER BY 2 DESC`),
+    table('Per-Factory Rollup', `${SNAP_FACT_AGG} SELECT fa.name AS "Factory", ROUND((${OEE_PCT})::numeric,1) AS "OEE %", ROUND((good+scrap)::numeric,0) AS "Output", (SELECT COUNT(*) FROM ncrs n WHERE n."factoryId"=fa.id AND n.status NOT IN ('RESOLVED','CLOSED')) AS "Open NCRs", (SELECT COUNT(*) FROM maintenance_wos mw WHERE mw."factoryId"=fa.id AND mw.status IN ('OPEN','ASSIGNED','IN_PROGRESS') AND mw."deletedAt" IS NULL) AS "Open Maint" FROM factagg JOIN factories fa ON fa.id=factagg.fid ORDER BY 2 DESC`),
   ],
 }));
 
@@ -911,9 +983,9 @@ D('templates', mkDash({
   uid: 'mes-tpl-line-performance', title: 'TEMPLATE — Line Performance', tags: ['template'],
   description: 'Reusable per-line performance template. Clone and adapt.',
   panels: [
-    gauge('OEE', `SELECT COALESCE(AVG(oee),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
-    stat('Output', `SELECT COALESCE(SUM("totalOutput"),0) AS value FROM oee_records t ${OEE_W}`, { steps: [{ color: 'green', value: null }] }),
-    timeseries('OEE Trend', [pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(oee) AS "OEE" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 24, unit: 'percent' }),
+    gauge('OEE', snapVal(OEE_PCT), { steps: OEE_STEPS }),
+    stat('Output', snapVal('good+scrap'), { steps: [{ color: 'green', value: null }] }),
+    timeseries('OEE Trend', [pgTarget(snapTs(gOEE, 'OEE'), 'time_series')], { w: 24, unit: 'percent' }),
   ],
 }));
 
@@ -921,11 +993,11 @@ D('templates', mkDash({
   uid: 'mes-tpl-machine-detail', title: 'TEMPLATE — Machine Detail', tags: ['template'],
   description: 'Reusable single-machine deep-dive template.',
   panels: [
-    gauge('OEE', `SELECT COALESCE(AVG(oee),0) AS value FROM oee_records t ${OEE_W}`, { steps: OEE_STEPS }),
+    gauge('OEE', snapVal(OEE_PCT), { steps: OEE_STEPS }),
     stat('Downtime (min)', `SELECT COALESCE(SUM(t."durationMinutes"),0) AS value FROM downtime_events t ${DT_W}`, { unit: 'm', steps: BAD_HIGH }),
-    stat('Output', `SELECT COALESCE(SUM("totalOutput"),0) AS value FROM oee_records t ${OEE_W}`, { steps: [{ color: 'green', value: null }] }),
+    stat('Output', snapVal('good+scrap'), { steps: [{ color: 'green', value: null }] }),
     timeseries('Machine OEE & Downtime', [
-      pgTarget(`SELECT $__timeGroupAlias(t."recordDate",$__interval), AVG(oee) AS "OEE %" FROM oee_records t ${OEE_W} GROUP BY 1 ORDER BY 1`, 'time_series', 'A'),
+      pgTarget(snapTs(gOEE, 'OEE %'), 'time_series', 'A'),
     ], { w: 24, unit: 'percent' }),
   ],
 }));

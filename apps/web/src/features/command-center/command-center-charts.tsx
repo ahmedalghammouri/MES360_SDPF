@@ -110,8 +110,8 @@ export function UtilityBreakdown({ byType }: { byType: Record<string, number> })
   );
 }
 
-/** 7-day electricity sparkline (area). */
-export function EnergyTrend({ data }: { data: Array<{ date: string; value: number }> }) {
+/** Electricity trend — render style switchable (area | line | bar). */
+export function EnergyTrend({ data, type = 'area' }: { data: Array<{ date: string; value: number }>; type?: 'area' | 'line' | 'bar' }) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const option = useMemo(() => ({
@@ -130,16 +130,15 @@ export function EnergyTrend({ data }: { data: Array<{ date: string; value: numbe
     },
     tooltip: { trigger: 'axis' },
     series: [
-      {
-        type: 'line',
-        smooth: true,
-        showSymbol: false,
-        data: data.map((d) => d.value),
-        lineStyle: { color: '#eab308', width: 2 },
-        areaStyle: { color: 'rgba(234,179,8,0.18)' },
-      },
+      type === 'bar'
+        ? { type: 'bar', data: data.map((d) => d.value), itemStyle: { color: '#eab308', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 22 }
+        : {
+            type: 'line', smooth: true, showSymbol: false, data: data.map((d) => d.value),
+            lineStyle: { color: '#eab308', width: 2 },
+            ...(type === 'area' ? { areaStyle: { color: 'rgba(234,179,8,0.18)' } } : {}),
+          },
     ],
-  }), [data, isDark]);
+  }), [data, isDark, type]);
   return <ReactECharts option={option} style={{ height: '100%', width: '100%' }} notMerge />;
 }
 

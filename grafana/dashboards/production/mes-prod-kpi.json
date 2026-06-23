@@ -177,7 +177,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Achievement %",
+      "title": "Performance %",
       "type": "stat",
       "datasource": {
         "type": "postgres",
@@ -191,7 +191,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT CASE WHEN SUM(\"plannedProductionMin\")>0 THEN ROUND((100.0*SUM(\"totalOutput\")/NULLIF(SUM(\"plannedProductionMin\"),0))::numeric,1) ELSE 0 END AS value FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+          "rawSql": "WITH scoped AS (\n    SELECT t.\"workOrderId\" wo, t.\"sequenceOrder\" seq, t.\"goodBase\" gb, t.\"scrapBase\" sb,\n           t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT wo, MAX(seq) ms FROM scoped GROUP BY wo),\n  agg AS (SELECT COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,\n                 COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned\n          FROM scoped s JOIN fin f ON f.wo=s.wo) SELECT ROUND(COALESCE(LEAST(100,100.0*earned/NULLIF(run,0)),0)::numeric,2) AS value FROM agg"
         }
       ],
       "fieldConfig": {
@@ -262,7 +262,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT CASE WHEN SUM(\"totalOutput\")>0 THEN ROUND(100.0*SUM(\"goodOutput\")/SUM(\"totalOutput\"),1) ELSE 0 END AS value FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+          "rawSql": "WITH scoped AS (\n    SELECT t.\"workOrderId\" wo, t.\"sequenceOrder\" seq, t.\"goodBase\" gb, t.\"scrapBase\" sb,\n           t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT wo, MAX(seq) ms FROM scoped GROUP BY wo),\n  agg AS (SELECT COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,\n                 COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned\n          FROM scoped s JOIN fin f ON f.wo=s.wo) SELECT ROUND(COALESCE(100.0*good/NULLIF(good+scrap,0),0)::numeric,2) AS value FROM agg"
         }
       ],
       "fieldConfig": {
@@ -333,7 +333,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT CASE WHEN SUM(\"totalOutput\")>0 THEN ROUND(100.0*SUM(\"scrapOutput\")/SUM(\"totalOutput\"),2) ELSE 0 END AS value FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+          "rawSql": "WITH scoped AS (\n    SELECT t.\"workOrderId\" wo, t.\"sequenceOrder\" seq, t.\"goodBase\" gb, t.\"scrapBase\" sb,\n           t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT wo, MAX(seq) ms FROM scoped GROUP BY wo),\n  agg AS (SELECT COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,\n                 COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned\n          FROM scoped s JOIN fin f ON f.wo=s.wo) SELECT ROUND(COALESCE(100.0*scrap/NULLIF(good+scrap,0),0)::numeric,2) AS value FROM agg"
         }
       ],
       "fieldConfig": {
@@ -400,7 +400,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT CASE WHEN SUM(\"plannedProductionMin\")>0 THEN ROUND((100.0*SUM(\"downtimeMin\")/NULLIF(SUM(\"plannedProductionMin\"),0))::numeric,1) ELSE 0 END AS value FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+          "rawSql": "WITH scoped AS (\n    SELECT t.\"workOrderId\" wo, t.\"sequenceOrder\" seq, t.\"goodBase\" gb, t.\"scrapBase\" sb,\n           t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT wo, MAX(seq) ms FROM scoped GROUP BY wo),\n  agg AS (SELECT COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,\n                 COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned\n          FROM scoped s JOIN fin f ON f.wo=s.wo) SELECT ROUND(COALESCE(100.0*(ppt-run)/NULLIF(ppt,0),0)::numeric,2) AS value FROM agg"
         }
       ],
       "fieldConfig": {
@@ -467,7 +467,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT COALESCE(AVG(oee),0) AS value FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+          "rawSql": "WITH scoped AS (\n    SELECT t.\"workOrderId\" wo, t.\"sequenceOrder\" seq, t.\"goodBase\" gb, t.\"scrapBase\" sb,\n           t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT wo, MAX(seq) ms FROM scoped GROUP BY wo),\n  agg AS (SELECT COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,\n                 COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned\n          FROM scoped s JOIN fin f ON f.wo=s.wo) SELECT ROUND(COALESCE((LEAST(100,100.0*run/NULLIF(ppt,0)))*(LEAST(100,100.0*earned/NULLIF(run,0)))*(100.0*good/NULLIF(good+scrap,0))/10000,0)::numeric,2) AS value FROM agg"
         }
       ],
       "fieldConfig": {
@@ -536,7 +536,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT COALESCE(AVG(availability),0) AS value FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine')"
+          "rawSql": "WITH scoped AS (\n    SELECT t.\"workOrderId\" wo, t.\"sequenceOrder\" seq, t.\"goodBase\" gb, t.\"scrapBase\" sb,\n           t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT wo, MAX(seq) ms FROM scoped GROUP BY wo),\n  agg AS (SELECT COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,\n                 COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned\n          FROM scoped s JOIN fin f ON f.wo=s.wo) SELECT ROUND(COALESCE(LEAST(100,100.0*run/NULLIF(ppt,0)),0)::numeric,2) AS value FROM agg"
         }
       ],
       "fieldConfig": {
@@ -605,7 +605,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT $__timeGroupAlias(t.\"recordDate\",$__interval), AVG(availability) AS \"Availability\" FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') GROUP BY 1 ORDER BY 1"
+          "rawSql": "WITH scoped AS (\n    SELECT $__timeGroup(t.\"bucketStart\",$__interval) tg, t.\"workOrderId\" wo, t.\"sequenceOrder\" seq,\n           t.\"goodBase\" gb, t.\"scrapBase\" sb, t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT tg, wo, MAX(seq) ms FROM scoped GROUP BY tg, wo) SELECT s.tg AS time, LEAST(100,100.0*SUM(s.rm)/NULLIF(SUM(s.pm),0)) AS \"Availability\" FROM scoped s JOIN fin f ON f.tg=s.tg AND f.wo=s.wo GROUP BY s.tg ORDER BY s.tg"
         },
         {
           "refId": "B",
@@ -614,7 +614,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT $__timeGroupAlias(t.\"recordDate\",$__interval), AVG(performance) AS \"Performance\" FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') GROUP BY 1 ORDER BY 1"
+          "rawSql": "WITH scoped AS (\n    SELECT $__timeGroup(t.\"bucketStart\",$__interval) tg, t.\"workOrderId\" wo, t.\"sequenceOrder\" seq,\n           t.\"goodBase\" gb, t.\"scrapBase\" sb, t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT tg, wo, MAX(seq) ms FROM scoped GROUP BY tg, wo) SELECT s.tg AS time, LEAST(100,100.0*SUM(s.irm)/NULLIF(SUM(s.rm),0)) AS \"Performance\" FROM scoped s JOIN fin f ON f.tg=s.tg AND f.wo=s.wo GROUP BY s.tg ORDER BY s.tg"
         },
         {
           "refId": "C",
@@ -623,7 +623,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT $__timeGroupAlias(t.\"recordDate\",$__interval), AVG(quality) AS \"Quality\" FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') GROUP BY 1 ORDER BY 1"
+          "rawSql": "WITH scoped AS (\n    SELECT $__timeGroup(t.\"bucketStart\",$__interval) tg, t.\"workOrderId\" wo, t.\"sequenceOrder\" seq,\n           t.\"goodBase\" gb, t.\"scrapBase\" sb, t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT tg, wo, MAX(seq) ms FROM scoped GROUP BY tg, wo) SELECT s.tg AS time, 100.0*SUM(s.gb) FILTER (WHERE s.seq=f.ms)/NULLIF(SUM(s.gb) FILTER (WHERE s.seq=f.ms)+SUM(s.sb),0) AS \"Quality\" FROM scoped s JOIN fin f ON f.tg=s.tg AND f.wo=s.wo GROUP BY s.tg ORDER BY s.tg"
         },
         {
           "refId": "D",
@@ -632,7 +632,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT $__timeGroupAlias(t.\"recordDate\",$__interval), AVG(oee) AS \"OEE\" FROM oee_records t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") AND ('$factory' = '' OR f.code = '$factory') AND ('$machine' = '' OR t.\"machineId\" = '$machine') GROUP BY 1 ORDER BY 1"
+          "rawSql": "WITH scoped AS (\n    SELECT $__timeGroup(t.\"bucketStart\",$__interval) tg, t.\"workOrderId\" wo, t.\"sequenceOrder\" seq,\n           t.\"goodBase\" gb, t.\"scrapBase\" sb, t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT tg, wo, MAX(seq) ms FROM scoped GROUP BY tg, wo) SELECT s.tg AS time, (LEAST(100,100.0*SUM(s.rm)/NULLIF(SUM(s.pm),0)))*(LEAST(100,100.0*SUM(s.irm)/NULLIF(SUM(s.rm),0)))*(100.0*SUM(s.gb) FILTER (WHERE s.seq=f.ms)/NULLIF(SUM(s.gb) FILTER (WHERE s.seq=f.ms)+SUM(s.sb),0))/10000 AS \"OEE\" FROM scoped s JOIN fin f ON f.tg=s.tg AND f.wo=s.wo GROUP BY s.tg ORDER BY s.tg"
         }
       ],
       "fieldConfig": {

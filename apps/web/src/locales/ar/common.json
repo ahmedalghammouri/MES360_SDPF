@@ -117,6 +117,11 @@
     "scopedTo": "محصور في",
     "appliesOnAnalytics": "يُطبَّق الاختيار على صفحات التحليلات واللوحات."
   },
+  "atOee": {
+    "schedule": "OEE",
+    "tb": "AT-OEE",
+    "hint": "تبديل بين OEE المبني على الجدول والزمني (AT-OEE)"
+  },
   "rowActions": {
     "label": "إجراءات الصف"
   },

@@ -3,14 +3,14 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  RefreshCw, LayoutGrid, Activity, AlertTriangle, CheckCircle2, Zap, TrendingUp,
+  LayoutGrid, Activity, AlertTriangle, CheckCircle2, Zap, TrendingUp,
   Gauge, Flame, Factory, BatteryWarning, Power,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
-import { TimeRangeFilter } from '@/components/ui/time-range-filter';
+import { DashboardToolbar, type TrendType } from '@/components/ui/dashboard-toolbar';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { OEEGauge } from '@/components/charts/oee-gauge';
 import { ProductionTrendChart } from '@/components/charts/production-trend';
@@ -40,6 +40,8 @@ export function CommandCenterView() {
   const { t, i18n } = useTranslation(['dashboard', 'common']);
   const { data, isLoading, refetch } = useCommandCenter();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [trendType, setTrendType] = useState<TrendType>('area');
+  const [atOee, setAtOee] = useState(false);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -63,23 +65,23 @@ export function CommandCenterView() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('commandCenter.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="realtime-badge">
-            <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" />
-            {t('common:status.live')}
-          </div>
-          <TimeRangeFilter />
-          <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-xs" onClick={handleRefresh}>
-            <RefreshCw size={13} className={cn(isRefreshing && 'animate-spin')} />
-            {t('common:actions.refresh')}
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" asChild>
-            <Link href="/dashboard-center">
-              <LayoutGrid size={13} />
-              {t('dashboardCenter')}
-            </Link>
-          </Button>
-        </div>
+        <DashboardToolbar
+          time
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          trendType={trendType}
+          onTrendType={setTrendType}
+          atOee={atOee}
+          onAtOee={setAtOee}
+          extra={
+            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" asChild>
+              <Link href="/dashboard-center">
+                <LayoutGrid size={13} />
+                {t('dashboardCenter')}
+              </Link>
+            </Button>
+          }
+        />
       </div>
 
       {/* Content */}
@@ -92,8 +94,8 @@ export function CommandCenterView() {
 
           {/* KPI strip */}
           <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
-            <KPICard title={t('kpi.oee')} value={kpis?.oee ?? 0} unit="%" trend={kpis?.oeeTrend} target={85} colorMode="oee" isLoading={isLoading} icon={<Zap size={16} />} />
-            <KPICard title={t('kpi.availability')} value={kpis?.availability ?? 0} unit="%" trend={kpis?.availabilityTrend} target={90} colorMode="oee" isLoading={isLoading} icon={<Activity size={16} />} />
+            <KPICard title={atOee ? t('kpi.atOee') : t('kpi.oee')} value={(atOee ? kpis?.oeeTb : kpis?.oee) ?? 0} unit="%" trend={atOee ? kpis?.oeeTbTrend : kpis?.oeeTrend} target={85} colorMode="oee" isLoading={isLoading} icon={<Zap size={16} />} />
+            <KPICard title={atOee ? t('kpi.atAvailability') : t('kpi.availability')} value={(atOee ? kpis?.availabilityTb : kpis?.availability) ?? 0} unit="%" trend={atOee ? kpis?.availabilityTbTrend : kpis?.availabilityTrend} target={90} colorMode="oee" isLoading={isLoading} icon={<Activity size={16} />} />
             <KPICard title={t('kpi.performance')} value={kpis?.performance ?? 0} unit="%" trend={kpis?.performanceTrend} target={95} colorMode="oee" isLoading={isLoading} icon={<TrendingUp size={16} />} />
             <KPICard title={t('kpi.quality')} value={kpis?.quality ?? 0} unit="%" trend={kpis?.qualityTrend} target={99} colorMode="oee" isLoading={isLoading} icon={<CheckCircle2 size={16} />} />
             <KPICard title={t('kpi.output')} value={kpis?.totalOutput ?? 0} unit={t('units')} trend={kpis?.outputTrend} isLoading={isLoading} icon={<Activity size={16} />} />
@@ -156,10 +158,13 @@ export function CommandCenterView() {
                 <UtilityBreakdown byType={energy?.byType ?? {}} />
               </div>
 
-              {/* 7-day electricity trend */}
+              {/* 7-day electricity trend (render type switchable) */}
               <div className="industrial-card p-4 col-span-12">
-                <div className="text-xs font-semibold text-muted-foreground mb-2">{t('commandCenter.energy.trend')}</div>
-                <div className="h-40"><EnergyTrend data={energy?.trend ?? []} /></div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-semibold text-muted-foreground">{t('commandCenter.energy.trend')}</div>
+                  <TrendTypeToggle value={trendType} onChange={setTrendType} />
+                </div>
+                <div className="h-40"><EnergyTrend data={energy?.trend ?? []} type={trendType} /></div>
               </div>
             </div>
           </motion.section>

@@ -190,7 +190,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT $__timeGroupAlias(t.\"recordDate\",$__interval), f.name AS metric, AVG(t.oee) AS value FROM oee_records t JOIN factories f ON f.id=t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") GROUP BY 1, f.name ORDER BY 1"
+          "rawSql": "WITH scoped AS (\n    SELECT $__timeGroup(t.\"bucketStart\",$__interval) tg, t.\"factoryId\" fid, t.\"workOrderId\" wo, t.\"sequenceOrder\" seq,\n           t.\"goodBase\" gb, t.\"scrapBase\" sb, t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\")),\n  fin AS (SELECT tg, fid, wo, MAX(seq) ms FROM scoped GROUP BY tg, fid, wo)\n  SELECT s.tg AS time, fa.name AS metric, (LEAST(100,100.0*SUM(s.rm)/NULLIF(SUM(s.pm),0)))*(LEAST(100,100.0*SUM(s.irm)/NULLIF(SUM(s.rm),0)))*(100.0*SUM(s.gb) FILTER (WHERE s.seq=f.ms)/NULLIF(SUM(s.gb) FILTER (WHERE s.seq=f.ms)+SUM(s.sb),0))/10000 AS value\n  FROM scoped s JOIN fin f ON f.tg=s.tg AND f.fid=s.fid AND f.wo=s.wo\n  JOIN factories fa ON fa.id=s.fid GROUP BY s.tg, fa.name ORDER BY s.tg"
         }
       ],
       "fieldConfig": {
@@ -250,7 +250,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT $__timeGroupAlias(t.\"recordDate\",$__interval), f.name AS metric, SUM(t.\"totalOutput\") AS value FROM oee_records t JOIN factories f ON f.id=t.\"factoryId\" WHERE $__timeFilter(t.\"recordDate\") GROUP BY 1, f.name ORDER BY 1"
+          "rawSql": "WITH scoped AS (\n    SELECT $__timeGroup(t.\"bucketStart\",$__interval) tg, t.\"factoryId\" fid, t.\"workOrderId\" wo, t.\"sequenceOrder\" seq,\n           t.\"goodBase\" gb, t.\"scrapBase\" sb, t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\")),\n  fin AS (SELECT tg, fid, wo, MAX(seq) ms FROM scoped GROUP BY tg, fid, wo)\n  SELECT s.tg AS time, fa.name AS metric, SUM(s.gb) FILTER (WHERE s.seq=f.ms)+SUM(s.sb) AS value\n  FROM scoped s JOIN fin f ON f.tg=s.tg AND f.fid=s.fid AND f.wo=s.wo\n  JOIN factories fa ON fa.id=s.fid GROUP BY s.tg, fa.name ORDER BY s.tg"
         }
       ],
       "fieldConfig": {
