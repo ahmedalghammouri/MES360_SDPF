@@ -3,16 +3,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  RefreshCw, ShieldCheck, CheckCircle2, AlertTriangle, Repeat, Trash2, Activity, Gauge,
+  ShieldCheck, CheckCircle2, AlertTriangle, Repeat, Trash2, Activity, Gauge,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@/components/ui/button';
-import { ScopeBadge } from '@/components/ui/scope-badge';
-import { TimeRangeFilter } from '@/components/ui/time-range-filter';
+import { DashboardToolbar, type TrendType } from '@/components/ui/dashboard-toolbar';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { SectionTitle } from '@/features/command-center/command-center-charts';
-import { cn } from '@/lib/utils';
 
 import { useQualityCockpit } from './use-quality-cockpit';
 import { FpyTrend, DefectPareto, CategoryBars, SEVERITY_COLOR, RESULT_COLOR, CAPA_COLOR, NCR_STATUS_COLOR } from './quality-charts';
@@ -24,6 +21,7 @@ export function QualityIntelligenceView() {
   const { t } = useTranslation(['quality', 'common']);
   const { data, isLoading, refetch } = useQualityCockpit();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [trendType, setTrendType] = useState<TrendType>('area');
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -44,18 +42,13 @@ export function QualityIntelligenceView() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('cockpit.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="realtime-badge">
-            <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" />
-            {t('common:status.live')}
-          </div>
-          <ScopeBadge />
-          <TimeRangeFilter />
-          <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-xs" onClick={handleRefresh}>
-            <RefreshCw size={13} className={cn(isRefreshing && 'animate-spin')} />
-            {t('common:actions.refresh')}
-          </Button>
-        </div>
+        <DashboardToolbar
+          time
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          trendType={trendType}
+          onTrendType={setTrendType}
+        />
       </div>
 
       {/* Content */}
@@ -76,7 +69,7 @@ export function QualityIntelligenceView() {
             <div className="grid grid-cols-12 gap-4">
               <div className="col-span-12 lg:col-span-6">
                 <SectionTitle icon={CheckCircle2} color="#22c55e">{t('cockpit.sections.trend')}</SectionTitle>
-                <div className="industrial-card p-4"><FpyTrend data={data?.fpyTrend ?? []} /></div>
+                <div className="industrial-card p-4"><FpyTrend data={data?.fpyTrend ?? []} type={trendType} /></div>
               </div>
               <div className="col-span-12 lg:col-span-6">
                 <SectionTitle icon={AlertTriangle} color="#a855f7">{t('cockpit.sections.pareto')}</SectionTitle>

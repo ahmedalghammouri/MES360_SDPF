@@ -4,7 +4,9 @@
   "dashboardCenter": "مركز اللوحات",
   "kpi": {
     "oee": "الكفاءة الكلية OEE",
+    "atOee": "OEE (زمني)",
     "availability": "التوافر",
+    "atAvailability": "التوافر (زمني)",
     "performance": "الأداء",
     "quality": "نسبة الجودة",
     "output": "إجمالي الإنتاج",

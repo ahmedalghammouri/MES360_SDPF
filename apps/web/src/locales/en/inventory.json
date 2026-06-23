@@ -122,7 +122,7 @@
     "col": { "codeName": "Code / Name", "category": "Category", "stockQty": "Stock Qty", "value": "Value (SAR)", "status": "Status" },
     "itemsStored": "items stored", "itemsTracked": "Items Tracked", "loading": "Loading locations...",
     "loadingShort": "Loading...", "inactive": "Inactive",
-    "tab": { "summary": "Summary", "raw": "Raw Materials", "lots": "Material Lots", "parts": "Spare Parts", "skus": "Products/SKUs" },
+    "tab": { "summary": "Summary", "raw": "Raw Materials", "lots": "Material Lots", "parts": "Spare Parts", "skus": "Products/SKUs", "fg": "Finished Goods" },
     "zones": {
       "RAW_MATERIAL": "Raw Material Warehouse", "SPARE_PARTS": "Spare Parts Room", "FINISHED_GOODS": "Finished Goods",
       "QUARANTINE": "Quarantine / QC Hold", "PRODUCTION": "Production Floor", "DISPATCH": "Dispatch / Shipping"
@@ -373,6 +373,28 @@
     "noRawAt": "No raw materials at this location", "noLotsAt": "No material lots at this location", "noPartsAt": "No spare parts at this location", "noSkusAt": "No products/SKUs assigned to this location",
     "lotsCol": { "lotMaterial": "Lot / Material", "bin": "Bin", "qtyRemaining": "Qty / Remaining", "received": "Received", "status": "Status", "exp": "Exp" },
     "partsCol": { "partNameHead": "Part # / Name", "binCategory": "Bin / Category", "stockQty": "Stock Qty", "value": "Value (SAR)", "status": "Status" },
-    "skusCol": { "skuCode": "SKU Code", "name": "Name", "itemNo": "Item #", "category": "Category" }
+    "skusCol": { "skuCode": "SKU Code", "name": "Name", "itemNo": "Item #", "category": "Category", "onHand": "On Hand" },
+    "noFgAt": "No finished-goods lots at this location",
+    "fgCol": { "lotSku": "Lot / Product", "produced": "Produced", "remaining": "Remaining", "producedAt": "Produced", "status": "Status" },
+    "adjustBtn": "Adjust",
+    "adjust": {
+      "title": "Adjust Stock",
+      "subtitle": "Update or correct the on-hand quantity",
+      "mode": "Action",
+      "modeAdd": "Add",
+      "modeRemove": "Remove",
+      "modeSet": "Set to",
+      "modeAddHint": "Increase on-hand by this quantity",
+      "modeRemoveHint": "Decrease on-hand by this quantity",
+      "modeSetHint": "Set on-hand to this exact quantity (recount)",
+      "quantity": "Quantity",
+      "reason": "Reason",
+      "reasonPlaceholder": "e.g. physical count, damage, correction…",
+      "current": "Current",
+      "resulting": "Resulting",
+      "cancel": "Cancel",
+      "save": "Apply Adjustment",
+      "saving": "Applying…"
+    }
   }
 }

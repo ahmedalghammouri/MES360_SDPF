@@ -93,6 +93,26 @@ export class InventoryController {
   }
 
   // ────────────────────────────────────────────────────────────
+  // UNIFIED STOCK ADJUSTMENT
+  // ────────────────────────────────────────────────────────────
+
+  @Post('adjust')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Adjust on-hand quantity for any inventory entity (raw material, spare part, product, material lot, finished-goods lot). Modes: ADD | REMOVE | SET.' })
+  async adjustInventory(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: {
+      entityType: 'RAW_MATERIAL' | 'SPARE_PART' | 'PRODUCT' | 'MATERIAL_LOT' | 'FINISHED_GOODS_LOT';
+      entityId: string;
+      mode: 'ADD' | 'REMOVE' | 'SET';
+      quantity: number;
+      reason?: string;
+    },
+  ) {
+    return this.inventoryService.adjustInventory(user.factoryId, user.id, dto);
+  }
+
+  // ────────────────────────────────────────────────────────────
   // PRODUCTS (SKUs)
   // ────────────────────────────────────────────────────────────
 

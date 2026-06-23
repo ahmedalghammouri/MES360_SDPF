@@ -208,6 +208,163 @@ export class InventoryService {
   }
 
   // ────────────────────────────────────────────────────────────
+  // UNIFIED STOCK ADJUSTMENT (any inventory entity, any storage location)
+  // ────────────────────────────────────────────────────────────
+
+  /**
+   * Single professional entry point to update/correct on-hand quantities for ANY
+   * inventory entity shown in a storage location: raw materials, spare parts,
+   * finished products (SKU), material lots, and finished-goods lots.
+   *
+   *   • mode ADD    → on-hand += quantity
+   *   • mode REMOVE → on-hand -= quantity   (blocked if it would go negative)
+   *   • mode SET    → on-hand  = quantity   (physical recount)
+   *
+   * Every adjustment writes an ADJUSTMENT row to the stock-movement ledger (the
+   * audit trail), keyed to the entity's master. Lot adjustments also roll the delta
+   * into the parent master's on-hand (RawMaterial / SKU) so the two never drift,
+   * and flip the lot ACTIVE↔DEPLETED at the zero boundary.
+   */
+  async adjustInventory(
+    factoryId: string | null,
+    userId: string | null,
+    dto: {
+      entityType: 'RAW_MATERIAL' | 'SPARE_PART' | 'PRODUCT' | 'MATERIAL_LOT' | 'FINISHED_GOODS_LOT';
+      entityId: string;
+      mode: 'ADD' | 'REMOVE' | 'SET';
+      quantity: number;
+      reason?: string;
+    },
+  ) {
+    const { entityType, entityId, mode, reason } = dto;
+    const qty = Number(dto.quantity);
+    if (!Number.isFinite(qty) || qty < 0) {
+      throw new BadRequestException('Quantity must be a non-negative number');
+    }
+    if (!['ADD', 'REMOVE', 'SET'].includes(mode)) {
+      throw new BadRequestException(`Invalid mode: ${mode}`);
+    }
+    const round4 = (x: number) => parseFloat(x.toFixed(4));
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const nextOnHand = (before: number) =>
+      round4(mode === 'ADD' ? before + qty : mode === 'REMOVE' ? before - qty : qty);
+
+    switch (entityType) {
+      case 'RAW_MATERIAL': {
+        const rm = await this.prisma.rawMaterial.findFirst({ where: { id: entityId, ...factoryFilter, isActive: true } });
+        if (!rm) throw new NotFoundException('Raw material not found');
+        const before = rm.currentStock;
+        const after = nextOnHand(before);
+        if (after < 0) throw new BadRequestException(`Insufficient stock: ${before} ${rm.unit} available`);
+        await this.prisma.rawMaterial.update({ where: { id: rm.id }, data: { currentStock: after } });
+        await this.stockMovements.record({
+          factoryId: rm.factoryId, entityType: 'RAW_MATERIAL', entityId: rm.id,
+          entityCode: rm.code, entityName: rm.name, movementType: 'ADJUSTMENT',
+          quantity: round4(after - before), unitCost: rm.unitCost ?? undefined,
+          stockBefore: before, stockAfter: after, referenceType: 'MANUAL_ADJUSTMENT',
+          performedById: userId, notes: reason,
+        });
+        this.eventEmitter.emit('inventory.raw-material.stock-changed', { rawMaterialId: rm.id, factoryId: rm.factoryId });
+        return { entityType, entityId, mode, stockBefore: before, stockAfter: after, unit: rm.unit };
+      }
+
+      case 'SPARE_PART': {
+        const sp = await this.prisma.sparePart.findFirst({ where: { id: entityId, ...factoryFilter, isActive: true } });
+        if (!sp) throw new NotFoundException('Spare part not found');
+        const before = sp.stockQty;
+        const after = nextOnHand(before);
+        if (after < 0) throw new BadRequestException(`Insufficient stock: ${before} available`);
+        await this.prisma.sparePart.update({ where: { id: sp.id }, data: { stockQty: after } });
+        await this.stockMovements.record({
+          factoryId: sp.factoryId, entityType: 'SPARE_PART', entityId: sp.id,
+          entityCode: sp.partNumber, entityName: sp.name, movementType: 'ADJUSTMENT',
+          quantity: round4(after - before), unitCost: sp.unitCost ?? undefined,
+          stockBefore: before, stockAfter: after, referenceType: 'MANUAL_ADJUSTMENT',
+          performedById: userId, notes: reason,
+        });
+        return { entityType, entityId, mode, stockBefore: before, stockAfter: after };
+      }
+
+      case 'PRODUCT': {
+        const sku = await this.prisma.sKU.findFirst({ where: { id: entityId, ...factoryFilter } });
+        if (!sku) throw new NotFoundException('Product not found');
+        const before = sku.currentStock ?? 0;
+        const after = nextOnHand(before);
+        if (after < 0) throw new BadRequestException(`Insufficient stock: ${before} ${sku.baseUnit} available`);
+        await this.prisma.sKU.update({ where: { id: sku.id }, data: { currentStock: after } });
+        await this.stockMovements.record({
+          factoryId: sku.factoryId, entityType: 'PRODUCT', entityId: sku.id,
+          entityCode: sku.code, entityName: sku.name, movementType: 'ADJUSTMENT',
+          quantity: round4(after - before), stockBefore: before, stockAfter: after,
+          referenceType: 'MANUAL_ADJUSTMENT', performedById: userId, notes: reason,
+        });
+        return { entityType, entityId, mode, stockBefore: before, stockAfter: after, unit: sku.baseUnit };
+      }
+
+      case 'MATERIAL_LOT': {
+        const lot = await this.prisma.materialLot.findFirst({
+          where: { id: entityId, ...factoryFilter },
+          include: { rawMaterial: { select: { id: true, code: true, name: true, currentStock: true, unitCost: true } } },
+        });
+        if (!lot) throw new NotFoundException('Material lot not found');
+        const before = lot.remainingQty ?? 0;
+        const after = nextOnHand(before);
+        if (after < 0) throw new BadRequestException(`Cannot reduce below zero: ${before} ${lot.unit} remaining`);
+        const delta = round4(after - before);
+        const rm = (lot as any).rawMaterial as { id: string; code: string; name: string; currentStock: number; unitCost: number | null } | null;
+        await this.prisma.$transaction(async (tx) => {
+          await tx.materialLot.update({
+            where: { id: lot.id },
+            data: { remainingQty: after, ...(after <= 0 ? { status: 'DEPLETED' } : lot.status === 'DEPLETED' ? { status: 'ACTIVE' } : {}) },
+          });
+          if (rm) await tx.rawMaterial.update({ where: { id: rm.id }, data: { currentStock: { increment: delta } } });
+        });
+        await this.stockMovements.record({
+          factoryId: lot.factoryId, entityType: 'RAW_MATERIAL', entityId: rm?.id ?? lot.id,
+          entityCode: rm?.code ?? lot.materialCode, entityName: rm?.name ?? lot.materialName,
+          movementType: 'ADJUSTMENT', quantity: delta, unitCost: rm?.unitCost ?? undefined,
+          stockBefore: rm?.currentStock, stockAfter: rm ? round4(rm.currentStock + delta) : undefined,
+          referenceType: 'MATERIAL_LOT', referenceId: lot.id, referenceNumber: lot.lotNumber,
+          performedById: userId, notes: reason ? `Lot ${lot.lotNumber}: ${reason}` : `Lot ${lot.lotNumber} adjusted`,
+        });
+        if (rm) this.eventEmitter.emit('inventory.raw-material.stock-changed', { rawMaterialId: rm.id, factoryId: lot.factoryId });
+        return { entityType, entityId, mode, stockBefore: before, stockAfter: after, unit: lot.unit };
+      }
+
+      case 'FINISHED_GOODS_LOT': {
+        const lot = await this.prisma.finishedGoodsLot.findFirst({
+          where: { id: entityId, ...factoryFilter },
+          include: { sku: { select: { id: true, code: true, name: true, currentStock: true } } },
+        });
+        if (!lot) throw new NotFoundException('Finished goods lot not found');
+        const before = lot.remainingQty ?? 0;
+        const after = nextOnHand(before);
+        if (after < 0) throw new BadRequestException(`Cannot reduce below zero: ${before} ${lot.unit} remaining`);
+        const delta = round4(after - before);
+        const sku = (lot as any).sku as { id: string; code: string; name: string; currentStock: number | null };
+        await this.prisma.$transaction(async (tx) => {
+          await tx.finishedGoodsLot.update({
+            where: { id: lot.id },
+            data: { remainingQty: after, ...(after <= 0 ? { status: 'DEPLETED' } : lot.status === 'DEPLETED' ? { status: 'ACTIVE' } : {}) },
+          });
+          await tx.sKU.update({ where: { id: lot.skuId }, data: { currentStock: { increment: delta } } });
+        });
+        await this.stockMovements.record({
+          factoryId: lot.factoryId, entityType: 'PRODUCT', entityId: lot.skuId,
+          entityCode: sku.code, entityName: sku.name, movementType: 'ADJUSTMENT',
+          quantity: delta, stockBefore: sku.currentStock ?? 0, stockAfter: round4((sku.currentStock ?? 0) + delta),
+          referenceType: 'FINISHED_GOODS_LOT', referenceId: lot.id, referenceNumber: lot.lotNumber,
+          performedById: userId, notes: reason ? `Lot ${lot.lotNumber}: ${reason}` : `Lot ${lot.lotNumber} adjusted`,
+        });
+        return { entityType, entityId, mode, stockBefore: before, stockAfter: after, unit: lot.unit };
+      }
+
+      default:
+        throw new BadRequestException(`Unsupported entity type: ${entityType}`);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────
   // PRODUCTS (SKUs)
   // ────────────────────────────────────────────────────────────
 

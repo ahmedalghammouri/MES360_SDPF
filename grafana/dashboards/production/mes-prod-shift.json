@@ -191,7 +191,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT COALESCE(SUM(\"actualQty\"),0) AS value FROM shift_instances t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"shiftDate\") AND ('$factory' = '' OR f.code = '$factory')"
+          "rawSql": "WITH scoped AS (\n    SELECT t.\"workOrderId\" wo, t.\"sequenceOrder\" seq, t.\"goodBase\" gb, t.\"scrapBase\" sb,\n           t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT wo, MAX(seq) ms FROM scoped GROUP BY wo),\n  agg AS (SELECT COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,\n                 COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned\n          FROM scoped s JOIN fin f ON f.wo=s.wo) SELECT ROUND(COALESCE(good+scrap,0)::numeric,2) AS value FROM agg"
         }
       ],
       "fieldConfig": {
@@ -309,7 +309,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT COALESCE(AVG(oee),0) AS value FROM shift_instances t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"shiftDate\") AND ('$factory' = '' OR f.code = '$factory')"
+          "rawSql": "WITH scoped AS (\n    SELECT t.\"workOrderId\" wo, t.\"sequenceOrder\" seq, t.\"goodBase\" gb, t.\"scrapBase\" sb,\n           t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT wo, MAX(seq) ms FROM scoped GROUP BY wo),\n  agg AS (SELECT COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,\n                 COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned\n          FROM scoped s JOIN fin f ON f.wo=s.wo) SELECT ROUND(COALESCE((LEAST(100,100.0*run/NULLIF(ppt,0)))*(LEAST(100,100.0*earned/NULLIF(run,0)))*(100.0*good/NULLIF(good+scrap,0))/10000,0)::numeric,2) AS value FROM agg"
         }
       ],
       "fieldConfig": {
@@ -447,7 +447,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT $__timeGroupAlias(t.\"shiftDate\",$__interval), SUM(\"actualQty\") AS \"Actual\" FROM shift_instances t JOIN factories f ON f.id = t.\"factoryId\" WHERE $__timeFilter(t.\"shiftDate\") AND ('$factory' = '' OR f.code = '$factory') GROUP BY 1 ORDER BY 1"
+          "rawSql": "WITH scoped AS (\n    SELECT $__timeGroup(t.\"bucketStart\",$__interval) tg, t.\"workOrderId\" wo, t.\"sequenceOrder\" seq,\n           t.\"goodBase\" gb, t.\"scrapBase\" sb, t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT tg, wo, MAX(seq) ms FROM scoped GROUP BY tg, wo) SELECT s.tg AS time, SUM(s.gb) FILTER (WHERE s.seq=f.ms)+SUM(s.sb) AS \"Actual\" FROM scoped s JOIN fin f ON f.tg=s.tg AND f.wo=s.wo GROUP BY s.tg ORDER BY s.tg"
         },
         {
           "refId": "B",
@@ -516,7 +516,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT s.name AS \"Shift\", t.\"shiftDate\" AS \"Date\", t.\"actualQty\" AS \"Actual\", t.\"targetQty\" AS \"Target\", t.\"goodQty\" AS \"Good\", t.\"scrapQty\" AS \"Scrap\", ROUND(t.oee::numeric,1) AS \"OEE %\" FROM shift_instances t JOIN factories f ON f.id=t.\"factoryId\" JOIN shift_templates s ON s.id=t.\"shiftTemplateId\" WHERE $__timeFilter(t.\"shiftDate\") AND ('$factory' = '' OR f.code = '$factory') ORDER BY t.\"shiftDate\" DESC LIMIT 50"
+          "rawSql": "WITH scoped AS (\n        SELECT t.\"shiftInstanceId\" sid, t.\"workOrderId\" wo, t.\"sequenceOrder\" seq, t.\"goodBase\" gb, t.\"scrapBase\" sb,\n               t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n        FROM production_snapshots t\n        WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine') AND t.\"shiftInstanceId\" IS NOT NULL),\n      fin AS (SELECT sid, wo, MAX(seq) ms FROM scoped GROUP BY sid, wo),\n      agg AS (SELECT s.sid, COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,\n                     COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned\n              FROM scoped s JOIN fin f ON f.sid=s.sid AND f.wo=s.wo GROUP BY s.sid)\n      SELECT st.name AS \"Shift\", si.\"shiftDate\" AS \"Date\", ROUND((good+scrap)::numeric,0) AS \"Actual\",\n             si.\"targetQty\" AS \"Target\", ROUND(good::numeric,0) AS \"Good\", ROUND(scrap::numeric,0) AS \"Scrap\",\n             ROUND(((LEAST(100,100.0*run/NULLIF(ppt,0)))*(LEAST(100,100.0*earned/NULLIF(run,0)))*(100.0*good/NULLIF(good+scrap,0))/10000)::numeric,1) AS \"OEE %\"\n      FROM agg JOIN shift_instances si ON si.id=agg.sid JOIN shift_templates st ON st.id=si.\"shiftTemplateId\"\n      ORDER BY si.\"shiftDate\" DESC LIMIT 50"
         }
       ],
       "fieldConfig": {

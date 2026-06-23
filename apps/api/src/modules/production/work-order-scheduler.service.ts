@@ -57,7 +57,7 @@ export class WorkOrderSchedulerService {
     });
     for (const jo of dueJOs) {
       try {
-        await this.production.updateJobOrderStatus(jo.factoryId, jo.id, 'EXECUTING', {});
+        await this.production.updateJobOrderStatus(jo.factoryId, null, jo.id, 'EXECUTING', {});
         this.logger.log(`Auto-started job order "${jo.operationName}" (plannedStart reached)`);
       } catch {
         /* dependency not met yet — try again next tick */

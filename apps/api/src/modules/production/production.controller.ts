@@ -765,6 +765,6 @@ export class ProductionController {
       notes?: string;
     },
   ) {
-    return this.productionService.updateJobOrderStatus(user.factoryId, id, body.status, body);
+    return this.productionService.updateJobOrderStatus(user.factoryId, user.id, id, body.status, body);
   }
 }

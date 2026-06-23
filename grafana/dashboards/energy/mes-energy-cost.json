@@ -191,7 +191,7 @@
             "type": "postgres",
             "uid": "mes_postgres"
           },
-          "rawSql": "SELECT CASE WHEN SUM(o.\"totalOutput\")>0 THEN ROUND((SELECT COALESCE(SUM(value),0) FROM energy_readings er JOIN factories f2 ON f2.id=er.\"factoryId\" WHERE $__timeFilter(er.\"timestamp\") AND ('$factory'=''  OR f2.code='$factory'))::numeric/NULLIF(SUM(o.\"totalOutput\"),0),3) ELSE 0 END AS value FROM oee_records o JOIN factories f ON f.id=o.\"factoryId\" WHERE $__timeFilter(o.\"recordDate\") AND ('$factory'='' OR f.code='$factory')"
+          "rawSql": "SELECT ROUND((SELECT COALESCE(SUM(value),0) FROM energy_readings er JOIN factories f2 ON f2.id=er.\"factoryId\" WHERE $__timeFilter(er.\"timestamp\") AND ('$factory'='' OR f2.code='$factory'))::numeric / NULLIF((WITH scoped AS (\n    SELECT t.\"workOrderId\" wo, t.\"sequenceOrder\" seq, t.\"goodBase\" gb, t.\"scrapBase\" sb,\n           t.\"plannedMin\" pm, t.\"runMin\" rm, t.\"idealRunMin\" irm\n    FROM production_snapshots t\n    WHERE t.granularity='MINUTE' AND $__timeFilter(t.\"bucketStart\") AND ('$factory'='' OR t.\"factoryId\" IN (SELECT id FROM factories WHERE code='$factory'))\n    AND ('$area'='' OR t.\"areaId\"='$area')\n    AND ('$line'='' OR t.\"lineId\"='$line')\n    AND ('$machine'='' OR t.\"machineId\"='$machine')),\n  fin AS (SELECT wo, MAX(seq) ms FROM scoped GROUP BY wo),\n  agg AS (SELECT COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,\n                 COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned\n          FROM scoped s JOIN fin f ON f.wo=s.wo) SELECT (good+scrap)::numeric FROM agg),0),3) AS value"
         }
       ],
       "fieldConfig": {

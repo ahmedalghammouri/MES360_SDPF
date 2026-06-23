@@ -11,7 +11,7 @@ const CAPA_COLOR: Record<string, string> = { OPEN: '#6175f4', IN_PROGRESS: '#f59
 const NCR_STATUS_COLOR: Record<string, string> = { OPEN: '#f43f5e', IN_REVIEW: '#f59e0b', CAPA_PENDING: '#a855f7', RESOLVED: '#06b6d4', CLOSED: '#22c55e' };
 
 /** First-pass-yield trend (line, 0–100%). */
-export function FpyTrend({ data }: { data: Array<{ time: string; fpy: number }> }) {
+export function FpyTrend({ data, type = 'area' }: { data: Array<{ time: string; fpy: number }>; type?: 'area' | 'line' | 'bar' }) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const option = useMemo(() => ({
@@ -29,14 +29,20 @@ export function FpyTrend({ data }: { data: Array<{ time: string; fpy: number }> 
       axisLabel: { color: isDark ? '#ffffff60' : '#00000060', fontSize: 9, formatter: '{value}%' },
     },
     series: [
-      {
-        type: 'line', smooth: true, showSymbol: false, data: data.map((d) => d.fpy),
-        lineStyle: { color: '#22c55e', width: 2 },
-        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#22c55e30' }, { offset: 1, color: 'transparent' }] } },
-        markLine: { silent: true, symbol: 'none', lineStyle: { color: '#f59e0b80', type: 'dashed' }, data: [{ yAxis: 95 }] },
-      },
+      type === 'bar'
+        ? {
+            type: 'bar', data: data.map((d) => d.fpy),
+            itemStyle: { color: '#22c55e', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 22,
+            markLine: { silent: true, symbol: 'none', lineStyle: { color: '#f59e0b80', type: 'dashed' }, data: [{ yAxis: 95 }] },
+          }
+        : {
+            type: 'line', smooth: true, showSymbol: false, data: data.map((d) => d.fpy),
+            lineStyle: { color: '#22c55e', width: 2 },
+            ...(type === 'area' ? { areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#22c55e30' }, { offset: 1, color: 'transparent' }] } } } : {}),
+            markLine: { silent: true, symbol: 'none', lineStyle: { color: '#f59e0b80', type: 'dashed' }, data: [{ yAxis: 95 }] },
+          },
     ],
-  }), [data, isDark]);
+  }), [data, isDark, type]);
   return <ReactECharts option={option} style={{ height: '180px', width: '100%' }} notMerge />;
 }
 

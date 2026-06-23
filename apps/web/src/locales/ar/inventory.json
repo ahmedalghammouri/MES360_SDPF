@@ -122,7 +122,7 @@
     "col": { "codeName": "الرمز / الاسم", "category": "الفئة", "stockQty": "كمية المخزون", "value": "القيمة (ر.س)", "status": "الحالة" },
     "itemsStored": "عنصر مخزّن", "itemsTracked": "عناصر متتبَّعة", "loading": "جارٍ تحميل المواقع...",
     "loadingShort": "جارٍ التحميل...", "inactive": "غير نشط",
-    "tab": { "summary": "ملخص", "raw": "المواد الخام", "lots": "دفعات المواد", "parts": "قطع الغيار", "skus": "المنتجات/SKU" },
+    "tab": { "summary": "ملخص", "raw": "المواد الخام", "lots": "دفعات المواد", "parts": "قطع الغيار", "skus": "المنتجات/SKU", "fg": "المنتجات التامة" },
     "zones": {
       "RAW_MATERIAL": "مخزن المواد الخام", "SPARE_PARTS": "غرفة قطع الغيار", "FINISHED_GOODS": "المنتجات الجاهزة",
       "QUARANTINE": "الحجر / حجز الجودة", "PRODUCTION": "صالة الإنتاج", "DISPATCH": "الإرسال / الشحن"
@@ -373,6 +373,28 @@
     "noRawAt": "لا توجد مواد خام في هذا الموقع", "noLotsAt": "لا توجد دفعات مواد في هذا الموقع", "noPartsAt": "لا توجد قطع غيار في هذا الموقع", "noSkusAt": "لا توجد منتجات/أصناف مخصّصة لهذا الموقع",
     "lotsCol": { "lotMaterial": "اللوت / المادة", "bin": "الصندوق", "qtyRemaining": "الكمية / المتبقي", "received": "الاستلام", "status": "الحالة", "exp": "الانتهاء" },
     "partsCol": { "partNameHead": "رقم القطعة / الاسم", "binCategory": "الصندوق / الفئة", "stockQty": "كمية المخزون", "value": "القيمة (ر.س)", "status": "الحالة" },
-    "skusCol": { "skuCode": "رمز SKU", "name": "الاسم", "itemNo": "رقم الصنف", "category": "الفئة" }
+    "skusCol": { "skuCode": "رمز SKU", "name": "الاسم", "itemNo": "رقم الصنف", "category": "الفئة", "onHand": "الرصيد" },
+    "noFgAt": "لا توجد دفعات منتجات تامة في هذا الموقع",
+    "fgCol": { "lotSku": "اللوت / المنتج", "produced": "المُنتَج", "remaining": "المتبقي", "producedAt": "تاريخ الإنتاج", "status": "الحالة" },
+    "adjustBtn": "تعديل",
+    "adjust": {
+      "title": "تعديل المخزون",
+      "subtitle": "تحديث أو تصحيح الكمية المتاحة",
+      "mode": "الإجراء",
+      "modeAdd": "إضافة",
+      "modeRemove": "خصم",
+      "modeSet": "ضبط إلى",
+      "modeAddHint": "زيادة الرصيد بهذه الكمية",
+      "modeRemoveHint": "إنقاص الرصيد بهذه الكمية",
+      "modeSetHint": "ضبط الرصيد على هذه الكمية بالضبط (جرد فعلي)",
+      "quantity": "الكمية",
+      "reason": "السبب",
+      "reasonPlaceholder": "مثال: جرد فعلي، تلف، تصحيح…",
+      "current": "الحالي",
+      "resulting": "الناتج",
+      "cancel": "إلغاء",
+      "save": "تطبيق التعديل",
+      "saving": "جارٍ التطبيق…"
+    }
   }
 }

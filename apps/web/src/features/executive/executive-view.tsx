@@ -2,15 +2,13 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { RefreshCw, Factory, Gauge, Activity, Flame, AlertTriangle, ShieldCheck, Wrench } from 'lucide-react';
+import { Factory, Gauge, Activity, Flame, AlertTriangle, ShieldCheck, Wrench } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@/components/ui/button';
-import { TimeRangeFilter } from '@/components/ui/time-range-filter';
+import { DashboardToolbar } from '@/components/ui/dashboard-toolbar';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { ExecutiveComparison, SectionTitle } from '@/features/command-center/command-center-charts';
-import { getOEEColor } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { getOEEColor, cn } from '@/lib/utils';
 
 import { useExecutive } from './use-executive';
 
@@ -43,17 +41,7 @@ export function ExecutiveView() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('executiveCenter.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="realtime-badge">
-            <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" />
-            {t('common:status.live')}
-          </div>
-          <TimeRangeFilter />
-          <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-xs" onClick={handleRefresh}>
-            <RefreshCw size={13} className={cn(isRefreshing && 'animate-spin')} />
-            {t('common:actions.refresh')}
-          </Button>
-        </div>
+        <DashboardToolbar scope={false} time refreshing={isRefreshing} onRefresh={handleRefresh} />
       </div>
 
       {/* Content */}

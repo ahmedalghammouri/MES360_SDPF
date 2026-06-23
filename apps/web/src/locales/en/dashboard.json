@@ -4,7 +4,9 @@
   "dashboardCenter": "Dashboard Center",
   "kpi": {
     "oee": "Overall OEE",
+    "atOee": "OEE (AT)",
     "availability": "Availability",
+    "atAvailability": "Availability (AT)",
     "performance": "Performance",
     "quality": "Quality Rate",
     "output": "Total Output",

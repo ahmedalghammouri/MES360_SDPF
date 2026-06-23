@@ -2,15 +2,12 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { RefreshCw, Zap, Power, BatteryWarning, Activity, Flame, Gauge, TrendingDown } from 'lucide-react';
+import { Zap, Power, BatteryWarning, Activity, Flame, Gauge, TrendingDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@/components/ui/button';
-import { ScopeBadge } from '@/components/ui/scope-badge';
-import { TimeRangeFilter } from '@/components/ui/time-range-filter';
+import { DashboardToolbar, type TrendType } from '@/components/ui/dashboard-toolbar';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { PowerGauge, UtilityBreakdown, SectionTitle } from '@/features/command-center/command-center-charts';
-import { cn } from '@/lib/utils';
 
 import { useEnergyCockpit } from './use-energy-cockpit';
 import { ConsumptionTrend, WasteSplit, UTILITY_COLOR } from './energy-charts';
@@ -22,6 +19,7 @@ export function EnergyCenterView() {
   const { t } = useTranslation(['dashboard', 'common']);
   const { data, isLoading, refetch } = useEnergyCockpit();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [trendType, setTrendType] = useState<TrendType>('line');
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -44,18 +42,13 @@ export function EnergyCenterView() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('energyCenter.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="realtime-badge">
-            <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" />
-            {t('common:status.live')}
-          </div>
-          <ScopeBadge />
-          <TimeRangeFilter />
-          <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-xs" onClick={handleRefresh}>
-            <RefreshCw size={13} className={cn(isRefreshing && 'animate-spin')} />
-            {t('common:actions.refresh')}
-          </Button>
-        </div>
+        <DashboardToolbar
+          time
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          trendType={trendType}
+          onTrendType={setTrendType}
+        />
       </div>
 
       {/* Content */}
@@ -120,7 +113,7 @@ export function EnergyCenterView() {
           <motion.section variants={itemVariants}>
             <SectionTitle icon={Activity} color="#0ea5e9">{t('energyCenter.sections.consumption')}</SectionTitle>
             <div className="industrial-card p-4">
-              <ConsumptionTrend chart={(data?.consumption?.chart ?? []) as Array<Record<string, string | number>>} />
+              <ConsumptionTrend chart={(data?.consumption?.chart ?? []) as Array<Record<string, string | number>>} type={trendType} />
             </div>
           </motion.section>
 

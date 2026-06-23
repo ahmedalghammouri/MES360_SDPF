@@ -1702,7 +1702,7 @@ export class ProductionService {
       for (const r of ready) {
         attempted.add(r.id);
         try {
-          await this.updateJobOrderStatus(factoryId, r.id, 'EXECUTING', {});
+          await this.updateJobOrderStatus(factoryId, null, r.id, 'EXECUTING', {});
         } catch {
           /* start criteria not yet met — leave it READY for the operator */
         }
@@ -1722,7 +1722,7 @@ export class ProductionService {
     });
     for (const jo of running) {
       try {
-        await this.updateJobOrderStatus(factoryId, jo.id, 'PAUSED', {});
+        await this.updateJobOrderStatus(factoryId, null, jo.id, 'PAUSED', {});
       } catch {
         /* best-effort — leave the JO as-is if the transition is rejected */
       }
@@ -2258,7 +2258,7 @@ export class ProductionService {
    */
   private async recordTraceability(
     wo: { id: string; factoryId: string; orderNumber: string; skuId: string | null; plannedQty: number; actualStart: Date | null; productionOrderId: string | null },
-    userId: string,
+    userId: string | null,
     actualQty: number,
     goodQty: number,
     scrapQty: number,
@@ -3740,6 +3740,7 @@ export class ProductionService {
 
   async updateJobOrderStatus(
     factoryId: string | null,
+    userId: string | null,
     jobOrderId: string,
     status: string,
     dto: { actualQtyGood?: number; actualQtyRejected?: number; handoverQty?: number; notes?: string },
@@ -3903,7 +3904,75 @@ export class ProductionService {
     // Roll up live OEE + propagate WO/PO status & broadcast
     await this.kpiService.propagateFromJobOrder(jobOrderId);
 
+    // Step-driven completion: when the last step finishes, the KPI rollup flips the
+    // WO to COMPLETED but does NOT post output to inventory (that lives in the
+    // explicit complete-WO endpoint). Mirror it here so the produced quantity,
+    // unit, and storage location reach finished-goods stock. Idempotent per WO.
+    if (status === 'COMPLETE') {
+      await this.finalizeWorkOrderProduction(factoryId, userId, jo.workOrderId);
+    }
+
     return updated;
+  }
+
+  /**
+   * Finalize a work order that completed through the job-order workflow (every step
+   * COMPLETE → status auto-rolled to COMPLETED by the KPI propagation). Unlike the
+   * explicit completeWorkOrder() endpoint, the step-driven path only rolls up
+   * status/OEE — so without this, produced quantities never reach finished-goods
+   * inventory. Persists the real header quantities (final-step good output; scrap
+   * summed across steps), posts finished goods + genealogy, then refreshes the PO
+   * rollup so completedQty reflects the output. Idempotent (safe on every COMPLETE).
+   */
+  private async finalizeWorkOrderProduction(
+    factoryId: string | null,
+    userId: string | null,
+    workOrderId: string,
+  ): Promise<void> {
+    try {
+      const wo = await this.prisma.workOrder.findFirst({
+        where: { id: workOrderId, ...(factoryId ? { factoryId } : {}) },
+        include: {
+          jobOrders: {
+            orderBy: { sequenceOrder: 'asc' },
+            select: { actualQtyGood: true, actualQtyRejected: true },
+          },
+        },
+      });
+      // Only finalize once the WO has actually rolled to COMPLETED.
+      if (!wo || wo.status !== 'COMPLETED' || wo.jobOrders.length === 0) return;
+
+      // ISA-95 unit-safe output: the final step's good qty is the WO's product
+      // output; scrap is the sum of rejects at every step (units lost anywhere).
+      const lastJo = wo.jobOrders[wo.jobOrders.length - 1];
+      const goodQty = lastJo?.actualQtyGood ?? wo.goodQty ?? 0;
+      const scrapQty = wo.jobOrders.reduce((s, j) => s + (j.actualQtyRejected ?? 0), 0);
+      const actualQty = goodQty + (lastJo?.actualQtyRejected ?? 0);
+      const actualEnd = wo.actualEnd ?? new Date();
+
+      // Persist real header quantities so PO completedQty (Σ wo.goodQty) + reports
+      // reflect the output instead of staying at the planning defaults.
+      await this.prisma.workOrder.update({
+        where: { id: wo.id },
+        data: {
+          goodQty,
+          scrapQty,
+          actualQty,
+          ...(wo.actualEnd ? {} : { actualEnd }),
+          ...(wo.completedById || !userId ? {} : { completedById: userId }),
+        },
+      });
+
+      // Genealogy + finished-goods posting (creates FinishedGoodsLot at the SKU's
+      // storage location, bumps SKU on-hand, writes the RECEIPT movement). Idempotent.
+      await this.recordTraceability(wo, userId, actualQty, goodQty, scrapQty, actualEnd);
+
+      // Refresh the PO rollup now that WO.goodQty is set so completedQty is correct.
+      if (wo.productionOrderId) await this.kpiService.recomputeWorkOrderAndPO(workOrderId);
+    } catch (err) {
+      // Never let finished-goods finalization block the job-order transition.
+      this.logger.error(`finalizeWorkOrderProduction(${workOrderId}) failed`, err as Error);
+    }
   }
 
   /** Report actual output quantities for an EXECUTING or COMPLETE job order.
@@ -4691,28 +4760,21 @@ export class ProductionService {
       ? (oeeTimeBased * utilizationPct) / 100
       : null;
 
-    // ── OEE trend — prefer the InfluxDB historian (real TSDB time-series, both
-    // availability methods); fall back to OEERecord rows if Influx is unavailable.
+    // ── OEE trend — from the persisted fact store (production_snapshots), the
+    // canonical classified source, so the machine's 14-day trend matches every
+    // other dashboard exactly. (Was InfluxDB / OEERecord; now single-sourced.)
     let oeeTrend: any[] = [];
     if (machineId) {
-      const hist = await this.historian.getOeeTrend(
+      oeeTrend = await this.kpiService.snapshotMachineTrend(
+        null, // machineId is globally unique → no factory filter needed
         machineId,
-        new Date(now.getTime() - 14 * 86_400_000).toISOString(),
-        now.toISOString(),
-        1440, // daily resolution → clean 14-day trend
+        new Date(now.getTime() - 14 * 86_400_000),
+        now,
       );
-      oeeTrend = hist.map((h) => ({
-        date: h.time,
-        availability: h.availability,
-        availabilityTb: h.availabilityTb,
-        performance: h.performance,
-        quality: h.quality,
-        oee: h.oee,
-        oeeTb: h.oeeTb,
-      }));
     }
     if (!oeeTrend.length) {
-      // Fallback: relational OEERecord history (classic availability only)
+      // Fallback: relational OEERecord history (classic availability only) — only
+      // used before the fact store has been backfilled for this machine.
       oeeTrend = oeeTrendRecords.map((o) => ({
         date: o.recordDate,
         availability: r1(o.availability),

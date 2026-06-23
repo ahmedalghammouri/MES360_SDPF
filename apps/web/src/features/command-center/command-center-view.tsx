@@ -107,7 +107,7 @@ export function CommandCenterView() {
             <SectionTitle icon={Gauge} color="#6175f4">{t('commandCenter.sections.performance')}</SectionTitle>
             <div className="grid grid-cols-12 gap-4">
               <div className="col-span-12 lg:col-span-4">
-                <OEEGauge oee={kpis?.oee ?? 0} availability={kpis?.availability ?? 0} performance={kpis?.performance ?? 0} quality={kpis?.quality ?? 0} isLoading={isLoading} />
+                <OEEGauge oee={(atOee ? kpis?.oeeTb : kpis?.oee) ?? 0} availability={(atOee ? kpis?.availabilityTb : kpis?.availability) ?? 0} performance={kpis?.performance ?? 0} quality={kpis?.quality ?? 0} isLoading={isLoading} />
               </div>
               <div className="col-span-12 lg:col-span-8">
                 <ProductionTrendChart data={data?.ops?.productionTrend} isLoading={isLoading} />
@@ -158,12 +158,9 @@ export function CommandCenterView() {
                 <UtilityBreakdown byType={energy?.byType ?? {}} />
               </div>
 
-              {/* 7-day electricity trend (render type switchable) */}
+              {/* 7-day electricity trend (render type from toolbar) */}
               <div className="industrial-card p-4 col-span-12">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-semibold text-muted-foreground">{t('commandCenter.energy.trend')}</div>
-                  <TrendTypeToggle value={trendType} onChange={setTrendType} />
-                </div>
+                <div className="text-xs font-semibold text-muted-foreground mb-2">{t('commandCenter.energy.trend')}</div>
                 <div className="h-40"><EnergyTrend data={energy?.trend ?? []} type={trendType} /></div>
               </div>
             </div>

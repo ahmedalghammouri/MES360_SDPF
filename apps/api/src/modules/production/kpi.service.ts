@@ -462,6 +462,32 @@ export class KpiService {
     };
   }
 
+  /**
+   * Per-day full OEE breakdown for ONE machine, from the fact store. The canonical
+   * machine OEE trend — replaces the InfluxDB / OEERecord machine history so the JO
+   * detail (and any machine analytics) matches every other dashboard exactly.
+   * Each day uses the final step per WO on that machine, A/P/Q/OEE (+ time-based)
+   * recomputed from the summed quantities.
+   */
+  async snapshotMachineTrend(factoryId: string | null, machineId: string, from: Date, to: Date) {
+    const where = this.snapWhere(factoryId, from, to, [machineId]);
+    const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      WITH scoped AS (SELECT *, date_trunc('day', "bucketStart") AS d FROM production_snapshots WHERE ${where}),
+           fin AS (SELECT d, "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY d, "workOrderId")
+      SELECT s.d AS date, ${this.snapMetricCols('f')}
+      FROM scoped s JOIN fin f ON f.d = s.d AND f."workOrderId" = s."workOrderId"
+      GROUP BY s.d ORDER BY s.d`);
+    return rows.map((r) => {
+      const b = this.snapMetrics(r.good, r.scrap, r.ppt, r.run, r.down, r.earned);
+      return {
+        date: r.date,
+        availability: b.availability, availabilityTb: b.availabilityTb,
+        performance: b.performance, quality: b.quality,
+        oee: b.oee, oeeTb: b.oeeTb,
+      };
+    });
+  }
+
   /** Hierarchy node built from JOs (final-step counts) instead of pre-summed children. */
   private nodeFromJos(id: string, name: string, code: string | null, type: string, jos: JoLite[], win: { from: number; to: number }, childNodes?: unknown[]) {
     const b = this.aggregateJos(jos, win);

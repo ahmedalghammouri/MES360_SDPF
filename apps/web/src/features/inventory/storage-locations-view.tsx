@@ -10,7 +10,7 @@ import {
   Eye, AlertTriangle, Boxes, Calendar, DollarSign,
   Hash, Archive, CheckCircle2, QrCode, Printer,
   ToggleLeft, ToggleRight, Info, RefreshCw,
-  ChevronRight, MoreHorizontal,
+  ChevronRight, MoreHorizontal, SlidersHorizontal, Plus as PlusIcon, Minus, Equal,
 } from 'lucide-react';
 import { api } from '@/services/api.client';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,17 @@ const LOT_STATUS_CFG: Record<string, { labelKey: string; cls: string }> = {
   CONSUMED:   { labelKey: 'storageView.lotStatus.CONSUMED',   cls: 'bg-muted text-muted-foreground'                     },
 };
 
-type Tab = 'summary' | 'raw' | 'lots' | 'parts' | 'skus';
+type Tab = 'summary' | 'raw' | 'lots' | 'parts' | 'skus' | 'fg';
+
+/** Target descriptor for the unified stock-adjustment modal. */
+interface AdjustTarget {
+  entityType: 'RAW_MATERIAL' | 'SPARE_PART' | 'PRODUCT' | 'MATERIAL_LOT' | 'FINISHED_GOODS_LOT';
+  entityId: string;
+  code: string;
+  name: string;
+  current: number;
+  unit?: string;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Interfaces                                                          */
@@ -74,7 +84,13 @@ interface LocationContents {
     stockQty: number; minStockQty: number; unitCost?: number; binNumber?: string;
     isLowStock: boolean; stockValue: number;
   }[];
-  skus: { id: string; code: string; name: string; itemNumber?: string; category?: string }[];
+  skus: { id: string; code: string; name: string; itemNumber?: string; category?: string; currentStock?: number; baseUnit?: string }[];
+  finishedGoodsLots?: {
+    id: string; lotNumber: string; quantity: number; remainingQty: number; unit: string;
+    producedQty?: number; producedUnit?: string; producedAt?: string; expiryDate?: string;
+    sku?: { code: string; name: string; itemNumber?: string };
+    workOrder?: { orderNumber: string };
+  }[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -504,7 +520,9 @@ function LocationContentsSheet({ locationId, onClose, onEdit }: {
   onEdit: (loc: any) => void;
 }) {
   const { t, i18n } = useTranslation(['inventory', 'common']);
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('summary');
+  const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['location-contents', locationId],
@@ -513,8 +531,24 @@ function LocationContentsSheet({ locationId, onClose, onEdit }: {
     staleTime: 15_000,
   });
 
+  const adjustMutation = useMutation({
+    mutationFn: (dto: { entityType: string; entityId: string; mode: string; quantity: number; reason?: string }) =>
+      api.post('/inventory/adjust', dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['location-contents', locationId] });
+      queryClient.invalidateQueries({ queryKey: ['storage-locations'] });
+      // Refresh any open inventory lists so on-hand stays consistent everywhere.
+      queryClient.invalidateQueries({ queryKey: ['raw-materials'] });
+      queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['materials'] });
+      setAdjustTarget(null);
+    },
+  });
+
   const contents = data as LocationContents | undefined;
   const zone = ZONES.find(z => z.value === contents?.zone) ?? ZONES[0];
+  const fgLots = contents?.finishedGoodsLots ?? [];
 
   const tabs: { id: Tab; label: string; count: number; icon: React.ElementType }[] = [
     { id: 'summary', label: t('storage.tab.summary'), count: 0,                                icon: Info          },
@@ -522,6 +556,7 @@ function LocationContentsSheet({ locationId, onClose, onEdit }: {
     { id: 'lots',    label: t('storage.tab.lots'),    count: contents?.materialLots.length ?? 0, icon: Archive       },
     { id: 'parts',   label: t('storage.tab.parts'),   count: contents?.spareParts.length ?? 0,   icon: Settings      },
     { id: 'skus',    label: t('storage.tab.skus'),    count: contents?.skus.length ?? 0,         icon: QrCode        },
+    { id: 'fg',      label: t('storage.tab.fg', { defaultValue: 'Finished Goods' }), count: fgLots.length, icon: Warehouse },
   ];
 
   return (
@@ -604,11 +639,20 @@ function LocationContentsSheet({ locationId, onClose, onEdit }: {
           )}
 
           {!isLoading && contents && tab === 'summary' && <SummaryTab contents={contents} zone={zone} />}
-          {!isLoading && contents && tab === 'raw'     && <RawMaterialsTab items={contents.rawMaterials} />}
-          {!isLoading && contents && tab === 'lots'    && <MaterialLotsTab items={contents.materialLots} />}
-          {!isLoading && contents && tab === 'parts'   && <SparePartsTab items={contents.spareParts} />}
-          {!isLoading && contents && tab === 'skus'    && <SKUsTab items={contents.skus} />}
+          {!isLoading && contents && tab === 'raw'     && <RawMaterialsTab items={contents.rawMaterials} onAdjust={setAdjustTarget} />}
+          {!isLoading && contents && tab === 'lots'    && <MaterialLotsTab items={contents.materialLots} onAdjust={setAdjustTarget} />}
+          {!isLoading && contents && tab === 'parts'   && <SparePartsTab items={contents.spareParts} onAdjust={setAdjustTarget} />}
+          {!isLoading && contents && tab === 'skus'    && <SKUsTab items={contents.skus} onAdjust={setAdjustTarget} />}
+          {!isLoading && contents && tab === 'fg'      && <FinishedGoodsTab items={fgLots} onAdjust={setAdjustTarget} />}
         </div>
+
+        {/* Unified stock-adjustment modal */}
+        <AdjustStockModal
+          target={adjustTarget}
+          onClose={() => setAdjustTarget(null)}
+          onSubmit={(dto) => adjustMutation.mutate(dto)}
+          isPending={adjustMutation.isPending}
+        />
       </SheetContent>
     </Sheet>
   );
@@ -709,7 +753,7 @@ function SummaryTab({ contents, zone }: { contents: LocationContents; zone: type
 /*  Tab — Raw Materials                                                 */
 /* ------------------------------------------------------------------ */
 
-function RawMaterialsTab({ items }: { items: LocationContents['rawMaterials'] }) {
+function RawMaterialsTab({ items, onAdjust }: { items: LocationContents['rawMaterials']; onAdjust: (t: AdjustTarget) => void }) {
   const { t } = useTranslation(['inventory', 'common']);
   if (items.length === 0) return <EmptyTab label={t('storageView.noRawAt')} />;
   return (
@@ -722,6 +766,7 @@ function RawMaterialsTab({ items }: { items: LocationContents['rawMaterials'] })
             <th className="text-end px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storage.col.stockQty')}</th>
             <th className="text-end px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storage.col.value')}</th>
             <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storage.col.status')}</th>
+            <th className="px-3 py-2.5" />
           </tr>
         </thead>
         <tbody>
@@ -748,6 +793,9 @@ function RawMaterialsTab({ items }: { items: LocationContents['rawMaterials'] })
                   </span>
                 )}
               </td>
+              <td className="px-3 py-2.5 text-end">
+                <AdjustButton onClick={() => onAdjust({ entityType: 'RAW_MATERIAL', entityId: r.id, code: r.code, name: r.name, current: r.stockQty, unit: r.unit })} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -760,7 +808,7 @@ function RawMaterialsTab({ items }: { items: LocationContents['rawMaterials'] })
 /*  Tab — Material Lots                                                 */
 /* ------------------------------------------------------------------ */
 
-function MaterialLotsTab({ items }: { items: LocationContents['materialLots'] }) {
+function MaterialLotsTab({ items, onAdjust }: { items: LocationContents['materialLots']; onAdjust: (t: AdjustTarget) => void }) {
   const { t } = useTranslation(['inventory', 'common']);
   if (items.length === 0) return <EmptyTab label={t('storageView.noLotsAt')} />;
   return (
@@ -773,6 +821,7 @@ function MaterialLotsTab({ items }: { items: LocationContents['materialLots'] })
             <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.lotsCol.qtyRemaining')}</th>
             <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.lotsCol.received')}</th>
             <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.lotsCol.status')}</th>
+            <th className="px-3 py-2.5" />
           </tr>
         </thead>
         <tbody>
@@ -805,6 +854,9 @@ function MaterialLotsTab({ items }: { items: LocationContents['materialLots'] })
                 <td className="px-3 py-2.5 text-center">
                   <span className={cn('inline-block text-[10px] px-1.5 py-0.5 rounded border', statusCls)}>{statusLabel}</span>
                 </td>
+                <td className="px-3 py-2.5 text-end">
+                  <AdjustButton onClick={() => onAdjust({ entityType: 'MATERIAL_LOT', entityId: lot.id, code: lot.lotNumber, name: lot.materialName, current: lot.remainingQty ?? 0, unit: lot.unit })} />
+                </td>
               </tr>
             );
           })}
@@ -818,7 +870,7 @@ function MaterialLotsTab({ items }: { items: LocationContents['materialLots'] })
 /*  Tab — Spare Parts                                                   */
 /* ------------------------------------------------------------------ */
 
-function SparePartsTab({ items }: { items: LocationContents['spareParts'] }) {
+function SparePartsTab({ items, onAdjust }: { items: LocationContents['spareParts']; onAdjust: (t: AdjustTarget) => void }) {
   const { t } = useTranslation(['inventory', 'common']);
   if (items.length === 0) return <EmptyTab label={t('storageView.noPartsAt')} />;
   return (
@@ -831,6 +883,7 @@ function SparePartsTab({ items }: { items: LocationContents['spareParts'] }) {
             <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.partsCol.stockQty')}</th>
             <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.partsCol.value')}</th>
             <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.partsCol.status')}</th>
+            <th className="px-3 py-2.5" />
           </tr>
         </thead>
         <tbody>
@@ -857,6 +910,9 @@ function SparePartsTab({ items }: { items: LocationContents['spareParts'] }) {
                   </span>
                 )}
               </td>
+              <td className="px-3 py-2.5 text-end">
+                <AdjustButton onClick={() => onAdjust({ entityType: 'SPARE_PART', entityId: p.id, code: p.partNumber, name: p.name, current: p.stockQty })} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -869,7 +925,7 @@ function SparePartsTab({ items }: { items: LocationContents['spareParts'] }) {
 /*  Tab — SKUs / Products                                               */
 /* ------------------------------------------------------------------ */
 
-function SKUsTab({ items }: { items: LocationContents['skus'] }) {
+function SKUsTab({ items, onAdjust }: { items: LocationContents['skus']; onAdjust: (t: AdjustTarget) => void }) {
   const { t } = useTranslation(['inventory', 'common']);
   if (items.length === 0) return <EmptyTab label={t('storageView.noSkusAt')} />;
   return (
@@ -880,21 +936,232 @@ function SKUsTab({ items }: { items: LocationContents['skus'] }) {
             <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.skusCol.skuCode')}</th>
             <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.skusCol.name')}</th>
             <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.skusCol.itemNo')}</th>
-            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.skusCol.category')}</th>
+            <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.skusCol.onHand')}</th>
+            <th className="px-3 py-2.5" />
           </tr>
         </thead>
         <tbody>
           {items.map((s, i) => (
             <tr key={s.id} className={cn('border-b last:border-0', i % 2 === 0 ? 'bg-background' : 'bg-muted/10')}>
               <td className="px-3 py-2.5 font-mono text-xs font-bold text-green-400">{s.code}</td>
-              <td className="px-3 py-2.5 text-xs truncate max-w-[180px]">{s.name}</td>
+              <td className="px-3 py-2.5 text-xs truncate max-w-[160px]">{s.name}</td>
               <td className="px-3 py-2.5 text-xs text-muted-foreground font-mono">{s.itemNumber ?? '—'}</td>
-              <td className="px-3 py-2.5 text-xs text-muted-foreground">{s.category ?? '—'}</td>
+              <td className="px-3 py-2.5 text-right">
+                <span className="font-medium">{(s.currentStock ?? 0).toLocaleString()}</span>
+                <span className="text-xs text-muted-foreground ml-1">{s.baseUnit ?? ''}</span>
+              </td>
+              <td className="px-3 py-2.5 text-end">
+                <AdjustButton onClick={() => onAdjust({ entityType: 'PRODUCT', entityId: s.id, code: s.code, name: s.name, current: s.currentStock ?? 0, unit: s.baseUnit })} />
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tab — Finished Goods Lots                                          */
+/* ------------------------------------------------------------------ */
+
+function FinishedGoodsTab({ items, onAdjust }: { items: NonNullable<LocationContents['finishedGoodsLots']>; onAdjust: (t: AdjustTarget) => void }) {
+  const { t } = useTranslation(['inventory', 'common']);
+  if (items.length === 0) return <EmptyTab label={t('storageView.noFgAt')} />;
+  return (
+    <div className="border rounded-xl overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/30 border-b">
+          <tr>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.fgCol.lotSku')}</th>
+            <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.fgCol.produced')}</th>
+            <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.fgCol.remaining')}</th>
+            <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">{t('storageView.fgCol.producedAt')}</th>
+            <th className="px-3 py-2.5" />
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((lot, i) => {
+            const pct = lot.quantity > 0 ? ((lot.remainingQty ?? 0) / lot.quantity) * 100 : 0;
+            return (
+              <tr key={lot.id} className={cn('border-b last:border-0', i % 2 === 0 ? 'bg-background' : 'bg-muted/10')}>
+                <td className="px-3 py-2.5">
+                  <div className="font-mono text-xs font-bold text-green-400">{lot.lotNumber}</div>
+                  <div className="text-xs text-muted-foreground truncate max-w-[180px]">{lot.sku ? `${lot.sku.code} — ${lot.sku.name}` : ''}</div>
+                </td>
+                <td className="px-3 py-2.5 text-right text-xs text-muted-foreground">
+                  {lot.producedQty != null ? `${lot.producedQty.toLocaleString()} ${lot.producedUnit ?? ''}` : `${lot.quantity.toLocaleString()} ${lot.unit}`}
+                </td>
+                <td className="px-3 py-2.5 text-right">
+                  <div className="text-xs font-medium">{(lot.remainingQty ?? 0).toLocaleString()} / {lot.quantity.toLocaleString()} {lot.unit}</div>
+                  <div className="w-16 h-1 rounded-full bg-muted overflow-hidden ml-auto mt-1">
+                    <div className={cn('h-full rounded-full', pct < 20 ? 'bg-red-400' : pct < 50 ? 'bg-amber-400' : 'bg-green-400')} style={{ width: `${pct}%` }} />
+                  </div>
+                </td>
+                <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                  {lot.producedAt ? new Date(lot.producedAt).toLocaleDateString() : '—'}
+                  {lot.workOrder && <div className="text-[10px] font-mono">{lot.workOrder.orderNumber}</div>}
+                </td>
+                <td className="px-3 py-2.5 text-end">
+                  <AdjustButton onClick={() => onAdjust({ entityType: 'FINISHED_GOODS_LOT', entityId: lot.id, code: lot.lotNumber, name: lot.sku?.name ?? lot.lotNumber, current: lot.remainingQty ?? 0, unit: lot.unit })} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Adjust button + unified adjustment modal                            */
+/* ------------------------------------------------------------------ */
+
+function AdjustButton({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation(['inventory', 'common']);
+  return (
+    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onClick}>
+      <SlidersHorizontal size={11} className="me-1" /> {t('storageView.adjustBtn')}
+    </Button>
+  );
+}
+
+const ADJUST_MODES = [
+  { value: 'SET',    icon: Equal,    labelKey: 'storageView.adjust.modeSet',    hintKey: 'storageView.adjust.modeSetHint'    },
+  { value: 'ADD',    icon: PlusIcon, labelKey: 'storageView.adjust.modeAdd',    hintKey: 'storageView.adjust.modeAddHint'    },
+  { value: 'REMOVE', icon: Minus,    labelKey: 'storageView.adjust.modeRemove', hintKey: 'storageView.adjust.modeRemoveHint' },
+] as const;
+
+function AdjustStockModal({ target, onClose, onSubmit, isPending }: {
+  target: AdjustTarget | null;
+  onClose: () => void;
+  onSubmit: (dto: { entityType: string; entityId: string; mode: string; quantity: number; reason?: string }) => void;
+  isPending: boolean;
+}) {
+  const { t } = useTranslation(['inventory', 'common']);
+  const [mode, setMode] = useState<'ADD' | 'REMOVE' | 'SET'>('SET');
+  const [quantity, setQuantity] = useState('');
+  const [reason, setReason] = useState('');
+
+  // Reset the form whenever a new target opens.
+  React.useEffect(() => {
+    if (target) {
+      setMode('SET');
+      setQuantity(String(target.current ?? 0));
+      setReason('');
+    }
+  }, [target?.entityId]);
+
+  if (!target) return null;
+
+  const qtyNum = parseFloat(quantity);
+  const valid = Number.isFinite(qtyNum) && qtyNum >= 0;
+  const resulting = !valid ? target.current
+    : mode === 'ADD' ? target.current + qtyNum
+    : mode === 'REMOVE' ? target.current - qtyNum
+    : qtyNum;
+  const wouldGoNegative = resulting < 0;
+  const activeMode = ADJUST_MODES.find(m => m.value === mode)!;
+
+  return (
+    <AnimatePresence>
+      {target && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-background border rounded-xl shadow-2xl w-full max-w-md p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <SlidersHorizontal size={16} className="text-primary" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm">{t('storageView.adjust.title')}</h3>
+                <p className="text-xs text-muted-foreground truncate">
+                  <span className="font-mono">{target.code}</span> — {target.name}
+                </p>
+              </div>
+            </div>
+
+            {/* Mode selector */}
+            <div className="flex flex-col gap-1.5 mb-4">
+              <Label>{t('storageView.adjust.mode')}</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {ADJUST_MODES.map(m => (
+                  <button
+                    key={m.value}
+                    onClick={() => setMode(m.value)}
+                    className={cn(
+                      'flex items-center justify-center gap-1.5 h-9 rounded-lg border text-xs font-medium transition-colors',
+                      mode === m.value ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted',
+                    )}
+                  >
+                    <m.icon size={12} /> {t(m.labelKey)}
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs text-muted-foreground">{t(activeMode.hintKey)}</span>
+            </div>
+
+            {/* Quantity */}
+            <div className="flex flex-col gap-1.5 mb-4">
+              <Label>{t('storageView.adjust.quantity')}{target.unit ? ` (${target.unit})` : ''}</Label>
+              <Input
+                type="number" min="0" step="any" autoFocus
+                value={quantity}
+                onChange={e => setQuantity(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+
+            {/* Current → Resulting preview */}
+            <div className="flex items-center justify-between gap-3 mb-4 p-3 rounded-lg bg-muted/40 border text-sm">
+              <div className="text-center flex-1">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{t('storageView.adjust.current')}</div>
+                <div className="font-bold">{target.current.toLocaleString()}</div>
+              </div>
+              <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+              <div className="text-center flex-1">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{t('storageView.adjust.resulting')}</div>
+                <div className={cn('font-bold', wouldGoNegative ? 'text-red-400' : 'text-green-400')}>
+                  {valid ? resulting.toLocaleString() : '—'}
+                </div>
+              </div>
+            </div>
+
+            {/* Reason */}
+            <div className="flex flex-col gap-1.5 mb-5">
+              <Label>{t('storageView.adjust.reason')}</Label>
+              <Input
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                placeholder={t('storageView.adjust.reasonPlaceholder')}
+                className="h-9 text-sm"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={onClose}>{t('storageView.adjust.cancel')}</Button>
+              <Button
+                size="sm"
+                disabled={!valid || wouldGoNegative || isPending}
+                onClick={() => onSubmit({
+                  entityType: target.entityType,
+                  entityId: target.entityId,
+                  mode,
+                  quantity: qtyNum,
+                  reason: reason.trim() || undefined,
+                })}
+              >
+                {isPending ? t('storageView.adjust.saving') : t('storageView.adjust.save')}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }
 

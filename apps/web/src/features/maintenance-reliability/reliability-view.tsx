@@ -3,17 +3,15 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  RefreshCw, Wrench, AlertTriangle, Clock, Activity, ShieldCheck, Cpu, TrendingUp, Layers,
+  Wrench, AlertTriangle, Clock, Activity, ShieldCheck, Cpu, TrendingUp, Layers,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@/components/ui/button';
-import { ScopeBadge } from '@/components/ui/scope-badge';
+import { DashboardToolbar } from '@/components/ui/dashboard-toolbar';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { MTTRMTBFChart } from '@/components/charts/mttr-mtbf-chart';
 import { SectionTitle } from '@/features/command-center/command-center-charts';
 import { useScope } from '@/hooks/use-scope';
-import { cn } from '@/lib/utils';
 
 import { useReliabilityCockpit } from './use-reliability-cockpit';
 import { BreakdownDonut, AgingBars, AssetReliabilityChart, STATUS_COLOR, TYPE_COLOR } from './reliability-charts';
@@ -60,17 +58,7 @@ export function ReliabilityView() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('cockpit.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="realtime-badge">
-            <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" />
-            {t('common:status.live')}
-          </div>
-          <ScopeBadge />
-          <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-xs" onClick={handleRefresh}>
-            <RefreshCw size={13} className={cn(isRefreshing && 'animate-spin')} />
-            {t('common:actions.refresh')}
-          </Button>
-        </div>
+        <DashboardToolbar refreshing={isRefreshing} onRefresh={handleRefresh} />
       </div>
 
       {/* Content */}

@@ -15,7 +15,7 @@ const UTILITY_COLOR: Record<string, string> = {
 };
 
 /** Multi-utility daily consumption — one line per utility type present in the data. */
-export function ConsumptionTrend({ chart }: { chart: Array<Record<string, string | number>> }) {
+export function ConsumptionTrend({ chart, type = 'line' }: { chart: Array<Record<string, string | number>>; type?: 'area' | 'line' | 'bar' }) {
   const { t } = useTranslation('dashboard');
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
@@ -44,14 +44,20 @@ export function ConsumptionTrend({ chart }: { chart: Array<Record<string, string
       splitLine: { lineStyle: { color: isDark ? '#ffffff10' : '#00000010' } },
       axisLabel: { color: isDark ? '#ffffff60' : '#00000060', fontSize: 9 },
     },
-    series: types.map((ty) => ({
-      name: t(`commandCenter.types.${ty}`, { defaultValue: ty }),
-      type: 'line', smooth: true, showSymbol: false,
-      data: chart.map((r) => (r[ty] as number) ?? 0),
-      lineStyle: { color: UTILITY_COLOR[ty] ?? '#64748b', width: 2 },
-      itemStyle: { color: UTILITY_COLOR[ty] ?? '#64748b' },
-    })),
-  }), [chart, types, isDark, t]);
+    series: types.map((ty) => {
+      const color = UTILITY_COLOR[ty] ?? '#64748b';
+      const name = t(`commandCenter.types.${ty}`, { defaultValue: ty });
+      const series = chart.map((r) => (r[ty] as number) ?? 0);
+      if (type === 'bar') {
+        return { name, type: 'bar', stack: 'util', data: series, itemStyle: { color }, barMaxWidth: 26 };
+      }
+      return {
+        name, type: 'line', smooth: true, showSymbol: false, data: series,
+        lineStyle: { color, width: 2 }, itemStyle: { color },
+        ...(type === 'area' ? { areaStyle: { color: `${color}26` } } : {}),
+      };
+    }),
+  }), [chart, types, isDark, t, type]);
 
   if (chart.length === 0) {
     return <div className="flex h-56 items-center justify-center text-xs text-muted-foreground">{t('energyCenter.noConsumption')}</div>;

@@ -337,15 +337,31 @@ D('production', mkDash({
   uid: 'mes-prod-shift', title: 'Shift Performance', tags: ['production', 'shift'],
   description: 'Output, OEE and losses by shift instance.',
   panels: [
-    stat('Shift Output', `SELECT COALESCE(SUM("actualQty"),0) AS value FROM shift_instances t ${F_JOIN} WHERE $__timeFilter(t."shiftDate") AND ${F_WHERE}`, { steps: [{ color: 'green', value: null }] }),
+    // Output from the fact store (final-step, base units) so it matches every other dashboard.
+    stat('Shift Output', snapVal('good+scrap'), { steps: [{ color: 'green', value: null }] }),
     stat('Target', `SELECT COALESCE(SUM("targetQty"),0) AS value FROM shift_instances t ${F_JOIN} WHERE $__timeFilter(t."shiftDate") AND ${F_WHERE}`, { steps: [{ color: 'blue', value: null }] }),
-    stat('Avg OEE', `SELECT COALESCE(AVG(oee),0) AS value FROM shift_instances t ${F_JOIN} WHERE $__timeFilter(t."shiftDate") AND ${F_WHERE}`, { unit: 'percent', steps: OEE_STEPS }),
+    // OEE from the fact store (canonical, final-step) so it matches every other dashboard.
+    stat('Avg OEE', snapVal(OEE_PCT), { unit: 'percent', steps: OEE_STEPS }),
     stat('Downtime (min)', `SELECT COALESCE(SUM("downtimeMinutes"),0) AS value FROM shift_instances t ${F_JOIN} WHERE $__timeFilter(t."shiftDate") AND ${F_WHERE}`, { unit: 'm', steps: BAD_HIGH }),
     timeseries('Shift Output vs Target', [
-      pgTarget(`SELECT $__timeGroupAlias(t."shiftDate",$__interval), SUM("actualQty") AS "Actual" FROM shift_instances t ${F_JOIN} WHERE $__timeFilter(t."shiftDate") AND ${F_WHERE} GROUP BY 1 ORDER BY 1`, 'time_series', 'A'),
+      pgTarget(snapTs(`${gGood}+SUM(s.sb)`, 'Actual'), 'time_series', 'A'),
       pgTarget(`SELECT $__timeGroupAlias(t."shiftDate",$__interval), SUM("targetQty") AS "Target" FROM shift_instances t ${F_JOIN} WHERE $__timeFilter(t."shiftDate") AND ${F_WHERE} GROUP BY 1 ORDER BY 1`, 'time_series', 'B'),
     ], { w: 24 }),
-    table('Shift Detail', `SELECT s.name AS "Shift", t."shiftDate" AS "Date", t."actualQty" AS "Actual", t."targetQty" AS "Target", t."goodQty" AS "Good", t."scrapQty" AS "Scrap", ROUND(t.oee::numeric,1) AS "OEE %" FROM shift_instances t JOIN factories f ON f.id=t."factoryId" JOIN shift_templates s ON s.id=t."shiftTemplateId" WHERE $__timeFilter(t."shiftDate") AND ${F_WHERE} ORDER BY t."shiftDate" DESC LIMIT 50`),
+    // Per-shift-instance detail from the fact store (final step per WO within each shift).
+    table('Shift Detail', `WITH scoped AS (
+        SELECT t."shiftInstanceId" sid, t."workOrderId" wo, t."sequenceOrder" seq, t."goodBase" gb, t."scrapBase" sb,
+               t."plannedMin" pm, t."runMin" rm, t."idealRunMin" irm
+        FROM production_snapshots t
+        WHERE t.granularity='MINUTE' AND $__timeFilter(t."bucketStart") AND ${SNAP_SCOPE} AND t."shiftInstanceId" IS NOT NULL),
+      fin AS (SELECT sid, wo, MAX(seq) ms FROM scoped GROUP BY sid, wo),
+      agg AS (SELECT s.sid, COALESCE(SUM(s.gb) FILTER (WHERE s.seq=f.ms),0) good, COALESCE(SUM(s.sb),0) scrap,
+                     COALESCE(SUM(s.pm),0) ppt, COALESCE(SUM(s.rm),0) run, COALESCE(SUM(s.irm),0) earned
+              FROM scoped s JOIN fin f ON f.sid=s.sid AND f.wo=s.wo GROUP BY s.sid)
+      SELECT st.name AS "Shift", si."shiftDate" AS "Date", ROUND((good+scrap)::numeric,0) AS "Actual",
+             si."targetQty" AS "Target", ROUND(good::numeric,0) AS "Good", ROUND(scrap::numeric,0) AS "Scrap",
+             ROUND((${OEE_PCT})::numeric,1) AS "OEE %"
+      FROM agg JOIN shift_instances si ON si.id=agg.sid JOIN shift_templates st ON st.id=si."shiftTemplateId"
+      ORDER BY si."shiftDate" DESC LIMIT 50`),
   ],
 }));
 
@@ -829,7 +845,7 @@ D('energy', mkDash({
   uid: 'mes-energy-cost', title: 'Utility Cost Analysis', tags: ['energy', 'cost'],
   description: 'Energy cost and energy-per-unit.',
   panels: [
-    stat('Energy/Unit (kWh)', `SELECT CASE WHEN SUM(o."totalOutput")>0 THEN ROUND((SELECT COALESCE(SUM(value),0) FROM energy_readings er JOIN factories f2 ON f2.id=er."factoryId" WHERE $__timeFilter(er."timestamp") AND ('$factory'=''  OR f2.code='$factory'))::numeric/NULLIF(SUM(o."totalOutput"),0),3) ELSE 0 END AS value FROM oee_records o JOIN factories f ON f.id=o."factoryId" WHERE $__timeFilter(o."recordDate") AND ('$factory'='' OR f.code='$factory')`, { unit: 'kwatth' }),
+    stat('Energy/Unit (kWh)', `SELECT ROUND((SELECT COALESCE(SUM(value),0) FROM energy_readings er JOIN factories f2 ON f2.id=er."factoryId" WHERE $__timeFilter(er."timestamp") AND ('$factory'='' OR f2.code='$factory'))::numeric / NULLIF((${SNAP_AGG} SELECT (good+scrap)::numeric FROM agg),0),3) AS value`, { unit: 'kwatth' }),
     stat('Total kWh', `SELECT ROUND(COALESCE(SUM(t.value),0)::numeric,1) AS value FROM energy_readings t ${ER_W}`, { unit: 'kwatth' }),
     timeseries('Daily Consumption', [pgTarget(`SELECT $__timeGroupAlias(t."timestamp",'1d'), SUM(t.value) AS "kWh" FROM energy_readings t ${ER_W} GROUP BY 1 ORDER BY 1`, 'time_series')], { w: 24, unit: 'kwatth' }),
   ],
