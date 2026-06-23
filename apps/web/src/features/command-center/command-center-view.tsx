@@ -110,7 +110,7 @@ export function CommandCenterView() {
                 <OEEGauge oee={(atOee ? kpis?.oeeTb : kpis?.oee) ?? 0} availability={(atOee ? kpis?.availabilityTb : kpis?.availability) ?? 0} performance={kpis?.performance ?? 0} quality={kpis?.quality ?? 0} isLoading={isLoading} />
               </div>
               <div className="col-span-12 lg:col-span-8">
-                <ProductionTrendChart data={data?.ops?.productionTrend} isLoading={isLoading} />
+                <ProductionTrendChart data={data?.ops?.productionTrend} isLoading={isLoading} trendType={trendType} />
               </div>
             </div>
           </motion.section>
@@ -171,7 +171,7 @@ export function CommandCenterView() {
             <SectionTitle icon={AlertTriangle} color="#f43f5e">{t('commandCenter.sections.losses')}</SectionTitle>
             <div className="grid grid-cols-12 gap-4">
               <div className="col-span-12 lg:col-span-6"><DowntimePareto data={data?.ops?.downtimePareto} isLoading={isLoading} /></div>
-              <div className="col-span-12 lg:col-span-6"><QualityTrendChart data={data?.ops?.qualityTrend} isLoading={isLoading} /></div>
+              <div className="col-span-12 lg:col-span-6"><QualityTrendChart data={data?.ops?.qualityTrend} isLoading={isLoading} trendType={trendType} /></div>
             </div>
           </motion.section>
 

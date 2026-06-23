@@ -4,7 +4,10 @@
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const x=JSON.parse\\(d\\).data||JSON.parse\\(d\\);console.log\\('dashboard actualOutput=',x.productionStatus?.actualOutput,' kpiOEE=',x.kpis?.oee\\)}\\)\")",
       "Bash(python -)",
       "Bash(node grafana/generate.mjs)",
-      "Bash(node grafana/test-queries.mjs)"
+      "Bash(node grafana/test-queries.mjs)",
+      "Bash(awk 'NR>=2150 && NR<=2305 && \\(/private async|async [a-zA-Z]+\\\\\\(|public async/\\)' production.service.ts)",
+      "Bash(echo \"exit: $?\")",
+      "Read(//tmp/**)"
     ]
   }
 }

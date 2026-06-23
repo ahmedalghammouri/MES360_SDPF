@@ -8,9 +8,11 @@ import { useTheme } from 'next-themes';
 interface QualityTrendProps {
   data?: Array<{ time: string; fpy: number; rework: number; scrap: number }>;
   isLoading?: boolean;
+  /** Render style for the primary (FPY) series, driven by the toolbar. */
+  trendType?: 'area' | 'line' | 'bar';
 }
 
-export function QualityTrendChart({ data, isLoading }: QualityTrendProps) {
+export function QualityTrendChart({ data, isLoading, trendType = 'area' }: QualityTrendProps) {
   const { t } = useTranslation('common');
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
@@ -51,18 +53,25 @@ export function QualityTrendChart({ data, isLoading }: QualityTrendProps) {
         axisLine: { show: false },
       },
       series: [
-        {
-          name: t('charts.qualityTrendSeries.fpy'),
-          type: 'line',
-          data: data?.map((d) => d.fpy) ?? [],
-          lineStyle: { color: '#22c55e', width: 2 },
-          symbol: 'circle', symbolSize: 4,
-          smooth: true,
-          areaStyle: {
-            color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-              colorStops: [{ offset: 0, color: '#22c55e25' }, { offset: 1, color: 'transparent' }] },
-          },
-        },
+        trendType === 'bar'
+          ? {
+              name: t('charts.qualityTrendSeries.fpy'),
+              type: 'bar',
+              data: data?.map((d) => d.fpy) ?? [],
+              itemStyle: { color: '#22c55e', borderRadius: [3, 3, 0, 0] },
+              barMaxWidth: 24,
+            }
+          : {
+              name: t('charts.qualityTrendSeries.fpy'),
+              type: 'line',
+              data: data?.map((d) => d.fpy) ?? [],
+              lineStyle: { color: '#22c55e', width: 2 },
+              symbol: 'circle', symbolSize: 4,
+              smooth: true,
+              ...(trendType === 'area'
+                ? { areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#22c55e25' }, { offset: 1, color: 'transparent' }] } } }
+                : {}),
+            },
         {
           name: t('charts.qualityTrendSeries.rework'),
           type: 'line',
@@ -79,7 +88,7 @@ export function QualityTrendChart({ data, isLoading }: QualityTrendProps) {
         },
       ],
     };
-  }, [data, isDark, t]);
+  }, [data, isDark, t, trendType]);
 
   return (
     <div className="industrial-card p-4">

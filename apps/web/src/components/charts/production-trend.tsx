@@ -9,9 +9,11 @@ import { BarChart3 } from 'lucide-react';
 interface ProductionTrendProps {
   data?: Array<{ time: string; actual: number; target: number; efficiency: number }>;
   isLoading?: boolean;
+  /** Render style for the primary (actual output) series, driven by the toolbar. */
+  trendType?: 'area' | 'line' | 'bar';
 }
 
-export function ProductionTrendChart({ data, isLoading }: ProductionTrendProps) {
+export function ProductionTrendChart({ data, isLoading, trendType = 'bar' }: ProductionTrendProps) {
   const { t } = useTranslation('common');
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
@@ -78,23 +80,34 @@ export function ProductionTrendChart({ data, isLoading }: ProductionTrendProps) 
         },
       ],
       series: [
-        {
-          name: t('charts.production.actualOutput'),
-          type: 'bar',
-          data: actual,
-          itemStyle: {
-            color: {
-              type: 'linear',
-              x: 0, y: 0, x2: 0, y2: 1,
-              colorStops: [
-                { offset: 0, color: '#6175f4' },
-                { offset: 1, color: '#6175f430' },
-              ],
+        trendType === 'bar'
+          ? {
+              name: t('charts.production.actualOutput'),
+              type: 'bar',
+              data: actual,
+              itemStyle: {
+                color: {
+                  type: 'linear',
+                  x: 0, y: 0, x2: 0, y2: 1,
+                  colorStops: [
+                    { offset: 0, color: '#6175f4' },
+                    { offset: 1, color: '#6175f430' },
+                  ],
+                },
+                borderRadius: [3, 3, 0, 0],
+              },
+              barMaxWidth: 32,
+            }
+          : {
+              name: t('charts.production.actualOutput'),
+              type: 'line',
+              data: actual,
+              lineStyle: { color: '#6175f4', width: 2 },
+              symbol: 'circle', symbolSize: 4, smooth: true,
+              ...(trendType === 'area'
+                ? { areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#6175f440' }, { offset: 1, color: 'transparent' }] } } }
+                : {}),
             },
-            borderRadius: [3, 3, 0, 0],
-          },
-          barMaxWidth: 32,
-        },
         {
           name: t('charts.production.target'),
           type: 'line',
@@ -119,7 +132,7 @@ export function ProductionTrendChart({ data, isLoading }: ProductionTrendProps) 
         },
       ],
     };
-  }, [data, isDark, t]);
+  }, [data, isDark, t, trendType]);
 
   return (
     <div className="industrial-card p-4 h-full">

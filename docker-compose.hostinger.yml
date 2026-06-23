@@ -140,6 +140,9 @@ services:
     restart: always
     environment:
       NODE_ENV: production
+      # Read OEE/KPI/output from the persisted ProductionSnapshot fact store (the
+      # canonical, dimension-classified source) — matches prod-local + Grafana.
+      SNAPSHOTS_READ: "on"
       API_PORT: "3001"
       API_PREFIX: /api/v1
       DATABASE_URL: postgresql://${POSTGRES_USER:-mes_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mes360}?schema=public

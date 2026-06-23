@@ -1,6 +1,6 @@
 import {
   Injectable, NotFoundException, BadRequestException, Logger,
-  ConflictException,
+  ConflictException, type OnApplicationBootstrap,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
@@ -29,7 +29,7 @@ const VALID_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
 };
 
 @Injectable()
-export class ProductionService {
+export class ProductionService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ProductionService.name);
 
   constructor(
@@ -40,6 +40,44 @@ export class ProductionService {
     private readonly apsService: ApsService,
     private readonly historian: HistorianService,
   ) {}
+
+  /**
+   * Self-heal finished-goods inventory on boot: any COMPLETED work order whose
+   * produced output never reached stock (seeded data, or completed before the
+   * finalize path existed) gets posted now. Deferred + non-blocking so it never
+   * delays readiness; idempotent (skips WOs that already have a finished-goods lot).
+   */
+  onApplicationBootstrap(): void {
+    setTimeout(() => {
+      this.backfillFinishedGoods().catch((e) =>
+        this.logger.error('Finished-goods backfill failed', e as Error),
+      );
+    }, 8_000);
+  }
+
+  /**
+   * Post finished goods for every COMPLETED WO that has produced output but no
+   * finished-goods lot yet. Reuses the exact completion path (final-step good,
+   * base-unit conversion, RECEIPT movement, SKU on-hand bump, genealogy) so the
+   * numbers match the live flow. Returns how many were scanned/posted.
+   */
+  async backfillFinishedGoods(): Promise<{ scanned: number; posted: number }> {
+    const wos = await this.prisma.workOrder.findMany({
+      where: { status: 'COMPLETED', skuId: { not: null }, deletedAt: null },
+      select: { id: true, factoryId: true },
+    });
+    let posted = 0;
+    for (const w of wos) {
+      const has = await this.prisma.finishedGoodsLot.findFirst({
+        where: { workOrderId: w.id }, select: { id: true },
+      });
+      if (has) continue;
+      await this.finalizeWorkOrderProduction(w.factoryId, null, w.id);
+      posted++;
+    }
+    if (posted > 0) this.logger.log(`Finished-goods backfill: posted ${posted}/${wos.length} completed WOs to inventory`);
+    return { scanned: wos.length, posted };
+  }
 
   // ────────────────────────────────────────────────────────────
   // WORK ORDER CRUD
