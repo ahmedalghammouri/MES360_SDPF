@@ -61,6 +61,20 @@ function runSeed(file) {
   } catch (e) {
     console.error('⚠ Dashboard Center seed failed (non-fatal):', e?.message ?? e);
   }
+
+  // Backfill the ProductionSnapshot fact store from existing job-order history so
+  // dashboards have real per-shift/WO/PO/product history immediately. Idempotent
+  // (unique-key upserts). Uses the compiled service; non-fatal if dist isn't present.
+  try {
+    const { ProductionSnapshotBackfill } = require('../dist/modules/historian/production-snapshot.backfill');
+    const pc = new PrismaClient();
+    const r = await new ProductionSnapshotBackfill().run(pc, { days: 90 });
+    await pc.$disconnect().catch(() => {});
+    console.log(`▶ ProductionSnapshot backfill: ${r.jobOrders} job orders → ${r.rows} rows`);
+  } catch (e) {
+    console.error('⚠ ProductionSnapshot backfill skipped (non-fatal):', e?.message ?? e);
+  }
+
   console.log('\n✅ Init complete. Login: admin@mes360.sa');
 })().catch((e) => {
   console.error('❌ prod-init failed:', e);

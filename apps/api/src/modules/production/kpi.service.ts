@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
+import { Prisma } from '@prisma/client';
 import { OEEService, RollupChild, OEEBreakdown } from './oee.service';
 import { toBaseUnits } from '../../common/units.util';
 
@@ -344,6 +345,123 @@ export class KpiService {
     });
   }
 
+  // ── Fact-store reads (ProductionSnapshot) ──────────────────────────────────
+  /** True when dashboards should aggregate the persisted fact store, not live JOs. */
+  snapshotsEnabled(): boolean {
+    return process.env.SNAPSHOTS_READ === 'on';
+  }
+
+  /** Build an OEEBreakdown-shaped result + AT-OEE from summed fact-store quantities. */
+  private snapMetrics(good: number, scrap: number, ppt: number, run: number, down: number, earned: number) {
+    const total = good + scrap;
+    const b = this.oee.calculateDetailed({
+      plannedProductionTime: ppt,
+      unplannedDowntime: Math.max(0, ppt - run),
+      idealCycleTime: total > 0 ? earned / total : 0,
+      totalCount: total,
+      goodCount: good,
+    });
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+    const availabilityTb = (run + down) > 0 ? Math.min(100, (run / (run + down)) * 100) : 0;
+    const oeeTb = (availabilityTb / 100) * (b.performance / 100) * (b.quality / 100) * 100;
+    return { ...b, availabilityTb: r1(availabilityTb), oeeTb: r1(oeeTb), totalCount: total, goodCount: good, downMin: r1(down) };
+  }
+
+  /** SUM columns for a fact-store rollup. `good` filters to the group's final step
+   *  (last sequenceOrder), referenced via the joined `fin` CTE alias. */
+  private snapMetricCols(finAlias: string): Prisma.Sql {
+    return Prisma.sql`
+      COALESCE(SUM(s."scrapBase"),0)::float8 AS scrap,
+      COALESCE(SUM(s."goodBase") FILTER (WHERE s."sequenceOrder" = ${Prisma.raw(finAlias)}.ms),0)::float8 AS good,
+      COALESCE(SUM(s."plannedMin"),0)::float8 AS ppt,
+      COALESCE(SUM(s."runMin"),0)::float8 AS run,
+      COALESCE(SUM(s."downMin"),0)::float8 AS down,
+      COALESCE(SUM(s."idealRunMin"),0)::float8 AS earned`;
+  }
+
+  /** Headline rollup (final step per WO across the scope) → metrics for one node/scope. */
+  async snapshotScope(factoryId: string | null, from: Date, to: Date, machineIds: string[] | undefined) {
+    if (machineIds && machineIds.length === 0) return this.snapMetrics(0, 0, 0, 0, 0, 0);
+    const where = this.snapWhere(factoryId, from, to, machineIds);
+    const [t] = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      WITH scoped AS (SELECT * FROM production_snapshots WHERE ${where}),
+           fin AS (SELECT "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY "workOrderId")
+      SELECT ${this.snapMetricCols('f')} FROM scoped s JOIN fin f ON f."workOrderId" = s."workOrderId"`);
+    return this.snapMetrics(t?.good ?? 0, t?.scrap ?? 0, t?.ppt ?? 0, t?.run ?? 0, t?.down ?? 0, t?.earned ?? 0);
+  }
+
+  private snapWhere(factoryId: string | null, from: Date, to: Date, machineIds?: string[]): Prisma.Sql {
+    const c: Prisma.Sql[] = [
+      Prisma.sql`granularity = 'MINUTE'`,
+      Prisma.sql`"bucketStart" >= ${from}`,
+      Prisma.sql`"bucketStart" < ${to}`,
+    ];
+    if (factoryId) c.push(Prisma.sql`"factoryId" = ${factoryId}`);
+    if (machineIds) c.push(Prisma.sql`"machineId" = ANY(${machineIds})`);
+    return Prisma.join(c, ' AND ');
+  }
+
+  /**
+   * Window/scope aggregation from the persisted fact store — the canonical
+   * read path. Mirrors the live engine EXACTLY: good = Σ good of the LAST step
+   * PRESENT IN SCOPE per work order (so a single non-final machine still reports
+   * its own throughput); scrap = Σ all in-scope steps; total derived; A/P/Q/OEE
+   * recomputed from the summed quantities. The "final among in-scope" rule is the
+   * SQL twin of kpi.finalStepCounts and avoids double-counting routed WOs.
+   */
+  async snapshotAggregate(
+    factoryId: string | null, from: Date, to: Date, machineIds: string[] | undefined,
+    bucket: 'hour' | 'day' = 'hour',
+  ) {
+    // Empty scope (a hierarchy node covering no machines) → all-zero result.
+    if (machineIds && machineIds.length === 0) {
+      const z = this.snapMetrics(0, 0, 0, 0, 0, 0);
+      return { current: { oee: z.oee, availability: z.availability, performance: z.performance, quality: z.quality, availabilityTb: z.availabilityTb, oeeTb: z.oeeTb }, totalOutput: 0, goodOutput: 0, downtimeMin: 0, byEquipment: [], trend: [] };
+    }
+    const where = this.snapWhere(factoryId, from, to, machineIds);
+
+    // Headline — final step per WO across the whole scope.
+    const current = await this.snapshotScope(factoryId, from, to, machineIds);
+
+    // Per-machine — each machine is its own scope (final step per WO ON THAT MACHINE).
+    const perM = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      WITH scoped AS (SELECT * FROM production_snapshots WHERE ${where}),
+           fin AS (SELECT "machineId", "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY "machineId", "workOrderId")
+      SELECT s."machineId" AS id, m.name, m.code, ${this.snapMetricCols('f')}
+      FROM scoped s
+      JOIN fin f ON f."machineId" = s."machineId" AND f."workOrderId" = s."workOrderId"
+      JOIN machines m ON m.id = s."machineId"
+      GROUP BY s."machineId", m.name, m.code`);
+    const byEquipment = perM.map((r) => {
+      const b = this.snapMetrics(r.good, r.scrap, r.ppt, r.run, r.down, r.earned);
+      return { machineId: r.id, name: r.name, code: r.code, oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality, availabilityTb: b.availabilityTb, oeeTb: b.oeeTb, output: b.totalCount };
+    }).sort((a, b) => b.oee - a.oee);
+
+    // Trend — final step per WO within each time bucket.
+    const labelF = bucket === 'hour'
+      ? Prisma.sql`to_char("bucketStart", 'HH24') || ':00'`
+      : Prisma.sql`(EXTRACT(MONTH FROM "bucketStart")::int || '/' || EXTRACT(DAY FROM "bucketStart")::int)`;
+    const tr = await this.prisma.$queryRaw<any[]>(Prisma.sql`
+      WITH scoped AS (SELECT *, ${labelF} AS period FROM production_snapshots WHERE ${where}),
+           fin AS (SELECT period, "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY period, "workOrderId")
+      SELECT s.period, MIN(s."bucketStart") AS sort, ${this.snapMetricCols('f')}
+      FROM scoped s JOIN fin f ON f.period = s.period AND f."workOrderId" = s."workOrderId"
+      GROUP BY s.period ORDER BY sort`);
+    const trend = tr.map((r) => {
+      const b = this.snapMetrics(r.good, r.scrap, r.ppt, r.run, r.down, r.earned);
+      return { period: r.period, oee: b.oee, oeeTb: b.oeeTb };
+    });
+
+    return {
+      current: { oee: current.oee, availability: current.availability, performance: current.performance, quality: current.quality, availabilityTb: current.availabilityTb, oeeTb: current.oeeTb },
+      totalOutput: current.totalCount,
+      goodOutput: current.goodCount,
+      downtimeMin: current.downMin,
+      byEquipment,
+      trend,
+    };
+  }
+
   /** Hierarchy node built from JOs (final-step counts) instead of pre-summed children. */
   private nodeFromJos(id: string, name: string, code: string | null, type: string, jos: JoLite[], win: { from: number; to: number }, childNodes?: unknown[]) {
     const b = this.aggregateJos(jos, win);
@@ -388,6 +506,13 @@ export class KpiService {
     bucket: 'hour' | 'day' = 'hour',
     opts: { workOrderId?: string; productionOrderId?: string } = {},
   ) {
+    // Canonical read path: aggregate the persisted fact store (stable, dimension-
+    // classified). Falls back to the live JO scan for PO/WO drill-downs (not yet
+    // wired into snapshotAggregate) and whenever the SNAPSHOTS_READ flag is off.
+    if (this.snapshotsEnabled() && !opts.workOrderId && !opts.productionOrderId) {
+      return this.snapshotAggregate(factoryId, from, to, machineIds, bucket);
+    }
+
     const jos = await this.prisma.jobOrder.findMany({
       where: {
         ...(factoryId ? { factoryId } : {}),
@@ -690,17 +815,32 @@ export class KpiService {
     }
 
     const josOf = (ms: typeof machines): JoLite[] => ms.flatMap(m => byMachine.get(m.id) ?? []);
+    const useSnap = this.snapshotsEnabled();
 
-    const tree = [...areas.values()].map(ab => {
-      const lineNodes = [...ab.lines.values()].map(ln => {
-        const machineNodes = ln.machines.map(m => this.nodeFromJos(m.id, m.name, m.code, 'MACHINE', byMachine.get(m.id) ?? [], hierWin));
-        return this.nodeFromJos(ln.id, ln.name, ln.code, 'LINE', josOf(ln.machines), hierWin, machineNodes);
-      });
+    // A node's metrics come from the fact store (snapshotScope, scope = its machine ids)
+    // when SNAPSHOTS_READ is on, else from the live JO rollup. Shape is identical.
+    const snapNode = async (id: string, name: string, code: string | null, type: string, ms: typeof machines, childNodes?: unknown[]) => {
+      const b = await this.snapshotScope(factoryId, from, to, ms.map(x => x.id));
+      return { id, name, code, type, oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality, output: b.totalCount, good: b.goodCount, losses: b.losses, children: childNodes ?? [] };
+    };
+
+    const tree = await Promise.all([...areas.values()].map(async ab => {
+      const lineNodes = await Promise.all([...ab.lines.values()].map(async ln => {
+        const machineNodes = useSnap
+          ? await Promise.all(ln.machines.map(m => snapNode(m.id, m.name, m.code, 'MACHINE', [m])))
+          : ln.machines.map(m => this.nodeFromJos(m.id, m.name, m.code, 'MACHINE', byMachine.get(m.id) ?? [], hierWin));
+        return useSnap
+          ? snapNode(ln.id, ln.name, ln.code, 'LINE', ln.machines, machineNodes)
+          : this.nodeFromJos(ln.id, ln.name, ln.code, 'LINE', josOf(ln.machines), hierWin, machineNodes);
+      }));
       const areaMachines = [...ab.lines.values()].flatMap(l => l.machines);
-      return this.nodeFromJos(ab.id, ab.name, ab.code, 'AREA', josOf(areaMachines), hierWin, lineNodes);
-    }).sort((a, b) => b.oee - a.oee);
+      return useSnap
+        ? snapNode(ab.id, ab.name, ab.code, 'AREA', areaMachines, lineNodes)
+        : this.nodeFromJos(ab.id, ab.name, ab.code, 'AREA', josOf(areaMachines), hierWin, lineNodes);
+    }));
+    tree.sort((a, b) => b.oee - a.oee);
 
-    const plant = this.aggregateJos(allJos, hierWin);
+    const plant = useSnap ? await this.snapshotScope(factoryId, from, to, machineIds) : this.aggregateJos(allJos, hierWin);
 
     // Pareto by reason code
     const paretoMap = new Map<string, { reasonCode: string; minutes: number; events: number }>();
