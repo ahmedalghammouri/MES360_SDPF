@@ -15,13 +15,14 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
-  ResponsiveContainer, ReferenceLine, Legend,
+  ResponsiveContainer, ReferenceLine, Legend, ComposedChart, Line, Bar,
 } from 'recharts';
 import { Activity, Gauge, Layers, Cpu, ShieldAlert, Wrench, TrendingUp } from 'lucide-react';
 
 import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
+import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { HierarchyOEE } from '@/features/production/hierarchy-oee';
 import { cn } from '@/lib/utils';
@@ -52,6 +53,7 @@ export function FactoryAnalyticsView() {
   const { t } = useTranslation('modules');
   const { filter, key, scope } = useScope();
   const { params: timeParams, key: timeKey, label: timeLabel, dateFrom, dateTo } = useTimeRange();
+  const { atOee, trendType } = useDashboardPrefsStore();
   const scopeParams = { ...filter, dateFrom, dateTo };
 
   const { data: oee, isLoading: oeeLoading } = useQuery({
@@ -95,8 +97,8 @@ export function FactoryAnalyticsView() {
       <div className="flex-1 overflow-auto p-6 space-y-5">
         {/* KPI strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KPICard title={t('analytics.oee')} value={cur?.oee ?? 0} unit="%" target={WORLD_CLASS} colorMode="oee" isLoading={oeeLoading} />
-          <KPICard title={t('analytics.availability')} value={cur?.availability ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
+          <KPICard title={atOee ? `${t('analytics.oee')} (AT)` : t('analytics.oee')} value={(atOee ? cur?.oeeTb : cur?.oee) ?? 0} unit="%" target={WORLD_CLASS} colorMode="oee" isLoading={oeeLoading} />
+          <KPICard title={atOee ? `${t('analytics.availability')} (AT)` : t('analytics.availability')} value={(atOee ? cur?.availabilityTb : cur?.availability) ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
           <KPICard title={t('analytics.performance')} value={cur?.performance ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
           <KPICard title={t('analytics.quality')} value={cur?.quality ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
         </div>
@@ -111,39 +113,8 @@ export function FactoryAnalyticsView() {
           <span>{t('analytics.maintAvailability')}: <b className="text-foreground">{(maint?.availabilityRate ?? 0).toFixed(1)}%</b></span>
         </div>
 
-        {/* OEE trend — schedule vs time-based */}
-        <div className="industrial-card rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Activity size={14} className="text-brand-400" />
-            <h3 className="text-sm font-semibold">{t('analytics.oeeTrend')}</h3>
-            <span className="text-[10px] text-muted-foreground ml-auto">{t('analytics.target', { value: WORLD_CLASS })}</span>
-          </div>
-          {trend.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-xs text-muted-foreground">{t('analytics.noOeeRecords')}</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
-                <defs>
-                  <linearGradient id="anOeeFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
-                <XAxis dataKey="period" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                <ReTooltip
-                  contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                  formatter={(v: any, n: any) => [`${Number(v).toFixed(1)}%`, n === 'oeeTb' ? t('analytics.oeeTimeBased') : t('analytics.oeeSchedule')]}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <ReferenceLine y={WORLD_CLASS} stroke="#22c55e" strokeDasharray="6 4" strokeOpacity={0.6} />
-                <Area type="monotone" dataKey="oee" name={t('analytics.oeeSchedule')} stroke="#818cf8" strokeWidth={2} fill="url(#anOeeFill)" />
-                <Area type="monotone" dataKey="oeeTb" name={t('analytics.oeeTimeBased')} stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" fill="none" connectNulls />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+        {/* OEE-over-time lives in OEE Analytics & Machine OEE (no duplicate here).
+            Factory Analytics focuses on the hierarchy rollup, six-loss & Pareto. */}
 
         {/* Hierarchy rollup + six-loss + downtime Pareto (reused) */}
         <HierarchyOEE />

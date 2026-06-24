@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
@@ -24,6 +24,8 @@ import {
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { useScope } from '@/hooks/use-scope';
+import { useTimeRange } from '@/hooks/use-time-range';
+import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
 
 import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
@@ -31,8 +33,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type Timeframe = 'today' | 'week' | 'month';
 
 interface DashboardKpis {
   oee: number;
@@ -181,19 +181,9 @@ function KpiCard({ title, value, trend, target, icon, isLoading }: KpiCardProps)
 export default function ManufacturingKpiView() {
   const { t } = useTranslation('modules');
   const { filter, key } = useScope();
-  const [timeframe, setTimeframe] = useState<Timeframe>('today');
-
-  // Map the local timeframe selector to an actual date range so the backend KPI
-  // window changes (RC-6) — previously the selector never reached the API.
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const timeParams = (() => {
-    const now = new Date();
-    const from = new Date(now);
-    if (timeframe === 'week') from.setDate(now.getDate() - 7);
-    else if (timeframe === 'month') from.setDate(now.getDate() - 30);
-    else from.setHours(0, 0, 0, 0);
-    return { timeframe, dateFrom: iso(from), dateTo: iso(now) };
-  })();
+  // Time range + view prefs now come from the unified ScopePanel (global stores).
+  const { params: timeParams, key: timeframe } = useTimeRange();
+  const { atOee } = useDashboardPrefsStore();
 
   const { data: kpis, isLoading: kpisLoading } = useQuery({
     queryKey: ['dashboard', 'kpis', timeframe, key],
@@ -316,25 +306,6 @@ export default function ManufacturingKpiView() {
           </div>
         </div>
 
-        {/* Timeframe selector */}
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/40 border border-border/40">
-          {(['today', 'week', 'month'] as Timeframe[]).map((tf) => (
-            <Button
-              key={tf}
-              variant="ghost"
-              size="sm"
-              onClick={() => setTimeframe(tf)}
-              className={cn(
-                'h-7 px-3 text-xs transition-colors',
-                timeframe === tf
-                  ? 'bg-background text-foreground shadow-sm font-semibold'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {tf === 'today' ? t('mfgKpi.tfToday') : tf === 'week' ? t('mfgKpi.tfWeek') : t('mfgKpi.tfMonth')}
-            </Button>
-          ))}
-        </div>
       </div>
 
       {/* ── Body ────────────────────────────────────────────────────────────── */}
@@ -351,16 +322,16 @@ export default function ManufacturingKpiView() {
             className="grid grid-cols-2 xl:grid-cols-4 gap-4"
           >
             <KpiCard
-              title={t('mfgKpi.overallOee')}
-              value={kpis?.oee ?? 0}
+              title={atOee ? `${t('mfgKpi.overallOee')} (AT)` : t('mfgKpi.overallOee')}
+              value={(atOee ? kpis?.oeeTb : kpis?.oee) ?? 0}
               trend={kpis?.oeeTrend ?? 0}
               target={85}
               icon={<Gauge size={16} />}
               isLoading={kpisLoading}
             />
             <KpiCard
-              title={t('mfgKpi.metric.availability')}
-              value={kpis?.availability ?? 0}
+              title={atOee ? `${t('mfgKpi.metric.availability')} (AT)` : t('mfgKpi.metric.availability')}
+              value={(atOee ? kpis?.availabilityTb : kpis?.availability) ?? 0}
               trend={kpis?.availabilityTrend ?? 0}
               target={90}
               icon={<Target size={16} />}
@@ -393,107 +364,11 @@ export default function ManufacturingKpiView() {
 
           {/* ── 2. Trend chart + KPI summary table ──────────────────────────── */}
           <motion.div variants={itemVariants} className="grid grid-cols-3 gap-4">
-            {/* Line chart (2/3) */}
-            <div className="col-span-3 lg:col-span-2 industrial-card p-5 rounded-xl border border-border/40">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold">{t('mfgKpi.trendTitle')}</h2>
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <span className="inline-block w-2 h-2 rounded-full bg-brand-400" />
-                  {t('mfgKpi.metric.oee')}
-                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 ml-2" />
-                  {t('mfgKpi.metric.availability')}
-                  <span className="inline-block w-2 h-2 rounded-full bg-amber-400 ml-2" />
-                  {t('mfgKpi.metric.quality')}
-                </div>
-              </div>
+            {/* OEE-over-time lives in OEE Analytics & Machine OEE — this app
+                focuses on the Machine OEE leaderboard + KPI summary (full width). */}
 
-              {recordsLoading ? (
-                <div className="shimmer h-[300px] rounded-lg" />
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.4)" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => `${v}%`}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                        fontSize: '11px',
-                      }}
-                      formatter={(value: number) => [`${value.toFixed(1)}%`]}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px' }} />
-                    <ReferenceLine
-                      y={85}
-                      stroke="#10b981"
-                      strokeDasharray="5 3"
-                      strokeWidth={1.5}
-                      label={{
-                        value: t('mfgKpi.bmWorldClass'),
-                        fill: '#10b981',
-                        fontSize: 10,
-                        position: 'insideTopRight',
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="oee"
-                      name={t('mfgKpi.oeeSchedule')}
-                      stroke="#6366f1"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                    />
-                    {/* Time-based OEE (AT-OEE) overlay */}
-                    <Line
-                      type="monotone"
-                      dataKey="oeeTb"
-                      name={t('mfgKpi.oeeTimeBased')}
-                      stroke="#22d3ee"
-                      strokeWidth={2}
-                      strokeDasharray="5 3"
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                      connectNulls
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="availability"
-                      name={t('mfgKpi.metric.availability')}
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="quality"
-                      name={t('mfgKpi.metric.quality')}
-                      stroke="#f59e0b"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            {/* KPI summary table (1/3) */}
-            <div className="col-span-3 lg:col-span-1 industrial-card p-5 rounded-xl border border-border/40 flex flex-col">
+            {/* KPI summary table */}
+            <div className="col-span-3 industrial-card p-5 rounded-xl border border-border/40 flex flex-col">
               <h2 className="text-sm font-semibold mb-4">{t('mfgKpi.summary')}</h2>
 
               {kpisLoading ? (

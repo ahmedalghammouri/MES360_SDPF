@@ -32,6 +32,8 @@ import enIot from '@/locales/en/iot.json';
 import arIot from '@/locales/ar/iot.json';
 import enModules from '@/locales/en/modules.json';
 import arModules from '@/locales/ar/modules.json';
+import enDowntime from '@/locales/en/downtime.json';
+import arDowntime from '@/locales/ar/downtime.json';
 import arNav from '@/locales/ar/nav.json';
 
 export const SUPPORTED_LOCALES = ['en', 'ar'] as const;
@@ -41,18 +43,18 @@ export const RTL_LOCALES: Locale[] = ['ar'];
 export const dirOf = (l?: string): 'rtl' | 'ltr' => (RTL_LOCALES.includes(l as Locale) ? 'rtl' : 'ltr');
 export const isSupported = (l?: string): l is Locale => SUPPORTED_LOCALES.includes(l as Locale);
 
-export const NAMESPACES = ['common', 'shell', 'settings', 'apps', 'dashboard', 'production', 'quality', 'maintenance', 'inventory', 'iot', 'modules', 'nav'] as const;
+export const NAMESPACES = ['common', 'shell', 'settings', 'apps', 'dashboard', 'production', 'quality', 'maintenance', 'inventory', 'iot', 'modules', 'downtime', 'nav'] as const;
 
 if (!i18n.isInitialized) {
   i18n.use(initReactI18next).init({
     resources: {
       en: {
-        common: enCommon, shell: enShell, settings: enSettings, apps: enApps, dashboard: enDashboard, production: enProduction, quality: enQuality, maintenance: enMaintenance, inventory: enInventory, iot: enIot, modules: enModules,
+        common: enCommon, shell: enShell, settings: enSettings, apps: enApps, dashboard: enDashboard, production: enProduction, quality: enQuality, maintenance: enMaintenance, inventory: enInventory, iot: enIot, modules: enModules, downtime: enDowntime,
         // 'nav' uses flat English-string keys; English IS the key → no en file needed.
         nav: {},
       },
       ar: {
-        common: arCommon, shell: arShell, settings: arSettings, apps: arApps, dashboard: arDashboard, production: arProduction, quality: arQuality, maintenance: arMaintenance, inventory: arInventory, iot: arIot, modules: arModules, nav: arNav,
+        common: arCommon, shell: arShell, settings: arSettings, apps: arApps, dashboard: arDashboard, production: arProduction, quality: arQuality, maintenance: arMaintenance, inventory: arInventory, iot: arIot, modules: arModules, downtime: arDowntime, nav: arNav,
       },
     },
     lng: 'en',                 // overridden by LocaleProvider on mount

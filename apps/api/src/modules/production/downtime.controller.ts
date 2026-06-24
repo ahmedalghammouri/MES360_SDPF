@@ -204,6 +204,29 @@ export class DowntimeController {
     return this.downtimeService.getDowntimeSummary(user.factoryId, from, to, { areaId, lineId, machineId });
   }
 
+  @Get('cockpit')
+  @ApiOperation({ summary: 'Downtime Command Center — KPIs, trend, Pareto, machines, live + recent events' })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  async getCockpit(
+    @CurrentUser() user: RequestUser,
+    @Query('timeframe') timeframe?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+  ) {
+    const now = new Date();
+    // Bump a date-only `dateTo` to end-of-day so single-day ranges are inclusive.
+    const to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : now;
+    const from = dateFrom ? new Date(dateFrom) : new Date(new Date().setHours(0, 0, 0, 0));
+    return this.downtimeService.getDowntimeCockpit(user.factoryId, { areaId, lineId, machineId }, from, to, timeframe);
+  }
+
   // ── Machine state (operator, shop floor) ──────────────────────
 
   @Patch('machines/:id/state')

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { KpiService } from '../production/kpi.service';
 import { ShiftService } from '../shift/shift.service';
+import { currentShiftStart } from '../../common/shift-window.util';
 import { EnergyService } from '../energy/energy.service';
 
 @Injectable()
@@ -51,7 +52,7 @@ export class DashboardService {
     factoryId: string | null,
     range?: { timeframe?: string; dateFrom?: string; dateTo?: string },
   ) {
-    const win = this.resolveWindow(range);
+    const win = await this.resolveWindow(factoryId, range);
     const bucket: 'hour' | 'day' = win.multiDay ? 'day' : 'hour';
 
     if (!factoryId) {
@@ -113,12 +114,18 @@ export class DashboardService {
    * Resolve the requested analysis window. Defaults to "today" (00:00 → now)
    * when no range is given, and derives an equal-length previous window for trends.
    */
-  private resolveWindow(range?: { timeframe?: string; dateFrom?: string; dateTo?: string }) {
+  private async resolveWindow(
+    factoryId: string | null,
+    range?: { timeframe?: string; dateFrom?: string; dateTo?: string },
+  ) {
     const now = new Date();
     let from: Date;
     let to: Date = now;
 
-    if (range?.dateFrom) {
+    if ((range?.timeframe ?? '').toLowerCase() === 'shift') {
+      // Real current-shift window (start → now), resolved from shift templates.
+      from = (await currentShiftStart(this.prisma, factoryId)) ?? (() => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d; })();
+    } else if (range?.dateFrom) {
       from = new Date(`${range.dateFrom}T00:00:00`);
       if (range.dateTo) {
         const end = new Date(`${range.dateTo}T23:59:59.999`);
@@ -126,7 +133,7 @@ export class DashboardService {
       }
     } else {
       from = new Date(now);
-      from.setHours(0, 0, 0, 0); // today / shift
+      from.setHours(0, 0, 0, 0); // today
     }
     if (isNaN(from.getTime())) {
       from = new Date(now);
@@ -150,7 +157,7 @@ export class DashboardService {
     factoryId: string | null,
     range?: { timeframe?: string; dateFrom?: string; dateTo?: string },
   ) {
-    const win = this.resolveWindow(range);
+    const win = await this.resolveWindow(factoryId, range);
     const bucket: 'hour' | 'day' = win.multiDay ? 'day' : 'hour';
     const r1 = (n: number) => Math.round(n * 10) / 10;
     const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -207,7 +214,7 @@ export class DashboardService {
     range?: { timeframe?: string; dateFrom?: string; dateTo?: string },
   ) {
     const machineIds = await this.scopeMachineIds(factoryId, scope);
-    const win = this.resolveWindow(range);
+    const win = await this.resolveWindow(factoryId, range);
     // Compute the window's OEE analytics ONCE and feed both the KPI strip and the
     // machine grid — so per-machine OEE is LIVE (from job orders) instead of the stale
     // MachineCurrentStatus.oee snapshot.
@@ -243,7 +250,7 @@ export class DashboardService {
   private async getQualityTrend(
     factoryId: string | null,
     machineIds: string[] | undefined,
-    win: ReturnType<DashboardService['resolveWindow']>,
+    win: Awaited<ReturnType<DashboardService['resolveWindow']>>,
   ) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const machineScope = machineIds ? { machineId: { in: machineIds } } : {};
@@ -297,7 +304,7 @@ export class DashboardService {
   private async getKPIs(
     factoryId: string | null,
     machineIds: string[] | undefined,
-    win: ReturnType<DashboardService['resolveWindow']>,
+    win: Awaited<ReturnType<DashboardService['resolveWindow']>>,
     today: Awaited<ReturnType<KpiService['oeeAnalytics']>>,
   ) {
     const { prevFrom, prevTo, multiDay } = win;
@@ -405,7 +412,7 @@ export class DashboardService {
   private async getProductionStatus(
     factoryId: string | null,
     machineIds: string[] | undefined,
-    win: ReturnType<DashboardService['resolveWindow']>,
+    win: Awaited<ReturnType<DashboardService['resolveWindow']>>,
   ) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const machineScope = machineIds ? { machineId: { in: machineIds } } : {};
@@ -509,7 +516,7 @@ export class DashboardService {
   private async getProductionTrend(
     factoryId: string | null,
     machineIds: string[] | undefined,
-    win: ReturnType<DashboardService['resolveWindow']>,
+    win: Awaited<ReturnType<DashboardService['resolveWindow']>>,
   ) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const machineScope = machineIds ? { machineId: { in: machineIds } } : {};
@@ -558,7 +565,7 @@ export class DashboardService {
 
   private async getDowntimePareto(
     factoryId: string | null,
-    win: ReturnType<DashboardService['resolveWindow']>,
+    win: Awaited<ReturnType<DashboardService['resolveWindow']>>,
     machineIds?: string[],
   ) {
     const factoryFilter = factoryId ? { factoryId } : {};

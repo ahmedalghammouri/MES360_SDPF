@@ -6,6 +6,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { archivedWhere } from '../../common/archive.util';
 import { findProcessForSku } from '../../common/process-scope.util';
+import { currentShiftStart } from '../../common/shift-window.util';
 import { scheduleOps, makeWorkCalendar, type SchedOp } from '../scheduling/op-scheduler';
 import { OEEService } from './oee.service';
 import { KpiService } from './kpi.service';
@@ -2011,16 +2012,24 @@ export class ProductionService implements OnApplicationBootstrap {
     // Normalise the timeframe (accepts Day/Week/Month/Shift, any case) or an explicit range.
     const tf = String(timeframe || 'day').toLowerCase();
     const now = new Date();
-    // A date-only `dateTo` (YYYY-MM-DD) parses to midnight UTC; bump it to end-of-day
-    // so single-day / "today" ranges are inclusive instead of zero-width.
-    const to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : now;
     let from: Date;
-    if (dateFrom) from = new Date(dateFrom);
-    else {
-      from = new Date(to);
-      if (tf === 'week') from.setDate(to.getDate() - 7);
-      else if (tf === 'month') from.setDate(to.getDate() - 30);
-      else from.setHours(0, 0, 0, 0); // day / shift → today
+    let to: Date;
+    if (tf === 'shift') {
+      // The REAL current shift window (start → now), resolved from shift templates —
+      // not "since midnight". Falls back to today if no shift is configured.
+      to = now;
+      from = (await currentShiftStart(this.prisma, factoryId)) ?? new Date(new Date().setHours(0, 0, 0, 0));
+    } else {
+      // A date-only `dateTo` (YYYY-MM-DD) parses to midnight UTC; bump it to end-of-day
+      // so single-day / "today" ranges are inclusive instead of zero-width.
+      to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : now;
+      if (dateFrom) from = new Date(dateFrom);
+      else {
+        from = new Date(to);
+        if (tf === 'week') from.setDate(to.getDate() - 7);
+        else if (tf === 'month') from.setDate(to.getDate() - 30);
+        else from.setHours(0, 0, 0, 0); // day → today
+      }
     }
     const bucket: 'hour' | 'day' = tf === 'day' || tf === 'shift' ? 'hour' : 'day';
 
@@ -2058,14 +2067,20 @@ export class ProductionService implements OnApplicationBootstrap {
     const machineIds = await this.kpiService.resolveScopeMachineIds(factoryId, scope);
     const tf = String(timeframe || 'week').toLowerCase();
     const now = new Date();
-    const to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : now;
     let from: Date;
-    if (dateFrom) from = new Date(dateFrom);
-    else {
-      from = new Date(to);
-      if (tf === 'month') from.setDate(to.getDate() - 30);
-      else if (tf === 'day' || tf === 'shift') from.setHours(0, 0, 0, 0);
-      else from.setDate(to.getDate() - 7); // week (default)
+    let to: Date;
+    if (tf === 'shift') {
+      to = now;
+      from = (await currentShiftStart(this.prisma, factoryId)) ?? new Date(new Date().setHours(0, 0, 0, 0));
+    } else {
+      to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : now;
+      if (dateFrom) from = new Date(dateFrom);
+      else {
+        from = new Date(to);
+        if (tf === 'month') from.setDate(to.getDate() - 30);
+        else if (tf === 'day') from.setHours(0, 0, 0, 0);
+        else from.setDate(to.getDate() - 7); // week (default)
+      }
     }
     const gb = (['machine', 'workOrder', 'productionOrder', 'shift'].includes(groupBy) ? groupBy : 'workOrder') as any;
     const rows = await this.kpiService.oeeGroupedTrend(factoryId, from, to, machineIds, gb, drill);

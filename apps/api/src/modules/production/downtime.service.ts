@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { findProcessForSku } from '../../common/process-scope.util';
+import { currentShiftStart } from '../../common/shift-window.util';
 import type { Prisma } from '@prisma/client';
 import { DowntimeCategory } from '@prisma/client';
 import type {
@@ -617,6 +618,137 @@ export class DowntimeService {
       byReasonCode,
       byMachine,
       topCauses: Object.entries(byReasonCode).sort(([, a], [, b]) => b - a).slice(0, 5),
+    };
+  }
+
+  /**
+   * Rich, real-data aggregation powering the Downtime Command Center dashboard:
+   * headline KPIs (total/planned/unplanned/OEE-impact minutes, open events, MTTR/MTBF,
+   * availability loss), a planned-vs-unplanned time trend, downtime by machine, a
+   * category Pareto, the top root causes, currently-open stops and a recent log.
+   * Scope- and window-aware like every other KPI surface.
+   */
+  async getDowntimeCockpit(
+    factoryId: string | null,
+    scope: { areaId?: string; lineId?: string; machineId?: string } | undefined,
+    dateFrom: Date,
+    dateTo: Date,
+    timeframe?: string,
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const scopeFilter = await this.scopeWhere(factoryId, scope);
+    const now = new Date();
+    // Real current-shift window when requested (start → now), else the given range.
+    if ((timeframe ?? '').toLowerCase() === 'shift') {
+      const ss = await currentShiftStart(this.prisma, factoryId);
+      if (ss) { dateFrom = ss; dateTo = now; }
+    }
+
+    const events = await this.prisma.downtimeEvent.findMany({
+      where: {
+        ...factoryFilter,
+        ...scopeFilter,
+        startTime: { lte: dateTo },
+        OR: [{ endTime: null }, { endTime: { gte: dateFrom } }],
+      },
+      include: {
+        machine: { select: { name: true, code: true } },
+        cause: { select: { code: true, name: true, category: true } },
+      },
+      orderBy: { startTime: 'desc' },
+    });
+
+    const PLANNED_CATS = new Set(['PLANNED_BREAK', 'PLANNED_MAINTENANCE', 'CHANGEOVER', 'CLEANING']);
+    const planned = (e: any) => e.isPlanned === true || PLANNED_CATS.has(e.category);
+    const clampMin = (e: any) => {
+      const s = Math.max(new Date(e.startTime).getTime(), dateFrom.getTime());
+      const en = Math.min((e.endTime ? new Date(e.endTime) : now).getTime(), dateTo.getTime());
+      return Math.max(0, (en - s) / 60_000);
+    };
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+
+    let totalMin = 0, plannedMin = 0, unplannedMin = 0, oeeImpactMin = 0, failures = 0;
+    const byMachine = new Map<string, number>();
+    const byCategory = new Map<string, number>();
+    const byCause = new Map<string, { minutes: number; count: number }>();
+    const trendMap = new Map<string, { planned: number; unplanned: number }>();
+    const dayMs = 86_400_000;
+    const hourly = (dateTo.getTime() - dateFrom.getTime()) <= dayMs * 1.5;
+    const bucketKey = (d: Date) => hourly
+      ? `${String(d.getHours()).padStart(2, '0')}:00`
+      : `${d.getMonth() + 1}/${d.getDate()}`;
+
+    for (const e of events as any[]) {
+      const min = clampMin(e);
+      if (min <= 0 && e.endTime) continue;
+      const isP = planned(e);
+      totalMin += min;
+      if (isP) plannedMin += min;
+      else { unplannedMin += min; failures += 1; }
+      if (e.affectsOEE !== false && !isP) oeeImpactMin += min;
+      byMachine.set(e.machine.name, (byMachine.get(e.machine.name) ?? 0) + min);
+      byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + min);
+      const causeLabel = e.cause?.name ?? e.reason ?? e.reasonCode ?? 'Unspecified';
+      const c = byCause.get(causeLabel) ?? { minutes: 0, count: 0 };
+      c.minutes += min; c.count += 1; byCause.set(causeLabel, c);
+      const k = bucketKey(new Date(Math.max(new Date(e.startTime).getTime(), dateFrom.getTime())));
+      const tb = trendMap.get(k) ?? { planned: 0, unplanned: 0 };
+      if (isP) tb.planned += min; else tb.unplanned += min;
+      trendMap.set(k, tb);
+    }
+
+    const machineCount = new Set((events as any[]).map((e) => e.machineId)).size || 1;
+    const windowHours = Math.max(0.001, (Math.min(dateTo.getTime(), now.getTime()) - dateFrom.getTime()) / 3_600_000);
+    const capacityHours = windowHours * machineCount;
+    const mttrHours = failures > 0 ? r1((unplannedMin / 60) / failures) : 0;
+    const uptimeHours = Math.max(0, capacityHours - totalMin / 60);
+    const mtbfHours = failures > 0 ? r1(uptimeHours / failures) : r1(uptimeHours);
+
+    const liveOpen = (events as any[]).filter((e) => !e.endTime).map((e) => ({
+      machine: e.machine.name, code: e.machine.code,
+      reason: e.cause?.name ?? e.reason ?? e.reasonCode ?? 'Unspecified', category: e.category,
+      startedAt: e.startTime, elapsedMin: r1((now.getTime() - new Date(e.startTime).getTime()) / 60_000),
+      planned: planned(e),
+    }));
+
+    const recent = (events as any[]).slice(0, 12).map((e) => ({
+      machine: e.machine.name,
+      reason: e.cause?.name ?? e.reason ?? e.reasonCode ?? 'Unspecified', category: e.category,
+      start: e.startTime, end: e.endTime, durationMin: r1(e.durationMinutes ?? clampMin(e)),
+      planned: planned(e), oeeImpact: e.affectsOEE !== false && !planned(e),
+    }));
+
+    const sortedCat = [...byCategory.entries()].sort((a, b) => b[1] - a[1]);
+    const catTotal = sortedCat.reduce((s, [, m]) => s + m, 0) || 1;
+    let cum = 0;
+    const byCategoryPareto = sortedCat.map(([category, minutes]) => {
+      cum += minutes;
+      return { category, minutes: r1(minutes), cumulativePct: r1((cum / catTotal) * 100) };
+    });
+
+    return {
+      scope: scope ?? null,
+      generatedAt: now,
+      kpis: {
+        totalEvents: events.length,
+        totalDowntimeMin: r1(totalMin),
+        plannedMin: r1(plannedMin),
+        unplannedMin: r1(unplannedMin),
+        oeeImpactMin: r1(oeeImpactMin),
+        openEvents: liveOpen.length,
+        mttrHours, mtbfHours,
+        availabilityLossPct: capacityHours > 0 ? r1((oeeImpactMin / 60 / capacityHours) * 100) : 0,
+      },
+      trend: [...trendMap.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, v]) => ({ date, planned: r1(v.planned), unplanned: r1(v.unplanned) })),
+      byMachine: [...byMachine.entries()].map(([name, minutes]) => ({ name, minutes: r1(minutes) }))
+        .sort((a, b) => b.minutes - a.minutes),
+      byCategory: byCategoryPareto,
+      topCauses: [...byCause.entries()].map(([reason, v]) => ({ reason, minutes: r1(v.minutes), count: v.count }))
+        .sort((a, b) => b.minutes - a.minutes).slice(0, 8),
+      plannedVsUnplanned: { planned: r1(plannedMin), unplanned: r1(unplannedMin) },
+      liveOpen,
+      recent,
     };
   }
 

@@ -14,7 +14,14 @@ import { useTimeRangeStore } from '@/store/time-range-store';
  */
 export function useTimeRange() {
   const { preset, from, to } = useTimeRangeStore();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  // Format from LOCAL calendar components (NOT toISOString, which converts to UTC
+  // and shifts local midnight to the previous day for +offset timezones — that bug
+  // made "Today/Shift" leak into yesterday's production). "Today" must mean the
+  // user's local today, consistent with how the shop floor experiences the day.
+  const iso = (d: Date) => {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
   const now = new Date();
 
   let dateFrom: string;

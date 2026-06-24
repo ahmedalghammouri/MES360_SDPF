@@ -24,6 +24,7 @@ const SCOPE_EXACT = new Set([
   '/production/downtime', '/production/orders', '/production/production-orders',
   '/production/reports', '/quality/reports',
   '/maintenance/reliability', '/quality/intelligence',
+  '/downtime', // Downtime Command Center
   '/energy', '/energy/command-center',
   '/ai', // AI Intelligence — all panels re-scope by area/line/machine
 ]);

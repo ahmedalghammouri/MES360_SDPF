@@ -20,6 +20,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { useOrderFilterStore } from '@/store/order-filter-store';
+import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
 import { motion } from 'framer-motion';
 import {
   BarChart,
@@ -237,6 +238,7 @@ export default function ProductionKpiView() {
 
   // Work-order metric filters now live in the global ScopePanel (Orders section).
   const { poNumber: poFilter, woId: woFilter } = useOrderFilterStore();
+  const { atOee } = useDashboardPrefsStore();
 
   // --- Queries ---
   const { data: poResp } = useQuery({
@@ -286,7 +288,9 @@ export default function ProductionKpiView() {
     const c: any = oeeCalc ?? {};
     return {
       oee: r1(c.oee ?? c.current?.oee),
+      oeeTb: r1(c.oeeTb ?? c.current?.oeeTb),
       availability: r1(c.availability ?? c.current?.availability),
+      availabilityTb: r1(c.availabilityTb ?? c.current?.availabilityTb),
       performance: r1(c.performance ?? c.current?.performance),
       quality: r1(c.quality ?? c.current?.quality),
       // Output is base-unit normalised → round to whole units for display.
@@ -498,8 +502,8 @@ export default function ProductionKpiView() {
         {/* 1. Primary KPI row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <PrimaryKpiCard
-            title={t('cards.oee')}
-            value={summary.oee}
+            title={atOee ? `${t('cards.oee')} (AT)` : t('cards.oee')}
+            value={atOee ? summary.oeeTb : summary.oee}
             unit="%"
             trend={kpis?.oeeTrend ?? 0}
             target={85}

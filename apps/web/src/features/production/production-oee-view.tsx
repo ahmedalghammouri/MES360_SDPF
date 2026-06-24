@@ -13,9 +13,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { HierarchyOEE } from './hierarchy-oee';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
+import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
   ResponsiveContainer, BarChart, Bar, Cell, ReferenceLine,
+  ComposedChart, Line,
 } from 'recharts';
 
 import { Button } from '@/components/ui/button';
@@ -79,6 +81,7 @@ export function ProductionOEEView() {
   const qc = useQueryClient();
   const { filter, key } = useScope();
   const { params: timeParams, key: timeKey, preset: timeframe } = useTimeRange();
+  const { atOee, trendType } = useDashboardPrefsStore();
   const [machineFilter, setMachineFilter] = useState<string>('ALL');
   const [groupBy, setGroupBy] = useState<GroupBy>('time');
 
@@ -205,8 +208,8 @@ export function ProductionOEEView() {
       <div className="flex-1 overflow-auto p-6 space-y-5">
         {/* KPI strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KPICard title={t('cards.oee')} value={oeeData?.current.oee ?? 0} unit="%" target={WORLD_CLASS} colorMode="oee" isLoading={isLoading} />
-          <KPICard title={t('cards.availability')} value={oeeData?.current.availability ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
+          <KPICard title={atOee ? `${t('cards.oee')} (AT)` : t('cards.oee')} value={(atOee ? oeeData?.current.oeeTb : oeeData?.current.oee) ?? 0} unit="%" target={WORLD_CLASS} colorMode="oee" isLoading={isLoading} />
+          <KPICard title={atOee ? `${t('cards.availability')} (AT)` : t('cards.availability')} value={(atOee ? oeeData?.current.availabilityTb : oeeData?.current.availability) ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
           <KPICard title={t('cards.performance')} value={oeeData?.current.performance ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
           <KPICard title={t('cards.quality')} value={oeeData?.current.quality ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
         </div>
@@ -241,8 +244,8 @@ export function ProductionOEEView() {
           {/* Gauge */}
           <div className="col-span-12 lg:col-span-4">
             <OEEGauge
-              oee={oeeData?.current.oee ?? 0}
-              availability={oeeData?.current.availability ?? 0}
+              oee={(atOee ? oeeData?.current.oeeTb : oeeData?.current.oee) ?? 0}
+              availability={(atOee ? oeeData?.current.availabilityTb : oeeData?.current.availability) ?? 0}
               performance={oeeData?.current.performance ?? 0}
               quality={oeeData?.current.quality ?? 0}
               isLoading={isLoading}
@@ -278,7 +281,7 @@ export function ProductionOEEView() {
                   <div className="h-52 flex items-center justify-center text-xs text-muted-foreground">{t('oeev.noTrend', { defaultValue: 'No trend data for this timeframe' })}</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={210}>
-                    <AreaChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
+                    <ComposedChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
                       <defs>
                         <linearGradient id="oeeFill" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#6366f1" stopOpacity={0.45} />
@@ -293,10 +296,17 @@ export function ProductionOEEView() {
                         formatter={(v: any, name: any) => [`${Number(v).toFixed(1)}%`, name === 'oeeTb' ? 'OEE (Time-Based)' : 'OEE (Schedule)']}
                       />
                       <ReferenceLine y={WORLD_CLASS} stroke="#22c55e" strokeDasharray="6 4" strokeOpacity={0.6} />
-                      <Area type="monotone" dataKey="oee" name="oee" stroke="#818cf8" strokeWidth={2} fill="url(#oeeFill)" />
+                      {/* Primary OEE series — render style follows the ScopePanel View toggle */}
+                      {trendType === 'bar' ? (
+                        <Bar dataKey="oee" name="oee" fill="#818cf8" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                      ) : trendType === 'line' ? (
+                        <Line type="monotone" dataKey="oee" name="oee" stroke="#818cf8" strokeWidth={2} dot={false} />
+                      ) : (
+                        <Area type="monotone" dataKey="oee" name="oee" stroke="#818cf8" strokeWidth={2} fill="url(#oeeFill)" />
+                      )}
                       {/* Time-based OEE (AT-OEE) overlaid as a dashed line for comparison */}
-                      <Area type="monotone" dataKey="oeeTb" name="oeeTb" stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" fill="none" />
-                    </AreaChart>
+                      <Line type="monotone" dataKey="oeeTb" name="oeeTb" stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" dot={false} />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 )
               ) : (
