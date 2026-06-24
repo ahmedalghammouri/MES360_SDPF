@@ -104,11 +104,17 @@ const navItems: NavItem[] = [
     icon: Gauge,
     appHref: '/command-center',
     children: [
-      { label: 'Command Center',          href: '/command-center',        icon: Gauge,       badge: 'New', badgeVariant: 'default' },
-      { label: 'Downtime Command Center', href: '/downtime',              icon: PauseCircle, badge: 'New', badgeVariant: 'default' },
-      { label: 'Energy Command Center',   href: '/energy/command-center', icon: Zap,         badge: 'New', badgeVariant: 'default' },
-      { label: 'Executive Multi-Plant',   href: '/executive',             icon: Factory,     badge: 'New', badgeVariant: 'default' },
-      { label: 'Dashboard Center',        href: '/dashboard-center',      icon: LayoutGrid },
+      {
+        label: 'Command Centers',
+        icon: Gauge,
+        children: [
+          { label: 'Command Center',          href: '/command-center',        icon: Gauge,       badge: 'New', badgeVariant: 'default' },
+          { label: 'Downtime Command Center', href: '/downtime',              icon: PauseCircle, badge: 'New', badgeVariant: 'default' },
+          { label: 'Energy Command Center',   href: '/energy/command-center', icon: Zap,         badge: 'New', badgeVariant: 'default' },
+          { label: 'Executive Multi-Plant',   href: '/executive',             icon: Factory,     badge: 'New', badgeVariant: 'default' },
+        ],
+      },
+      { label: 'Dashboard Center', href: '/dashboard-center', icon: LayoutGrid },
     ],
   },
   {
@@ -125,10 +131,22 @@ const navItems: NavItem[] = [
     icon: BarChart3,
     appHref: '/analytics',
     children: [
-      { label: 'Factory Analytics', href: '/analytics',          icon: LayoutGrid },
-      { label: 'Insights Studio',   href: '/analytics/insights', icon: TrendingUp },
-      { label: 'Production KPIs',   href: '/production/kpi',     icon: Gauge      },
-      { label: 'Machine KPIs',      href: '/manufacturing/kpi',  icon: Cpu        },
+      {
+        label: 'Analysis',
+        icon: LayoutGrid,
+        children: [
+          { label: 'Factory Analytics', href: '/analytics',          icon: LayoutGrid },
+          { label: 'Insights Studio',   href: '/analytics/insights', icon: TrendingUp },
+        ],
+      },
+      {
+        label: 'KPIs',
+        icon: Gauge,
+        children: [
+          { label: 'Production KPIs', href: '/production/kpi',    icon: Gauge },
+          { label: 'Machine KPIs',    href: '/manufacturing/kpi', icon: Cpu   },
+        ],
+      },
       {
         label: 'Reports',
         icon: FileText,
@@ -214,8 +232,14 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Manufacturing Hub', href: '/manufacturing',         icon: Cog             },
       { label: 'Control Panel',     href: '/manufacturing/control', icon: SlidersHorizontal, badge: 'Live', badgeVariant: 'secondary' },
-      { label: 'Mfg. Processes',    href: '/production/processes',  icon: Workflow        },
-      { label: 'Recipes',           href: '/production/recipes',    icon: FlaskConical    },
+      {
+        label: 'Engineering',
+        icon: Workflow,
+        children: [
+          { label: 'Mfg. Processes', href: '/production/processes', icon: Workflow     },
+          { label: 'Recipes',        href: '/production/recipes',   icon: FlaskConical },
+        ],
+      },
     ],
   },
   {
@@ -232,11 +256,17 @@ const navItems: NavItem[] = [
     icon: Zap,
     appHref: '/energy',
     children: [
-      { label: 'Energy Dashboard',      href: '/energy',                icon: Zap       },
-      { label: 'Energy Command Center', href: '/energy/command-center', icon: Gauge,    badge: 'New', badgeVariant: 'default' },
-      { label: 'Energy Analytics',      href: '/energy/reports',        icon: BarChart3 },
-      { label: 'Energy Meters',         href: '/energy/meters',         icon: Zap       },
-      { label: 'Energy Live',           href: '/energy/live',           icon: Activity  },
+      { label: 'Energy Dashboard',      href: '/energy',                icon: Zap   },
+      { label: 'Energy Command Center', href: '/energy/command-center', icon: Gauge, badge: 'New', badgeVariant: 'default' },
+      {
+        label: 'Monitoring',
+        icon: Activity,
+        children: [
+          { label: 'Energy Analytics', href: '/energy/reports', icon: BarChart3 },
+          { label: 'Energy Meters',    href: '/energy/meters',  icon: Zap       },
+          { label: 'Energy Live',      href: '/energy/live',    icon: Activity  },
+        ],
+      },
     ],
   },
   {
@@ -293,7 +323,7 @@ const navItems: NavItem[] = [
         icon: ClipboardCheck,
         children: [
           { label: 'Quality Plans', href: '/quality/plans',       icon: ClipboardList  },
-          { label: 'Inspections',   href: '/quality/inspections', icon: ClipboardCheck },
+          { label: 'Inspections',   href: '/quality/inspections', icon: ClipboardCheck, dynamicKey: 'pendingInspections', badgeVariant: 'secondary' },
           { label: 'SPC Charts',    href: '/quality/spc',         icon: LineChart      },
         ],
       },
@@ -303,7 +333,7 @@ const navItems: NavItem[] = [
         children: [
           { label: 'Quality Records', href: '/quality/records', icon: ClipboardCheck },
           { label: 'Non-Conformance', href: '/quality/ncr',     icon: AlertTriangle, dynamicKey: 'openNcr', badgeVariant: 'destructive' },
-          { label: 'CAPA',            href: '/quality/capa',    icon: ShieldCheck    },
+          { label: 'CAPA',            href: '/quality/capa',    icon: ShieldCheck,   dynamicKey: 'openCapa', badgeVariant: 'secondary' },
         ],
       },
       { label: 'Reports & Analytics', href: '/quality/reports', icon: BarChart3 },
@@ -358,13 +388,25 @@ const navItems: NavItem[] = [
     icon: BookOpen,
     appHref: '/plm',
     children: [
-      { label: 'Overview',            href: '/plm',                  icon: Gauge          },
-      { label: 'Change Requests',     href: '/plm/change-requests',  icon: GitPullRequest },
-      { label: 'Mfg. Processes',      href: '/production/processes', icon: Workflow       },
-      { label: 'Bill of Materials',   href: '/inventory/bom',        icon: GitMerge       },
-      { label: 'Recipes',             href: '/production/recipes',   icon: FlaskConical   },
-      { label: 'Design Studio',       href: '/plm/design',           icon: Sparkles       },
-      { label: 'Reports & Analytics', href: '/plm/reports',          icon: BarChart3      },
+      { label: 'Overview', href: '/plm', icon: Gauge },
+      {
+        label: 'Lifecycle',
+        icon: GitPullRequest,
+        children: [
+          { label: 'Change Requests', href: '/plm/change-requests', icon: GitPullRequest, dynamicKey: 'openChangeRequests', badgeVariant: 'secondary' },
+          { label: 'Design Studio',   href: '/plm/design',          icon: Sparkles       },
+        ],
+      },
+      {
+        label: 'Definitions',
+        icon: Workflow,
+        children: [
+          { label: 'Mfg. Processes',    href: '/production/processes', icon: Workflow     },
+          { label: 'Bill of Materials', href: '/inventory/bom',        icon: GitMerge     },
+          { label: 'Recipes',           href: '/production/recipes',   icon: FlaskConical },
+        ],
+      },
+      { label: 'Reports & Analytics', href: '/plm/reports', icon: BarChart3 },
     ],
   },
   {
@@ -417,28 +459,34 @@ function useSidebarCounts(): Record<string, number> {
   const { data } = useQuery({
     queryKey: ['sidebar-counts'],
     queryFn: async () => {
-      const [downtime, workOrders, ncr, maintenance, reschedules, alarms] = await Promise.all([
+      const [downtime, workOrders, ncr, maintenance, reschedules, alarms, changeReq, capa, inspections] = await Promise.all([
         api.get('/production/downtime/events?isOpen=true&limit=1').catch(() => null),
         api.get('/production/work-orders?status=IN_PROGRESS&limit=1').catch(() => null),
         api.get('/quality/ncr?status=OPEN&limit=1').catch(() => null),
         api.get('/maintenance/work-orders?status=OPEN&limit=1').catch(() => null),
         api.get('/production/reschedule-requests?status=PENDING').catch(() => null),
         api.get('/alarms/kpis').catch(() => null),
+        api.get('/plm/change-requests?status=UNDER_REVIEW&limit=1').catch(() => null),
+        api.get('/quality/capa?status=OPEN&limit=1').catch(() => null),
+        api.get('/quality/inspections?result=PENDING&limit=1').catch(() => null),
       ]);
+      const total = (r: any) => (typeof r?.total === 'number' ? r.total : Array.isArray(r) ? r.length : Array.isArray(r?.data) ? r.data.length : 0);
       return {
-        openDowntime:    (downtime    as any)?.total ?? 0,
-        workOrders:      (workOrders  as any)?.total ?? 0,
-        openNcr:         (ncr         as any)?.total ?? 0,
-        openMaintenance: (maintenance as any)?.total ?? 0,
-        // List endpoint returns a plain array → use its length
-        pendingReschedules: Array.isArray(reschedules) ? reschedules.length : 0,
-        activeAlarms:    (alarms       as any)?.active ?? 0,
+        openDowntime:       total(downtime),
+        workOrders:         total(workOrders),
+        openNcr:            total(ncr),
+        openMaintenance:    total(maintenance),
+        pendingReschedules: total(reschedules),
+        activeAlarms:       (alarms as any)?.active ?? 0,
+        openChangeRequests: total(changeReq),
+        openCapa:           total(capa),
+        pendingInspections: total(inspections),
       };
     },
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
-  return data ?? { openDowntime: 0, workOrders: 0, openNcr: 0, openMaintenance: 0, pendingReschedules: 0, activeAlarms: 0 };
+  return data ?? { openDowntime: 0, workOrders: 0, openNcr: 0, openMaintenance: 0, pendingReschedules: 0, activeAlarms: 0, openChangeRequests: 0, openCapa: 0, pendingInspections: 0 };
 }
 
 // ── SidebarItem ─────────────────────────────────────────────────
@@ -487,6 +535,15 @@ function subtreeContainsHref(item: NavItem, activeHref: string | null): boolean 
   return item.children?.some(c => subtreeContainsHref(c, activeHref)) ?? false;
 }
 
+/** Sum of every dynamic-count alert under an item — recurses through sub-groups so
+ *  an app/sub-group surfaces the badge of any descendant page (Change Requests,
+ *  Reschedules, open WOs/NCRs, downtime, etc.) no matter how deeply nested. */
+function subtreeAlertCount(item: NavItem, countsMap?: Record<string, number>): number {
+  let n = item.dynamicKey && countsMap ? (countsMap[item.dynamicKey] ?? 0) : 0;
+  if (item.children) for (const c of item.children) n += subtreeAlertCount(c, countsMap);
+  return n;
+}
+
 function SidebarItem({ item, isCollapsed, depth = 0, dynamicBadge, countsMap }: SidebarItemProps) {
   const pathname = usePathname();
   const activeHref = resolveActiveHref(pathname);
@@ -516,11 +573,9 @@ function SidebarItem({ item, isCollapsed, depth = 0, dynamicBadge, countsMap }: 
     return undefined;
   })();
 
-  // For parent groups: show a dot if any child has a nonzero count
-  const childHasAlert = item.children?.some(c => {
-    if (!c.dynamicKey || !countsMap) return false;
-    return (countsMap[c.dynamicKey] ?? 0) > 0;
-  });
+  // Parent groups bubble up the combined count of every alerting descendant page.
+  const childAlertCount = item.children ? subtreeAlertCount(item, countsMap) : 0;
+  const childHasAlert = childAlertCount > 0;
 
   if (item.children) {
     return (
@@ -546,6 +601,13 @@ function SidebarItem({ item, isCollapsed, depth = 0, dynamicBadge, countsMap }: 
               <span className="flex-1 text-start overflow-hidden whitespace-nowrap">
                 {label}
               </span>
+              {/* Bubbled alert count from descendant pages (hidden while expanded
+                  so it doesn't duplicate the per-page badges shown below). */}
+              {childHasAlert && !isOpen && (
+                <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive/90 text-destructive-foreground text-[10px] font-semibold inline-flex items-center justify-center tabular-nums">
+                  {childAlertCount > 99 ? '99+' : childAlertCount}
+                </span>
+              )}
               <ChevronDown
                 size={14}
                 className={cn('shrink-0 transition-transform duration-200', isOpen && 'rotate-180')}

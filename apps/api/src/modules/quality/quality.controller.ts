@@ -10,6 +10,7 @@ import { AuditLog } from '../../common/decorators/audit-log.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   CreateInspectionDto,
+  RecordSpcDto,
   UpdateInspectionDto,
   CreateNCRDto,
   UpdateNCRDto,
@@ -535,5 +536,16 @@ export class QualityController {
     return this.qualityService.getSPCMeasurements(user.factoryId, {
       parameterId, machineId, from, to, limit: parseInt(limit, 10),
     });
+  }
+
+  @Post('spc/measurements')
+  @RequirePermissions('quality:write')
+  @AuditLog('QUALITY_SPC_RECORD')
+  @ApiOperation({ summary: 'Quick-record SPC measurement(s) for a machine (SPC page / Quality Floor)' })
+  async recordSPC(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: RecordSpcDto,
+  ) {
+    return this.qualityService.recordSpcMeasurements(user.factoryId, user.id, dto);
   }
 }

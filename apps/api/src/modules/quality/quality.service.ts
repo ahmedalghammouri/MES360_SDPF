@@ -330,7 +330,7 @@ export class QualityService {
     machineId?: string | null;
     workOrderId?: string | null;
     measuredAt: Date;
-    measurements: Array<{ parameterId?: string; parameterName?: string; value?: number; unit?: string }>;
+    measurements: Array<{ parameterId?: string; parameterName?: string; value?: number; unit?: string; subgroupNumber?: number }>;
   }) {
     const numeric = (args.measurements ?? []).filter((m) => m && typeof m.value === 'number' && !isNaN(m.value as number));
     if (numeric.length === 0) return;
@@ -366,6 +366,7 @@ export class QualityService {
         parameterName: m.parameterName ?? p?.name ?? 'Parameter',
         parameterUnit: m.unit ?? p?.unit ?? null,
         value,
+        subgroupNumber: m.subgroupNumber ?? null,
         workOrderId: args.workOrderId ?? null,
         measuredAt: args.measuredAt,
         measuredById: args.userId ?? null,
@@ -380,6 +381,33 @@ export class QualityService {
     });
 
     await this.prisma.sPCMeasurement.createMany({ data: rows });
+  }
+
+  /**
+   * Quick SPC entry (SPC page / Quality Floor) — record one or more readings for a
+   * machine directly, without a full inspection. Reuses the same control/spec-limit
+   * stamping + out-of-control flagging as inspection-driven SPC.
+   */
+  async recordSpcMeasurements(
+    factoryId: string | null,
+    userId: string | null,
+    dto: { machineId: string; planId?: string; workOrderId?: string; measuredAt?: string; measurements: any[] },
+  ) {
+    const resolvedFactoryId = await this.resolveFactoryId(factoryId, dto.machineId, dto.workOrderId);
+    const numeric = (dto.measurements ?? []).filter((m) => m && typeof m.value === 'number' && !isNaN(m.value));
+    if (numeric.length === 0) return { recorded: 0 };
+    const before = await this.prisma.sPCMeasurement.count({ where: { factoryId: resolvedFactoryId } });
+    await this.syncSpcFromInspection({
+      factoryId: resolvedFactoryId,
+      userId,
+      planId: dto.planId,
+      machineId: dto.machineId,
+      workOrderId: dto.workOrderId,
+      measuredAt: dto.measuredAt ? new Date(dto.measuredAt) : new Date(),
+      measurements: numeric,
+    });
+    const after = await this.prisma.sPCMeasurement.count({ where: { factoryId: resolvedFactoryId } });
+    return { recorded: after - before };
   }
 
   async getInspectionById(factoryId: string | null, id: string) {

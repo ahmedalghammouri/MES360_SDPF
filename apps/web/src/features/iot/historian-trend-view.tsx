@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ChevronRight, ChevronDown, Folder, FolderOpen, Activity, Search,
-  RefreshCw, Trash2, Plus, X, Pause, Play, Radio, Gauge, Cpu,
+  RefreshCw, Trash2, Plus, X, Pause, Play, Radio, Gauge, Cpu, Download,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -318,6 +318,41 @@ export function HistorianTrendView() {
       .map(([k, vals]) => ({ t: k * 1000, ...vals }));
   }, [rows, range.ms]);
 
+  // ── Per-series stats over the visible window (last / min / avg / max) ──
+  const seriesStats = useMemo(() => {
+    const acc: Record<string, { last: number | null; min: number; max: number; sum: number; n: number }> = {};
+    for (const s of selected) acc[s.key] = { last: null, min: Infinity, max: -Infinity, sum: 0, n: 0 };
+    for (const row of chartData) {
+      for (const s of selected) {
+        const v = (row as any)[s.key];
+        if (typeof v !== 'number' || Number.isNaN(v)) continue;
+        const a = acc[s.key];
+        a.last = v; a.min = Math.min(a.min, v); a.max = Math.max(a.max, v); a.sum += v; a.n += 1;
+      }
+    }
+    return acc;
+  }, [chartData, selected]);
+
+  // ── CSV export of the charted window ──
+  const exportCsv = () => {
+    if (chartData.length === 0) return;
+    const header = ['time', ...selected.map((s) => s.label)];
+    const lines = [header.join(',')];
+    for (const row of chartData) {
+      const cells = [new Date((row as any).t).toISOString(), ...selected.map((s) => {
+        const v = (row as any)[s.key];
+        return typeof v === 'number' ? String(v) : '';
+      })];
+      lines.push(cells.join(','));
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `historian-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
   // ── Actions ──
   const toggleCheck = (s: SeriesDef) =>
     setChecked((prev) => { const n = new Set(prev); n.has(s.key) ? n.delete(s.key) : n.add(s.key); return n; });
@@ -415,6 +450,10 @@ export function HistorianTrendView() {
             <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={() => setReloadKey((k) => k + 1)} title={t('historian.reloadHistory')}>
               <RefreshCw size={13} />
             </Button>
+            <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" disabled={chartData.length === 0} onClick={exportCsv}
+              title={t('historian.exportCsv', { defaultValue: 'Export CSV' })}>
+              <Download size={13} /> {t('common:actions.export')}
+            </Button>
             {selected.length > 0 && (
               <Button size="sm" variant="ghost" className="gap-1.5 h-8 text-xs text-destructive ml-auto" onClick={clearAll}>
                 <Trash2 size={13} /> {t('historian.clear')}
@@ -423,15 +462,27 @@ export function HistorianTrendView() {
           </div>
 
           {selected.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3 shrink-0">
-              {selected.map((s) => (
-                <span key={s.key} className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 pl-2 pr-1 py-0.5 text-[11px]">
-                  <span className="w-2 h-2 rounded-full" style={{ background: colorFor(s.key) }} />
-                  <span className={cn(s.kind === 'tag' && 'font-mono')}>{s.label}</span>
-                  {s.unit && <span className="text-muted-foreground">{s.unit}</span>}
-                  <button onClick={() => removeSeries(s.key)} className="hover:text-destructive"><X size={12} /></button>
-                </span>
-              ))}
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 mb-3 shrink-0">
+              {selected.map((s) => {
+                const st = seriesStats[s.key];
+                const fmt = (v: number | null | undefined) => (v == null || !isFinite(v as number) ? '—' : (Math.round((v as number) * 100) / 100).toLocaleString());
+                return (
+                  <div key={s.key} className="rounded-lg border border-border/60 bg-card/50 px-2.5 py-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorFor(s.key) }} />
+                      <span className={cn('text-[11px] truncate flex-1', s.kind === 'tag' && 'font-mono')} title={s.label}>{s.label}</span>
+                      <button onClick={() => removeSeries(s.key)} className="text-muted-foreground/60 hover:text-destructive shrink-0"><X size={12} /></button>
+                    </div>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="text-base font-bold tabular-nums" style={{ color: colorFor(s.key) }}>{fmt(st?.last)}</span>
+                      <span className="text-[10px] text-muted-foreground">{s.unit}</span>
+                    </div>
+                    <div className="text-[9px] text-muted-foreground tabular-nums">
+                      {t('historian.min', { defaultValue: 'min' })} {fmt(st?.n ? st.min : null)} · {t('historian.avg', { defaultValue: 'avg' })} {fmt(st?.n ? st.sum / st.n : null)} · {t('historian.max', { defaultValue: 'max' })} {fmt(st?.n ? st.max : null)}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 

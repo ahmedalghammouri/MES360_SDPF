@@ -6,6 +6,35 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
+// ─── SPC QUICK-RECORD ────────────────────────────────────────
+// Direct SPC point entry (SPC page / Quality Floor) — bypasses a full inspection.
+export class RecordSpcDto {
+  @ApiProperty()
+  @IsString()
+  machineId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  planId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  workOrderId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  measuredAt?: string;
+
+  @ApiProperty({ type: () => [MeasurementDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MeasurementDto)
+  measurements!: MeasurementDto[];
+}
+
 // ─── INSPECTION ──────────────────────────────────────────────
 
 export enum InspectionType {
@@ -46,6 +75,11 @@ export class MeasurementDto {
   @ApiPropertyOptional()
   @IsOptional()
   pass?: boolean;
+
+  @ApiPropertyOptional({ description: 'Sample/unit number within the inspection subgroup (1-based)' })
+  @IsOptional()
+  @IsNumber()
+  subgroupNumber?: number;
 
   @ApiPropertyOptional({ description: 'Per-parameter inspector note' })
   @IsOptional()

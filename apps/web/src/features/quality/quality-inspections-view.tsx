@@ -63,11 +63,15 @@ interface QualityPlan {
   parameters: QualityParameter[];
 }
 
+interface ChecklistSample {
+  value: string;
+  pass: boolean | null;
+}
 interface ChecklistItem {
   parameterId: string;
   parameterName: string;
-  measuredValue: string;
-  pass: boolean | null;
+  /** One reading per sampled unit (subgroup) — each becomes an SPC point. */
+  samples: ChecklistSample[];
   notes: string;
 }
 
@@ -226,24 +230,31 @@ export function QualityInspectionsView() {
       // recorded measurement; fall back to whatever measurements were stored.
       const measured: any[] = Array.isArray(full.measurements) ? full.measurements : []
       const params: QualityParameter[] = full.plan?.parameters ?? []
+      // Group recorded measurements (possibly several samples per parameter) back
+      // into per-parameter sample lists.
+      const samplesFor = (key: string, name: string): ChecklistSample[] => {
+        const ms = measured
+          .filter(x => (x.parameterId && x.parameterId === key) || x.parameterName === name)
+          .sort((a, b) => (a.subgroupNumber ?? 0) - (b.subgroupNumber ?? 0))
+        return ms.length > 0
+          ? ms.map(m => ({ value: m.value != null ? String(m.value) : '', pass: typeof m.pass === 'boolean' ? m.pass : null }))
+          : [{ value: '', pass: null }]
+      }
       if (params.length > 0) {
-        setChecklist(params.map(p => {
-          const m = measured.find(x => x.parameterId === p.id)
-          return {
-            parameterId: p.id,
-            parameterName: p.name,
-            measuredValue: m?.value != null ? String(m.value) : '',
-            pass: typeof m?.pass === 'boolean' ? m.pass : null,
-            notes: m?.notes ?? '',
-          }
-        }))
+        setChecklist(params.map(p => ({
+          parameterId: p.id,
+          parameterName: p.name,
+          samples: samplesFor(p.id, p.name),
+          notes: measured.find(x => x.parameterId === p.id)?.notes ?? '',
+        })))
       } else if (measured.length > 0) {
-        setChecklist(measured.map(m => ({
-          parameterId: m.parameterId ?? m.parameterName ?? '',
-          parameterName: m.parameterName ?? '',
-          measuredValue: m.value != null ? String(m.value) : '',
-          pass: typeof m.pass === 'boolean' ? m.pass : null,
-          notes: m.notes ?? '',
+        // No plan parameters — derive distinct parameters from the stored readings.
+        const names = [...new Set(measured.map(m => m.parameterName ?? ''))].filter(Boolean)
+        setChecklist(names.map(name => ({
+          parameterId: measured.find(m => m.parameterName === name)?.parameterId ?? name,
+          parameterName: name,
+          samples: samplesFor('', name),
+          notes: measured.find(m => m.parameterName === name)?.notes ?? '',
         })))
       }
     } catch {
@@ -285,8 +296,7 @@ export function QualityInspectionsView() {
         setChecklist(plan.parameters.map(p => ({
           parameterId: p.id,
           parameterName: p.name,
-          measuredValue: '',
-          pass: null,
+          samples: [{ value: '', pass: null }],
           notes: '',
         })))
       }
@@ -295,21 +305,52 @@ export function QualityInspectionsView() {
     }
   }
 
-  const updateChecklistItem = (idx: number, field: keyof ChecklistItem, value: any) => {
-    setChecklist(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item))
+  const updateChecklistNotes = (idx: number, value: string) => {
+    setChecklist(prev => prev.map((item, i) => i === idx ? { ...item, notes: value } : item))
+  }
+  // Set a sample's value; auto-derive pass/fail from the parameter's spec limits.
+  const setSampleValue = (idx: number, sidx: number, raw: string) => {
+    setChecklist(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      const param = selectedPlan?.parameters.find(p => p.id === item.parameterId)
+      const num = Number(raw)
+      let pass: boolean | null = item.samples[sidx]?.pass ?? null
+      if (raw.trim() !== '' && !isNaN(num) && param && (param.lsl != null || param.usl != null)) {
+        pass = (param.lsl == null || num >= param.lsl) && (param.usl == null || num <= param.usl)
+      } else if (raw.trim() === '') {
+        pass = null
+      }
+      return { ...item, samples: item.samples.map((s, j) => j === sidx ? { value: raw, pass } : s) }
+    }))
+  }
+  const setSamplePass = (idx: number, sidx: number, pass: boolean) => {
+    setChecklist(prev => prev.map((item, i) => i === idx
+      ? { ...item, samples: item.samples.map((s, j) => j === sidx ? { ...s, pass } : s) } : item))
+  }
+  const addSample = (idx: number) => {
+    setChecklist(prev => prev.map((item, i) => i === idx ? { ...item, samples: [...item.samples, { value: '', pass: null }] } : item))
+  }
+  const removeSample = (idx: number, sidx: number) => {
+    setChecklist(prev => prev.map((item, i) => i === idx && item.samples.length > 1
+      ? { ...item, samples: item.samples.filter((_, j) => j !== sidx) } : item))
   }
 
   const handleSubmit = () => {
-    const filledChecklist = checklist.filter(c => c.measuredValue.trim() !== '');
-    const measurements = filledChecklist.length > 0
-      ? filledChecklist.map(c => ({
+    // Flatten every non-empty sample into its own measurement (one SPC point each).
+    const measurementsList = checklist.flatMap(c =>
+      c.samples
+        .map((s, si) => ({ s, si }))
+        .filter(({ s }) => s.value.trim() !== '')
+        .map(({ s, si }) => ({
           parameterId: c.parameterId,
           parameterName: c.parameterName,
-          value: Number(c.measuredValue),
-          pass: c.pass ?? undefined,
+          value: Number(s.value),
+          pass: s.pass ?? undefined,
+          subgroupNumber: si + 1,
           notes: c.notes || undefined,
-        }))
-      : undefined;
+        })),
+    );
+    const measurements = measurementsList.length > 0 ? measurementsList : undefined;
 
     const pick = (v: string) => (v && v !== '__none__' ? v : undefined)
     const dto: any = {
@@ -669,83 +710,88 @@ export function QualityInspectionsView() {
                 <FlaskConical size={12} className="text-primary" />
                 {t('iform.checkPointsLabel', { count: checklist.length })}
               </Label>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-xs">
-                  <thead className="bg-muted/40">
-                    <tr>
-                      <th className="text-left p-2 font-medium text-muted-foreground">{t('iform.colParameter')}</th>
-                      <th className="text-left p-2 font-medium text-muted-foreground w-28">{t('iform.colMeasuredValue')}</th>
-                      <th className="text-center p-2 font-medium text-muted-foreground w-24">{t('iform.colResult')}</th>
-                      <th className="text-left p-2 font-medium text-muted-foreground">{t('iform.colNotes')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {checklist.map((item, idx) => {
-                      const param = selectedPlan?.parameters.find(p => p.id === item.parameterId)
-                      return (
-                        <tr key={item.parameterId} className="border-t">
-                          <td className="p-1.5">
-                            <div className="font-medium">{item.parameterName}</div>
-                            {param && (
-                              <div className="text-[10px] text-muted-foreground">
-                                {param.nominalValue != null && t('iform.nominal', { value: param.nominalValue })}
-                                {param.unit && ` ${param.unit}`}
-                                {(param.lsl != null || param.usl != null) && ` | ${t('iform.spec')}: [${param.lsl ?? '—'}, ${param.usl ?? '—'}]`}
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-1.5">
+              <div className="border rounded-lg divide-y divide-border/60">
+                {checklist.map((item, idx) => {
+                  const param = selectedPlan?.parameters.find(p => p.id === item.parameterId)
+                  const recorded = item.samples.filter(s => s.value.trim() !== '')
+                  const passing = recorded.filter(s => s.pass === true).length
+                  return (
+                    <div key={item.parameterId} className="p-2.5">
+                      <div className="flex items-start justify-between mb-1.5">
+                        <div>
+                          <div className="font-medium text-xs">{item.parameterName}</div>
+                          {param && (
+                            <div className="text-[10px] text-muted-foreground">
+                              {param.nominalValue != null && t('iform.nominal', { value: param.nominalValue })}
+                              {param.unit && ` ${param.unit}`}
+                              {(param.lsl != null || param.usl != null) && ` | ${t('iform.spec')}: [${param.lsl ?? '—'}, ${param.usl ?? '—'}]`}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                          {t('iform.samplesPassing', { passing, total: recorded.length, defaultValue: `${passing}/${recorded.length} passing` })}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        {item.samples.map((s, sidx) => (
+                          <div key={sidx} className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground w-7 shrink-0">#{sidx + 1}</span>
                             <Input
-                              value={item.measuredValue}
-                              onChange={e => updateChecklistItem(idx, 'measuredValue', e.target.value)}
-                              className="h-7 text-xs w-full"
+                              value={s.value}
+                              onChange={e => setSampleValue(idx, sidx, e.target.value)}
+                              className="h-7 text-xs w-28 shrink-0"
                               placeholder={t('iform.enterValue')}
                             />
-                          </td>
-                          <td className="p-1.5">
-                            <div className="flex gap-1 justify-center">
+                            <div className="flex gap-1">
                               <button
                                 type="button"
-                                onClick={() => updateChecklistItem(idx, 'pass', true)}
-                                className={cn(
-                                  'flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors',
-                                  item.pass === true
-                                    ? 'bg-green-500/20 text-green-400 border border-green-500/40'
-                                    : 'bg-muted/30 text-muted-foreground hover:bg-green-500/10',
-                                )}
+                                onClick={() => setSamplePass(idx, sidx, true)}
+                                className={cn('flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors',
+                                  s.pass === true ? 'bg-green-500/20 text-green-400 border border-green-500/40' : 'bg-muted/30 text-muted-foreground hover:bg-green-500/10')}
                               >
                                 <CheckCircle2 size={10} /> {t('iform.pass')}
                               </button>
                               <button
                                 type="button"
-                                onClick={() => updateChecklistItem(idx, 'pass', false)}
-                                className={cn(
-                                  'flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors',
-                                  item.pass === false
-                                    ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                                    : 'bg-muted/30 text-muted-foreground hover:bg-red-500/10',
-                                )}
+                                onClick={() => setSamplePass(idx, sidx, false)}
+                                className={cn('flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors',
+                                  s.pass === false ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-muted/30 text-muted-foreground hover:bg-red-500/10')}
                               >
                                 <XCircle size={10} /> {t('iform.fail')}
                               </button>
                             </div>
-                          </td>
-                          <td className="p-1.5">
-                            <Input
-                              value={item.notes}
-                              onChange={e => updateChecklistItem(idx, 'notes', e.target.value)}
-                              className="h-7 text-xs w-full"
-                              placeholder={t('iform.optionalPlaceholder')}
-                            />
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                            {item.samples.length > 1 && (
+                              <button type="button" onClick={() => removeSample(idx, sidx)}
+                                className="ms-auto text-muted-foreground/60 hover:text-red-400 text-sm leading-none px-1" title={t('iform.removeReading', { defaultValue: 'Remove reading' })}>
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <button type="button" onClick={() => addSample(idx)} className="text-[11px] text-primary hover:underline font-medium">
+                          + {t('iform.addReading', { defaultValue: 'Add reading' })}
+                        </button>
+                        <Input
+                          value={item.notes}
+                          onChange={e => updateChecklistNotes(idx, e.target.value)}
+                          className="h-6 text-[11px] flex-1"
+                          placeholder={t('iform.optionalPlaceholder')}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">
-                {t('iform.paramsPassing', { passing: checklist.filter(c => c.pass === true).length, total: checklist.length })}
+                {t('iform.samplesTotal', {
+                  passing: checklist.reduce((n, c) => n + c.samples.filter(s => s.pass === true).length, 0),
+                  total: checklist.reduce((n, c) => n + c.samples.filter(s => s.value.trim() !== '').length, 0),
+                  defaultValue: 'readings recorded',
+                })}
               </p>
             </div>
           )}

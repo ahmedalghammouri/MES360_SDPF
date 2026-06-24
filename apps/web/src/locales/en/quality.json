@@ -398,7 +398,7 @@
   },
   "spc": {
     "noMeasurements": "No SPC measurements recorded yet",
-    "noMeasurementsHint": "Measurements will appear here once IoT devices start recording quality data",
+    "noMeasurementsHint": "Points appear here once inspections record numeric parameter readings against a quality plan with control limits",
     "subtitleStability": "Statistical process control — monitor process stability",
     "subtitleCapability": "Statistical process control — monitor process stability and capability",
     "samples": "Samples",

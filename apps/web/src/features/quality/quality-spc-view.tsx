@@ -2,14 +2,19 @@
 import { useTranslation } from 'react-i18next';
 
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, AlertTriangle, CheckCircle2, Activity } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { TrendingUp, AlertTriangle, CheckCircle2, Activity, Plus } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api.client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { FormDialog } from '@/components/ui/form-dialog';
+import { SelectMenu } from '@/components/ui/select-menu';
+import { useToast } from '@/components/ui/use-toast';
 
 interface SPCParameter {
   parameterName: string;
@@ -61,7 +66,15 @@ const STATUS_CFG: Record<Status, { labelKey: string; color: string; icon: any }>
 
 export function QualitySpcView() {
   const { t } = useTranslation(['quality', 'common']);
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const [selected, setSelected] = useState<string | null>(null);
+
+  // Quick-record modal state
+  const [recordOpen, setRecordOpen] = useState(false);
+  const [recMachineId, setRecMachineId] = useState('');
+  const [recParam, setRecParam] = useState('');
+  const [recValues, setRecValues] = useState<string[]>(['']);
 
   const { data: paramsData, isLoading: paramsLoading } = useQuery({
     queryKey: ['quality', 'spc', 'parameters'],
@@ -70,6 +83,44 @@ export function QualitySpcView() {
   });
 
   const parameters: SPCParameter[] = (paramsData as any) ?? [];
+
+  const { data: machinesData } = useQuery({
+    queryKey: ['hierarchy', 'machines'],
+    queryFn: () => api.get('/hierarchy/machines'),
+    enabled: recordOpen,
+    staleTime: 300_000,
+  });
+  const machines: Array<{ id: string; name: string; code?: string }> = (machinesData as any)?.data ?? (machinesData as any) ?? [];
+
+  const recordMutation = useMutation({
+    mutationFn: (body: any) => api.post('/quality/spc/measurements', body),
+    onSuccess: (res: any) => {
+      toast({ title: t('spc.recorded', { count: res?.recorded ?? 0, defaultValue: `${res?.recorded ?? 0} reading(s) recorded` }) });
+      qc.invalidateQueries({ queryKey: ['quality', 'spc'] });
+      setRecordOpen(false);
+      setRecValues(['']);
+      setRecParam('');
+    },
+    onError: () => toast({ title: t('spc.recordFailed', { defaultValue: 'Failed to record measurement' }), variant: 'destructive' }),
+  });
+
+  const openRecord = () => {
+    const p = selected ? parameters.find(x => x.parameterName === selected) : parameters[0];
+    setRecParam(p?.parameterName ?? '');
+    setRecMachineId(p?.machineId ?? '');
+    setRecValues(['']);
+    setRecordOpen(true);
+  };
+
+  const submitRecord = () => {
+    const vals = recValues.map(v => v.trim()).filter(v => v !== '' && !isNaN(Number(v)));
+    if (!recMachineId || !recParam || vals.length === 0) return;
+    const unit = parameters.find(p => p.parameterName === recParam)?.unit ?? undefined;
+    recordMutation.mutate({
+      machineId: recMachineId,
+      measurements: vals.map((v, i) => ({ parameterName: recParam, value: Number(v), unit, subgroupNumber: i + 1 })),
+    });
+  };
 
   const selectedParam = selected
     ? parameters.find(p => p.parameterName === selected)
@@ -165,6 +216,9 @@ export function QualitySpcView() {
           <h1 className="text-lg font-bold">{t('headers.spc.title')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('spc.subtitleCapability')}</p>
         </div>
+        <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={openRecord}>
+          <Plus size={14} /> {t('spc.record', { defaultValue: 'Record measurement' })}
+        </Button>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">
@@ -292,6 +346,58 @@ export function QualitySpcView() {
           </div>
         )}
       </div>
+
+      {/* Quick-record SPC measurement(s) — direct entry (Industry-4.0 ready) */}
+      <FormDialog
+        open={recordOpen}
+        onClose={() => setRecordOpen(false)}
+        title={t('spc.record', { defaultValue: 'Record measurement' })}
+        onSubmit={submitRecord}
+        isSubmitting={recordMutation.isPending}
+        isValid={!!recMachineId && !!recParam && recValues.some(v => v.trim() !== '' && !isNaN(Number(v)))}
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="text-[11px] text-muted-foreground">{t('spc.parameter', { defaultValue: 'Parameter' })}</label>
+            <SelectMenu
+              size="md" fullWidth value={recParam} onValueChange={setRecParam}
+              options={parameters.map(p => ({ value: p.parameterName, label: `${p.parameterName}${p.unit ? ` (${p.unit})` : ''}` }))}
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">{t('iform.machineLabel', { defaultValue: 'Machine' })}</label>
+            <SelectMenu
+              size="md" fullWidth value={recMachineId} onValueChange={setRecMachineId}
+              options={machines.map(m => ({ value: m.id, label: m.code ? `${m.name} (${m.code})` : m.name }))}
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">{t('spc.readings', { defaultValue: 'Readings (one per sampled unit)' })}</label>
+            <div className="space-y-1.5 mt-1">
+              {recValues.map((v, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground w-6">#{i + 1}</span>
+                  <Input
+                    value={v}
+                    onChange={e => setRecValues(prev => prev.map((x, j) => j === i ? e.target.value : x))}
+                    className="h-8 text-sm flex-1"
+                    placeholder={t('iform.enterValue')}
+                    inputMode="decimal"
+                  />
+                  {recValues.length > 1 && (
+                    <button type="button" onClick={() => setRecValues(prev => prev.filter((_, j) => j !== i))}
+                      className="text-muted-foreground/60 hover:text-red-400 px-1">✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => setRecValues(prev => [...prev, ''])}
+              className="mt-1.5 text-[11px] text-primary hover:underline font-medium">
+              + {t('iform.addReading', { defaultValue: 'Add reading' })}
+            </button>
+          </div>
+        </div>
+      </FormDialog>
     </div>
   );
 }

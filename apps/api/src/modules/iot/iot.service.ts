@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { EnergyContextService } from './energy-context.service';
@@ -15,11 +15,72 @@ export interface TelemetryDto {
 
 @Injectable()
 export class IotService {
+  private readonly logger = new Logger(IotService.name);
+  /** Per-tag last auto-SPC capture (ms) — throttles in-line SPC point creation. */
+  private readonly lastSpcMs = new Map<string, number>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
     private readonly energyContext: EnergyContextService,
   ) {}
+
+  /**
+   * Stream in-line quality readings into SPC. For each MEASUREMENT tag in the
+   * telemetry batch that is linked to a quality parameter — either explicitly
+   * (tag.spcParameterId) or by convention (tag name === a parameter name on the
+   * machine's active quality plan) — write an SPCMeasurement stamped with that
+   * parameter's control/spec limits and flag out-of-control. Throttled per tag
+   * (default 60s, or the tag's historizationRateSec) so polling can't flood.
+   */
+  private async captureAutoSpc(
+    machine: { id: string; factoryId: string },
+    tags: any[],
+    tagValues: Array<{ tagCode: string; value: string }>,
+    now: Date,
+  ): Promise<void> {
+    const valByCode = new Map(tagValues.map((tv) => [tv.tagCode, tv.value]));
+    const numeric = (raw: string | undefined) => (raw == null || raw.trim() === '' ? NaN : Number(raw));
+
+    const candidates = tags.filter((t) =>
+      t.tagType === 'MEASUREMENT' && !isNaN(numeric(valByCode.get(t.code))));
+    if (candidates.length === 0) return;
+
+    // Convention fallback: load the machine's plan parameters only if needed.
+    let byName: Map<string, any> | null = null;
+    if (candidates.some((t) => !t.spcParameter)) {
+      const params = await this.prisma.qualityParameter.findMany({
+        where: { plan: { machineId: machine.id, isActive: true } },
+        select: { id: true, name: true, unit: true, nominalValue: true, ucl: true, lcl: true, usl: true, lsl: true },
+      });
+      byName = new Map(params.map((p) => [p.name.toLowerCase(), p]));
+    }
+
+    const rows: any[] = [];
+    for (const t of candidates) {
+      const p = t.spcParameter ?? byName?.get(String(t.name ?? '').toLowerCase());
+      if (!p) continue;
+      const intervalMs = Math.max(5, t.historizationRateSec ?? 60) * 1000;
+      if (now.getTime() - (this.lastSpcMs.get(t.id) ?? 0) < intervalMs) continue;
+      this.lastSpcMs.set(t.id, now.getTime());
+
+      const value = numeric(valByCode.get(t.code));
+      const out = (p.ucl != null && value > p.ucl) || (p.lcl != null && value < p.lcl);
+      rows.push({
+        factoryId: machine.factoryId,
+        machineId: machine.id,
+        parameterName: p.name,
+        parameterUnit: t.unit ?? p.unit ?? null,
+        value,
+        isOutOfControl: out,
+        controlViolation: out ? 'RULE_1' : null,
+        ucl: p.ucl ?? null, lcl: p.lcl ?? null, cl: p.nominalValue ?? null,
+        usl: p.usl ?? null, lsl: p.lsl ?? null,
+        measuredAt: now,
+      });
+    }
+    if (rows.length > 0) await this.prisma.sPCMeasurement.createMany({ data: rows });
+  }
 
   async ingestTelemetry(factoryId: string | null, dto: TelemetryDto) {
     const machine = await this.prisma.machine.findFirst({
@@ -63,7 +124,11 @@ export class IotService {
       const tagCodes = dto.tagValues.map((t) => t.tagCode);
       const tags = await this.prisma.tagDefinition.findMany({
         where: { machineId: dto.machineId, code: { in: tagCodes }, isActive: true },
-        select: { id: true, code: true },
+        select: {
+          id: true, code: true, name: true, tagType: true, unit: true,
+          historizationRateSec: true, spcParameterId: true,
+          spcParameter: { select: { id: true, name: true, unit: true, nominalValue: true, ucl: true, lcl: true, usl: true, lsl: true } },
+        },
       });
       const tagMap = new Map(tags.map((t) => [t.code, t.id]));
 
@@ -88,6 +153,10 @@ export class IotService {
           });
         }),
       );
+
+      // Auto-SPC: stream linked MEASUREMENT readings into SPCMeasurement (throttled).
+      await this.captureAutoSpc(machine, tags as any[], dto.tagValues, now)
+        .catch((e) => this.logger.warn(`Auto-SPC capture failed: ${(e as Error).message}`));
     }
 
     // Broadcast live telemetry to dashboard clients

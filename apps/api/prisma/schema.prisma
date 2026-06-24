@@ -1406,6 +1406,7 @@ model QualityParameter {
   sortOrder    Int     @default(0)
 
   plan QualityPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  spcTags TagDefinition[] @relation("TagSpc")
 
   @@map("quality_parameters")
 }
@@ -2092,6 +2093,10 @@ model TagDefinition {
   meterId    String?
   energyRole String? // ACTIVE_POWER_TOTAL | ENERGY_IMPORT_TOTAL | VOLTAGE_L1 | CURRENT_L1 | PF_TOTAL | FREQUENCY | ...
 
+  // Auto-SPC: when a MEASUREMENT tag is linked to a quality parameter, every numeric
+  // reading streams in as an SPCMeasurement (control/spec limits from the parameter).
+  spcParameterId String?
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2102,6 +2107,7 @@ model TagDefinition {
   area             Area?               @relation(fields: [areaId], references: [id])
   device           Device?             @relation(fields: [deviceId], references: [id])
   meter            EnergyMeter?        @relation(fields: [meterId], references: [id])
+  spcParameter     QualityParameter?   @relation("TagSpc", fields: [spcParameterId], references: [id], onDelete: SetNull)
   currentValue     TagCurrentValue?
   counterState     GatewayCounterState?
   alarmDefinitions AlarmDefinition[]
@@ -2110,6 +2116,7 @@ model TagDefinition {
   @@index([meterId])
   @@index([lineId])
   @@index([areaId])
+  @@index([spcParameterId])
   @@map("tag_definitions")
 }
 

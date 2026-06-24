@@ -207,4 +207,120 @@ export class NotificationsListener {
       data: { machineName: p.machineName },
     }, [UserRole.PRODUCTION_MANAGER, UserRole.MAINTENANCE_MANAGER, UserRole.MAINTENANCE_TECHNICIAN]);
   }
+
+  // ── PRODUCTION (continued) ──────────────────────────────────
+  @OnEvent('production.work-order.completed')
+  onWorkOrderCompleted(p: { workOrder: any; factoryId: string }) {
+    return this.notify('production.work-order.completed', p.factoryId, {
+      type: NotificationType.PRODUCTION,
+      category: NotificationCategory.PRODUCTION,
+      severity: NotificationSeverity.SUCCESS,
+      title: 'Work Order Completed',
+      message: `WO ${p.workOrder?.orderNumber} completed (OEE ${Math.round(p.workOrder?.oee ?? 0)}%)`,
+      link: '/production/orders',
+      data: { orderNumber: p.workOrder?.orderNumber, oee: p.workOrder?.oee },
+    }, [UserRole.PRODUCTION_MANAGER, UserRole.PRODUCTION_SUPERVISOR]);
+  }
+
+  @OnEvent('production.work-order.cancelled')
+  onWorkOrderCancelled(p: { workOrder: any; factoryId: string }) {
+    return this.notify('production.work-order.cancelled', p.factoryId, {
+      type: NotificationType.PRODUCTION,
+      category: NotificationCategory.PRODUCTION,
+      severity: NotificationSeverity.WARNING,
+      title: 'Work Order Cancelled',
+      message: `WO ${p.workOrder?.orderNumber} was cancelled`,
+      link: '/production/orders',
+      data: { orderNumber: p.workOrder?.orderNumber },
+    }, [UserRole.PRODUCTION_MANAGER, UserRole.PRODUCTION_SUPERVISOR]);
+  }
+
+  // ── PLANNING ────────────────────────────────────────────────
+  @OnEvent('production.reschedule.requested')
+  onRescheduleRequested(p: { workOrderId: string; productionOrderId?: string; source?: string; factoryId: string }) {
+    return this.notify('production.reschedule.requested', p.factoryId, {
+      type: NotificationType.PRODUCTION,
+      category: NotificationCategory.PRODUCTION,
+      severity: NotificationSeverity.WARNING,
+      title: 'Reschedule Requested',
+      message: `A reschedule was requested${p.source ? ` (${p.source.replace(/_/g, ' ').toLowerCase()})` : ''} — review pending`,
+      link: '/scheduling/reschedule-requests',
+      data: { workOrderId: p.workOrderId, productionOrderId: p.productionOrderId, source: p.source },
+    }, [UserRole.PRODUCTION_MANAGER, UserRole.PRODUCTION_SUPERVISOR]);
+  }
+
+  @OnEvent('production.material-shortage.raised')
+  onMaterialShortage(p: { workOrderId: string; shortages?: any[]; factoryId: string }) {
+    const n = p.shortages?.length ?? 0;
+    return this.notify('production.material-shortage.raised', p.factoryId, {
+      type: NotificationType.SYSTEM,
+      category: NotificationCategory.INVENTORY,
+      severity: NotificationSeverity.ERROR,
+      title: 'Material Shortage',
+      message: `${n} material shortage${n === 1 ? '' : 's'} raised for a work order`,
+      link: '/inventory/material-requests',
+      data: { workOrderId: p.workOrderId, count: n },
+    }, [UserRole.PRODUCTION_MANAGER, UserRole.PRODUCTION_SUPERVISOR]);
+  }
+
+  // ── MAINTENANCE (continued) ─────────────────────────────────
+  @OnEvent('maintenance.wo.completed')
+  onMaintenanceCompleted(p: { wo: any; factoryId: string }) {
+    return this.notify('maintenance.wo.completed', p.factoryId, {
+      type: NotificationType.MAINTENANCE,
+      category: NotificationCategory.MAINTENANCE,
+      severity: NotificationSeverity.SUCCESS,
+      title: 'Maintenance Completed',
+      message: `Maintenance WO ${p.wo?.woNumber ?? ''} completed`,
+      link: '/maintenance/work-orders',
+      data: { woNumber: p.wo?.woNumber },
+    }, [UserRole.MAINTENANCE_MANAGER]);
+  }
+
+  // ── QUALITY (continued) ─────────────────────────────────────
+  @OnEvent('quality.capa.created')
+  onCapaCreated(p: { capa: any; factoryId: string }) {
+    return this.notify('quality.capa.created', p.factoryId, {
+      type: NotificationType.QUALITY,
+      category: NotificationCategory.QUALITY,
+      severity: NotificationSeverity.WARNING,
+      title: 'New CAPA Opened',
+      message: `CAPA ${p.capa?.capaNumber ?? ''} opened${p.capa?.type ? ` (${p.capa.type})` : ''}`,
+      link: '/quality/capa',
+      data: { capaNumber: p.capa?.capaNumber, type: p.capa?.type },
+    }, [UserRole.QUALITY_MANAGER, UserRole.QUALITY_ENGINEER]);
+  }
+
+  // ── ENERGY ──────────────────────────────────────────────────
+  @OnEvent('energy.anomaly.detected')
+  onEnergyAnomaly(p: { readingId: string; machineId?: string; factoryId: string }) {
+    return this.notify('energy.anomaly.detected', p.factoryId, {
+      type: NotificationType.ENERGY,
+      category: NotificationCategory.ENERGY,
+      severity: NotificationSeverity.WARNING,
+      title: 'Energy Anomaly',
+      message: 'Abnormal energy consumption detected',
+      link: '/energy',
+      data: { readingId: p.readingId, machineId: p.machineId },
+    }, [UserRole.ENERGY_MANAGER]);
+  }
+
+  // ── ALARMS ──────────────────────────────────────────────────
+  @OnEvent('alarm.created')
+  onAlarmCreated(p: { alarm: any; factoryId: string }) {
+    const sev = String(p.alarm?.severity ?? '').toUpperCase();
+    const severity = sev === 'CRITICAL' ? NotificationSeverity.CRITICAL
+      : sev === 'HIGH' ? NotificationSeverity.ERROR
+      : sev === 'MEDIUM' ? NotificationSeverity.WARNING
+      : NotificationSeverity.INFO;
+    return this.notify('alarm.created', p.factoryId, {
+      type: NotificationType.ALARM,
+      category: NotificationCategory.ALARM,
+      severity,
+      title: `Alarm — ${sev || 'TRIGGERED'}`,
+      message: p.alarm?.description ?? 'A shop-floor alarm was raised',
+      link: '/alarms',
+      data: { severity: sev, description: p.alarm?.description },
+    }, [UserRole.PRODUCTION_MANAGER, UserRole.PRODUCTION_SUPERVISOR, UserRole.MAINTENANCE_MANAGER]);
+  }
 }
