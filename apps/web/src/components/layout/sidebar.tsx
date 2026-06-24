@@ -161,13 +161,25 @@ const navItems: NavItem[] = [
     icon: CalendarRange,
     appHref: '/scheduling',
     children: [
-      { label: 'General Schedule',    href: '/scheduling',                     icon: CalendarRange, badge: 'Gantt', badgeVariant: 'default' },
-      { label: 'Production Schedule', href: '/scheduling/production',          icon: Factory,       badge: 'APS',   badgeVariant: 'outline' },
-      { label: 'Order Scheduling',    href: '/production/scheduling',          icon: Calendar       },
-      { label: 'Reschedule Requests', href: '/scheduling/reschedule-requests', icon: CalendarClock, dynamicKey: 'pendingReschedules', badgeVariant: 'destructive' },
-      { label: 'Planned Downtime',    href: '/scheduling/planned-downtime',    icon: CalendarClock  },
-      { label: 'Unplanned Downtime',  href: '/scheduling/unplanned-downtime',  icon: AlertTriangle  },
-      { label: 'Shift Configuration', href: '/production/shifts',              icon: Clock,         badge: 'NCC', badgeVariant: 'outline' },
+      {
+        label: 'Scheduling',
+        icon: CalendarRange,
+        children: [
+          { label: 'General Schedule',    href: '/scheduling',            icon: CalendarRange, badge: 'Gantt', badgeVariant: 'default' },
+          { label: 'Production Schedule', href: '/scheduling/production', icon: Factory,       badge: 'APS',   badgeVariant: 'outline' },
+          { label: 'Order Scheduling',    href: '/production/scheduling', icon: Calendar       },
+        ],
+      },
+      {
+        label: 'Adjustments',
+        icon: CalendarClock,
+        children: [
+          { label: 'Reschedule Requests', href: '/scheduling/reschedule-requests', icon: CalendarClock, dynamicKey: 'pendingReschedules', badgeVariant: 'destructive' },
+          { label: 'Planned Downtime',    href: '/scheduling/planned-downtime',    icon: CalendarClock  },
+          { label: 'Unplanned Downtime',  href: '/scheduling/unplanned-downtime',  icon: AlertTriangle  },
+        ],
+      },
+      { label: 'Shift Configuration', href: '/production/shifts', icon: Clock, badge: 'NCC', badgeVariant: 'outline' },
     ],
   },
   {
@@ -175,12 +187,24 @@ const navItems: NavItem[] = [
     icon: Factory,
     appHref: '/production',
     children: [
-      { label: 'Overview',               href: '/production',                   icon: Gauge          },
-      { label: 'Production Orders (PO)', href: '/production/production-orders', icon: GitCommit      },
-      { label: 'Work Orders (WO)',       href: '/production/orders',            icon: ClipboardList, dynamicKey: 'workOrders', badgeVariant: 'secondary' },
-      { label: 'Dispatch List (JO)',     href: '/production/job-orders',        icon: Layers         },
-      { label: 'Batches & Lots',         href: '/production/batches',           icon: Boxes          },
-      { label: 'Scrap Log Audit',        href: '/production/scrap-log',         icon: AlertTriangle, badge: 'Audit', badgeVariant: 'outline' },
+      { label: 'Overview', href: '/production', icon: Gauge },
+      {
+        label: 'Orders',
+        icon: ClipboardList,
+        children: [
+          { label: 'Production Orders (PO)', href: '/production/production-orders', icon: GitCommit      },
+          { label: 'Work Orders (WO)',       href: '/production/orders',            icon: ClipboardList, dynamicKey: 'workOrders', badgeVariant: 'secondary' },
+          { label: 'Dispatch List (JO)',     href: '/production/job-orders',        icon: Layers         },
+        ],
+      },
+      {
+        label: 'Execution & Output',
+        icon: Boxes,
+        children: [
+          { label: 'Batches & Lots',  href: '/production/batches',   icon: Boxes          },
+          { label: 'Scrap Log Audit', href: '/production/scrap-log', icon: AlertTriangle, badge: 'Audit', badgeVariant: 'outline' },
+        ],
+      },
     ],
   },
   {
@@ -234,15 +258,27 @@ const navItems: NavItem[] = [
     icon: Wrench,
     appHref: '/maintenance',
     children: [
-      { label: 'Overview',            href: '/maintenance',             icon: Gauge         },
-      { label: 'Reliability Center',  href: '/maintenance/reliability', icon: Activity      },
-      { label: 'Maint. Scheduling',   href: '/maintenance/scheduling',  icon: Calendar      },
-      { label: 'Maintenance Orders',  href: '/maintenance/work-orders', icon: ClipboardList, dynamicKey: 'openMaintenance', badgeVariant: 'secondary' },
-      { label: 'Preventive Maint.',   href: '/maintenance/preventive',  icon: Calendar      },
-      { label: 'Maintenance Log',     href: '/maintenance/log',         icon: History       },
-      { label: 'Spare Parts',         href: '/maintenance/spare-parts', icon: PackageSearch },
-      { label: 'Assets & Equipment',  href: '/maintenance/assets',      icon: Cpu           },
-      { label: 'Reports & Analytics', href: '/maintenance/reports',     icon: BarChart3     },
+      { label: 'Overview',           href: '/maintenance',             icon: Gauge    },
+      { label: 'Reliability Center', href: '/maintenance/reliability', icon: Activity },
+      {
+        label: 'Work Management',
+        icon: ClipboardList,
+        children: [
+          { label: 'Maintenance Orders', href: '/maintenance/work-orders', icon: ClipboardList, dynamicKey: 'openMaintenance', badgeVariant: 'secondary' },
+          { label: 'Preventive Maint.',  href: '/maintenance/preventive',  icon: Calendar      },
+          { label: 'Maint. Scheduling',  href: '/maintenance/scheduling',  icon: CalendarClock },
+          { label: 'Maintenance Log',    href: '/maintenance/log',         icon: History       },
+        ],
+      },
+      {
+        label: 'Assets & Spares',
+        icon: Cpu,
+        children: [
+          { label: 'Assets & Equipment', href: '/maintenance/assets',      icon: Cpu           },
+          { label: 'Spare Parts',        href: '/maintenance/spare-parts', icon: PackageSearch },
+        ],
+      },
+      { label: 'Reports & Analytics', href: '/maintenance/reports', icon: BarChart3 },
     ],
   },
   {
@@ -250,15 +286,27 @@ const navItems: NavItem[] = [
     icon: ShieldCheck,
     appHref: '/quality',
     children: [
-      { label: 'Overview',             href: '/quality',              icon: Activity       },
-      { label: 'Quality Intelligence', href: '/quality/intelligence', icon: TrendingUp     },
-      { label: 'Quality Plans',        href: '/quality/plans',        icon: ClipboardList  },
-      { label: 'Quality Records',      href: '/quality/records',      icon: ClipboardCheck },
-      { label: 'Inspections',          href: '/quality/inspections',  icon: ClipboardCheck },
-      { label: 'Non-Conformance',      href: '/quality/ncr',          icon: AlertTriangle, dynamicKey: 'openNcr', badgeVariant: 'destructive' },
-      { label: 'CAPA',                 href: '/quality/capa',         icon: ShieldCheck    },
-      { label: 'SPC Charts',           href: '/quality/spc',          icon: LineChart      },
-      { label: 'Reports & Analytics',  href: '/quality/reports',      icon: BarChart3      },
+      { label: 'Overview',             href: '/quality',              icon: Activity   },
+      { label: 'Quality Intelligence', href: '/quality/intelligence', icon: TrendingUp },
+      {
+        label: 'Control & Inspection',
+        icon: ClipboardCheck,
+        children: [
+          { label: 'Quality Plans', href: '/quality/plans',       icon: ClipboardList  },
+          { label: 'Inspections',   href: '/quality/inspections', icon: ClipboardCheck },
+          { label: 'SPC Charts',    href: '/quality/spc',         icon: LineChart      },
+        ],
+      },
+      {
+        label: 'Records & CAPA',
+        icon: ShieldCheck,
+        children: [
+          { label: 'Quality Records', href: '/quality/records', icon: ClipboardCheck },
+          { label: 'Non-Conformance', href: '/quality/ncr',     icon: AlertTriangle, dynamicKey: 'openNcr', badgeVariant: 'destructive' },
+          { label: 'CAPA',            href: '/quality/capa',    icon: ShieldCheck    },
+        ],
+      },
+      { label: 'Reports & Analytics', href: '/quality/reports', icon: BarChart3 },
     ],
   },
   {
@@ -280,10 +328,16 @@ const navItems: NavItem[] = [
           { label: 'Material Requests', href: '/inventory/material-requests', icon: ClipboardList },
         ],
       },
-      { label: 'Stock Movements',     href: '/inventory/stock-movements',    icon: ArrowLeftRight },
-      { label: 'Location Transfers',  href: '/inventory/location-movements', icon: ArrowLeftRight },
-      { label: 'Bill of Materials',   href: '/inventory/bom',                icon: GitMerge       },
-      { label: 'Reports & Analytics', href: '/inventory/reports',            icon: BarChart3      },
+      {
+        label: 'Movements',
+        icon: ArrowLeftRight,
+        children: [
+          { label: 'Stock Movements',    href: '/inventory/stock-movements',    icon: ArrowLeftRight },
+          { label: 'Location Transfers', href: '/inventory/location-movements', icon: ArrowLeftRight },
+        ],
+      },
+      { label: 'Bill of Materials',   href: '/inventory/bom',     icon: GitMerge   },
+      { label: 'Reports & Analytics', href: '/inventory/reports', icon: BarChart3  },
     ],
   },
   {
@@ -318,13 +372,25 @@ const navItems: NavItem[] = [
     icon: Radio,
     appHref: '/iot/gateways',
     children: [
-      { label: 'Edge Gateways',    href: '/iot/gateways',    icon: Router   },
-      { label: 'Devices',          href: '/iot/devices',     icon: Cpu      },
-      { label: 'Tag Browser',      href: '/iot/tags',        icon: Network  },
-      { label: 'Historian Trends', href: '/iot/historian',   icon: LineChart, badge: 'Live', badgeVariant: 'secondary' },
-      { label: 'MQTT Client',      href: '/iot/mqtt-client', icon: Radio,     badge: 'Live', badgeVariant: 'secondary' },
-      { label: 'Drivers',          href: '/iot/drivers',     icon: Radio    },
-      { label: 'Data Streams',     href: '/iot/streams',     icon: Activity },
+      {
+        label: 'Connectivity',
+        icon: Router,
+        children: [
+          { label: 'Edge Gateways', href: '/iot/gateways',    icon: Router },
+          { label: 'Drivers',       href: '/iot/drivers',     icon: Radio  },
+          { label: 'MQTT Client',   href: '/iot/mqtt-client', icon: Radio, badge: 'Live', badgeVariant: 'secondary' },
+        ],
+      },
+      {
+        label: 'Data & Tags',
+        icon: Network,
+        children: [
+          { label: 'Devices',          href: '/iot/devices',   icon: Cpu      },
+          { label: 'Tag Browser',      href: '/iot/tags',      icon: Network  },
+          { label: 'Data Streams',     href: '/iot/streams',   icon: Activity },
+          { label: 'Historian Trends', href: '/iot/historian', icon: LineChart, badge: 'Live', badgeVariant: 'secondary' },
+        ],
+      },
     ],
   },
   {

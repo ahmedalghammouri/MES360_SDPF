@@ -94,9 +94,9 @@ export function AppsLauncherView() {
           <p className="relative mt-1 text-sm text-muted-foreground max-w-xl">{t('heroSubtitle')}</p>
         </div>
 
-        {/* Category chips */}
+        {/* Category chips — wrap into rows/columns based on viewport width */}
         <div className="sticky top-0 z-10 px-6 py-3 bg-background/85 backdrop-blur-xl border-b border-border/30">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex flex-wrap items-center gap-2">
             <Chip active={cat === 'all'} onClick={() => setCat('all')} label={t('all')} count={total} />
             {QUICK_ACTION_GROUPS.map((g) => {
               const GIcon = g.icon;
