@@ -368,6 +368,26 @@ export class ProductionService implements OnApplicationBootstrap {
    *   • Work has STARTED (actualStart set, or IN_PROGRESS/COMPLETED, or a CANCELLED
    *     run that had begun) → ARCHIVE instead, to preserve the production history.
    */
+  /**
+   * Permanently remove work orders and EVERYTHING beneath them — job orders, their
+   * material consumptions and production snapshots, plus any WO-level snapshots — in
+   * one transaction. Used for not-started orders so a deleted WO/PO leaves nothing
+   * behind (no orphan JOs lingering in APS or the DB). Self-reference (JO predecessor
+   * chain) is broken first so the cascade can't hit a FK constraint.
+   */
+  private async purgeWorkOrders(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const jos = await this.prisma.jobOrder.findMany({ where: { workOrderId: { in: ids } }, select: { id: true } });
+    const joIds = jos.map((j) => j.id);
+    await this.prisma.$transaction([
+      this.prisma.jobOrder.updateMany({ where: { id: { in: joIds } }, data: { predecessorId: null } }),
+      this.prisma.materialConsumption.deleteMany({ where: { jobOrderId: { in: joIds } } }),
+      this.prisma.productionSnapshot.deleteMany({ where: { workOrderId: { in: ids } } }),
+      this.prisma.jobOrder.deleteMany({ where: { workOrderId: { in: ids } } }),
+      this.prisma.workOrder.deleteMany({ where: { id: { in: ids } } }),
+    ]);
+  }
+
   async deleteWorkOrder(factoryId: string | null, id: string) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const wo = await this.prisma.workOrder.findFirst({
@@ -378,12 +398,15 @@ export class ProductionService implements OnApplicationBootstrap {
 
     const started = !!wo.actualStart || ['IN_PROGRESS', 'COMPLETED'].includes(wo.status);
     if (started) {
+      // Started work has production history — preserve it by archiving (hidden
+      // everywhere, including APS) rather than destroying the audit trail.
       await this.prisma.workOrder.update({ where: { id }, data: { archivedAt: new Date() } });
       this.logger.log(`WO ${wo.orderNumber} archived (work had started — history preserved)`);
       return { action: 'archived' as const, orderNumber: wo.orderNumber };
     }
-    await this.prisma.workOrder.update({ where: { id }, data: { deletedAt: new Date() } });
-    this.logger.log(`WO ${wo.orderNumber} deleted (not started — job orders removed with it)`);
+    // Not started → hard-delete the WO and all its job orders (+ their children).
+    await this.purgeWorkOrders([wo.id]);
+    this.logger.log(`WO ${wo.orderNumber} deleted with its job orders (not started)`);
     return { action: 'deleted' as const, orderNumber: wo.orderNumber };
   }
 
@@ -681,20 +704,22 @@ export class ProductionService implements OnApplicationBootstrap {
     const anyStarted = po.workOrders.some(isStarted);
 
     const now = new Date();
-    for (const w of po.workOrders) {
-      await this.prisma.workOrder.update({
-        where: { id: w.id },
-        data: isStarted(w) ? { archivedAt: now } : { deletedAt: now },
-      });
+    // Archive started WOs (preserve history); hard-delete the not-started ones
+    // together with all their job orders so nothing related is left behind.
+    const notStartedIds = po.workOrders.filter((w) => !isStarted(w)).map((w) => w.id);
+    for (const w of po.workOrders.filter(isStarted)) {
+      await this.prisma.workOrder.update({ where: { id: w.id }, data: { archivedAt: now } });
     }
+    await this.purgeWorkOrders(notStartedIds);
 
     if (anyStarted) {
       await this.prisma.productionOrder.update({ where: { id }, data: { archivedAt: now } });
-      this.logger.log(`PO ${po.orderNumber} archived with ${po.workOrders.length} WO(s) — some had started`);
+      this.logger.log(`PO ${po.orderNumber} archived (${notStartedIds.length} not-started WO(s) purged, others archived)`);
       return { action: 'archived' as const };
     }
-    await this.prisma.productionOrder.update({ where: { id }, data: { deletedAt: now } });
-    this.logger.log(`PO ${po.orderNumber} deleted with ${po.workOrders.length} not-started WO(s)`);
+    // Nothing started → the PO and all its WOs/JOs are gone; remove the PO too.
+    await this.prisma.productionOrder.delete({ where: { id } });
+    this.logger.log(`PO ${po.orderNumber} deleted with ${po.workOrders.length} not-started WO(s) and their job orders`);
     return { action: 'deleted' as const };
   }
 

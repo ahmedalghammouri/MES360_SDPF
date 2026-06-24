@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import {
   Wrench, AlertTriangle, Clock, Activity, ShieldCheck, Cpu, TrendingUp, Layers,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { DashboardToolbar } from '@/components/ui/dashboard-toolbar';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { MTTRMTBFChart } from '@/components/charts/mttr-mtbf-chart';
 import { SectionTitle } from '@/features/command-center/command-center-charts';
@@ -29,14 +28,7 @@ function rpnColor(rpn: number): string {
 export function ReliabilityView() {
   const { t } = useTranslation(['maintenance', 'common']);
   const { filter, key } = useScope();
-  const { data, isLoading, refetch } = useReliabilityCockpit();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refetch();
-    setIsRefreshing(false);
-  };
+  const { data, isLoading } = useReliabilityCockpit();
 
   const k = data?.kpis;
 
@@ -58,7 +50,6 @@ export function ReliabilityView() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('cockpit.subtitle')}</p>
         </div>
-        <DashboardToolbar refreshing={isRefreshing} onRefresh={handleRefresh} />
       </div>
 
       {/* Content */}

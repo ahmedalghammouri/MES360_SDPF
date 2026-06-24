@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Factory, Gauge, Activity, Flame, AlertTriangle, ShieldCheck, Wrench } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { DashboardToolbar } from '@/components/ui/dashboard-toolbar';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { ExecutiveComparison, SectionTitle } from '@/features/command-center/command-center-charts';
 import { getOEEColor, cn } from '@/lib/utils';
@@ -17,15 +16,8 @@ const itemVariants = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 
 
 export function ExecutiveView() {
   const { t, i18n } = useTranslation(['dashboard', 'common']);
-  const { data, isLoading, refetch } = useExecutive();
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { data, isLoading } = useExecutive();
   const isAr = i18n.language === 'ar';
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refetch();
-    setIsRefreshing(false);
-  };
 
   const totals = data?.totals;
   const rows = data?.rows ?? [];
@@ -41,7 +33,6 @@ export function ExecutiveView() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('executiveCenter.subtitle')}</p>
         </div>
-        <DashboardToolbar scope={false} time refreshing={isRefreshing} onRefresh={handleRefresh} />
       </div>
 
       {/* Content */}

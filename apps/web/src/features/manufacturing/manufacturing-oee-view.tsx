@@ -19,7 +19,6 @@ import { Gauge, TrendingUp, TrendingDown, Award, AlertTriangle, Download } from 
 import { useQuery } from '@tanstack/react-query';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
-import { TimeRangeFilter } from '@/components/ui/time-range-filter';
 import { format, parseISO } from 'date-fns';
 
 import { api } from '@/services/api.client';
@@ -318,9 +317,6 @@ export default function ManufacturingOeeView() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Smart time filter (Today / Shift / Week / Month / Custom) */}
-          <TimeRangeFilter />
-
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={handleExport}>
             <Download size={13} />
             {t('mfgOee.export')}

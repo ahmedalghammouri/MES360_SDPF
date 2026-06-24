@@ -23,7 +23,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TimeRangeFilter } from '@/components/ui/time-range-filter';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { cn } from '@/lib/utils';
@@ -217,7 +216,6 @@ export function AIView() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <TimeRangeFilter />
           <Button size="sm" onClick={runAnalysis} disabled={isFetching}>
             <Brain className={cn('w-4 h-4 mr-2', isFetching && 'animate-pulse')} />
             {isFetching ? t('ai.analyzing') : t('ai.runAnalysis')}

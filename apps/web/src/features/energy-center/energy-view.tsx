@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Zap, Power, BatteryWarning, Activity, Flame, Gauge, TrendingDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { DashboardToolbar, type TrendType } from '@/components/ui/dashboard-toolbar';
+import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { PowerGauge, UtilityBreakdown, SectionTitle } from '@/features/command-center/command-center-charts';
 
@@ -17,15 +17,8 @@ const itemVariants = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 
 
 export function EnergyCenterView() {
   const { t } = useTranslation(['dashboard', 'common']);
-  const { data, isLoading, refetch } = useEnergyCockpit();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [trendType, setTrendType] = useState<TrendType>('line');
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refetch();
-    setIsRefreshing(false);
-  };
+  const { data, isLoading } = useEnergyCockpit();
+  const { trendType } = useDashboardPrefsStore();
 
   const ov = data?.overview;
   const live = data?.live;
@@ -42,13 +35,6 @@ export function EnergyCenterView() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('energyCenter.subtitle')}</p>
         </div>
-        <DashboardToolbar
-          time
-          refreshing={isRefreshing}
-          onRefresh={handleRefresh}
-          trendType={trendType}
-          onTrendType={setTrendType}
-        />
       </div>
 
       {/* Content */}

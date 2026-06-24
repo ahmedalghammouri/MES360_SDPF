@@ -13,7 +13,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { HierarchyOEE } from './hierarchy-oee';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
-import { TimeRangeFilter } from '@/components/ui/time-range-filter';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
   ResponsiveContainer, BarChart, Bar, Cell, ReferenceLine,
@@ -172,8 +171,6 @@ export function ProductionOEEView() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Smart time filter (Today / Shift / Week / Month / Custom) */}
-          <TimeRangeFilter />
           {/* Machine filter */}
           <SelectMenu
             value={machineFilter}

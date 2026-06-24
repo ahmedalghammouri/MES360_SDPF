@@ -22,7 +22,6 @@ import { Activity, Gauge, Layers, Cpu, ShieldAlert, Wrench, TrendingUp } from 'l
 import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
-import { TimeRangeFilter } from '@/components/ui/time-range-filter';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { HierarchyOEE } from '@/features/production/hierarchy-oee';
 import { cn } from '@/lib/utils';
@@ -91,8 +90,6 @@ export function FactoryAnalyticsView() {
             </p>
           </div>
         </div>
-        {/* Time-range control — drives every query on this page via the shared store */}
-        <TimeRangeFilter />
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">

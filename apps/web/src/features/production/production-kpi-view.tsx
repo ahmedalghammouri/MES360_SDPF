@@ -3,7 +3,7 @@ import { DashboardInfo } from '@/components/ui/dashboard-info';
 import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { useTranslation } from 'react-i18next';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import type { TFunction } from 'i18next';
 import {
   TrendingUp,
@@ -19,7 +19,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
-import { TimeRangeFilter } from '@/components/ui/time-range-filter';
+import { useOrderFilterStore } from '@/store/order-filter-store';
 import { motion } from 'framer-motion';
 import {
   BarChart,
@@ -41,7 +41,6 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { SelectMenu } from '@/components/ui/select-menu';
 import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
 
@@ -236,9 +235,8 @@ export default function ProductionKpiView() {
   const { filter, key } = useScope();
   const { dateFrom, dateTo, key: timeKey } = useTimeRange();
 
-  // Work-order metric filters (narrow the WO-derived sections by PO / WO).
-  const [poFilter, setPoFilter] = useState('');
-  const [woFilter, setWoFilter] = useState('');
+  // Work-order metric filters now live in the global ScopePanel (Orders section).
+  const { poNumber: poFilter, woId: woFilter } = useOrderFilterStore();
 
   // --- Queries ---
   const { data: poResp } = useQuery({
@@ -309,13 +307,6 @@ export default function ProductionKpiView() {
       return true;
     });
   }, [allWorkOrders, woFilter, poFilter]);
-  // WO options for the filter dropdown (respect the PO filter so it cascades).
-  const woOptions = useMemo(
-    () => allWorkOrders
-      .filter((w: any) => !poFilter || (w.productionOrder?.orderNumber ?? w.poNumber) === poFilter)
-      .map((w: any) => ({ value: w.id, label: (w as any).orderNumber ?? (w as any).woNumber ?? w.id.slice(0, 8) })),
-    [allWorkOrders, poFilter],
-  );
 
   // Every headline figure is scoped to the SELECTED PERIOD so the whole page is
   // internally consistent (no "OEE 0% today but FPY 60% all-time" contradiction):
@@ -472,25 +463,7 @@ export default function ProductionKpiView() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Filter WO-derived metrics by Production Order → Work Order (cascading) */}
-          <SelectMenu
-            size="sm"
-            value={poFilter}
-            onValueChange={(v) => { setPoFilter(v); setWoFilter(''); }}
-            options={[{ value: '', label: t('sf.allPos') }, ...productionOrders.map((p: any) => ({ value: p.orderNumber, label: p.orderNumber }))]}
-          />
-          <SelectMenu
-            size="sm"
-            value={woFilter}
-            onValueChange={setWoFilter}
-            options={[{ value: '', label: t('sf.allWos') }, ...woOptions]}
-          />
-          {(poFilter || woFilter) && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setPoFilter(''); setWoFilter(''); }}>
-              {t('downtime.clear')}
-            </Button>
-          )}
-          <TimeRangeFilter />
+          {/* Scope, period and PO/WO filters now live in the unified ScopePanel. */}
           <Button
             variant="outline" size="sm" className="gap-1.5 h-8 text-xs"
             onClick={() => {

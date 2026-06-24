@@ -122,6 +122,17 @@
     "tb": "AT-OEE",
     "hint": "Toggle schedule-based OEE vs time-based (AT-OEE)"
   },
+  "filters": {
+    "title": "Filters",
+    "period": "Period",
+    "orders": "Orders",
+    "view": "View"
+  },
+  "trend": {
+    "area": "Area",
+    "line": "Line",
+    "bar": "Bar"
+  },
   "rowActions": {
     "label": "Row actions"
   },

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import {
   LayoutGrid, Activity, AlertTriangle, CheckCircle2, Zap, TrendingUp,
@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
-import { DashboardToolbar, type TrendType } from '@/components/ui/dashboard-toolbar';
+import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { OEEGauge } from '@/components/charts/oee-gauge';
 import { ProductionTrendChart } from '@/components/charts/production-trend';
@@ -38,16 +38,8 @@ const itemVariants = {
 
 export function CommandCenterView() {
   const { t, i18n } = useTranslation(['dashboard', 'common']);
-  const { data, isLoading, refetch } = useCommandCenter();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [trendType, setTrendType] = useState<TrendType>('area');
-  const [atOee, setAtOee] = useState(false);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refetch();
-    setIsRefreshing(false);
-  };
+  const { data, isLoading } = useCommandCenter();
+  const { trendType, atOee } = useDashboardPrefsStore();
 
   const kpis = data?.ops?.kpis;
   const energy = data?.energy;
@@ -65,23 +57,12 @@ export function CommandCenterView() {
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('commandCenter.subtitle')}</p>
         </div>
-        <DashboardToolbar
-          time
-          refreshing={isRefreshing}
-          onRefresh={handleRefresh}
-          trendType={trendType}
-          onTrendType={setTrendType}
-          atOee={atOee}
-          onAtOee={setAtOee}
-          extra={
-            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" asChild>
-              <Link href="/dashboard-center">
-                <LayoutGrid size={13} />
-                {t('dashboardCenter')}
-              </Link>
-            </Button>
-          }
-        />
+        <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" asChild>
+          <Link href="/dashboard-center">
+            <LayoutGrid size={13} />
+            {t('dashboardCenter')}
+          </Link>
+        </Button>
       </div>
 
       {/* Content */}

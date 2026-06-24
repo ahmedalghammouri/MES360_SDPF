@@ -1,21 +1,34 @@
 'use client';
 
 /**
- * ScopePanel — a slim secondary panel (beside the main nav) holding the plant
- * hierarchy tree (Factory→Area→Line→Machine). Selecting a node sets the global
- * analysis scope (scope-store) which every dashboard / KPI / OEE / report page
- * reads via useScope to filter its data. Shown only on analysis routes.
+ * ScopePanel — the unified analysis control panel (beside the main nav). It is the
+ * SINGLE place every dashboard/KPI/OEE/report page is filtered from, replacing the
+ * per-page toolbars. Sections:
+ *   • Scope   — plant hierarchy tree (Factory→Area→Line→Machine) → scope-store
+ *   • Period  — Today/Shift/Week/Month/Custom → time-range-store
+ *   • Orders  — Production Order / Work Order (production & manufacturing routes)
+ *   • View    — trend style (Area/Line/Bar) + OEE mode (schedule vs AT-OEE)
+ * plus a Live indicator and a global Refresh. Every page reads these via the
+ * matching store/hook, so one control surface drives the whole MES360° web app.
  */
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { usePathname } from 'next/navigation';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
 import {
-  ChevronRight, ChevronDown, Factory, LayoutGrid, GitBranch, Cpu, PanelLeftClose, PanelLeftOpen, Filter, Check, Info,
+  ChevronRight, ChevronDown, Factory, LayoutGrid, GitBranch, Cpu, PanelLeftClose, PanelLeftOpen,
+  Filter, Check, Info, CalendarRange, RefreshCw, Package,
 } from 'lucide-react';
 import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
 import { useScopeStore, type ScopeType } from '@/store/scope-store';
+import { useTimeRangeStore, type TimePreset } from '@/store/time-range-store';
+import { useDashboardPrefsStore, type TrendType } from '@/store/dashboard-prefs-store';
+import { useOrderFilterStore } from '@/store/order-filter-store';
+import { useScope } from '@/hooks/use-scope';
+import { SelectMenu } from '@/components/ui/select-menu';
 
 interface TreeNode {
   id: string;
@@ -33,6 +46,9 @@ const TYPE_COLOR: Record<string, string> = {
 };
 const toScopeType = (t: TreeNode['type']): ScopeType =>
   t === 'PRODUCTION_LINE' ? 'LINE' : (t as ScopeType);
+
+// Routes where filtering by Production Order / Work Order has a real effect.
+const ORDER_ROUTES = ['/production/kpi', '/production/oee', '/manufacturing/kpi', '/manufacturing/oee'];
 
 function Node({ node, depth }: { node: TreeNode; depth: number }) {
   const [open, setOpen] = useState(depth < 2);
@@ -68,9 +84,174 @@ function Node({ node, depth }: { node: TreeNode; depth: number }) {
   );
 }
 
+/** Small uppercase section label. */
+function SectionLabel({ icon: Icon, children }: { icon: React.ElementType; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+      <Icon size={11} className="text-primary/70" />
+      {children}
+    </div>
+  );
+}
+
+/** Period (time range) controls — presets grid + custom range popover. */
+function PeriodSection() {
+  const { t } = useTranslation('common');
+  const { preset, from, to, setPreset, setCustom } = useTimeRangeStore();
+  const [open, setOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState(from ?? new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10));
+  const [draftTo, setDraftTo] = useState(to ?? new Date().toISOString().slice(0, 10));
+
+  const presets: { value: Exclude<TimePreset, 'custom'>; key: string }[] = [
+    { value: 'today', key: 'timeRange.today' },
+    { value: 'shift', key: 'timeRange.shift' },
+    { value: 'week', key: 'timeRange.week' },
+    { value: 'month', key: 'timeRange.month' },
+  ];
+
+  return (
+    <div className="px-2">
+      <div className="grid grid-cols-2 gap-1">
+        {presets.map((p) => (
+          <button
+            key={p.value}
+            onClick={() => setPreset(p.value)}
+            className={cn(
+              'px-2 py-1.5 text-xs rounded-md border transition-colors',
+              preset === p.value ? 'border-primary/40 bg-primary/15 text-primary font-semibold' : 'border-border/60 text-muted-foreground hover:bg-muted/50',
+            )}
+          >
+            {t(p.key)}
+          </button>
+        ))}
+      </div>
+      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+        <PopoverPrimitive.Trigger asChild>
+          <button
+            className={cn(
+              'mt-1 w-full px-2 py-1.5 text-xs rounded-md border flex items-center justify-center gap-1.5 transition-colors',
+              preset === 'custom' ? 'border-primary/40 bg-primary/15 text-primary font-semibold' : 'border-border/60 text-muted-foreground hover:bg-muted/50',
+            )}
+          >
+            <CalendarRange size={12} />
+            {preset === 'custom' && from && to ? `${from.slice(5)} – ${to.slice(5)}` : t('timeRange.custom')}
+          </button>
+        </PopoverPrimitive.Trigger>
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Content align="start" side="right" sideOffset={8}
+            className="z-50 w-60 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
+            <div className="space-y-2.5">
+              <div>
+                <label className="text-[10px] uppercase text-muted-foreground">{t('timeRange.from')}</label>
+                <input type="date" value={draftFrom} max={draftTo} onChange={(e) => setDraftFrom(e.target.value)}
+                  className="w-full h-8 px-2 text-sm rounded-md border border-input bg-background outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase text-muted-foreground">{t('timeRange.to')}</label>
+                <input type="date" value={draftTo} min={draftFrom} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDraftTo(e.target.value)}
+                  className="w-full h-8 px-2 text-sm rounded-md border border-input bg-background outline-none focus:ring-1 focus:ring-ring" />
+              </div>
+              <button className="w-full h-8 rounded-md bg-primary text-primary-foreground text-sm font-medium"
+                onClick={() => { setCustom(draftFrom, draftTo); setOpen(false); }}>
+                {t('timeRange.applyRange')}
+              </button>
+            </div>
+          </PopoverPrimitive.Content>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
+    </div>
+  );
+}
+
+/** Orders (PO → WO) cascading filter — only mounted on order-applicable routes. */
+function OrdersSection() {
+  const { t } = useTranslation(['common', 'production']);
+  const { filter, key } = useScope();
+  const { poNumber, woId, setPoNumber, setWoId } = useOrderFilterStore();
+
+  const { data: poResp } = useQuery({
+    queryKey: ['production', 'production-orders', 'panel-filter'],
+    queryFn: () => api.get<any>('/production/production-orders', { params: { limit: 200 } }),
+    staleTime: 60_000,
+  });
+  const productionOrders: any[] = Array.isArray(poResp) ? poResp : (poResp?.data ?? []);
+
+  const { data: woResp } = useQuery({
+    queryKey: ['production', 'work-orders', 'panel-filter', key],
+    queryFn: () => api.get<any>('/production/work-orders', { params: { limit: 200, ...filter } }),
+    staleTime: 60_000,
+  });
+  const allWorkOrders: any[] = woResp?.data ?? [];
+  const woOptions = allWorkOrders
+    .filter((w) => !poNumber || (w.productionOrder?.orderNumber ?? w.poNumber) === poNumber)
+    .map((w) => ({ value: w.id, label: w.orderNumber ?? w.woNumber ?? w.id.slice(0, 8) }));
+
+  return (
+    <div className="px-2 space-y-1.5">
+      <SelectMenu
+        size="sm" fullWidth
+        value={poNumber}
+        onValueChange={setPoNumber}
+        options={[{ value: '', label: t('production:sf.allPos') }, ...productionOrders.map((p: any) => ({ value: p.orderNumber, label: p.orderNumber }))]}
+      />
+      <SelectMenu
+        size="sm" fullWidth
+        value={woId}
+        onValueChange={setWoId}
+        options={[{ value: '', label: t('production:sf.allWos') }, ...woOptions]}
+      />
+      {(poNumber || woId) && (
+        <button onClick={() => { setPoNumber(''); setWoId(''); }}
+          className="w-full text-[11px] text-muted-foreground hover:text-foreground py-0.5">
+          {t('actions.clear')}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** View prefs — trend render style + OEE mode (schedule vs time-based). */
+function ViewSection() {
+  const { t } = useTranslation('common');
+  const { trendType, setTrendType, atOee, setAtOee } = useDashboardPrefsStore();
+  const trends: TrendType[] = ['area', 'line', 'bar'];
+
+  return (
+    <div className="px-2 space-y-1.5">
+      <div className="inline-flex w-full rounded-md border border-border/60 p-0.5">
+        {trends.map((o) => (
+          <button
+            key={o}
+            onClick={() => setTrendType(o)}
+            className={cn(
+              'flex-1 px-2 py-1 text-[11px] rounded capitalize transition-colors',
+              trendType === o ? 'bg-primary/15 text-primary font-semibold' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {t(`trend.${o}`)}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => setAtOee(!atOee)}
+        title={t('atOee.hint')}
+        className={cn(
+          'w-full h-7 rounded-md border px-2 text-[11px] font-semibold transition-colors',
+          atOee ? 'border-primary/40 bg-primary/15 text-primary' : 'border-border/60 text-muted-foreground hover:text-foreground',
+        )}
+      >
+        {atOee ? t('atOee.tb') : t('atOee.schedule')}
+      </button>
+    </div>
+  );
+}
+
 export function ScopePanel({ passive = false }: { passive?: boolean }) {
   const { t } = useTranslation('common');
+  const pathname = usePathname() ?? '';
+  const queryClient = useQueryClient();
   const { scope, setScope, collapsed, toggleCollapsed } = useScopeStore();
+  const [refreshing, setRefreshing] = useState(false);
 
   const { data } = useQuery({
     queryKey: ['hierarchy-tree'],
@@ -81,6 +262,14 @@ export function ScopePanel({ passive = false }: { passive?: boolean }) {
     const d = (data as any)?.data ?? data;
     return Array.isArray(d) ? d : d ? [d] : [];
   })();
+
+  const showOrders = ORDER_ROUTES.includes(pathname);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await queryClient.invalidateQueries();
+    setTimeout(() => setRefreshing(false), 600);
+  };
 
   if (collapsed) {
     return (
@@ -94,10 +283,15 @@ export function ScopePanel({ passive = false }: { passive?: boolean }) {
   }
 
   return (
-    <div className="shrink-0 w-56 border-r border-border/60 bg-card/40 flex flex-col">
+    <div className="shrink-0 w-60 border-r border-border/60 bg-card/40 flex flex-col">
+      {/* Header — title + live + collapse */}
       <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-border/60">
         <Filter size={13} className="text-primary" />
-        <span className="text-xs font-semibold flex-1">{t('scope.title')}</span>
+        <span className="text-xs font-semibold flex-1">{t('filters.title')}</span>
+        <span className="inline-flex items-center gap-1 text-[10px] text-success-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" />
+          {t('status.live')}
+        </span>
         <button onClick={toggleCollapsed} title={t('scope.collapse')} className="p-1 rounded-md hover:bg-muted/60 text-muted-foreground">
           <PanelLeftClose size={15} />
         </button>
@@ -110,28 +304,55 @@ export function ScopePanel({ passive = false }: { passive?: boolean }) {
         </div>
       )}
 
-      <button
-        onClick={() => setScope(null)}
-        className={cn(
-          'mx-2 mt-2 mb-1 px-2 py-1.5 rounded-md text-xs flex items-center gap-1.5 transition-colors',
-          !scope || scope.type === 'FACTORY' ? 'bg-primary/15 text-primary' : 'hover:bg-muted/50 text-muted-foreground',
-        )}
-      >
-        <Factory size={12} /> {t('scope.wholeFactory')}
-        {(!scope || scope.type === 'FACTORY') && <Check size={11} className="ml-auto" />}
-      </button>
+      <div className="flex-1 overflow-y-auto pb-3">
+        {/* Scope */}
+        <SectionLabel icon={Factory}>{t('scope.title')}</SectionLabel>
+        <button
+          onClick={() => setScope(null)}
+          className={cn(
+            'mx-2 mb-1 px-2 py-1.5 rounded-md text-xs flex items-center gap-1.5 transition-colors w-[calc(100%-1rem)]',
+            !scope || scope.type === 'FACTORY' ? 'bg-primary/15 text-primary' : 'hover:bg-muted/50 text-muted-foreground',
+          )}
+        >
+          <Factory size={12} /> {t('scope.wholeFactory')}
+          {(!scope || scope.type === 'FACTORY') && <Check size={11} className="ml-auto" />}
+        </button>
+        <div className="px-2 space-y-0.5">
+          {tree.length === 0 ? (
+            <div className="text-[11px] text-muted-foreground text-center py-4">{t('scope.noHierarchy')}</div>
+          ) : tree.map(root => <Node key={root.id} node={root} depth={0} />)}
+        </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
-        {tree.length === 0 ? (
-          <div className="text-[11px] text-muted-foreground text-center py-6">{t('scope.noHierarchy')}</div>
-        ) : tree.map(root => <Node key={root.id} node={root} depth={0} />)}
+        {/* Period */}
+        <SectionLabel icon={CalendarRange}>{t('filters.period')}</SectionLabel>
+        <PeriodSection />
+
+        {/* Orders — production / manufacturing analysis routes only */}
+        {showOrders && (
+          <>
+            <SectionLabel icon={Package}>{t('filters.orders')}</SectionLabel>
+            <OrdersSection />
+          </>
+        )}
+
+        {/* View */}
+        <SectionLabel icon={Filter}>{t('filters.view')}</SectionLabel>
+        <ViewSection />
       </div>
 
-      {scope && scope.type !== 'FACTORY' && (
-        <div className="px-3 py-2 border-t border-border/60 text-[10px] text-muted-foreground">
-          {t('scope.scopedTo')} <span className="font-semibold text-foreground">{scope.name}</span> <span className="uppercase opacity-70">({scope.type})</span>
-        </div>
-      )}
+      {/* Footer — scoped-to + refresh */}
+      <div className="border-t border-border/60 px-2 py-2 space-y-2">
+        {scope && scope.type !== 'FACTORY' && (
+          <div className="px-1 text-[10px] text-muted-foreground">
+            {t('scope.scopedTo')} <span className="font-semibold text-foreground">{scope.name}</span> <span className="uppercase opacity-70">({scope.type})</span>
+          </div>
+        )}
+        <button onClick={handleRefresh}
+          className="w-full h-7 rounded-md border border-border/60 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center justify-center gap-1.5 transition-colors">
+          <RefreshCw size={12} className={cn(refreshing && 'animate-spin')} />
+          {t('actions.refresh')}
+        </button>
+      </div>
     </div>
   );
 }

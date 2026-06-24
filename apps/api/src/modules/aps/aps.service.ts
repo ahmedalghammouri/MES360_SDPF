@@ -61,7 +61,12 @@ export class ApsService {
 
   private async loadOpenJobs(factoryId: string): Promise<JOWithRefs[]> {
     return this.prisma.jobOrder.findMany({
-      where: { factoryId, status: { in: OPEN_JO }, machineId: { not: null } },
+      where: {
+        factoryId, status: { in: OPEN_JO }, machineId: { not: null },
+        // Never schedule operations whose work order was deleted/archived (or whose
+        // production order was removed) — they must not reappear in the plan.
+        workOrder: { is: { deletedAt: null, archivedAt: null } },
+      },
       select: {
         id: true, workOrderId: true, machineId: true, predecessorId: true,
         predecessorType: true, predecessorLagMins: true, sequenceOrder: true,
