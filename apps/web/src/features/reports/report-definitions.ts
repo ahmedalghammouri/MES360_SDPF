@@ -172,7 +172,8 @@ function buildProduction(data: any, t: TFn): ReportModel {
 }
 
 function buildOee(data: any, t: TFn): ReportModel {
-  const records: any[] = Array.isArray(data) ? data : [];
+  // /production/oee-records is paginated → unwrap { data, total }; also accept a raw array.
+  const records: any[] = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
 
   const avg = (sel: (r: any) => number) =>
     records.length ? records.reduce((s, r) => s + sel(r), 0) / records.length : 0;

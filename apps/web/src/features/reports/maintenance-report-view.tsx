@@ -2,7 +2,7 @@
 import { useTranslation } from 'react-i18next';
 
 import React, { useState } from 'react';
-import { Download, Calendar, FileText, TrendingUp } from 'lucide-react';
+import { Download, FileText, TrendingUp } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
@@ -10,18 +10,40 @@ import { Badge } from '@/components/ui/badge';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { api } from '@/services/api.client';
 
+const PERIODS = [7, 30, 90] as const;
+
+function downloadCsv(filename: string, rows: (string | number)[][]): void {
+  const csv = rows.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function MaintenanceReportView() {
   const { t } = useTranslation('modules');
+  const [days, setDays] = useState<(typeof PERIODS)[number]>(30);
+  const to = new Date().toISOString().slice(0, 10);
+  const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
   const { data: reportData, isLoading } = useQuery({
-    queryKey: ['reports', 'maintenance'],
+    queryKey: ['reports', 'maintenance', from, to],
     queryFn: () => api.get<{
       mtbf: number; mttr: number; totalWO: number; completedWO: number; completionRate: number;
       failures: number; totalCost: number;
       byType: Record<string, number>; byStatus: Record<string, number>;
-    }>('/reports/maintenance'),
+    }>('/reports/maintenance', { params: { from, to } }),
     staleTime: 60_000,
   });
   const r = reportData as any;
+  const handleExport = () => {
+    downloadCsv(`maintenance-report-${from}_${to}.csv`, [
+      [t('reports.maintenance.title'), `${from} → ${to}`],
+      [t('reports.maint.mtbf'), r?.mtbf ?? 0], [t('reports.maint.mttr'), r?.mttr ?? 0],
+      [t('reports.maint.workOrders'), r?.totalWO ?? 0], [t('reports.maint.completionRate'), `${r?.completionRate ?? 0}%`],
+      [t('reports.maint.failures'), r?.failures ?? 0], [t('reports.maint.totalCost'), r?.totalCost ?? 0],
+      [t('reports.maint.completedWos'), `${r?.completedWO ?? 0} / ${r?.totalWO ?? 0}`],
+    ]);
+  };
   const byType: [string, number][] = Object.entries(r?.byType ?? {});
   const byStatus: [string, number][] = Object.entries(r?.byStatus ?? {});
   const pretty = (s: string) => s.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
@@ -36,11 +58,15 @@ export function MaintenanceReportView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
-            <Calendar size={13} />
-            {t('reports.maint.dateRange')}
-          </Button>
-          <Button size="sm" className="gap-1.5 h-8 text-xs">
+          <div className="flex items-center rounded-md border border-border/60 overflow-hidden">
+            {PERIODS.map((p) => (
+              <button key={p} onClick={() => setDays(p)}
+                className={`px-2.5 h-8 text-xs ${days === p ? 'bg-primary text-primary-foreground' : 'hover:bg-muted/50'}`}>
+                {p}d
+              </button>
+            ))}
+          </div>
+          <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={handleExport} disabled={isLoading}>
             <Download size={13} />
             {t('reports.maint.exportPdf')}
           </Button>

@@ -18,6 +18,7 @@ import {
 } from 'recharts';
 import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
+import { useOrderFilterStore } from '@/store/order-filter-store';
 import { cn } from '@/lib/utils';
 
 interface EnergyOverview {
@@ -100,10 +101,14 @@ function EnergyContextPanel() {
   const [submittedWoId, setSubmittedWoId] = useState('');
   const { from, to } = dateRange(7);
 
+  // Wire to the unified scope panel: selecting a WO there auto-analyses its energy.
+  const scopeWoId = useOrderFilterStore((s) => s.woId);
+  const effectiveWoId = submittedWoId || scopeWoId;
+
   const { data: woSummary, isLoading: woLoading } = useQuery({
-    queryKey: ['energy', 'wo', submittedWoId],
-    queryFn: () => api.get<WOEnergySummary>(`/iot/energy/wo/${submittedWoId}`),
-    enabled: !!submittedWoId,
+    queryKey: ['energy', 'wo', effectiveWoId],
+    queryFn: () => api.get<WOEnergySummary>(`/iot/energy/wo/${effectiveWoId}`),
+    enabled: !!effectiveWoId,
   });
 
   const { data: wcData } = useQuery({

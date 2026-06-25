@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  TrendingUp, TrendingDown, Download, Filter,
+  TrendingUp, TrendingDown, Download,
   Activity, BarChart3, Clock, CheckCircle2,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -69,6 +69,16 @@ export function ProductionReportView() {
   const summary: ReportSummary = (data as any)?.summary ?? { totalPlanned: 0, totalActual: 0, totalGood: 0, totalScrap: 0, efficiency: 0, quality: 0, totalDowntime: 0, avgOEE: 0 };
   const records: ReportRecord[] = (data as any)?.records ?? [];
 
+  const handleExport = () => {
+    const header = ['Date', 'Machine', 'Planned', 'Actual', 'Good', 'OEE %', 'Downtime (min)'];
+    const body = records.map((r) => [r.date.slice(0, 10), r.machine, r.plannedQty, r.actualQty, r.goodQty, r.oee ?? '', r.downtime]);
+    const csv = [header, ...body].map((row) => row.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `production-report-${range}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Group records by date for OEE trend chart
   const oeeTrend = useMemo(() => {
     const byDate: Record<string, { sum: number; count: number }> = {};
@@ -123,8 +133,7 @@ export function ProductionReportView() {
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm"><Filter className="w-4 h-4 mr-1" />{t('reports.prod.filter')}</Button>
-          <Button size="sm"><Download className="w-4 h-4 mr-1" />{t('reports.prod.export')}</Button>
+          <Button size="sm" onClick={handleExport} disabled={isLoading || records.length === 0}><Download className="w-4 h-4 mr-1" />{t('reports.prod.export')}</Button>
         </div>
       </div>
 

@@ -51,6 +51,7 @@ const toScopeType = (t: TreeNode['type']): ScopeType =>
 const ORDER_ROUTES = [
   '/production/kpi', '/production/oee', '/manufacturing/kpi', '/manufacturing/oee',
   '/quality/spc', '/quality/inspections', '/quality/records', '/quality/ncr',
+  '/energy', '/energy/dashboard',
 ];
 
 function Node({ node, depth }: { node: TreeNode; depth: number }) {

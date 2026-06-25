@@ -579,7 +579,10 @@
     "benchmarkTitle": "World-Class Benchmark Position",
     "bmPoor": "Poor (<45%)", "bmAcceptable": "Acceptable (45%)", "bmGood": "Good (65%)", "bmWorldClass": "World Class (85%)",
     "worldClassPerf": "World-Class Performance", "goodBelow": "Good — {{gap}}% below World Class",
-    "acceptableImprove": "Acceptable — improvement needed", "belowThreshold": "Below acceptable threshold"
+    "acceptableImprove": "Acceptable — improvement needed", "belowThreshold": "Below acceptable threshold",
+    "export": "Export",
+    "atOee": "Time-Based OEE (AT-OEE)", "availabilityTb": "Availability (Time-Based)",
+    "scheduleNote": "Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)"
   },
   "mfgOverview": {
     "title": "Manufacturing Execution", "live": "Live", "controlPanel": "Control Panel", "viewOee": "View OEE",

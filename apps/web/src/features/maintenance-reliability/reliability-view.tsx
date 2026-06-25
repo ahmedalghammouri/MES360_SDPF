@@ -91,6 +91,7 @@ export function ReliabilityView() {
                         <tr className="border-b border-border/50 text-muted-foreground text-[10px] uppercase tracking-wider">
                           <th className="text-start font-medium px-3 py-2">{t('cockpit.fmeaCol.mode')}</th>
                           <th className="text-start font-medium px-3 py-2">{t('cockpit.fmeaCol.asset')}</th>
+                          <th className="text-center font-medium px-3 py-2">{t('cockpit.fmeaCol.obs', { defaultValue: 'Failures' })}</th>
                           <th className="text-center font-medium px-3 py-2">{t('cockpit.fmeaCol.sod')}</th>
                           <th className="text-end font-medium px-3 py-2">{t('cockpit.fmeaCol.rpn')}</th>
                         </tr>
@@ -100,6 +101,7 @@ export function ReliabilityView() {
                           <tr key={f.id} className="border-b border-border/30 last:border-0 hover:bg-muted/30">
                             <td className="px-3 py-2 max-w-[180px] truncate" title={f.description}>{f.description}</td>
                             <td className="px-3 py-2 text-muted-foreground">{f.machine ?? '—'}</td>
+                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">{(f as any).observed ?? 0}</td>
                             <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">{f.severity}·{f.occurrence}·{f.detection}</td>
                             <td className="px-3 py-2 text-end">
                               <span className="inline-flex items-center justify-center min-w-[2.5rem] rounded-md px-1.5 py-0.5 text-[11px] font-bold text-white" style={{ backgroundColor: rpnColor(f.rpn) }}>

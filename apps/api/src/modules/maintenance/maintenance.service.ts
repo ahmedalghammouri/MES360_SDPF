@@ -279,7 +279,7 @@ export class MaintenanceService {
     const periodStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
     const r1 = (n: number) => Math.round(n * 10) / 10;
 
-    const [kpis, reliabilityTrend, statusGroups, typeGroups, correctiveWOs, openWOs, failureModes] = await Promise.all([
+    const [kpis, reliabilityTrend, statusGroups, typeGroups, correctiveWOs, openWOs, failureModes, failureOccurrences] = await Promise.all([
       this.getKPIs(factoryId, scope),
       this.getReliabilityTrend(factoryId, months, scope),
       this.prisma.maintenanceWO.groupBy({
@@ -305,15 +305,46 @@ export class MaintenanceService {
         select: { createdAt: true, dueDate: true },
       }),
       this.prisma.failureMode.findMany({
-        where: { ...factoryFilter, ...(machineIds ? { machineId: { in: machineIds } } : {}) },
-        orderBy: { rpn: 'desc' }, take: 8,
+        where: { ...factoryFilter, ...(machineIds ? { machineId: { in: machineIds } } : {}), isActive: true },
         select: {
-          id: true, code: true, description: true, rpn: true,
+          id: true, code: true, description: true,
           severityScore: true, occurrenceScore: true, detectionScore: true,
           machine: { select: { name: true } },
         },
       }),
+      // Real occurrence — how many actual maintenance failures referenced each mode in the window.
+      this.prisma.maintenanceWOFailureMode.groupBy({
+        by: ['failureModeId'],
+        where: {
+          wo: {
+            ...factoryFilter, ...woScope, deletedAt: null,
+            type: { in: [MaintType.CORRECTIVE, MaintType.EMERGENCY] },
+            createdAt: { gte: periodStart },
+          },
+        },
+        _count: { _all: true },
+      }),
     ]);
+
+    // FMEA occurrence score (1-10) banded from the REAL failure count in the window — so RPN
+    // reflects what actually happened, not a static seed. Severity & detection stay as the
+    // engineer-defined FMEA register inputs (they are judgments, not measurable from events).
+    const occCount = new Map<string, number>(failureOccurrences.map((o) => [o.failureModeId, o._count._all]));
+    const occScoreFromCount = (n: number): number =>
+      n <= 0 ? 1 : n === 1 ? 3 : n <= 2 ? 5 : n <= 4 ? 7 : n <= 8 ? 9 : 10;
+    const topFailureModesReal = failureModes
+      .map((f) => {
+        const observed = occCount.get(f.id) ?? 0;
+        const occurrence = occScoreFromCount(observed);
+        return {
+          id: f.id, code: f.code, description: f.description, machine: f.machine?.name ?? null,
+          severity: f.severityScore, occurrence, detection: f.detectionScore,
+          rpn: f.severityScore * occurrence * f.detectionScore,
+          observed,
+        };
+      })
+      .sort((a, b) => b.rpn - a.rpn || b.observed - a.observed)
+      .slice(0, 8);
 
     // Asset reliability — failures + per-machine MTTR over the window.
     const byMachine = new Map<string, { machineId: string; name: string; code: string | null; failures: number; repairHours: number; repairs: number }>();
@@ -348,10 +379,7 @@ export class MaintenanceService {
       woByStatus: statusGroups.map((g) => ({ status: g.status, count: g._count._all })),
       woByType: typeGroups.map((g) => ({ type: g.type, count: g._count._all })),
       assetReliability,
-      topFailureModes: failureModes.map((f) => ({
-        id: f.id, code: f.code, description: f.description, machine: f.machine?.name ?? null,
-        rpn: f.rpn, severity: f.severityScore, occurrence: f.occurrenceScore, detection: f.detectionScore,
-      })),
+      topFailureModes: topFailureModesReal,
       aging,
       openTotal: openWOs.length,
       overdue,

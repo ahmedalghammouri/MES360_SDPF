@@ -579,7 +579,10 @@
     "benchmarkTitle": "موقع المعيار العالمي",
     "bmPoor": "ضعيف (<45%)", "bmAcceptable": "مقبول (45%)", "bmGood": "جيد (65%)", "bmWorldClass": "عالمي (85%)",
     "worldClassPerf": "أداء عالمي المستوى", "goodBelow": "جيد — {{gap}}% دون المستوى العالمي",
-    "acceptableImprove": "مقبول — يحتاج تحسينًا", "belowThreshold": "دون الحد المقبول"
+    "acceptableImprove": "مقبول — يحتاج تحسينًا", "belowThreshold": "دون الحد المقبول",
+    "export": "تصدير",
+    "atOee": "الكفاءة الزمنية (AT-OEE)", "availabilityTb": "التوافر (زمني)",
+    "scheduleNote": "البطاقات أعلاه مبنية على الجدول · الزمني = التشغيل ÷ (التشغيل + التوقف)"
   },
   "mfgOverview": {
     "title": "تنفيذ التصنيع", "live": "مباشر", "controlPanel": "لوحة التحكم", "viewOee": "عرض الكفاءة",

@@ -2,20 +2,44 @@
 import { useTranslation } from 'react-i18next';
 
 import React from 'react';
-import { Download, Calendar, FileText } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { api } from '@/services/api.client';
 
+const PERIODS = [7, 30, 90] as const;
+
+function downloadCsv(filename: string, rows: (string | number)[][]): void {
+  const csv = rows.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function QualityReportView() {
   const { t } = useTranslation('modules');
+  const [days, setDays] = React.useState<(typeof PERIODS)[number]>(7);
+  const to = new Date().toISOString().slice(0, 10);
+  const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
   const { data: reportData, isLoading } = useQuery({
-    queryKey: ['reports', 'quality'],
-    queryFn: () => api.get('/reports/quality'),
+    queryKey: ['reports', 'quality', from, to],
+    queryFn: () => api.get('/reports/quality', { params: { from, to } }),
     staleTime: 60_000,
   });
+
+  const handleExport = () => {
+    const d = (reportData as any) ?? {};
+    downloadCsv(`quality-report-${from}_${to}.csv`, [
+      [t('reports.quality.title'), `${from} → ${to}`],
+      [t('reports.qual.fpy'), `${d.fpy ?? 0}%`],
+      [t('reports.qual.defectRate'), `${d.defectRate ?? 0}%`],
+      [t('reports.qual.inspections'), d.inspections ?? 0],
+      [t('reports.qual.ncrs'), d.ncrs ?? 0],
+    ]);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -27,11 +51,15 @@ export function QualityReportView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
-            <Calendar size={13} />
-            {t('reports.qual.dateRange')}
-          </Button>
-          <Button size="sm" className="gap-1.5 h-8 text-xs">
+          <div className="flex items-center rounded-md border border-border/60 overflow-hidden">
+            {PERIODS.map((p) => (
+              <button key={p} onClick={() => setDays(p)}
+                className={`px-2.5 h-8 text-xs ${days === p ? 'bg-primary text-primary-foreground' : 'hover:bg-muted/50'}`}>
+                {p}d
+              </button>
+            ))}
+          </div>
+          <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={handleExport} disabled={isLoading}>
             <Download size={13} />
             {t('reports.qual.exportPdf')}
           </Button>
