@@ -26,6 +26,8 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { InlineFormSlot } from '@/components/ui/inline-form-panel';
 import { DeleteDialog } from '@/components/ui/delete-dialog';
 import { api } from '@/services/api.client';
+import { useScope } from '@/hooks/use-scope';
+import { useTimeRange } from '@/hooks/use-time-range';
 import { cn, formatDate } from '@/lib/utils';
 import { TablePagination } from '@/components/ui/table-pagination';
 import { SortableHeader } from '@/components/ui/sortable-header';
@@ -100,11 +102,18 @@ export function QualityNcrView() {
 
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const { filter, key: scopeKey } = useScope()
+  const { dateFrom, dateTo, key: timeKey } = useTimeRange()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['quality', 'ncr', { search, status: statusFilter, severity: severityFilter, archived, page }],
+    queryKey: ['quality', 'ncr', { search, status: statusFilter, severity: severityFilter, archived, page, scopeKey, timeKey }],
     queryFn: () => api.get('/quality/ncr', {
-      params: { search: search || undefined, status: statusFilter || undefined, severity: severityFilter || undefined, archived: archived !== 'active' ? archived : undefined, limit: 20, page },
+      params: {
+        search: search || undefined, status: statusFilter || undefined, severity: severityFilter || undefined,
+        archived: archived !== 'active' ? archived : undefined,
+        ...filter, dateFrom, dateTo,
+        limit: 20, page,
+      },
     }),
     staleTime: 20_000,
   })

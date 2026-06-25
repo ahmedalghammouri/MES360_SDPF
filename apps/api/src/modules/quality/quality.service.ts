@@ -724,12 +724,17 @@ export class QualityService {
     severity?: string;
     dateFrom?: string;
     dateTo?: string;
+    machineId?: string;
+    areaId?: string;
+    lineId?: string;
+    skuId?: string;
     archived?: string;
     page?: number;
     limit?: number;
   }) {
-    const { search, status, severity, dateFrom, dateTo, archived, page = 1, limit = 20 } = filters;
+    const { search, status, severity, dateFrom, dateTo, skuId, archived, page = 1, limit = 20 } = filters;
     const factoryFilter = factoryId ? { factoryId } : {};
+    const scopeMachineIds = await this.qualityScopeMachineIds(factoryId, filters);
 
     // `status` may be a single value or a comma-separated list (e.g. the CAPA
     // dialog requests OPEN,IN_REVIEW,CAPA_PENDING for its "Related NCR" picker).
@@ -740,8 +745,15 @@ export class QualityService {
       ...(statusList.length === 1 && { status: statusList[0] as NCRStatus }),
       ...(statusList.length > 1 && { status: { in: statusList as NCRStatus[] } }),
       ...(severity && { severity: severity as Severity }),
-      ...(dateFrom && { detectedAt: { gte: new Date(dateFrom) } }),
-      ...(dateTo && { detectedAt: { lte: new Date(dateTo) } }),
+      ...(scopeMachineIds ? { machineId: { in: scopeMachineIds } } : {}),
+      ...(skuId ? { skuId } : {}),
+      // Single combined detected-at range (the previous spreads overwrote each other).
+      ...((dateFrom || dateTo) ? {
+        detectedAt: {
+          ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+          ...(dateTo ? { lte: new Date(dateTo.length <= 10 ? `${dateTo}T23:59:59.999` : dateTo) } : {}),
+        },
+      } : {}),
       ...(search && {
         OR: [
           { ncrNumber: { contains: search, mode: 'insensitive' } },
@@ -888,11 +900,13 @@ export class QualityService {
     status?: string;
     type?: string;
     ncrId?: string;
+    dateFrom?: string;
+    dateTo?: string;
     archived?: string;
     page?: number;
     limit?: number;
   }) {
-    const { search, status, type, ncrId, archived, page = 1, limit = 20 } = filters;
+    const { search, status, type, ncrId, dateFrom, dateTo, archived, page = 1, limit = 20 } = filters;
     const factoryFilter = factoryId ? { factoryId } : {};
 
     const where: any = {
@@ -901,6 +915,13 @@ export class QualityService {
       ...(status && { status }),
       ...(type && { type }),
       ...(ncrId && { ncrId }),
+      // CAPA has no machine link → period filter only (by created date).
+      ...((dateFrom || dateTo) ? {
+        createdAt: {
+          ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+          ...(dateTo ? { lte: new Date(dateTo.length <= 10 ? `${dateTo}T23:59:59.999` : dateTo) } : {}),
+        },
+      } : {}),
       ...(search && {
         OR: [
           { capaNumber: { contains: search, mode: 'insensitive' } },

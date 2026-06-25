@@ -24,6 +24,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { InlineFormSlot } from '@/components/ui/inline-form-panel';
 import { DeleteDialog } from '@/components/ui/delete-dialog';
 import { api } from '@/services/api.client';
+import { useTimeRange } from '@/hooks/use-time-range';
 import { cn, formatDate } from '@/lib/utils';
 import { TablePagination } from '@/components/ui/table-pagination';
 import { SortableHeader } from '@/components/ui/sortable-header';
@@ -83,11 +84,12 @@ export function QualityCapaView() {
   const queryClient = useQueryClient()
   const { archive: archiveCapa, restore: restoreCapa, bulkArchive, bulkRestore } = useArchive('capas', [['quality', 'capa']], 'CAPA')
   const { toast } = useToast()
+  const { dateFrom, dateTo, key: timeKey } = useTimeRange()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['quality', 'capa', { search, status: statusFilter, archived, page }],
+    queryKey: ['quality', 'capa', { search, status: statusFilter, archived, page, timeKey }],
     queryFn: () => api.get('/quality/capa', {
-      params: { search: search || undefined, status: statusFilter || undefined, archived: archived !== 'active' ? archived : undefined, limit: 20, page },
+      params: { search: search || undefined, status: statusFilter || undefined, archived: archived !== 'active' ? archived : undefined, dateFrom, dateTo, limit: 20, page },
     }),
     staleTime: 20_000,
   })

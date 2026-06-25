@@ -6,6 +6,10 @@
 
 generator client {
   provider        = "prisma-client-js"
+  // Dedicated output so the edge gateway's client never clobbers the MES API's
+  // shared @prisma/client (they have different schemas). Keeps host type-checking
+  // of the API working while the gateway runs with its own generated client.
+  output          = "../src/generated/prisma"
   previewFeatures = ["fullTextSearch"]
   binaryTargets   = ["native", "windows", "linux-musl-openssl-3.0.x"]
 }

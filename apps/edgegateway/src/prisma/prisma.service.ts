@@ -1,10 +1,12 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+// Gateway-private generated client (output = src/generated/prisma) — kept separate
+// from the MES API's shared @prisma/client so the two schemas never collide.
+import { PrismaClient } from '../generated/prisma';
 
 /**
  * Prisma client for the gateway. Connects to the SAME shared Postgres as the API
  * (DATABASE_URL points at the server). Generated from the API's schema via
- * `pnpm prisma:sync`.
+ * `pnpm prisma:sync` into this package's own client.
  */
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
