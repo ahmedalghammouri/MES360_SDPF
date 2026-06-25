@@ -48,7 +48,10 @@ const toScopeType = (t: TreeNode['type']): ScopeType =>
   t === 'PRODUCTION_LINE' ? 'LINE' : (t as ScopeType);
 
 // Routes where filtering by Production Order / Work Order has a real effect.
-const ORDER_ROUTES = ['/production/kpi', '/production/oee', '/manufacturing/kpi', '/manufacturing/oee'];
+const ORDER_ROUTES = [
+  '/production/kpi', '/production/oee', '/manufacturing/kpi', '/manufacturing/oee',
+  '/quality/spc', '/quality/inspections', '/quality/records', '/quality/ncr',
+];
 
 function Node({ node, depth }: { node: TreeNode; depth: number }) {
   const [open, setOpen] = useState(depth < 2);

@@ -28,7 +28,7 @@ const SCOPE_EXACT = new Set([
   '/energy', '/energy/command-center',
   '/ai', // AI Intelligence — all panels re-scope by area/line/machine
 ]);
-const SCOPE_PREFIX = ['/scheduling']; // ScheduleView Gantt/Calendar pages
+const SCOPE_PREFIX = ['/scheduling', '/quality']; // ScheduleView + all Quality module pages
 
 function isScopeRoute(pathname: string): boolean {
   return SCOPE_EXACT.has(pathname) || SCOPE_PREFIX.some((p) => pathname === p || pathname.startsWith(`${p}/`));

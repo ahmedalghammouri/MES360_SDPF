@@ -22,6 +22,9 @@ import { InlineFormSlot } from '@/components/ui/inline-form-panel';
 import { DeleteDialog } from '@/components/ui/delete-dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/services/api.client';
+import { useScope } from '@/hooks/use-scope';
+import { useTimeRange } from '@/hooks/use-time-range';
+import { useOrderFilterStore } from '@/store/order-filter-store';
 import { cn, formatDate } from '@/lib/utils';
 import { TablePagination } from '@/components/ui/table-pagination';
 import { SortableHeader } from '@/components/ui/sortable-header';
@@ -119,10 +122,29 @@ export function QualityInspectionsView() {
   })
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
 
+  // Global filters from the unified ScopePanel.
+  const { filter, key: scopeKey } = useScope()
+  const { dateFrom, dateTo, key: timeKey } = useTimeRange()
+  const { poNumber, woId } = useOrderFilterStore()
+  const { data: poListResp } = useQuery({
+    queryKey: ['production', 'production-orders', 'insp-filter'],
+    queryFn: () => api.get<any>('/production/production-orders', { params: { limit: 200 } }),
+    enabled: !!poNumber, staleTime: 60_000,
+  })
+  const productionOrderId = poNumber
+    ? (Array.isArray(poListResp) ? poListResp : (poListResp as any)?.data ?? []).find((p: any) => p.orderNumber === poNumber)?.id
+    : undefined
+
   const { data, isLoading } = useQuery({
-    queryKey: ['quality', 'inspections', { search, type: typeFilter, result: resultFilter, archived, page }],
+    queryKey: ['quality', 'inspections', { search, type: typeFilter, result: resultFilter, archived, page, scopeKey, timeKey, woId, productionOrderId }],
     queryFn: () => api.get('/quality/inspections', {
-      params: { search: search || undefined, type: typeFilter || undefined, result: resultFilter || undefined, archived: archived !== 'active' ? archived : undefined, limit: 20, page },
+      params: {
+        search: search || undefined, type: typeFilter || undefined, result: resultFilter || undefined,
+        archived: archived !== 'active' ? archived : undefined,
+        ...filter, dateFrom, dateTo,
+        workOrderId: woId || undefined, productionOrderId: productionOrderId || undefined,
+        limit: 20, page,
+      },
     }),
     staleTime: 20_000,
   })

@@ -15,6 +15,9 @@ import { Input } from '@/components/ui/input';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { SelectMenu } from '@/components/ui/select-menu';
 import { useToast } from '@/components/ui/use-toast';
+import { useScope } from '@/hooks/use-scope';
+import { useTimeRange } from '@/hooks/use-time-range';
+import { useOrderFilterStore } from '@/store/order-filter-store';
 
 interface SPCParameter {
   parameterName: string;
@@ -68,7 +71,29 @@ export function QualitySpcView() {
   const { t } = useTranslation(['quality', 'common']);
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { filter, key: scopeKey } = useScope();
+  const { dateFrom, dateTo, key: timeKey } = useTimeRange();
+  const { poNumber, woId } = useOrderFilterStore();
   const [selected, setSelected] = useState<string | null>(null);
+
+  // Resolve the selected PO number → id (the global Orders filter holds the number).
+  const { data: poResp } = useQuery({
+    queryKey: ['production', 'production-orders', 'spc-filter'],
+    queryFn: () => api.get<any>('/production/production-orders', { params: { limit: 200 } }),
+    enabled: !!poNumber,
+    staleTime: 60_000,
+  });
+  const productionOrders: any[] = Array.isArray(poResp) ? poResp : ((poResp as any)?.data ?? []);
+  const productionOrderId = poNumber ? productionOrders.find((p) => p.orderNumber === poNumber)?.id : undefined;
+
+  // Shared scope + time + order params applied to both SPC queries.
+  const spcParams = {
+    ...filter,
+    dateFrom, dateTo,
+    workOrderId: woId || undefined,
+    productionOrderId: productionOrderId || undefined,
+  };
+  const filterKey = `${scopeKey}|${timeKey}|${woId}|${productionOrderId ?? poNumber}`;
 
   // Quick-record modal state
   const [recordOpen, setRecordOpen] = useState(false);
@@ -77,9 +102,9 @@ export function QualitySpcView() {
   const [recValues, setRecValues] = useState<string[]>(['']);
 
   const { data: paramsData, isLoading: paramsLoading } = useQuery({
-    queryKey: ['quality', 'spc', 'parameters'],
-    queryFn: () => api.get('/quality/spc'),
-    staleTime: 60_000,
+    queryKey: ['quality', 'spc', 'parameters', filterKey],
+    queryFn: () => api.get('/quality/spc', { params: spcParams }),
+    staleTime: 30_000,
   });
 
   const parameters: SPCParameter[] = (paramsData as any) ?? [];
@@ -133,9 +158,9 @@ export function QualitySpcView() {
   const activeParamName = selectedParam?.parameterName ?? null;
 
   const { data: measurementsData, isLoading: measLoading } = useQuery({
-    queryKey: ['quality', 'spc', 'measurements', activeParamName],
+    queryKey: ['quality', 'spc', 'measurements', activeParamName, filterKey],
     queryFn: () => api.get('/quality/spc/measurements', {
-      params: { parameterId: activeParamName, limit: 30 },
+      params: { ...spcParams, parameterId: activeParamName, limit: 100 },
     }),
     enabled: !!activeParamName,
     staleTime: 30_000,

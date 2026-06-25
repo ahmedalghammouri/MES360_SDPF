@@ -12,6 +12,7 @@ import {
   BarChart3, Eye, EyeOff, ToggleLeft, Archive as ArchiveIcon, RotateCcw,
 } from 'lucide-react';
 import { api } from '@/services/api.client';
+import { useScope } from '@/hooks/use-scope';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -86,6 +87,7 @@ const EMPTY_PARAM = { name: '', unit: '', nominalValue: '', ucl: '', lcl: '', us
 export function QualityPlansView() {
   const { t } = useTranslation(['quality', 'common']);
   const queryClient = useQueryClient();
+  const { filter, key: scopeKey } = useScope();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -99,8 +101,16 @@ export function QualityPlansView() {
   const { archive: archivePlan, restore: restorePlan, bulkArchive, bulkRestore } = useArchive('quality-plans', [['quality-plans']], 'Quality plan');
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['quality-plans', typeFilter, showInactive, archived],
-    queryFn: () => api.get(`/quality/plans?isActive=${showInactive ? 'false' : 'true'}${typeFilter ? `&type=${typeFilter}` : ''}${archived !== 'active' ? `&archived=${archived}` : ''}&limit=200`),
+    queryKey: ['quality-plans', typeFilter, showInactive, archived, scopeKey],
+    queryFn: () => api.get('/quality/plans', {
+      params: {
+        isActive: showInactive ? 'false' : 'true',
+        ...(typeFilter ? { type: typeFilter } : {}),
+        ...(archived !== 'active' ? { archived } : {}),
+        ...filter, // scope: machineId / areaId / lineId
+        limit: 200,
+      },
+    }),
   });
 
   const plans: QualityPlan[] = Array.isArray(data) ? data : [];

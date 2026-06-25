@@ -97,6 +97,9 @@ export class QualityController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('archived') archived?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('productionOrderId') productionOrderId?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '20',
   ) {
@@ -105,7 +108,10 @@ export class QualityController {
       type,
       result,
       workOrderId,
+      productionOrderId,
       machineId,
+      areaId,
+      lineId,
       dateFrom,
       dateTo,
       archived,
@@ -387,15 +393,21 @@ export class QualityController {
   @ApiQuery({ name: 'skuId', required: false })
   @ApiQuery({ name: 'type', required: false })
   @ApiQuery({ name: 'isActive', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
   async findQualityPlans(
     @CurrentUser() user: RequestUser,
     @Query('skuId') skuId?: string,
     @Query('type') type?: string,
     @Query('isActive') isActive?: string,
     @Query('archived') archived?: string,
+    @Query('machineId') machineId?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
   ) {
     const activeFilter = isActive === 'false' ? false : isActive === 'true' ? true : undefined;
-    return this.qualityService.findQualityPlans(user.factoryId, { skuId, type, isActive: activeFilter, archived });
+    return this.qualityService.findQualityPlans(user.factoryId, { skuId, type, isActive: activeFilter, archived, machineId, areaId, lineId });
   }
 
   @Get('plans/:id')
@@ -507,21 +519,38 @@ export class QualityController {
   // ────────────────────────────────────────────────────────────
 
   @Get('spc')
-  @ApiOperation({ summary: 'List SPC parameters (quality plan parameters with control limits)' })
+  @ApiOperation({ summary: 'List SPC parameters (scope/time/order aware)' })
   @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'skuId', required: false })
+  @ApiQuery({ name: 'workOrderId', required: false })
+  @ApiQuery({ name: 'productionOrderId', required: false })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
   async getSPCParameters(
     @CurrentUser() user: RequestUser,
     @Query('machineId') machineId?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
     @Query('skuId') skuId?: string,
+    @Query('workOrderId') workOrderId?: string,
+    @Query('productionOrderId') productionOrderId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
   ) {
-    return this.qualityService.getSPCParameters(user.factoryId, { machineId, skuId });
+    return this.qualityService.getSPCParameters(user.factoryId, { machineId, areaId, lineId, skuId, workOrderId, productionOrderId, from: dateFrom, to: dateTo });
   }
 
   @Get('spc/measurements')
-  @ApiOperation({ summary: 'Get SPC measurement data for a parameter' })
+  @ApiOperation({ summary: 'Get SPC measurement data (scope/time/order aware)' })
   @ApiQuery({ name: 'parameterId', required: false })
   @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'skuId', required: false })
+  @ApiQuery({ name: 'workOrderId', required: false })
+  @ApiQuery({ name: 'productionOrderId', required: false })
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -529,12 +558,17 @@ export class QualityController {
     @CurrentUser() user: RequestUser,
     @Query('parameterId') parameterId?: string,
     @Query('machineId') machineId?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('skuId') skuId?: string,
+    @Query('workOrderId') workOrderId?: string,
+    @Query('productionOrderId') productionOrderId?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('limit') limit = '50',
   ) {
     return this.qualityService.getSPCMeasurements(user.factoryId, {
-      parameterId, machineId, from, to, limit: parseInt(limit, 10),
+      parameterId, machineId, areaId, lineId, skuId, workOrderId, productionOrderId, from, to, limit: parseInt(limit, 10),
     });
   }
 

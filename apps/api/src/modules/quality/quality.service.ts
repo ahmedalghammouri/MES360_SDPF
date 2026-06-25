@@ -486,25 +486,42 @@ export class QualityService {
     type?: string;
     result?: string;
     workOrderId?: string;
+    productionOrderId?: string;
     machineId?: string;
+    areaId?: string;
+    lineId?: string;
     dateFrom?: string;
     dateTo?: string;
     archived?: string;
     page?: number;
     limit?: number;
   }) {
-    const { search, type, result, workOrderId, machineId, dateFrom, dateTo, archived, page = 1, limit = 20 } = filters;
+    const { search, type, result, workOrderId, productionOrderId, dateFrom, dateTo, archived, page = 1, limit = 20 } = filters;
     const factoryFilter = factoryId ? { factoryId } : {};
+    const machineIds = await this.qualityScopeMachineIds(factoryId, filters);
+
+    // Work-order filter: explicit WO, else all WOs under the selected PO.
+    let woFilter: any = {};
+    if (workOrderId) woFilter = { workOrderId };
+    else if (productionOrderId) {
+      const wos = await this.prisma.workOrder.findMany({ where: { productionOrderId, ...factoryFilter }, select: { id: true } });
+      woFilter = { workOrderId: { in: wos.map((w) => w.id) } };
+    }
 
     const where: any = {
       ...archivedWhere(archived),
       ...factoryFilter,
       ...(type && { type }),
       ...(result && { result }),
-      ...(workOrderId && { workOrderId }),
-      ...(machineId && { machineId }),
-      ...(dateFrom && { inspectedAt: { gte: new Date(dateFrom) } }),
-      ...(dateTo && { inspectedAt: { lte: new Date(dateTo) } }),
+      ...woFilter,
+      ...(machineIds ? { machineId: { in: machineIds } } : {}),
+      // Single combined date range (the previous two spreads overwrote each other).
+      ...((dateFrom || dateTo) ? {
+        inspectedAt: {
+          ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+          ...(dateTo ? { lte: new Date(dateTo.length <= 10 ? `${dateTo}T23:59:59.999` : dateTo) } : {}),
+        },
+      } : {}),
       ...(search && {
         OR: [
           { inspectionNumber: { contains: search, mode: 'insensitive' } },
@@ -1037,13 +1054,16 @@ export class QualityService {
   // QUALITY PLANS (ISA-95 QualityTest definitions)
   // ────────────────────────────────────────────────────────────
 
-  async findQualityPlans(factoryId: string | null, filters: { skuId?: string; type?: string; isActive?: boolean; archived?: string }) {
+  async findQualityPlans(factoryId: string | null, filters: { skuId?: string; type?: string; isActive?: boolean; archived?: string; machineId?: string; areaId?: string; lineId?: string }) {
+    const machineIds = await this.qualityScopeMachineIds(factoryId, filters);
     const where: any = {
       ...(factoryId ? { factoryId } : {}),
       ...archivedWhere(filters.archived),
       ...(filters.skuId && { skuId: filters.skuId }),
       ...(filters.type && { type: filters.type }),
       ...(filters.isActive !== undefined ? { isActive: filters.isActive } : { isActive: true }),
+      // Scope: plans for the in-scope machines, plus factory-wide plans (machineId null).
+      ...(machineIds ? { OR: [{ machineId: { in: machineIds } }, { machineId: null }] } : {}),
     };
     const plans = await this.prisma.qualityPlan.findMany({
       where,
@@ -1227,12 +1247,55 @@ export class QualityService {
   // SPC — STATISTICAL PROCESS CONTROL
   // ────────────────────────────────────────────────────────────
 
-  async getSPCParameters(factoryId: string | null, filters: { machineId?: string; skuId?: string }) {
-    const where: any = {
+  /** Resolve an analysis scope (area/line/machine) to covered machine ids. */
+  private async qualityScopeMachineIds(
+    factoryId: string | null,
+    scope?: { areaId?: string; lineId?: string; machineId?: string },
+  ): Promise<string[] | undefined> {
+    if (!scope || (!scope.areaId && !scope.lineId && !scope.machineId)) return undefined;
+    if (scope.machineId) return [scope.machineId];
+    const ms = await this.prisma.machine.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        ...(scope.lineId ? { lineId: scope.lineId } : {}),
+        ...(scope.areaId ? { line: { areaId: scope.areaId } } : {}),
+      },
+      select: { id: true },
+    });
+    return ms.map((m) => m.id);
+  }
+
+  /** Build the shared SPCMeasurement where-clause from scope/time/order filters. */
+  private async spcWhere(
+    factoryId: string | null,
+    f: { machineId?: string; areaId?: string; lineId?: string; skuId?: string; workOrderId?: string; productionOrderId?: string; from?: string; to?: string },
+  ): Promise<any> {
+    const machineIds = await this.qualityScopeMachineIds(factoryId, f);
+    let woFilter: any = {};
+    if (f.workOrderId) woFilter = { workOrderId: f.workOrderId };
+    else if (f.productionOrderId) {
+      const wos = await this.prisma.workOrder.findMany({ where: { productionOrderId: f.productionOrderId, ...(factoryId ? { factoryId } : {}) }, select: { id: true } });
+      woFilter = { workOrderId: { in: wos.map((w) => w.id) } };
+    }
+    return {
       ...(factoryId ? { factoryId } : {}),
-      ...(filters.machineId ? { machineId: filters.machineId } : {}),
-      ...(filters.skuId ? { skuId: filters.skuId } : {}),
+      ...(machineIds ? { machineId: { in: machineIds } } : {}),
+      ...(f.skuId ? { skuId: f.skuId } : {}),
+      ...woFilter,
+      ...((f.from || f.to) ? {
+        measuredAt: {
+          ...(f.from ? { gte: new Date(f.from) } : {}),
+          ...(f.to ? { lte: new Date(`${f.to.length <= 10 ? `${f.to}T23:59:59.999` : f.to}`) } : {}),
+        },
+      } : {}),
     };
+  }
+
+  async getSPCParameters(
+    factoryId: string | null,
+    filters: { machineId?: string; areaId?: string; lineId?: string; skuId?: string; workOrderId?: string; productionOrderId?: string; from?: string; to?: string },
+  ) {
+    const where = await this.spcWhere(factoryId, filters);
 
     const raw = await this.prisma.sPCMeasurement.groupBy({
       by: ['parameterName', 'parameterUnit', 'machineId'],
@@ -1254,18 +1317,11 @@ export class QualityService {
 
   async getSPCMeasurements(
     factoryId: string | null,
-    filters: { parameterId?: string; machineId?: string; from?: string; to?: string; limit: number },
+    filters: { parameterId?: string; machineId?: string; areaId?: string; lineId?: string; skuId?: string; workOrderId?: string; productionOrderId?: string; from?: string; to?: string; limit: number },
   ) {
-    const where: any = {
-      ...(factoryId ? { factoryId } : {}),
-      ...(filters.machineId ? { machineId: filters.machineId } : {}),
+    const where = {
+      ...(await this.spcWhere(factoryId, filters)),
       ...(filters.parameterId ? { parameterName: filters.parameterId } : {}),
-      ...((filters.from || filters.to) ? {
-        measuredAt: {
-          ...(filters.from ? { gte: new Date(filters.from) } : {}),
-          ...(filters.to ? { lte: new Date(filters.to) } : {}),
-        },
-      } : {}),
     };
 
     return this.prisma.sPCMeasurement.findMany({
