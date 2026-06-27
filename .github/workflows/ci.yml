@@ -1,4 +1,4 @@
-name: STAR-MES Platform CI/CD
+name: MES360° Platform CI/CD
 
 on:
   push:

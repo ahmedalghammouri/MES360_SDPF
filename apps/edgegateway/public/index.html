@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>MES360° Edge Gateway</title>
-<link rel="icon" href="/logo.png" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23818cf8'/><stop offset='1' stop-color='%23a78bfa'/></linearGradient></defs><rect width='64' height='64' rx='14' fill='url(%23g)'/><text x='32' y='43' font-family='Segoe UI,sans-serif' font-size='20' font-weight='900' fill='white' text-anchor='middle'>360°</text></svg>" />
 <style>
   :root{
     --bg:222 47% 7%; --bg2:220 40% 9%; --fg:213 31% 92%;
@@ -31,6 +31,9 @@
   button.danger:hover{background:hsl(var(--bad)/.12);transform:none}
   button.sm{padding:6px 11px;font-size:12px}
   .brand-mark{font-weight:800;background:linear-gradient(90deg,var(--brand1),var(--brand2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .brand-tile{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--brand1),var(--brand2));color:#fff;font-weight:900;letter-spacing:-.02em;flex:none}
+  .logo .brand-tile{width:40px;height:40px;border-radius:11px;font-size:12px}
+  .login-head .brand-tile{width:44px;height:44px;border-radius:12px;font-size:13px}
   .err{color:hsl(var(--bad));font-size:12px;margin-top:10px;min-height:16px}
 
   /* Login */
@@ -130,8 +133,8 @@
   <!-- Login -->
   <div id="login">
     <div class="login-card">
-      <div class="login-head"><img src="/logo.png" alt="MES360°" />
-        <div><div style="font-size:19px"><span class="brand-mark">STAR</span><span style="color:hsl(var(--muted-fg));font-weight:700">-MES</span></div>
+      <div class="login-head"><div class="brand-tile" aria-label="MES360°">360°</div>
+        <div><div style="font-size:19px"><span class="brand-mark">MES</span><span style="color:hsl(var(--muted-fg));font-weight:700">360°</span></div>
           <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:hsl(var(--muted-fg));font-weight:600">Edge Gateway</div></div>
       </div>
       <div style="color:hsl(var(--muted-fg));font-size:12.5px;margin-top:8px">Local monitoring &amp; configuration</div>
@@ -145,8 +148,8 @@
   <!-- App -->
   <div id="app" class="hidden">
     <aside>
-      <div class="logo"><img src="/logo.png" alt="MES360°" />
-        <div><div class="t1"><span class="brand-mark">STAR</span><span style="color:hsl(var(--sidebar-fg)/.75);font-weight:700">-MES</span></div>
+      <div class="logo"><div class="brand-tile" aria-label="MES360°">360°</div>
+        <div><div class="t1"><span class="brand-mark">MES</span><span style="color:hsl(var(--sidebar-fg)/.75);font-weight:700">360°</span></div>
           <div class="t2">Edge Gateway</div></div>
       </div>
       <nav>
