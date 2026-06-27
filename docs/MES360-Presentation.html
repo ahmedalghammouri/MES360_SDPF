@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MES360° — العرض التقديمي الرسمي للمنصة</title>
+<meta name="description" content="عرض تقديمي احترافي شامل لمنصة MES360° — نظام تنفيذ التصنيع المؤسسي" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Brand palette (from tailwind.config.ts) */
+  --brand-300:#a4bcfd; --brand-400:#8098fb; --brand-500:#6175f4; --brand-600:#4f55e8; --brand-700:#4341d0; --brand-900:#323485; --brand-950:#1e1e4f;
+  --accent:#d946ef; --accent-soft:#e855ff;
+  --gold:#D9BB75; --teal:#003933;
+  --success:#22c55e; --warning:#f59e0b; --danger:#f43f5e;
+  --bg:#0b0e17; --bg2:#0f1419; --panel:rgba(255,255,255,.04); --panel2:rgba(255,255,255,.06);
+  --line:rgba(255,255,255,.10); --line2:rgba(255,255,255,.16);
+  --fg:#e8ecf4; --muted:#9aa6c0; --dim:#6b7896;
+  --r:16px;
+  --font-ar:'IBM Plex Sans Arabic','Tajawal','Cairo',sans-serif;
+  --font-head:'Space Grotesk','IBM Plex Sans Arabic',sans-serif;
+  --font-mono:'Geist Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font-ar);
+  background:var(--bg);
+  color:var(--fg);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+/* ====== Deck framework ====== */
+.deck{height:100vh;width:100vw;position:relative}
+.slide{
+  position:absolute;inset:0;
+  display:none;
+  flex-direction:column;
+  padding:clamp(28px,5vw,80px) clamp(28px,6vw,110px);
+  opacity:0;
+  background:
+    radial-gradient(1200px 700px at 85% -10%, rgba(97,117,244,.16), transparent 60%),
+    radial-gradient(900px 600px at -5% 110%, rgba(217,70,239,.12), transparent 55%),
+    linear-gradient(160deg,var(--bg) 0%, var(--bg2) 100%);
+  animation:fade .5s ease both;
+  overflow:hidden;
+}
+.slide.active{display:flex;opacity:1}
+@keyframes fade{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+/* subtle grid texture */
+.slide::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:54px 54px;
+  -webkit-mask-image:radial-gradient(circle at 70% 30%,#000,transparent 78%);
+          mask-image:radial-gradient(circle at 70% 30%,#000,transparent 78%);
+}
+.slide>*{position:relative;z-index:1}
+
+/* ====== Chrome (progress, nav, counter) ====== */
+.progress{position:fixed;top:0;right:0;height:3px;background:linear-gradient(90deg,var(--brand-500),var(--accent));z-index:50;transition:width .35s ease;box-shadow:0 0 14px rgba(97,117,244,.6)}
+.chrome{position:fixed;bottom:22px;left:0;right:0;display:flex;justify-content:center;align-items:center;gap:18px;z-index:50;pointer-events:none}
+.nav-btn{pointer-events:auto;width:42px;height:42px;border-radius:50%;border:1px solid var(--line2);background:rgba(15,20,25,.6);backdrop-filter:blur(10px);color:var(--fg);font-size:18px;cursor:pointer;display:grid;place-items:center;transition:.2s}
+.nav-btn:hover{border-color:var(--brand-500);box-shadow:0 0 18px rgba(97,117,244,.4);color:#fff}
+.counter{pointer-events:auto;font-family:var(--font-mono);font-size:13px;color:var(--muted);background:rgba(15,20,25,.6);backdrop-filter:blur(10px);padding:8px 14px;border-radius:99px;border:1px solid var(--line);min-width:74px;text-align:center}
+.brandmini{position:fixed;top:20px;right:clamp(28px,6vw,110px);z-index:40;display:flex;align-items:center;gap:9px;opacity:.85}
+.brandmini .logo{width:26px;height:26px}
+.brandmini b{font-family:var(--font-head);letter-spacing:.5px;font-size:14px}
+.brandmini b span{color:var(--accent)}
+.hint{position:fixed;bottom:24px;right:clamp(28px,6vw,110px);z-index:40;font-size:11px;color:var(--dim);font-family:var(--font-mono)}
+
+/* ====== Logo mark ====== */
+.mark{display:inline-grid;place-items:center}
+.mark svg{display:block}
+
+/* ====== Typography helpers ====== */
+.kicker{display:inline-flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--brand-300);margin-bottom:18px}
+.kicker::before{content:"";width:26px;height:2px;background:linear-gradient(90deg,var(--brand-500),transparent);border-radius:2px}
+h1{font-family:var(--font-head);font-weight:700;font-size:clamp(34px,5.4vw,68px);line-height:1.05;letter-spacing:-.5px}
+h2{font-family:var(--font-head);font-weight:700;font-size:clamp(26px,3.6vw,46px);line-height:1.1;margin-bottom:10px}
+.sub{font-size:clamp(15px,1.5vw,20px);color:var(--muted);max-width:62ch;line-height:1.7}
+.lead{font-size:clamp(15px,1.45vw,19px);color:var(--muted);line-height:1.8;max-width:70ch}
+.grad{background:linear-gradient(100deg,var(--brand-400),var(--accent-soft));-webkit-background-clip:text;background-clip:text;color:transparent}
+.gold{color:var(--gold)}
+
+.slide-head{margin-bottom:28px;flex:0 0 auto}
+.slide-body{flex:1 1 auto;min-height:0}
+
+/* ====== Cards & grids ====== */
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+.card{
+  background:linear-gradient(160deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:var(--r);padding:20px 22px;
+  transition:.25s;position:relative;overflow:hidden;
+}
+.card:hover{border-color:var(--line2);transform:translateY(-3px);box-shadow:0 14px 40px rgba(0,0,0,.4)}
+.card .ic{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-size:20px;margin-bottom:14px;background:rgba(97,117,244,.14);border:1px solid rgba(97,117,244,.3)}
+.card h3{font-size:17px;font-weight:600;margin-bottom:6px}
+.card p{font-size:13.5px;color:var(--muted);line-height:1.65}
+.card .tag{position:absolute;top:14px;left:14px;font-family:var(--font-mono);font-size:10px;color:var(--accent);border:1px solid rgba(217,70,239,.4);padding:2px 7px;border-radius:6px;background:rgba(217,70,239,.08)}
+
+/* screen list cards */
+.screens{display:grid;gap:11px}
+.screen{display:flex;align-items:flex-start;gap:13px;padding:13px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;transition:.2s}
+.screen:hover{background:var(--panel2);border-color:var(--brand-600)}
+.screen .dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--brand-500);margin-top:6px;box-shadow:0 0 10px var(--brand-500)}
+.screen .txt b{font-size:14.5px;font-weight:600;display:block}
+.screen .txt .rt{font-family:var(--font-mono);font-size:11px;color:var(--accent);opacity:.85}
+.screen .txt p{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.55}
+
+.pill{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:99px;border:1px solid var(--line2);background:var(--panel);font-size:13px;color:var(--muted)}
+.pill b{color:var(--fg);font-weight:600}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.stat{padding:8px 4px}
+.stat .n{font-family:var(--font-head);font-weight:700;font-size:clamp(30px,4vw,52px);line-height:1;background:linear-gradient(120deg,var(--brand-400),var(--accent-soft));-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat .l{font-size:13px;color:var(--muted);margin-top:8px}
+
+/* module banner */
+.mod-num{font-family:var(--font-head);font-weight:700;font-size:clamp(60px,11vw,150px);line-height:.85;color:transparent;-webkit-text-stroke:1.5px var(--brand-600);opacity:.55}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.chip{padding:8px 16px;border-radius:10px;border:1px solid var(--line2);background:var(--panel);font-size:14px}
+.chip.on{border-color:var(--brand-500);background:rgba(97,117,244,.14);color:#fff}
+
+ul.feat{list-style:none;display:grid;gap:12px}
+ul.feat li{display:flex;gap:11px;font-size:15px;color:var(--muted);line-height:1.6}
+ul.feat li::before{content:"◆";color:var(--accent);font-size:11px;margin-top:5px}
+ul.feat li b{color:var(--fg)}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;height:100%}
+.flow{display:flex;flex-direction:column;gap:12px}
+.flow .node{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:13px;border:1px solid var(--line);background:var(--panel);position:relative}
+.flow .node .s{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:rgba(97,117,244,.16);border:1px solid rgba(97,117,244,.32);font-size:16px;flex:0 0 auto}
+.flow .node b{font-size:14.5px} .flow .node span{font-size:12.5px;color:var(--muted)}
+.flow .arr{height:16px;width:2px;background:linear-gradient(var(--brand-500),transparent);margin-right:33px}
+
+.code{font-family:var(--font-mono);font-size:13px;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:12px;padding:18px 20px;color:#cdd6f4;line-height:1.9;direction:ltr;text-align:left}
+.code .k{color:var(--accent)} .code .v{color:var(--gold)} .code .c{color:var(--success)}
+
+.eq{font-family:var(--font-mono);direction:ltr;text-align:center;font-size:clamp(15px,1.9vw,22px);background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:12px;padding:18px;color:#e8ecf4}
+.eq .hl{color:var(--brand-300)} .eq .a{color:var(--success)} .eq .p{color:var(--warning)} .eq .q{color:var(--accent-soft)}
+
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px}
+.legend i{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);font-style:normal}
+.legend i b{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+footer.sig{margin-top:auto;padding-top:18px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--dim);border-top:1px solid var(--line)}
+footer.sig .mono{font-family:var(--font-mono)}
+
+/* cover */
+.cover{display:flex;flex-direction:column;justify-content:center;height:100%;align-items:flex-start}
+.cover .badge{display:inline-flex;gap:8px;align-items:center;padding:8px 16px;border-radius:99px;border:1px solid var(--line2);background:var(--panel);font-size:13px;color:var(--muted);margin-bottom:30px}
+.cover .badge .pulse{width:8px;height:8px;border-radius:50%;background:var(--success);box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}70%{box-shadow:0 0 0 12px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+.cover-logo{display:flex;align-items:center;gap:22px;margin-bottom:34px}
+.cover-logo .ring{width:92px;height:92px}
+.cover-logo .wm{font-family:var(--font-head);font-weight:700;font-size:clamp(40px,6vw,72px);letter-spacing:-1px}
+.cover-logo .wm span{color:var(--accent)}
+.cover .meta{display:flex;gap:34px;margin-top:40px;flex-wrap:wrap}
+.cover .meta .m .k{font-size:12px;color:var(--dim);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px}
+.cover .meta .m .val{font-size:16px;color:var(--fg);margin-top:5px;font-weight:600}
+
+.note{font-size:12.5px;color:var(--dim);margin-top:14px;line-height:1.6}
+.toc{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.toc .item{display:flex;align-items:center;gap:16px;padding:16px 18px;border:1px solid var(--line);border-radius:13px;background:var(--panel);transition:.2s}
+.toc .item:hover{border-color:var(--brand-500);background:var(--panel2)}
+.toc .item .no{font-family:var(--font-head);font-weight:700;font-size:22px;color:var(--brand-400);min-width:34px}
+.toc .item b{font-size:16px;display:block} .toc .item p{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+.fit{font-size:clamp(13px,1.25vw,15px)}
+@media (max-width:920px){
+  .g4{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(2,1fr)}
+  .two-col{grid-template-columns:1fr;gap:20px} .toc{grid-template-columns:1fr}
+  .stats{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="brandmini"><span class="mark logo" id="miniLogo"></span><b>MES<span>360°</span></b></div>
+
+<div class="deck" id="deck">
+
+  <!-- 1 · COVER -->
+  <section class="slide active">
+    <div class="cover">
+      <div class="badge"><span class="pulse"></span> منصة تشغيلية مباشرة · National Care Company</div>
+      <div class="cover-logo">
+        <span class="mark ring" id="coverLogo"></span>
+        <div class="wm">MES<span>360°</span></div>
+      </div>
+      <h1>منصة تنفيذ التصنيع<br><span class="grad">للمصانع الذكية</span></h1>
+      <p class="sub" style="margin-top:22px">نظام مؤسسي متكامل للمراقبة اللحظية للإنتاج، وإدارة الجودة والصيانة، والربط الصناعي عبر إنترنت الأشياء (IIoT)، مدعوم بالذكاء الاصطناعي — في منصة واحدة موحّدة.</p>
+      <div class="meta">
+        <div class="m"><div class="k">Client</div><div class="val">شركة العناية الوطنية (NCC)</div></div>
+        <div class="m"><div class="k">Coverage</div><div class="val">5 مصانع · الدمام وجدة</div></div>
+        <div class="m"><div class="k">Scope</div><div class="val">+107 شاشة · 5 محاور تشغيلية</div></div>
+        <div class="m"><div class="k">Date</div><div class="val">2026</div></div>
+      </div>
+    </div>
+    <div class="hint">استخدم ← → أو المسافة للتنقل</div>
+  </section>
+
+  <!-- 2 · AGENDA -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">Agenda · جدول العرض</div><h2>محاور العرض التقديمي</h2></div>
+    <div class="slide-body">
+      <div class="toc">
+        <div class="item"><span class="no">01</span><div><b>نظرة عامة والأهداف</b><p>ما هو MES360°، التحديات التي يحلّها، والقيمة المضافة</p></div></div>
+        <div class="item"><span class="no">02</span><div><b>البنية والمنظومة التقنية</b><p>المعمارية، شبكة المصانع، والتقنيات المستخدمة</p></div></div>
+        <div class="item"><span class="no">03</span><div><b>هيكل التطبيق والشاشات</b><p>المحاور الخمسة وكامل الشاشات بالتفصيل</p></div></div>
+        <div class="item"><span class="no">04</span><div><b>كيف يعمل النظام</b><p>تدفق البيانات اللحظي ومنهجية الـ OEE</p></div></div>
+        <div class="item"><span class="no">05</span><div><b>الأمان والصلاحيات والتعدد اللغوي</b><p>التحكم بالوصول وواجهات الأرضية</p></div></div>
+        <div class="item"><span class="no">06</span><div><b>خارطة الطريق والخلاصة</b><p>الذكاء الاصطناعي والتوسعات المستقبلية</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · WHAT IS MES360 -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">01 · Overview</div><h2>ما هو <span class="grad">MES360°</span>؟</h2></div>
+    <div class="slide-body two-col">
+      <div>
+        <p class="lead">منصة تنفيذ تصنيع (Manufacturing Execution System) كاملة وفورية، تربط ما بين <b style="color:var(--fg)">الأرضية الصناعية (Shop Floor)</b> وأنظمة <b style="color:var(--fg)">التخطيط والإدارة العليا</b> في طبقة واحدة موحّدة.</p>
+        <p class="lead" style="margin-top:18px">تجمع MES360° المراقبة اللحظية للإنتاج، وإدارة الجودة، والصيانة التنبؤية، والربط عبر إنترنت الأشياء الصناعي، ورؤى الذكاء الاصطناعي — في منصة مؤسسية واحدة متعددة المصانع.</p>
+        <div class="chips">
+          <span class="chip on">رؤية لحظية 360°</span>
+          <span class="chip on">متعدد المصانع</span>
+          <span class="chip on">عربي / إنجليزي (RTL)</span>
+          <span class="chip on">جاهز للسحابة والحافة</span>
+        </div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><div class="ic">🏭</div><h3>الأرضية الصناعية</h3><p>ربط الآلات والحساسات وجمع البيانات لحظياً عبر MQTT و OPC-UA و Modbus.</p></div>
+        <div class="card"><div class="ic">📊</div><h3>الذكاء التشغيلي</h3><p>مراكز قيادة ولوحات معلومات و OEE وتحليلات تكشف الأداء فوراً.</p></div>
+        <div class="card"><div class="ic">✅</div><h3>الجودة والامتثال</h3><p>الفحوصات و SPC و NCR و CAPA مع سجل تدقيق كامل وتتبّع للمصدر.</p></div>
+        <div class="card"><div class="ic">🤖</div><h3>الذكاء الاصطناعي</h3><p>كشف الشذوذ والتنبؤ بالأعطال والمقارنات المرجعية بين الخطوط.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · CHALLENGES -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">01 · The Problem</div><h2>التحديات التي يعالجها النظام</h2><p class="sub">المصانع التقليدية تعمل ببيانات متفرقة ومتأخرة، ما يخفي الخسائر الحقيقية.</p></div>
+    <div class="slide-body">
+      <div class="grid g3">
+        <div class="card"><div class="ic" style="background:rgba(244,63,94,.14);border-color:rgba(244,63,94,.3)">🕳️</div><h3>بيانات معزولة</h3><p>أنظمة منفصلة (إنتاج، جودة، صيانة، مخزون) لا تتحدث مع بعضها، فتغيب الصورة الكاملة.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(245,158,11,.14);border-color:rgba(245,158,11,.3)">⏱️</div><h3>قرارات متأخرة</h3><p>تقارير يدوية تصل بعد فوات الأوان، فتُكتشف التوقفات والخسائر متأخرة.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(244,63,94,.14);border-color:rgba(244,63,94,.3)">📉</div><h3>غياب قياس OEE</h3><p>لا قياس موثوق للكفاءة الكلية للمعدات يكشف فجوات التوفر والأداء والجودة.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(245,158,11,.14);border-color:rgba(245,158,11,.3)">🔧</div><h3>صيانة تفاعلية</h3><p>إصلاح بعد العطل بدل التنبؤ به، ما يرفع التوقفات غير المخطّطة والتكاليف.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(244,63,94,.14);border-color:rgba(244,63,94,.3)">🔍</div><h3>تتبّع ضعيف</h3><p>صعوبة تتبّع الدفعات والمواد من المصدر إلى المنتج النهائي عند الحاجة.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(245,158,11,.14);border-color:rgba(245,158,11,.3)">📑</div><h3>امتثال يدوي</h3><p>سجلات ورقية يصعب تدقيقها وتعريضها لمخاطر الجودة والمطابقة.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · GOALS -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">01 · Objectives</div><h2>أهداف <span class="grad">MES360°</span></h2></div>
+    <div class="slide-body two-col">
+      <ul class="feat">
+        <li><b>توحيد المصدر الواحد للحقيقة</b> — دمج كل بيانات التصنيع في منصة واحدة متّسقة.</li>
+        <li><b>رفع الكفاءة الكلية للمعدات (OEE)</b> — قياس التوفر والأداء والجودة لحظياً وكشف الخسائر.</li>
+        <li><b>خفض التوقفات غير المخطّطة</b> — تحليل الأعطال والصيانة الوقائية والتنبؤية.</li>
+        <li><b>ضمان الجودة والامتثال</b> — فحوصات و SPC و NCR/CAPA بسجل تدقيق كامل.</li>
+        <li><b>تتبّع كامل من المصدر للمنتج</b> — شجرة أنساب الدفعات والمواد والاستهلاك.</li>
+        <li><b>تمكين القرار اللحظي</b> — مراكز قيادة وتنبيهات فورية للإدارة والمشغّل.</li>
+      </ul>
+      <div class="card" style="padding:30px">
+        <div class="kicker" style="margin-bottom:22px">Target Impact · الأثر المستهدف</div>
+        <div class="stats" style="grid-template-columns:1fr 1fr;gap:28px">
+          <div class="stat"><div class="n">↑ OEE</div><div class="l">رفع الكفاءة الكلية للمعدات</div></div>
+          <div class="stat"><div class="n">↓ Downtime</div><div class="l">تقليل التوقفات غير المخطّطة</div></div>
+          <div class="stat"><div class="n">↓ Scrap</div><div class="l">خفض الهدر وإعادة العمل</div></div>
+          <div class="stat"><div class="n">100%</div><div class="l">تتبّع وامتثال رقمي</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · FACTORY NETWORK -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">02 · Deployment</div><h2>شبكة مصانع NCC في المملكة</h2><p class="sub">منصة واحدة تخدم خمس منشآت صناعية عبر مدينتين، مع لوحة تنفيذية موحّدة متعددة المصانع.</p></div>
+    <div class="slide-body">
+      <div class="grid g3" style="margin-bottom:18px">
+        <div class="card"><span class="tag">SDPF</span><div class="ic">🧴</div><h3>Saudi Detergent Powder Factory</h3><p>مسحوق المنظفات · الدمام</p></div>
+        <div class="card"><span class="tag">SAF</span><div class="ic">💨</div><h3>Saudi Aerosol Factory</h3><p>منتجات الأيروسول · الدمام</p></div>
+        <div class="card"><span class="tag">NDPF</span><div class="ic">🧼</div><h3>National Detergent Powder Factory</h3><p>مسحوق المنظفات · الدمام</p></div>
+        <div class="card"><span class="tag">SIDCO</span><div class="ic">🏭</div><h3>Saudi Industrial Detergent Co.</h3><p>المنظفات الصناعية · الدمام</p></div>
+        <div class="card"><span class="tag">RNTIC</span><div class="ic">🧯</div><h3>Plastic Blow Molding Mfg.</h3><p>تشكيل البلاستيك بالنفخ · جدة</p></div>
+        <div class="card" style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;background:linear-gradient(160deg,rgba(97,117,244,.18),rgba(217,70,239,.10))"><div class="stat"><div class="n">5</div><div class="l">منشآت صناعية مترابطة</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 · ARCHITECTURE -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">02 · Architecture</div><h2>البنية المعمارية للنظام</h2></div>
+    <div class="slide-body two-col">
+      <div class="flow">
+        <div class="node"><span class="s">🖥️</span><div><b>الواجهة — Browser / Tablet</b><span>Next.js 15 · React 19 · واجهات أرضية باللمس</span></div></div>
+        <div class="arr"></div>
+        <div class="node"><span class="s">🔀</span><div><b>Nginx Reverse Proxy</b><span>توجيه · حماية · تحديد المعدّل</span></div></div>
+        <div class="arr"></div>
+        <div class="node"><span class="s">⚙️</span><div><b>NestJS API + WebSocket Gateway</b><span>منطق الأعمال · المصادقة · البث اللحظي</span></div></div>
+        <div class="arr"></div>
+        <div class="node"><span class="s">🗄️</span><div><b>طبقة البيانات</b><span>PostgreSQL · Redis · InfluxDB · MinIO</span></div></div>
+        <div class="arr"></div>
+        <div class="node"><span class="s">📡</span><div><b>الحافة و IIoT — Edge Gateway</b><span>MQTT (Mosquitto) · OPC-UA · Modbus</span></div></div>
+      </div>
+      <div>
+        <ul class="feat">
+          <li><b>معمارية أحادية المستودع (Monorepo)</b> تضم الواجهة والـ API والبوابة والعامل والحزم المشتركة.</li>
+          <li><b>اتصال لحظي ثنائي الاتجاه</b> عبر Socket.IO و MQTT لبث الحالة والتنبيهات فور حدوثها.</li>
+          <li><b>قاعدة سلاسل زمنية (InfluxDB)</b> لبيانات الحساسات والقياسات عالية التردد.</li>
+          <li><b>مراقبة بنية تحتية</b> عبر Prometheus + Grafana لصحة الخدمات.</li>
+          <li><b>نشر حاويات (Docker)</b> — 10 خدمات متكاملة قابلة للتوسّع.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · TECH STACK -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">02 · Technology</div><h2>المنظومة التقنية</h2></div>
+    <div class="slide-body">
+      <div class="grid g4">
+        <div class="card"><div class="ic">🎨</div><h3>الواجهة الأمامية</h3><p>Next.js 15 · React 19 · TypeScript · Tailwind · Framer Motion · Zustand · TanStack Query</p></div>
+        <div class="card"><div class="ic">📈</div><h3>التصوّر البياني</h3><p>ECharts للمؤشرات الصناعية · Recharts و SPC · خرائط Leaflet التفاعلية</p></div>
+        <div class="card"><div class="ic">⚙️</div><h3>الخادم الخلفي</h3><p>NestJS 10 · Prisma ORM · Passport (JWT) · Socket.IO · Class-Validator · Helmet</p></div>
+        <div class="card"><div class="ic">🗄️</div><h3>قواعد البيانات</h3><p>PostgreSQL 16 · Redis 7 · InfluxDB 2.7 (سلاسل زمنية) · MinIO للتخزين</p></div>
+        <div class="card"><div class="ic">📡</div><h3>الربط الصناعي</h3><p>Eclipse Mosquitto (MQTT) · OPC-UA · Modbus · Edge Gateway · Historian</p></div>
+        <div class="card"><div class="ic">📊</div><h3>المراقبة</h3><p>Prometheus للقياسات · Grafana للوحات التشغيل · Nginx كوكيل عكسي</p></div>
+        <div class="card"><div class="ic">📦</div><h3>النشر</h3><p>Docker Compose · 10 خدمات · بيئات تطوير وإنتاج · جاهز للسحابة</p></div>
+        <div class="card"><div class="ic">🌐</div><h3>تعدد اللغات</h3><p>عربي/إنجليزي مع دعم كامل للاتجاه RTL · خطوط IBM Plex Sans Arabic</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · APP STRUCTURE -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">03 · Navigation</div><h2>هيكل التطبيق — <span class="grad">5 محاور رئيسية</span></h2><p class="sub">تنظيم منطقي يجمع أكثر من 107 شاشة ضمن خمسة محاور تشغيلية واضحة، يتنقّل بينها المستخدم من شريط جانبي موحّد.</p></div>
+    <div class="slide-body">
+      <div class="stats" style="margin-bottom:26px">
+        <div class="stat"><div class="n">107+</div><div class="l">شاشة قابلة للتنقّل</div></div>
+        <div class="stat"><div class="n">5</div><div class="l">محاور تشغيلية</div></div>
+        <div class="stat"><div class="n">4</div><div class="l">مراكز قيادة (Command Centers)</div></div>
+        <div class="stat"><div class="n">3</div><div class="l">واجهات أرضية باللمس</div></div>
+      </div>
+      <div class="grid g3">
+        <div class="card"><span class="tag">A</span><div class="ic">📊</div><h3>استوديو الرؤى — Insights</h3><p>اللوحات، مراكز القيادة، الـ OEE، التحليلات والتقارير، والذكاء الاصطناعي.</p></div>
+        <div class="card"><span class="tag">B</span><div class="ic">🏭</div><h3>العمليات — Operations</h3><p>التخطيط والجدولة، تنفيذ الإنتاج، التحكّم الصناعي، الطاقة، وأرضية الإنتاج.</p></div>
+        <div class="card"><span class="tag">C</span><div class="ic">🛠️</div><h3>الأصول والجودة والمواد</h3><p>الصيانة، الجودة، المخزون والمواد، والتتبّع وشجرة الأنساب.</p></div>
+        <div class="card"><span class="tag">D</span><div class="ic">🔌</div><h3>الهندسة والمنشأة والتكامل</h3><p>دورة حياة المنتج (PLM)، إنترنت الأشياء الصناعي، وإدارة المنشأة.</p></div>
+        <div class="card"><span class="tag">E</span><div class="ic">⚙️</div><h3>الإعدادات والإدارة</h3><p>المستخدمون والصلاحيات، الإعدادات، الأرشيف، ومشغّل التطبيقات.</p></div>
+        <div class="card" style="display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(160deg,rgba(217,70,239,.14),rgba(97,117,244,.10))"><div><h3 style="font-size:18px">شريط تنقّل موحّد</h3><p>تجربة متّسقة عبر كل المحاور مع شارات لحظية لعناصر العمل والتنبيهات.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · MODULE A BANNER -->
+  <section class="slide">
+    <div class="slide-body" style="display:flex;flex-direction:column;justify-content:center">
+      <div class="mod-num">A</div>
+      <h1 style="margin-top:14px">استوديو الرؤى <span class="grad">Insights Studio</span></h1>
+      <p class="sub" style="margin-top:18px">تطبيقات دعم القرار: مراكز القيادة، اللوحات، الكفاءة الكلية للمعدات (OEE)، التحليلات والتقارير، والذكاء الاصطناعي والمقارنات المرجعية.</p>
+      <div class="chips">
+        <span class="chip">مراكز القيادة</span><span class="chip">OEE</span><span class="chip">التحليلات</span><span class="chip">التقارير و KPIs</span><span class="chip">الذكاء الاصطناعي</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 · COMMAND CENTERS -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">A · Insights</div><h2>مراكز القيادة واللوحات</h2></div>
+    <div class="slide-body screens" style="grid-template-columns:1fr 1fr;gap:12px">
+      <div class="screen"><span class="dot"></span><div class="txt"><b>مركز القيادة الرئيسي <span class="rt">/command-center</span></b><p>لوحة الذكاء التشغيلي الرئيسية للمراقبة اللحظية للمصنع وعرض المؤشرات.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>مركز قيادة التوقفات <span class="rt">/downtime</span></b><p>لوحة متخصصة لتتبّع أحداث التوقف وتحليل الأسباب الجذرية.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>مركز قيادة الطاقة <span class="rt">/energy/command-center</span></b><p>مراقبة استهلاك الطاقة وتحليلات الكفاءة بشكل مخصّص.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>اللوحة التنفيذية متعددة المصانع <span class="rt">/executive</span></b><p>نظرة شاملة على مستوى الإدارة العليا عبر كل المصانع.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>مركز اللوحات <span class="rt">/dashboard-center</span></b><p>منشئ لوحات قابلة للتخصيص لكل مستخدم حسب احتياجه.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>تفاصيل اللوحة <span class="rt">/dashboard-center/[id]</span></b><p>عارض اللوحة المخصّصة الفردية بمحتوى ديناميكي.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 12 · OEE ANALYTICS -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">A · Insights</div><h2>تحليلات الكفاءة الكلية للمعدات (OEE)</h2></div>
+    <div class="slide-body two-col">
+      <div class="screens">
+        <div class="screen"><span class="dot"></span><div class="txt"><b>OEE الإنتاج <span class="rt">/production/oee</span></b><p>تتبّع وتحليل الكفاءة الكلية على مستوى خطوط الإنتاج.</p></div></div>
+        <div class="screen"><span class="dot"></span><div class="txt"><b>OEE الآلات <span class="rt">/manufacturing/oee</span></b><p>مؤشرات على مستوى الآلة: التوفّر والأداء والجودة بالتفصيل.</p></div></div>
+      </div>
+      <div class="card" style="padding:28px">
+        <div class="kicker" style="margin-bottom:18px">المعادلة الأساسية</div>
+        <div class="eq"><span class="a">Availability</span> × <span class="p">Performance</span> × <span class="q">Quality</span> = <span class="hl">OEE</span></div>
+        <ul class="feat" style="margin-top:20px">
+          <li><b style="color:var(--success)">التوفّر</b> — نسبة زمن التشغيل الفعلي إلى الزمن المخطّط.</li>
+          <li><b style="color:var(--warning)">الأداء</b> — السرعة الفعلية مقابل السرعة المثالية.</li>
+          <li><b style="color:var(--accent-soft)">الجودة</b> — الوحدات السليمة مقابل إجمالي المُنتَج.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 · ANALYTICS, REPORTS, KPIs -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">A · Insights</div><h2>التحليلات والتقارير ومؤشرات الأداء</h2></div>
+    <div class="slide-body grid g3" style="align-content:start">
+      <div class="card"><div class="ic">🔬</div><h3>التحليلات</h3><p>تحليلات المصنع <span class="rt">/analytics</span> واستوديو الرؤى المتقدّم <span class="rt">/analytics/insights</span> لاستكشاف البيانات.</p></div>
+      <div class="card"><div class="ic">📄</div><h3>مركز التقارير</h3><p>نظرة موحّدة <span class="rt">/reports</span> ومُنشئ تقارير بدون كود <span class="rt">/reports/builder</span>.</p></div>
+      <div class="card"><div class="ic">📈</div><h3>مؤشرات الأداء KPIs</h3><p>مؤشرات الإنتاج <span class="rt">/production/kpi</span> ومؤشرات التصنيع <span class="rt">/manufacturing/kpi</span>.</p></div>
+      <div class="card"><div class="ic">🏭</div><h3>تقارير الإنتاج</h3><p>تقارير الأداء <span class="rt">/reports/production</span> وتقارير الورديات والخطوط <span class="rt">/production/reports</span>.</p></div>
+      <div class="card"><div class="ic">✅</div><h3>تقارير الجودة والصيانة</h3><p>الجودة <span class="rt">/reports/quality</span> والصيانة <span class="rt">/reports/maintenance</span> والتصنيع <span class="rt">/manufacturing/reports</span>.</p></div>
+      <div class="card"><div class="ic">📤</div><h3>تصدير احترافي</h3><p>تصدير التقارير واللوحات إلى PDF والصور عبر html2canvas / jsPDF.</p></div>
+    </div>
+  </section>
+
+  <!-- 14 · AI HUB -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">A · Insights</div><h2>مركز الذكاء الاصطناعي <span class="grad">AI Hub</span></h2><p class="sub">طبقة ذكاء تحوّل البيانات إلى تنبؤات وقرارات — على المسار <span style="font-family:var(--font-mono);color:var(--accent)">/ai</span>.</p></div>
+    <div class="slide-body grid g3" style="align-content:center">
+      <div class="card"><div class="ic">🚨</div><h3>كشف الشذوذ</h3><p>رصد الأنماط غير الطبيعية في بيانات الآلات والعمليات لحظياً قبل تفاقمها.</p></div>
+      <div class="card"><div class="ic">🔮</div><h3>التنبؤ بالأعطال</h3><p>توقّع الأعطال المحتملة بالاعتماد على بيانات الحساسات والسلاسل الزمنية.</p></div>
+      <div class="card"><div class="ic">⚖️</div><h3>المقارنات المرجعية</h3><p>مقارنة أداء الخطوط والمصانع لاكتشاف الفجوات وأفضل الممارسات.</p></div>
+    </div>
+  </section>
+
+  <!-- 15 · MODULE B BANNER -->
+  <section class="slide">
+    <div class="slide-body" style="display:flex;flex-direction:column;justify-content:center">
+      <div class="mod-num">B</div>
+      <h1 style="margin-top:14px">العمليات <span class="grad">Operations</span></h1>
+      <p class="sub" style="margin-top:18px">من التخطيط إلى الإنتاج إلى التصنيع، مروراً بالتوقفات والطاقة وصولاً إلى التنفيذ على أرضية المصنع.</p>
+      <div class="chips">
+        <span class="chip">التخطيط والجدولة</span><span class="chip">تنفيذ الإنتاج</span><span class="chip">التحكّم الصناعي</span><span class="chip">إدارة الطاقة</span><span class="chip">أرضية المصنع</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 16 · PLANNING -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">B · Operations</div><h2>التخطيط والجدولة</h2></div>
+    <div class="slide-body screens" style="grid-template-columns:1fr 1fr;gap:12px">
+      <div class="screen"><span class="dot"></span><div class="txt"><b>الجدول العام (Gantt) <span class="rt">/scheduling</span></b><p>جدولة الإنتاج وتصوّر الخط الزمني عبر مخطط جانت.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>جدولة الإنتاج (APS) <span class="rt">/scheduling/production</span></b><p>محرك تخطيط وجدولة متقدّم لتسلسل إنتاج مُحسّن.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>جدولة الأوامر <span class="rt">/production/scheduling</span></b><p>جدولة زمنية لأوامر الإنتاج الفردية.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>طلبات إعادة الجدولة <span class="rt">/scheduling/reschedule-requests</span></b><p>إدارة طلبات إعادة الجدولة المعلّقة مع مسار اعتماد.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>التوقف المخطّط <span class="rt">/scheduling/planned-downtime</span></b><p>جدولة الصيانة الوقائية وعمليات الإيقاف المخطّطة.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>التوقف غير المخطّط <span class="rt">/scheduling/unplanned-downtime</span></b><p>تتبّع وتحليل التوقفات الطارئة.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>إعداد الورديات <span class="rt">/production/shifts</span></b><p>تعريف وإدارة وضبط ورديات العمل.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 17 · PRODUCTION EXECUTION -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">B · Operations</div><h2>تنفيذ الإنتاج</h2></div>
+    <div class="slide-body screens" style="grid-template-columns:1fr 1fr;gap:12px">
+      <div class="screen"><span class="dot"></span><div class="txt"><b>نظرة عامة على الإنتاج <span class="rt">/production</span></b><p>حالة الإنتاج وملخّص تشغيلي عالي المستوى.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>أوامر الإنتاج (PO) <span class="rt">/production/production-orders</span></b><p>إنشاء وإدارة أوامر الإنتاج والمهام التصنيعية.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>أوامر العمل (WO) <span class="rt">/production/orders</span></b><p>تنفيذ وتتبّع وإنهاء أوامر العمل بالتفصيل.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>قائمة التوزيع (JO) <span class="rt">/production/job-orders</span></b><p>طابور المهام وإدارة التوزيع على العمّال.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>الدفعات واللوطات <span class="rt">/production/batches</span></b><p>تتبّع الدفعات وشجرة الأنساب وحالة التنفيذ.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>سجل تدقيق الهدر <span class="rt">/production/scrap-log</span></b><p>تتبّع هدر المواد وسجل التدقيق وتعديلات الجودة.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>توقفات الإنتاج <span class="rt">/production/downtime</span></b><p>أحداث التوقف غير المخطّط وتحليل أثرها.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 18 · MANUFACTURING CONTROL -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">B · Operations</div><h2>التحكّم الصناعي</h2></div>
+    <div class="slide-body grid g2" style="align-content:start">
+      <div class="card"><div class="ic">🎛️</div><h3>مركز التصنيع <span class="rt">/manufacturing</span></h3><p>مركز تحكّم ومراقبة مركزي لعمليات التصنيع.</p></div>
+      <div class="card"><span class="tag">Live</span><div class="ic">🟢</div><h3>لوحة التحكّم <span class="rt">/manufacturing/control</span></h3><p>تحكّم لحظي بالآلات وضبط المعايير والمراقبة المباشرة.</p></div>
+      <div class="card"><div class="ic">🔄</div><h3>عمليات التصنيع <span class="rt">/production/processes</span></h3><p>تعريف وإدارة سير عمليات التصنيع.</p></div>
+      <div class="card"><div class="ic">📋</div><h3>الوصفات (Recipes) <span class="rt">/production/recipes</span></h3><p>إجراءات التشغيل المعيارية والتركيبات ووصفات العمليات.</p></div>
+    </div>
+  </section>
+
+  <!-- 19 · ENERGY -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">B · Operations</div><h2>إدارة الطاقة</h2></div>
+    <div class="slide-body screens" style="grid-template-columns:1fr 1fr;gap:12px">
+      <div class="screen"><span class="dot"></span><div class="txt"><b>لوحة الطاقة <span class="rt">/energy</span></b><p>نظرة عامة على استهلاك الطاقة وتحليلات الاستخدام.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>مركز قيادة الطاقة <span class="rt">/energy/command-center</span></b><p>مركز مراقبة مخصّص لعمليات الطاقة.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>تحليلات الطاقة <span class="rt">/energy/reports</span></b><p>تقارير الطاقة التاريخية وتحليل الاتجاهات.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>عدّادات الطاقة <span class="rt">/energy/meters</span></b><p>قراءة العدّادات الذكية وبيانات الاستهلاك وإدارتها.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>الطاقة المباشرة <span class="rt">/energy/live</span></b><p>تدفّقات استهلاك الطاقة لحظياً والمراقبة المباشرة.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 20 · SHOP FLOOR -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">B · Operations</div><h2>أرضية المصنع وواجهات التشغيل</h2><p class="sub">واجهات مباشرة وأجهزة لوحية باللمس مصمّمة للاستخدام على أرضية الإنتاج.</p></div>
+    <div class="slide-body grid g4" style="align-content:center">
+      <div class="card"><span class="tag">Live</span><div class="ic">📺</div><h3>أرضية المصنع المباشرة <span class="rt">/shop-floor</span></h3><p>شاشة عرض لحظية لأرضية الإنتاج تُفتح في نافذة مستقلة.</p></div>
+      <div class="card"><div class="ic">🔍</div><h3>تفاصيل المحطة <span class="rt">/shop-floor/live/[id]</span></h3><p>مراقبة وتحكّم مباشر لمحطة أو آلة محدّدة.</p></div>
+      <div class="card"><span class="tag">Tablet</span><div class="ic">🛠️</div><h3>أرضية الصيانة <span class="rt">/maintenance-floor</span></h3><p>واجهة لوحية لفرق الصيانة لإسناد المهام وتنفيذها.</p></div>
+      <div class="card"><span class="tag">Tablet</span><div class="ic">✅</div><h3>أرضية الجودة <span class="rt">/quality-floor</span></h3><p>واجهة لوحية لمفتّش الجودة لإدخال بيانات الفحص لحظياً.</p></div>
+    </div>
+  </section>
+
+  <!-- 21 · MODULE C BANNER -->
+  <section class="slide">
+    <div class="slide-body" style="display:flex;flex-direction:column;justify-content:center">
+      <div class="mod-num">C</div>
+      <h1 style="margin-top:14px">الأصول والجودة والمواد <span class="grad">Asset · Quality · Materials</span></h1>
+      <p class="sub" style="margin-top:18px">إدارة العمل والأصول، مراقبة الجودة، وتتبّع المواد عبر المخزون وشجرة الأنساب.</p>
+      <div class="chips">
+        <span class="chip">الصيانة</span><span class="chip">الجودة</span><span class="chip">المخزون والمواد</span><span class="chip">التتبّع والأنساب</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 22 · MAINTENANCE -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">C · Maintenance</div><h2>إدارة الصيانة</h2></div>
+    <div class="slide-body screens" style="grid-template-columns:1fr 1fr 1fr;gap:11px">
+      <div class="screen"><span class="dot"></span><div class="txt"><b>نظرة عامة <span class="rt">/maintenance</span></b><p>حالة الصيانة الإجمالية والمؤشرات والصحة التشغيلية.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>مركز الموثوقية <span class="rt">/maintenance/reliability</span></b><p>تحليلات MTBF و MTTR والتنبؤ بالأعطال.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>أوامر الصيانة <span class="rt">/maintenance/work-orders</span></b><p>إنشاء المهام وإسنادها وتتبّع تنفيذها.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>الصيانة الوقائية <span class="rt">/maintenance/preventive</span></b><p>تقويم الصيانة المجدولة وإدارة المهام الوقائية.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>جدولة الصيانة <span class="rt">/maintenance/scheduling</span></b><p>تخطيط وتحسين زمن توقّف الصيانة.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>سجل الصيانة <span class="rt">/maintenance/log</span></b><p>سجلات الصيانة التاريخية ومسار التدقيق.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>الأصول والمعدات <span class="rt">/maintenance/assets</span></b><p>البيانات الرئيسية للأصول وهيكل المعدات والمواصفات.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>قطع الغيار <span class="rt">/maintenance/spare-parts</span></b><p>مخزون قطع الغيار وتتبّع الاستهلاك.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>تقارير الصيانة <span class="rt">/maintenance/reports</span></b><p>تقارير الأداء وتحليل MTBF وتتبّع التكاليف.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 23 · QUALITY -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">C · Quality</div><h2>إدارة الجودة</h2></div>
+    <div class="slide-body screens" style="grid-template-columns:1fr 1fr 1fr;gap:11px">
+      <div class="screen"><span class="dot"></span><div class="txt"><b>نظرة عامة <span class="rt">/quality</span></b><p>مؤشرات الجودة الإجمالية وحالة الامتثال.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>ذكاء الجودة <span class="rt">/quality/intelligence</span></b><p>رؤى متقدّمة واتجاهات العيوب وتحليل الأسباب الجذرية.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>خطط الجودة <span class="rt">/quality/plans</span></b><p>تعريف إجراءات الفحص وخطط العيّنات والمعايير.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>الفحوصات <span class="rt">/quality/inspections</span></b><p>تسجيل نتائج الفحص والاختبارات مع شارة معلّقة لحظية.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>مخططات SPC <span class="rt">/quality/spc</span></b><p>التحكّم الإحصائي بالعمليات ومراقبة حدود الضبط.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>سجلات الجودة <span class="rt">/quality/records</span></b><p>مسار تدقيق لبيانات الجودة ووثائق الامتثال.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>تقارير عدم المطابقة (NCR) <span class="rt">/quality/ncr</span></b><p>تتبّع الانحرافات والعيوب والأصناف غير المطابقة.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>الإجراءات التصحيحية (CAPA) <span class="rt">/quality/capa</span></b><p>تحليل الأسباب الجذرية وتتبّع الإجراءات التصحيحية والوقائية.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>تقارير الجودة <span class="rt">/quality/reports</span></b><p>لوحات الجودة ومعدّلات العيوب وتقارير الامتثال.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 24 · INVENTORY -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">C · Inventory</div><h2>المخزون والمواد</h2></div>
+    <div class="slide-body screens" style="grid-template-columns:1fr 1fr 1fr;gap:11px">
+      <div class="screen"><span class="dot"></span><div class="txt"><b>نظرة عامة <span class="rt">/inventory</span></b><p>مستويات المخزون وحالة الأرصدة والتقييم.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>مواقع التخزين <span class="rt">/inventory/storage-locations</span></b><p>هيكل المستودعات والصناديق وإدارة السعة والمواقع.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>المنتجات (SKUs) <span class="rt">/inventory/products</span></b><p>البيانات الرئيسية للسلع التامة ومستويات المخزون.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>المواد الخام <span class="rt">/inventory/raw-materials</span></b><p>كتالوج المواد الخام وتتبّع المخزون.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>لوطات المواد <span class="rt">/inventory/materials</span></b><p>تتبّع الدفعات واللوطات للمواد وإمكانية التتبّع.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>طلبات المواد وقطع الغيار <span class="rt">/inventory/material-requests</span></b><p>طلبات مواد الإنتاج وطلبات شراء قطع الغيار.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>حركات المخزون <span class="rt">/inventory/stock-movements</span></b><p>سجل معاملات كل التحويلات والتعديلات المخزنية.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>قوائم المواد (BOM) <span class="rt">/inventory/bom</span></b><p>تركيبات المنتجات وقوائم المكوّنات والبدائل.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>تقارير المخزون <span class="rt">/inventory/reports</span></b><p>تقييم المخزون ومعدّل الدوران والحركة.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 25 · TRACEABILITY -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">C · Traceability</div><h2>التتبّع وشجرة الأنساب</h2><p class="sub">تتبّع كامل لتدفّق المواد والمنتجات عبر الإنتاج — من المصدر إلى المنتج النهائي وبالعكس.</p></div>
+    <div class="slide-body grid g3" style="align-content:center">
+      <div class="card"><div class="ic">🧬</div><h3>نظرة عامة <span class="rt">/traceability</span></h3><p>تتبّع تدفّقات المواد والمنتجات عبر مراحل الإنتاج.</p></div>
+      <div class="card"><div class="ic">🌳</div><h3>شجرة الأنساب <span class="rt">/traceability/genealogy</span></h3><p>التتبّع الصاعد والهابط للمواد والمكوّنات (Family Tree).</p></div>
+      <div class="card"><div class="ic">📦</div><h3>استهلاك المواد <span class="rt">/traceability/consumption</span></h3><p>تسجيل استخدام المواد لكل أمر إنتاج أو دفعة.</p></div>
+    </div>
+  </section>
+
+  <!-- 26 · MODULE D BANNER -->
+  <section class="slide">
+    <div class="slide-body" style="display:flex;flex-direction:column;justify-content:center">
+      <div class="mod-num">D</div>
+      <h1 style="margin-top:14px">الهندسة والمنشأة والتكامل <span class="grad">Engineering · Plant · Integration</span></h1>
+      <p class="sub" style="margin-top:18px">دورة حياة المنتج، التعريفات الهندسية، الربط عبر إنترنت الأشياء الصناعي، وهيكل المنشأة.</p>
+      <div class="chips">
+        <span class="chip">PLM</span><span class="chip">IIoT والتكامل</span><span class="chip">إدارة المنشأة</span><span class="chip">الإنذارات والإشعارات</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 27 · PLM -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">D · PLM</div><h2>إدارة دورة حياة المنتج (PLM)</h2></div>
+    <div class="slide-body grid g2" style="align-content:start">
+      <div class="card"><div class="ic">📐</div><h3>نظرة عامة <span class="rt">/plm</span></h3><p>مركز الهندسة وإدارة دورة حياة المنتج.</p></div>
+      <div class="card"><div class="ic">🔁</div><h3>طلبات التغيير <span class="rt">/plm/change-requests</span></h3><p>أوامر التغيير الهندسي ومسار تعديلات التصميم.</p></div>
+      <div class="card"><div class="ic">✏️</div><h3>استوديو التصميم <span class="rt">/plm/design</span></h3><p>تكامل CAD ومنصة تعاون التصميم.</p></div>
+      <div class="card"><div class="ic">📊</div><h3>تقارير PLM <span class="rt">/plm/reports</span></h3><p>مؤشرات الهندسة وتقارير سجل التغييرات.</p></div>
+    </div>
+  </section>
+
+  <!-- 28 · IIoT -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">D · IIoT</div><h2>إنترنت الأشياء الصناعي والتكامل</h2></div>
+    <div class="slide-body screens" style="grid-template-columns:1fr 1fr;gap:12px">
+      <div class="screen"><span class="dot"></span><div class="txt"><b>بوّابات الحافة <span class="rt">/iot/gateways</span></b><p>إعداد ومراقبة البوّابات الصناعية لربط الأجهزة.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>المشغّلات (Drivers) <span class="rt">/iot/drivers</span></b><p>برمجيات بروتوكولات المعدّات: Modbus و OPC-UA وغيرها.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>الأجهزة <span class="rt">/iot/devices</span></b><p>سجلّ أجهزة إنترنت الأشياء المتصلة وإعداداتها.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>متصفّح الوسوم <span class="rt">/iot/tags</span></b><p>استعراض كل نقاط البيانات والمتغيّرات من الأنظمة المتصلة.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>سجلّ الاتجاهات (Historian) <span class="rt">/iot/historian</span></b><p>استرجاع البيانات التاريخية وتصوّر الاتجاهات.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>عميل MQTT <span class="rt">/iot/mqtt-client</span></b><p>واجهة نشر/اشتراك رسائل MQTT للتكامل اللحظي.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>تدفّقات البيانات <span class="rt">/iot/streams</span></b><p>إعداد خطوط أنابيب البيانات وتكاملات البث.</p></div></div>
+      <div class="screen"><span class="dot"></span><div class="txt"><b>نظرة عامة IIoT <span class="rt">/iot</span></b><p>ملخّص حالة التكامل وإنترنت الأشياء الصناعي.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 29 · PLANT MANAGEMENT -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">D · Plant</div><h2>إدارة المنشأة والإنذارات</h2></div>
+    <div class="slide-body grid g3" style="align-content:start">
+      <div class="card"><div class="ic">🏗️</div><h3>هيكل المنشأة <span class="rt">/hierarchy</span></h3><p>تعريف الهيكل التنظيمي: المؤسسة ← الموقع ← المنطقة ← الخط.</p></div>
+      <div class="card"><span class="tag">Alerts</span><div class="ic">🔔</div><h3>الإنذارات <span class="rt">/alarms</span></h3><p>إنذارات النظام والتنبيهات وإدارة الإشعارات مع شارة لحظية.</p></div>
+      <div class="card"><div class="ic">📨</div><h3>الإشعارات <span class="rt">/notifications</span></h3><p>مركز إشعارات المستخدم وطابور الرسائل.</p></div>
+      <div class="card"><div class="ic">🎚️</div><h3>تفضيلات الإشعارات <span class="rt">/notifications/preferences</span></h3><p>ضبط قنوات الإشعار وعتبات التنبيه.</p></div>
+      <div class="card"><div class="ic">🧭</div><h3>قواعد الإشعارات <span class="rt">/notifications/rules</span></h3><p>تعريف توجيه التنبيهات وسياسات التصعيد.</p></div>
+      <div class="card" style="display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(160deg,rgba(244,63,94,.12),rgba(245,158,11,.10))"><div><h3 style="font-size:17px">تصعيد ذكي</h3><p>توجيه التنبيهات للأشخاص المناسبين في الوقت المناسب تلقائياً.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 30 · SETTINGS & ADMIN -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">E · Administration</div><h2>الإعدادات والإدارة</h2></div>
+    <div class="slide-body grid g4" style="align-content:center">
+      <div class="card"><div class="ic">👥</div><h3>المستخدمون والأدوار <span class="rt">/users</span></h3><p>إدارة المستخدمين والتحكّم بالوصول والصلاحيات حسب الدور.</p></div>
+      <div class="card"><div class="ic">⚙️</div><h3>الإعدادات <span class="rt">/settings</span></h3><p>إعدادات النظام والتفضيلات ومفاتيح تفعيل الميزات.</p></div>
+      <div class="card"><div class="ic">🗃️</div><h3>الأرشيف <span class="rt">/archive</span></h3><p>إدارة البيانات والسجلات التاريخية والاحتفاظ بها.</p></div>
+      <div class="card"><div class="ic">🚀</div><h3>مشغّل التطبيقات <span class="rt">/apps</span></h3><p>واجهة متعددة التطبيقات لإطلاق التطبيقات المضمّنة.</p></div>
+    </div>
+  </section>
+
+  <!-- 31 · HOW IT WORKS -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">04 · How it works</div><h2>كيف يعمل النظام — تدفّق البيانات اللحظي</h2></div>
+    <div class="slide-body two-col">
+      <div class="flow">
+        <div class="node"><span class="s">①</span><div><b>التقاط من المصدر</b><span>الحساسات و PLC تُرسل البيانات عبر MQTT / OPC-UA / Modbus.</span></div></div>
+        <div class="arr"></div>
+        <div class="node"><span class="s">②</span><div><b>بوّابة الحافة (Edge Gateway)</b><span>تجميع وتطبيع البيانات قرب المصدر قبل إرسالها.</span></div></div>
+        <div class="arr"></div>
+        <div class="node"><span class="s">③</span><div><b>التخزين والمعالجة</b><span>InfluxDB للسلاسل الزمنية · PostgreSQL للبيانات التشغيلية.</span></div></div>
+        <div class="arr"></div>
+        <div class="node"><span class="s">④</span><div><b>البث اللحظي</b><span>WebSocket (Socket.IO) يدفع التحديثات للوحات فوراً.</span></div></div>
+        <div class="arr"></div>
+        <div class="node"><span class="s">⑤</span><div><b>الرؤية والتنبيه والقرار</b><span>مراكز قيادة · OEE · تنبيهات · رؤى ذكاء اصطناعي.</span></div></div>
+      </div>
+      <div>
+        <ul class="feat">
+          <li><b>زمن استجابة منخفض</b> — من الحساس إلى الشاشة في ثوانٍ عبر البث المباشر.</li>
+          <li><b>بيانات موثوقة</b> — تطبيع وتحقق عند الحافة وقبل التخزين.</li>
+          <li><b>شارات لحظية</b> — عدّادات مباشرة لعناصر العمل المعلّقة والتنبيهات في القائمة.</li>
+          <li><b>سجل تاريخي كامل</b> — كل قياس محفوظ لإعادة التحليل والمقارنة.</li>
+          <li><b>قابلية التوسّع</b> — معمارية حاويات تتوسّع مع نمو عدد الأجهزة والمصانع.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 32 · OEE METHODOLOGY -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">04 · OEE Methodology</div><h2>منهجية حساب الكفاءة الكلية</h2></div>
+    <div class="slide-body">
+      <div class="eq" style="margin-bottom:22px;font-size:clamp(16px,2.1vw,26px)">
+        <span class="hl">OEE</span> = <span class="a">Availability</span> × <span class="p">Performance</span> × <span class="q">Quality</span>
+      </div>
+      <div class="grid g3">
+        <div class="card"><div class="ic" style="background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.3)">⏱️</div><h3 style="color:var(--success)">التوفّر · Availability</h3><div class="eq" style="margin:12px 0;font-size:14px">Run Time / Planned Time</div><p>يقيس الخسائر الناتجة عن التوقفات المخطّطة وغير المخطّطة.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(245,158,11,.14);border-color:rgba(245,158,11,.3)">⚡</div><h3 style="color:var(--warning)">الأداء · Performance</h3><div class="eq" style="margin:12px 0;font-size:14px">(Ideal Cycle × Count) / Run Time</div><p>يقيس خسائر السرعة والتوقفات الصغيرة عن المعدّل المثالي.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(217,70,239,.14);border-color:rgba(217,70,239,.3)">✓</div><h3 style="color:var(--accent-soft)">الجودة · Quality</h3><div class="eq" style="margin:12px 0;font-size:14px">Good Count / Total Count</div><p>يقيس خسائر العيوب وإعادة العمل من إجمالي الإنتاج.</p></div>
+      </div>
+      <p class="note">يُحسب الـ OEE لحظياً على مستوى الآلة والخط، مع تتبّع الست خسائر الكبرى (Six Big Losses) لكشف فرص التحسين الدقيقة.</p>
+    </div>
+  </section>
+
+  <!-- 33 · SECURITY & ROLES -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">05 · Security</div><h2>الأمان والصلاحيات</h2></div>
+    <div class="slide-body two-col">
+      <ul class="feat">
+        <li><b>مصادقة JWT</b> عبر Passport.js مع استراتيجيات محلية وآمنة.</li>
+        <li><b>تحكّم بالوصول حسب الدور (RBAC)</b> — صلاحيات دقيقة من SUPER_ADMIN حتى المشغّل.</li>
+        <li><b>عزل متعدد المصانع</b> — كل مستخدم يرى بيانات منشآته المصرّح بها فقط.</li>
+        <li><b>رؤوس حماية HTTP</b> عبر Helmet والتحقق من المدخلات بـ Class-Validator / Zod.</li>
+        <li><b>تحديد معدّل الطلبات</b> على مستوى الـ Nginx لصدّ الإساءة.</li>
+        <li><b>سجل تدقيق كامل</b> لكل العمليات الحسّاسة في الجودة والمخزون والإنتاج.</li>
+      </ul>
+      <div class="card" style="padding:28px">
+        <div class="kicker" style="margin-bottom:18px">طبقات الحماية</div>
+        <div class="flow">
+          <div class="node"><span class="s">🔐</span><div><b>المصادقة</b><span>JWT + تسجيل دخول واختيار المصنع</span></div></div>
+          <div class="node"><span class="s">🛡️</span><div><b>التفويض</b><span>أدوار وصلاحيات دقيقة لكل شاشة</span></div></div>
+          <div class="node"><span class="s">📜</span><div><b>التدقيق</b><span>تتبّع من قام بأي تغيير ومتى</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 34 · I18N & FLOOR INTERFACES -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">05 · Experience</div><h2>تجربة موحّدة · عربي / إنجليزي · واجهات أرضية</h2></div>
+    <div class="slide-body grid g3" style="align-content:center">
+      <div class="card"><div class="ic">🌐</div><h3>دعم كامل للغة العربية</h3><p>واجهة ثنائية اللغة مع دعم تام لاتجاه RTL وخطوط عربية احترافية (IBM Plex Sans Arabic).</p></div>
+      <div class="card"><div class="ic">📱</div><h3>واجهات لوحية للأرضية</h3><p>شاشات صيانة وجودة مُحسّنة للأجهزة اللوحية باللمس على أرضية الإنتاج.</p></div>
+      <div class="card"><div class="ic">🎨</div><h3>هوية بصرية صناعية</h3><p>ثيم داكن صناعي، بطاقات زجاجية، وتأثيرات توهّج لحالات الآلات لحظياً.</p></div>
+      <div class="card"><div class="ic">🗺️</div><h3>خرائط واقعية للمصانع</h3><p>محدّد المصانع على خريطة المملكة الحقيقية عبر Leaflet لاختيار المنشأة.</p></div>
+      <div class="card"><div class="ic">📺</div><h3>شاشات عرض كبيرة</h3><p>عروض أرضية مباشرة تُفتح في نوافذ مستقلة لشاشات قاعة الإنتاج.</p></div>
+      <div class="card"><div class="ic">♻️</div><h3>تجربة متّسقة</h3><p>تصميم موحّد عبر كل المحاور مع تنقّل سلس وشارات لحظية.</p></div>
+    </div>
+  </section>
+
+  <!-- 35 · ROADMAP -->
+  <section class="slide">
+    <div class="slide-head"><div class="kicker">06 · Roadmap</div><h2>خارطة الطريق والتوسّع</h2></div>
+    <div class="slide-body grid g4" style="align-content:center">
+      <div class="card"><span class="tag">Now</span><div class="ic">✅</div><h3>منصّة تشغيلية</h3><p>5 مصانع، +107 شاشة، مراقبة لحظية وجودة وصيانة ومخزون.</p></div>
+      <div class="card"><span class="tag">Next</span><div class="ic">🤖</div><h3>توسّع الذكاء الاصطناعي</h3><p>تعميق التنبؤ بالأعطال والصيانة التنبؤية والمقارنات المرجعية.</p></div>
+      <div class="card"><span class="tag">Next</span><div class="ic">🌿</div><h3>استدامة وطاقة</h3><p>تعميق تحليلات الطاقة وبصمة الكربون وكفاءة الموارد.</p></div>
+      <div class="card"><span class="tag">Future</span><div class="ic">🏢</div><h3>توسّع المنشآت</h3><p>ضمّ مصانع جديدة للمنصة بفضل المعمارية متعددة المصانع.</p></div>
+    </div>
+  </section>
+
+  <!-- 36 · CLOSING -->
+  <section class="slide">
+    <div class="cover">
+      <div class="cover-logo" style="margin-bottom:26px">
+        <span class="mark ring" id="endLogo"></span>
+        <div class="wm" style="font-size:clamp(34px,5vw,60px)">MES<span>360°</span></div>
+      </div>
+      <h1>رؤية <span class="grad">360°</span> كاملة<br>لمصنعك</h1>
+      <p class="sub" style="margin-top:22px">من الحسّاس إلى القرار — منصة واحدة توحّد الإنتاج والجودة والصيانة والطاقة والتتبّع، وتمنح فرقك القدرة على اتخاذ القرار الصحيح في اللحظة الصحيحة.</p>
+      <div class="meta">
+        <div class="m"><div class="k">Platform</div><div class="val">MES360° — Enterprise MES</div></div>
+        <div class="m"><div class="k">For</div><div class="val">National Care Company (NCC)</div></div>
+        <div class="m"><div class="k">Contact</div><div class="val">industry360.sa</div></div>
+      </div>
+      <p class="note" style="margin-top:34px">© 2026 MES360° — Enterprise Manufacturing Intelligence for Saudi Arabia · شكراً لكم</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="chrome">
+  <button class="nav-btn" id="next" aria-label="التالي">‹</button>
+  <span class="counter" id="counter">01 / 36</span>
+  <button class="nav-btn" id="prev" aria-label="السابق">›</button>
+</div>
+
+<script>
+/* ===== Logo mark (inline SVG, brand-accurate emblem) ===== */
+function logoSVG(size){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#8098fb"/><stop offset="1" stop-color="#6175f4"/>
+      </linearGradient>
+      <linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#e855ff"/><stop offset="1" stop-color="#d946ef"/>
+      </linearGradient>
+    </defs>
+    <circle cx="50" cy="50" r="44" stroke="url(#lg1)" stroke-width="3" fill="none" opacity="0.9"/>
+    <circle cx="50" cy="50" r="44" stroke="#D9BB75" stroke-width="3" fill="none" stroke-dasharray="14 250" stroke-linecap="round"/>
+    <path d="M30 64V40l20 14 20-14v24" stroke="url(#lg1)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+    <circle cx="50" cy="50" r="6" fill="url(#lg2)"/>
+    <circle cx="86" cy="32" r="4" fill="#D9BB75"/>
+  </svg>`;
+}
+document.getElementById('miniLogo').innerHTML = logoSVG(26);
+document.getElementById('coverLogo').innerHTML = logoSVG(92);
+document.getElementById('endLogo').innerHTML = logoSVG(78);
+
+/* ===== Deck navigation ===== */
+const slides=[...document.querySelectorAll('.slide')];
+const total=slides.length;
+let i=0;
+const counter=document.getElementById('counter');
+const progress=document.getElementById('progress');
+function pad(n){return String(n).padStart(2,'0')}
+function show(n){
+  i=Math.max(0,Math.min(total-1,n));
+  slides.forEach((s,idx)=>s.classList.toggle('active',idx===i));
+  counter.textContent=`${pad(i+1)} / ${pad(total)}`;
+  progress.style.width=((i+1)/total*100)+'%';
+}
+/* RTL: visually "next" is the left chevron */
+document.getElementById('next').onclick=()=>show(i+1);
+document.getElementById('prev').onclick=()=>show(i-1);
+document.addEventListener('keydown',e=>{
+  if(['ArrowLeft','PageDown',' '].includes(e.key)){e.preventDefault();show(i+1);}
+  else if(['ArrowRight','PageUp'].includes(e.key)){e.preventDefault();show(i-1);}
+  else if(e.key==='Home'){show(0);}
+  else if(e.key==='End'){show(total-1);}
+});
+/* swipe (touch) */
+let tx=0;
+document.addEventListener('touchstart',e=>tx=e.changedTouches[0].clientX,{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-tx;
+  if(Math.abs(dx)>50){ dx<0 ? show(i+1) : show(i-1); }
+},{passive:true});
+show(0);
+</script>
+</body>
+</html>
