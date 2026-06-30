@@ -172,6 +172,16 @@ footer.sig .mono{font-family:var(--font-mono)}
 .toc .item b{font-size:16px;display:block} .toc .item p{font-size:12.5px;color:var(--muted);margin-top:2px}
 
 .fit{font-size:clamp(13px,1.25vw,15px)}
+/* ===== Screenshot support ===== */
+.screen.hasimg,.card.hasimg{cursor:zoom-in;position:relative}
+.screen.hasimg::after,.card.hasimg::after{content:"";position:absolute;top:10px;left:10px;width:22px;height:22px;border-radius:7px;background:rgba(97,117,244,.9) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' fill='white' viewBox='0 0 24 24'%3E%3Cpath d='M9 3 7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'/%3E%3C/svg%3E") center/14px no-repeat;box-shadow:0 0 12px rgba(97,117,244,.6);z-index:3}
+.lb{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:rgba(6,8,14,.92);backdrop-filter:blur(8px);padding:40px}
+.lb.open{display:flex;animation:fade .25s ease both}
+.lb img{max-width:92vw;max-height:82vh;border-radius:12px;border:1px solid var(--line2);box-shadow:0 30px 80px rgba(0,0,0,.7)}
+.lb .cap{position:absolute;bottom:26px;left:0;right:0;text-align:center;font-size:15px;color:var(--fg);font-family:var(--font-ar)}
+.lb .cap .rt{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin-inline-start:8px}
+.lb .x{position:absolute;top:22px;left:26px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line2);background:rgba(15,20,25,.7);color:#fff;font-size:22px;cursor:pointer;display:grid;place-items:center}
+.lb .x:hover{border-color:var(--brand-500);box-shadow:0 0 16px rgba(97,117,244,.5)}
 @media (max-width:920px){
   .g4{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(2,1fr)}
   .two-col{grid-template-columns:1fr;gap:20px} .toc{grid-template-columns:1fr}
@@ -793,6 +803,7 @@ function show(n){
 document.getElementById('next').onclick=()=>show(i+1);
 document.getElementById('prev').onclick=()=>show(i-1);
 document.addEventListener('keydown',e=>{
+  if(window.__lbOpen){ if(e.key==='Escape') closeLB(); return; }
   if(['ArrowLeft','PageDown',' '].includes(e.key)){e.preventDefault();show(i+1);}
   else if(['ArrowRight','PageUp'].includes(e.key)){e.preventDefault();show(i-1);}
   else if(e.key==='Home'){show(0);}
@@ -806,6 +817,44 @@ document.addEventListener('touchend',e=>{
   if(Math.abs(dx)>50){ dx<0 ? show(i+1) : show(i-1); }
 },{passive:true});
 show(0);
+
+/* ===== Screenshots from /images folder ===== */
+/* Each screen/card with a route loads images/<slug>.png automatically.
+   slug = route without leading "/", brackets removed, "/" -> "-".
+   e.g. /command-center -> command-center.png , /production/oee -> production-oee.png */
+const IMG_DIR='images/';
+const IMG_EXT='png';
+function routeToSlug(r){return r.trim().replace(/^\//,'').replace(/[\[\]]/g,'').replace(/\//g,'-');}
+function cardTitle(el){
+  const h=el.querySelector('.txt b, h3, b');
+  if(!h) return '';
+  const c=h.cloneNode(true);
+  c.querySelectorAll('.rt').forEach(n=>n.remove());
+  return c.textContent.trim();
+}
+// build lightbox
+const lb=document.createElement('div');lb.className='lb';
+lb.innerHTML='<button class="x" aria-label="إغلاق">×</button><img alt=""><div class="cap"></div>';
+document.body.appendChild(lb);
+const lbImg=lb.querySelector('img'), lbCap=lb.querySelector('.cap');
+function openLB(src,title,route){lbImg.src=src;lbCap.innerHTML=title+(route?` <span class="rt">${route}</span>`:'');lb.classList.add('open');window.__lbOpen=true;}
+function closeLB(){lb.classList.remove('open');window.__lbOpen=false;lbImg.src='';}
+lb.querySelector('.x').onclick=closeLB;
+lb.addEventListener('click',e=>{if(e.target===lb)closeLB();});
+
+document.querySelectorAll('.screen, .card').forEach(el=>{
+  const rt=el.querySelector('.rt');
+  if(!rt) return;
+  const original=rt.textContent.trim();
+  const slug=routeToSlug(original);
+  const src=IMG_DIR+slug+'.'+IMG_EXT;
+  const probe=new Image();
+  probe.onload=()=>{
+    el.classList.add('hasimg');
+    el.addEventListener('click',()=>openLB(src,cardTitle(el),original));
+  };
+  probe.src=src;
+});
 </script>
 </body>
 </html>

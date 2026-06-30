@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Suite Proposal</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .layer-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .layer-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+        .component-card { transition: all 0.2s ease; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-12">
+        
+        <!-- Header / Cover Page Style -->
+        <header class="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 via-emerald-500 to-amber-500"></div>
+            
+            <!-- Abstract background visualization -->
+            <div class="absolute -top-24 -right-24 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-60 pointer-events-none"></div>
+            <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-50 rounded-full blur-3xl opacity-60 pointer-events-none"></div>
+
+            <div class="flex justify-center mb-6 relative z-10">
+                <div class="w-20 h-20 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl shadow-slate-900/20 border border-slate-700">
+                    <i data-lucide="hexagon" class="text-blue-400 w-12 h-12"></i>
+                    <i data-lucide="cpu" class="text-emerald-400 w-6 h-6 absolute"></i>
+                </div>
+            </div>
+            <h1 class="text-4xl md:text-6xl font-extrabold text-slate-900 mb-4 tracking-tight relative z-10">Application Suite</h1>
+            <p class="text-xl text-slate-600 max-w-3xl mx-auto font-light relative z-10">
+                Four Integrated Layers — One Intelligent Ecosystem
+            </p>
+            <div class="mt-8 flex flex-col md:flex-row justify-center items-center gap-6 text-sm text-slate-500 font-medium relative z-10">
+                <span class="flex items-center bg-slate-100 px-3 py-1.5 rounded-full"><i data-lucide="calendar" class="w-4 h-4 mr-2 text-slate-700"></i> April 2026</span>
+                <span class="flex items-center bg-slate-100 px-3 py-1.5 rounded-full"><i data-lucide="layout-template" class="w-4 h-4 mr-2 text-slate-700"></i> Visual Ecosystem Architecture</span>
+                <span class="flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-200"><i data-lucide="shield-check" class="w-4 h-4 mr-2"></i> ISA-95 Compliant</span>
+            </div>
+        </header>
+
+        <!-- LAYER 01: CONNECTIVITY -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden layer-card">
+            <div class="bg-gradient-to-r from-blue-700 to-blue-600 p-6 md:p-8 text-white flex items-start md:items-center flex-col md:flex-row gap-6 relative overflow-hidden">
+                <i data-lucide="network" class="absolute -right-10 -bottom-10 w-64 h-64 text-blue-500 opacity-20 pointer-events-none"></i>
+                <div class="p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 relative z-10">
+                    <i data-lucide="wifi" class="w-10 h-10"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="text-blue-200 font-bold tracking-widest text-xs mb-1 uppercase flex items-center"><span class="w-2 h-2 rounded-full bg-blue-300 mr-2 animate-pulse"></span>Layer 01</div>
+                    <h2 class="text-3xl font-bold mb-2">Connectivity & Data Foundation Layer</h2>
+                    <p class="text-blue-100 text-lg leading-relaxed max-w-4xl">
+                        <strong>Role:</strong> Collect, connect, secure, and transport industrial data.<br>
+                        The foundation that connects every machine, sensor, and system — creating a unified, secure, real-time data pipeline.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="p-6 md:p-8">
+                <!-- Our Approach: Visual Component Grid -->
+                <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center"><i data-lucide="blocks" class="w-6 h-6 mr-2 text-blue-600"></i> Ecosystem Modules & Tools</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                    
+                    <!-- App Category -->
+                    <div class="bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <h4 class="font-bold text-blue-800 mb-4 flex items-center border-b border-blue-100 pb-2"><i data-lucide="server" class="w-5 h-5 mr-2"></i> Applications</h4>
+                        <div class="space-y-3">
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="database" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">Device Management</strong><span class="text-xs text-slate-500">Centralized registry & lifecycle</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="activity" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">DAQ System</strong><span class="text-xs text-slate-500">High-speed collection (55+ protocols)</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="monitor-dot" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">SCADA System</strong><span class="text-xs text-slate-500">Supervisory control & monitoring</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="cpu" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">Edge Analytics</strong><span class="text-xs text-slate-500">Local processing at machine level</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cyber Category -->
+                    <div class="bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <h4 class="font-bold text-blue-800 mb-4 flex items-center border-b border-blue-100 pb-2"><i data-lucide="shield-alert" class="w-5 h-5 mr-2"></i> Cybersecurity</h4>
+                        <div class="space-y-3">
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="shield" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">Industrial Firewall</strong><span class="text-xs text-slate-500">OT-aware network segmentation</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="lock" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">OT Security Platform</strong><span class="text-xs text-slate-500">Continuous threat detection</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">IDS Platform</strong><span class="text-xs text-slate-500">Unauthorized access detection</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="fingerprint" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">IAM Control</strong><span class="text-xs text-slate-500">Role-based access & auth</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Integration Category -->
+                    <div class="bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <h4 class="font-bold text-blue-800 mb-4 flex items-center border-b border-blue-100 pb-2"><i data-lucide="git-merge" class="w-5 h-5 mr-2"></i> Integration</h4>
+                        <div class="space-y-3">
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="code-2" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">API Management</strong><span class="text-xs text-slate-500">Secure, governed API gateway</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="cloud-cog" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">iPaaS Platform</strong><span class="text-xs text-slate-500">Links OT, IT, and enterprise</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="workflow" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">ETL Pipelines</strong><span class="text-xs text-slate-500">Structured data movement</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="fast-forward" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">Kafka Streaming</strong><span class="text-xs text-slate-500">Real-time event flows</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Data Category -->
+                    <div class="bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <h4 class="font-bold text-blue-800 mb-4 flex items-center border-b border-blue-100 pb-2"><i data-lucide="hard-drive" class="w-5 h-5 mr-2"></i> Data Platforms</h4>
+                        <div class="space-y-3">
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="clock" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">Time-Series DB</strong><span class="text-xs text-slate-500">High-frequency data storage</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="waves" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">Data Lake</strong><span class="text-xs text-slate-500">Scalable raw data storage</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-blue-100 text-blue-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-blue-600 group-hover:text-white">
+                                    <i data-lucide="layers" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-blue-700">Data Warehouse</strong><span class="text-xs text-slate-500">Structured store for BI</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategic Context Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white border border-slate-200 p-5 rounded-xl">
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center"><i data-lucide="target" class="w-4 h-4 mr-2 text-slate-500"></i> The Problem Solved</h4>
+                        <p class="text-sm text-slate-600">Eliminates disconnected machines, manual data collection, lack of real-time visibility, legacy protocol incompatibilities, and OT security vulnerabilities.</p>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center"><i data-lucide="trending-up" class="w-4 h-4 mr-2 text-emerald-500"></i> Business Impact</h4>
+                        <p class="text-sm text-slate-600">Achieves universal connectivity to any machine, a 90% reduction in manual data collection time, and establishes a sub-second real-time data pipeline for all higher-level intelligence layers.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- LAYER 02: MES -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden layer-card">
+            <div class="bg-gradient-to-r from-emerald-700 to-emerald-600 p-6 md:p-8 text-white flex items-start md:items-center flex-col md:flex-row gap-6 relative overflow-hidden">
+                <i data-lucide="factory" class="absolute -right-10 -bottom-10 w-64 h-64 text-emerald-500 opacity-20 pointer-events-none"></i>
+                <div class="p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 relative z-10">
+                    <i data-lucide="settings-2" class="w-10 h-10"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="text-emerald-200 font-bold tracking-widest text-xs mb-1 uppercase flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-300 mr-2 animate-pulse"></span>Layer 02</div>
+                    <h2 class="text-3xl font-bold mb-2">MES Layer</h2>
+                    <p class="text-emerald-100 text-lg leading-relaxed max-w-4xl">
+                        <strong>Role:</strong> Execute, control, and optimize manufacturing operations.<br>
+                        The operational brain that manages, tracks, and optimizes production execution in real time.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="p-6 md:p-8">
+                <!-- Our Approach: Visual Component Grid -->
+                <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center"><i data-lucide="blocks" class="w-6 h-6 mr-2 text-emerald-600"></i> Ecosystem Modules & Tools</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                    
+                    <!-- MES Core (Spans 2 columns) -->
+                    <div class="lg:col-span-2 bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <h4 class="font-bold text-emerald-800 mb-4 flex items-center border-b border-emerald-100 pb-2"><i data-lucide="layout-dashboard" class="w-5 h-5 mr-2"></i> MES Core Ecosystem</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="calendar-days" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">Production Scheduling</strong><span class="text-xs text-slate-500">Digital line/shift scheduling</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="send" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">Dispatching & Exec</strong><span class="text-xs text-slate-500">Real-time work orders</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="clipboard-list" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">Work Order Mgmt</strong><span class="text-xs text-slate-500">End-to-end digital lifecycle</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="loader" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">WIP Tracking</strong><span class="text-xs text-slate-500">Visibility across all stages</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="git-commit-horizontal" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">Traceability & Gen.</strong><span class="text-xs text-slate-500">Raw material to finished good</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="check-square" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">Quality Management</strong><span class="text-xs text-slate-500">Inline checks, SPC, defects</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="timer-off" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">Downtime Mgmt</strong><span class="text-xs text-slate-500">Automated capture & root cause</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="users" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">Labor Management</strong><span class="text-xs text-slate-500">Attendance & productivity</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="beaker" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">Recipe & Batch</strong><span class="text-xs text-slate-500">ISA-88 batch records</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Smart Mfg (Spans 2 columns) -->
+                    <div class="lg:col-span-2 bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <h4 class="font-bold text-emerald-800 mb-4 flex items-center border-b border-emerald-100 pb-2"><i data-lucide="cpu" class="w-5 h-5 mr-2"></i> Smart Manufacturing</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="git-pull-request" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">APS Module</strong><span class="text-xs text-slate-500">Constraint-based optimization</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="activity-square" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">OEE Monitoring</strong><span class="text-xs text-slate-500">Real-time effectiveness</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="gauge" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">Real-Time Dashboards</strong><span class="text-xs text-slate-500">Live line/machine status</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="zap" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">EMS Platform</strong><span class="text-xs text-slate-500">Energy consumption tracking</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="shield-check" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">QMS Integration</strong><span class="text-xs text-slate-500">Audits & compliance</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="wrench" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">CMMS</strong><span class="text-xs text-slate-500">Work orders & PM schedules</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-emerald-100 text-emerald-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-emerald-600 group-hover:text-white">
+                                    <i data-lucide="heart-pulse" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-emerald-700">APM System</strong><span class="text-xs text-slate-500">Asset health & reliability</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategic Context Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white border border-slate-200 p-5 rounded-xl">
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center"><i data-lucide="target" class="w-4 h-4 mr-2 text-slate-500"></i> The Problem Solved</h4>
+                        <p class="text-sm text-slate-600">Replaces paper tracking, eliminates manual work instructions, prevents quality traceability gaps, and bridges the disconnect between ERP and the shop floor.</p>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center"><i data-lucide="trending-up" class="w-4 h-4 mr-2 text-emerald-500"></i> Business Impact</h4>
+                        <p class="text-sm text-slate-600">Delivers a 90% reduction in compliance documentation time, a 20% improvement in asset utilization, and establishes full recall readiness through end-to-end traceability.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- LAYER 03: SIMULATION -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden layer-card">
+            <div class="bg-gradient-to-r from-purple-700 to-purple-600 p-6 md:p-8 text-white flex items-start md:items-center flex-col md:flex-row gap-6 relative overflow-hidden">
+                <i data-lucide="cuboid" class="absolute -right-10 -bottom-10 w-64 h-64 text-purple-500 opacity-20 pointer-events-none"></i>
+                <div class="p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 relative z-10">
+                    <i data-lucide="copy" class="w-10 h-10"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="text-purple-200 font-bold tracking-widest text-xs mb-1 uppercase flex items-center"><span class="w-2 h-2 rounded-full bg-purple-300 mr-2 animate-pulse"></span>Layer 03</div>
+                    <h2 class="text-3xl font-bold mb-2">Simulation & Optimization Layer</h2>
+                    <p class="text-purple-100 text-lg leading-relaxed max-w-4xl">
+                        <strong>Role:</strong> Simulate and optimize processes before execution.<br>
+                        The virtual replica of your operations that enables simulation, scenario planning, and capacity optimization.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="p-6 md:p-8">
+                <!-- Our Approach: Visual Component Grid -->
+                <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center"><i data-lucide="blocks" class="w-6 h-6 mr-2 text-purple-600"></i> Ecosystem Modules & Tools</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                    
+                    <!-- Digital Twin Category -->
+                    <div class="bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <h4 class="font-bold text-purple-800 mb-4 flex items-center border-b border-purple-100 pb-2"><i data-lucide="monitor" class="w-5 h-5 mr-2"></i> Digital Twin Systems</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-purple-100 text-purple-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-purple-600 group-hover:text-white">
+                                    <i data-lucide="package" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-purple-700">Product Twin</strong><span class="text-xs text-slate-500">Specs & lifecycle model</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-purple-100 text-purple-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-purple-600 group-hover:text-white">
+                                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-purple-700">Process Twin</strong><span class="text-xs text-slate-500">Live parameter mirror</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-purple-100 text-purple-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-purple-600 group-hover:text-white">
+                                    <i data-lucide="building-2" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-purple-700">Factory Twin</strong><span class="text-xs text-slate-500">Full 3D replica & data overlay</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-purple-100 text-purple-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-purple-600 group-hover:text-white">
+                                    <i data-lucide="play-circle" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-purple-700">Simulation Engine</strong><span class="text-xs text-slate-500">Discrete/continuous events</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-purple-100 text-purple-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-purple-600 group-hover:text-white">
+                                    <i data-lucide="repeat" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-purple-700">Sync Engine</strong><span class="text-xs text-slate-500">Sub-second physical sync</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-purple-100 text-purple-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-purple-600 group-hover:text-white">
+                                    <i data-lucide="help-circle" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-purple-700">What-If Analysis</strong><span class="text-xs text-slate-500">Scenario modeling tools</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Optimization Category -->
+                    <div class="bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <h4 class="font-bold text-purple-800 mb-4 flex items-center border-b border-purple-100 pb-2"><i data-lucide="sliders" class="w-5 h-5 mr-2"></i> Optimization Tools</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-purple-100 text-purple-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-purple-600 group-hover:text-white">
+                                    <i data-lucide="maximize" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-purple-700">Capacity Planning</strong><span class="text-xs text-slate-500">Optimization across shifts</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-purple-100 text-purple-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-purple-600 group-hover:text-white">
+                                    <i data-lucide="filter" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-purple-700">Bottleneck Analysis</strong><span class="text-xs text-slate-500">Identify constraint points</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-purple-100 text-purple-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-purple-600 group-hover:text-white">
+                                    <i data-lucide="zap" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-purple-700">Energy Optimization</strong><span class="text-xs text-slate-500">Load balancing & reduction</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-purple-100 text-purple-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-purple-600 group-hover:text-white">
+                                    <i data-lucide="monitor-play" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-purple-700">Virtual Comm.</strong><span class="text-xs text-slate-500">Test equipment virtually</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategic Context Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white border border-slate-200 p-5 rounded-xl">
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center"><i data-lucide="target" class="w-4 h-4 mr-2 text-slate-500"></i> The Problem Solved</h4>
+                        <p class="text-sm text-slate-600">Removes the risk of operational changes, replaces guesswork in capacity planning, and provides a safe environment for layout expansion decisions.</p>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center"><i data-lucide="trending-up" class="w-4 h-4 mr-2 text-emerald-500"></i> Business Impact</h4>
+                        <p class="text-sm text-slate-600">Allows operators to test configuration changes without disrupting live operations, resulting in meaningful energy reduction and lower expansion risk.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- LAYER 04: AI -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden layer-card">
+            <div class="bg-gradient-to-r from-amber-600 to-orange-500 p-6 md:p-8 text-white flex items-start md:items-center flex-col md:flex-row gap-6 relative overflow-hidden">
+                <i data-lucide="brain-circuit" class="absolute -right-10 -bottom-10 w-64 h-64 text-amber-500 opacity-20 pointer-events-none"></i>
+                <div class="p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 relative z-10">
+                    <i data-lucide="lightbulb" class="w-10 h-10"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="text-amber-100 font-bold tracking-widest text-xs mb-1 uppercase flex items-center"><span class="w-2 h-2 rounded-full bg-amber-200 mr-2 animate-pulse"></span>Layer 04</div>
+                    <h2 class="text-3xl font-bold mb-2">AI & Intelligence Layer</h2>
+                    <p class="text-amber-50 text-lg leading-relaxed max-w-4xl">
+                        <strong>Role:</strong> Analyze, predict, and automate decisions.<br>
+                        The intelligence brain transforming data into decisions — using AI validated by multidisciplinary human experts.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="p-6 md:p-8">
+                <!-- Our Approach: Visual Component Grid -->
+                <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center"><i data-lucide="blocks" class="w-6 h-6 mr-2 text-amber-600"></i> Ecosystem Modules & Tools</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+                    
+                    <!-- Core AI Category -->
+                    <div class="lg:col-span-2 bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <h4 class="font-bold text-amber-800 mb-4 flex items-center border-b border-amber-100 pb-2"><i data-lucide="sparkles" class="w-5 h-5 mr-2"></i> Core AI Applications</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="wrench" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">Predictive Maint.</strong><span class="text-xs text-slate-500">7-14 day failure prediction</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">Computer Vision</strong><span class="text-xs text-slate-500">Automated visual inspection</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="trending-up" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">Demand Forecasting</strong><span class="text-xs text-slate-500">AI-driven procurement logic</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">AI Scheduling</strong><span class="text-xs text-slate-500">Minimize changeovers</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="sliders" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">Process Optimization</strong><span class="text-xs text-slate-500">Live parameter recommendations</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="scan" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">Anomaly Detection</strong><span class="text-xs text-slate-500">Scan 100s of variables live</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="bot" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">Autonomous Robotics</strong><span class="text-xs text-slate-500">AI-guided material handling</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="message-square" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">AI Chatbots</strong><span class="text-xs text-slate-500">Operator troubleshooting</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AIoT Category -->
+                    <div class="bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <h4 class="font-bold text-amber-800 mb-4 flex items-center border-b border-amber-100 pb-2"><i data-lucide="satellite-dish" class="w-5 h-5 mr-2"></i> AIoT & Analytics</h4>
+                        <div class="space-y-3">
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="bell-ring" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">Smart Monitoring</strong><span class="text-xs text-slate-500">Intelligent alert filtering</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="git-branch" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">Auto Decision Engine</strong><span class="text-xs text-slate-500">Rule & ML execution</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="activity" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">Streaming Analytics</strong><span class="text-xs text-slate-500">Inference on live data</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="database" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">Big Data & Models</strong><span class="text-xs text-slate-500">ML pipeline management</span></div>
+                            </div>
+                            <div class="flex items-start group component-card cursor-default">
+                                <div class="bg-white border border-amber-100 text-amber-600 p-2 rounded-lg mr-3 shrink-0 shadow-sm group-hover:bg-amber-500 group-hover:text-white">
+                                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                                </div>
+                                <div><strong class="text-slate-800 block text-sm group-hover:text-amber-700">KPI Cockpits</strong><span class="text-xs text-slate-500">Operational drill-downs</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategic Context Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white border border-slate-200 p-5 rounded-xl">
+                    <div class="flex items-start">
+                        <i data-lucide="shield-check" class="w-8 h-8 text-amber-500 mr-3 shrink-0"></i>
+                        <div>
+                            <h4 class="font-bold text-slate-800 mb-1">Human Expert Validation Layer</h4>
+                            <p class="text-sm text-slate-600">Every AI recommendation is reviewed by certified industry engineers before reaching the operator. Eliminates false alarms, ensuring trustworthy insights.</p>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center"><i data-lucide="trending-up" class="w-4 h-4 mr-2 text-emerald-500"></i> Business Impact</h4>
+                        <p class="text-sm text-slate-600">30% faster decision-making, vast reduction in equipment failure through predictive maintenance, providing actionable intelligence instead of passive charts.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- DX & Emerging Tech -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- DX Layer -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden layer-card flex flex-col">
+                <div class="p-6 md:p-8 flex-1">
+                    <div class="flex items-center mb-6 border-b border-slate-100 pb-4">
+                        <div class="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center mr-4 shadow-md">
+                            <i data-lucide="layers" class="w-6 h-6 text-white"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-900">Digital Transformation (DX)</h2>
+                            <p class="text-sm text-slate-500">Business management and decision-making layer.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div class="flex items-start group component-card cursor-default p-3 rounded-xl border border-slate-100 hover:bg-slate-50 hover:border-slate-300">
+                            <div class="bg-slate-100 text-slate-700 p-2 rounded-lg mr-4 shrink-0 group-hover:bg-slate-800 group-hover:text-white transition-colors">
+                                <i data-lucide="database" class="w-5 h-5"></i>
+                            </div>
+                            <div><strong class="text-slate-800 block text-base">ERP Systems</strong><span class="text-sm text-slate-500">Bi-directional integration with SAP, Oracle, Dynamics, Odoo.</span></div>
+                        </div>
+                        <div class="flex items-start group component-card cursor-default p-3 rounded-xl border border-slate-100 hover:bg-slate-50 hover:border-slate-300">
+                            <div class="bg-slate-100 text-slate-700 p-2 rounded-lg mr-4 shrink-0 group-hover:bg-slate-800 group-hover:text-white transition-colors">
+                                <i data-lucide="users" class="w-5 h-5"></i>
+                            </div>
+                            <div><strong class="text-slate-800 block text-base">CRM Integrations</strong><span class="text-sm text-slate-500">Customer order visibility and delivery performance tracking.</span></div>
+                        </div>
+                        <div class="flex items-start group component-card cursor-default p-3 rounded-xl border border-slate-100 hover:bg-slate-50 hover:border-slate-300">
+                            <div class="bg-slate-100 text-slate-700 p-2 rounded-lg mr-4 shrink-0 group-hover:bg-slate-800 group-hover:text-white transition-colors">
+                                <i data-lucide="file-text" class="w-5 h-5"></i>
+                            </div>
+                            <div><strong class="text-slate-800 block text-base">DMS (Documents)</strong><span class="text-sm text-slate-500">Digital document control for SOPs and compliance records.</span></div>
+                        </div>
+                        <div class="flex items-start group component-card cursor-default p-3 rounded-xl border border-slate-100 hover:bg-slate-50 hover:border-slate-300">
+                            <div class="bg-slate-100 text-slate-700 p-2 rounded-lg mr-4 shrink-0 group-hover:bg-slate-800 group-hover:text-white transition-colors">
+                                <i data-lucide="git-pull-request" class="w-5 h-5"></i>
+                            </div>
+                            <div><strong class="text-slate-800 block text-base">BPM & Workflows</strong><span class="text-sm text-slate-500">Automated business workflows triggered by production events.</span></div>
+                        </div>
+                        <div class="flex items-start group component-card cursor-default p-3 rounded-xl border border-slate-100 hover:bg-slate-50 hover:border-slate-300">
+                            <div class="bg-slate-100 text-slate-700 p-2 rounded-lg mr-4 shrink-0 group-hover:bg-slate-800 group-hover:text-white transition-colors">
+                                <i data-lucide="pie-chart" class="w-5 h-5"></i>
+                            </div>
+                            <div><strong class="text-slate-800 block text-base">BI Ecosystem</strong><span class="text-sm text-slate-500">Executive dashboards and advanced business intelligence.</span></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Emerging Technologies -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden layer-card flex flex-col">
+                <div class="p-6 md:p-8 flex-1">
+                    <div class="flex items-center mb-6 border-b border-slate-100 pb-4">
+                        <div class="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center mr-4 shadow-md shadow-indigo-600/30">
+                            <i data-lucide="rocket" class="w-6 h-6 text-white"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-900">Emerging Technologies</h2>
+                            <p class="text-sm text-slate-500">Future-proof innovation ready for deployment.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div class="flex items-start group component-card cursor-default p-3 rounded-xl border border-slate-100 hover:bg-indigo-50 hover:border-indigo-200">
+                            <div class="bg-indigo-100 text-indigo-700 p-2 rounded-lg mr-4 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <i data-lucide="link" class="w-5 h-5"></i>
+                            </div>
+                            <div><strong class="text-slate-800 block text-base group-hover:text-indigo-800">Blockchain Tracking</strong><span class="text-sm text-slate-500">Immutable records for supply chain verification.</span></div>
+                        </div>
+                        <div class="flex items-start group component-card cursor-default p-3 rounded-xl border border-slate-100 hover:bg-indigo-50 hover:border-indigo-200">
+                            <div class="bg-indigo-100 text-indigo-700 p-2 rounded-lg mr-4 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <i data-lucide="headset" class="w-5 h-5"></i>
+                            </div>
+                            <div><strong class="text-slate-800 block text-base group-hover:text-indigo-800">AR/VR Maintenance</strong><span class="text-sm text-slate-500">Augmented reality overlays for equipment repair.</span></div>
+                        </div>
+                        <div class="flex items-start group component-card cursor-default p-3 rounded-xl border border-slate-100 hover:bg-indigo-50 hover:border-indigo-200">
+                            <div class="bg-indigo-100 text-indigo-700 p-2 rounded-lg mr-4 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <i data-lucide="video" class="w-5 h-5"></i>
+                            </div>
+                            <div><strong class="text-slate-800 block text-base group-hover:text-indigo-800">Remote Assist</strong><span class="text-sm text-slate-500">Expert-guided troubleshooting via live video feeds.</span></div>
+                        </div>
+                        <div class="flex items-start group component-card cursor-default p-3 rounded-xl border border-slate-100 hover:bg-indigo-50 hover:border-indigo-200">
+                            <div class="bg-indigo-100 text-indigo-700 p-2 rounded-lg mr-4 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <i data-lucide="bot" class="w-5 h-5"></i>
+                            </div>
+                            <div><strong class="text-slate-800 block text-base group-hover:text-indigo-800">Autonomous Factory</strong><span class="text-sm text-slate-500">Self-regulating material flow and production lines.</span></div>
+                        </div>
+                        <div class="flex items-start group component-card cursor-default p-3 rounded-xl border border-slate-100 hover:bg-indigo-50 hover:border-indigo-200">
+                            <div class="bg-indigo-100 text-indigo-700 p-2 rounded-lg mr-4 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <i data-lucide="leaf" class="w-5 h-5"></i>
+                            </div>
+                            <div><strong class="text-slate-800 block text-base group-hover:text-indigo-800">Green Manufacturing</strong><span class="text-sm text-slate-500">Carbon footprint tracking & sustainability logic.</span></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Ecosystem Flow (Visual Architecture) -->
+        <section class="bg-slate-900 text-white rounded-3xl shadow-2xl border border-slate-800 overflow-hidden text-center p-12 relative mt-16">
+            <!-- Background grids/graphics -->
+            <div class="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white via-slate-900 to-slate-900"></div>
+            
+            <h2 class="text-4xl font-extrabold mb-4 relative z-10 tracking-tight">How Layers Work Together</h2>
+            <p class="text-slate-400 mb-12 text-xl font-light relative z-10 max-w-2xl mx-auto">A seamless, vertically integrated ecosystem.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-6 relative z-10 items-center">
+                <!-- Step 1 -->
+                <div class="flex flex-col items-center group">
+                    <div class="w-20 h-20 rounded-2xl bg-blue-600 flex items-center justify-center mb-5 shadow-lg shadow-blue-900/50 group-hover:scale-110 transition-transform">
+                        <i data-lucide="wifi" class="w-8 h-8 text-white"></i>
+                    </div>
+                    <h3 class="font-bold text-blue-400 mb-2 text-lg">Connectivity Layer</h3>
+                    <p class="text-sm text-slate-400 px-2 leading-relaxed">Captures real-time data from machines.</p>
+                </div>
+                
+                <!-- Connector -->
+                <div class="hidden md:block w-full h-1 bg-gradient-to-r from-blue-600 to-emerald-600 rounded-full opacity-50 relative">
+                    <div class="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 border-t-2 border-r-2 border-emerald-500 transform rotate-45"></div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="flex flex-col items-center group">
+                    <div class="w-20 h-20 rounded-2xl bg-emerald-600 flex items-center justify-center mb-5 shadow-lg shadow-emerald-900/50 group-hover:scale-110 transition-transform">
+                        <i data-lucide="settings-2" class="w-8 h-8 text-white"></i>
+                    </div>
+                    <h3 class="font-bold text-emerald-400 mb-2 text-lg">MES Layer</h3>
+                    <p class="text-sm text-slate-400 px-2 leading-relaxed">Manages production & quality.</p>
+                </div>
+
+                <!-- Connector -->
+                <div class="hidden md:block w-full h-1 bg-gradient-to-r from-emerald-600 to-purple-600 rounded-full opacity-50 relative">
+                    <div class="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 border-t-2 border-r-2 border-purple-500 transform rotate-45"></div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="flex flex-col items-center group">
+                    <div class="w-20 h-20 rounded-2xl bg-purple-600 flex items-center justify-center mb-5 shadow-lg shadow-purple-900/50 group-hover:scale-110 transition-transform">
+                        <i data-lucide="copy" class="w-8 h-8 text-white"></i>
+                    </div>
+                    <h3 class="font-bold text-purple-400 mb-2 text-lg">Simulation Layer</h3>
+                    <p class="text-sm text-slate-400 px-2 leading-relaxed">Virtual models & capacity.</p>
+                </div>
+
+                <!-- Connector -->
+                <div class="hidden md:block w-full h-1 bg-gradient-to-r from-purple-600 to-amber-500 rounded-full opacity-50 relative">
+                    <div class="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 border-t-2 border-r-2 border-amber-400 transform rotate-45"></div>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="flex flex-col items-center group">
+                    <div class="w-20 h-20 rounded-2xl bg-amber-500 flex items-center justify-center mb-5 shadow-lg shadow-amber-900/50 group-hover:scale-110 transition-transform">
+                        <i data-lucide="brain-circuit" class="w-8 h-8 text-white"></i>
+                    </div>
+                    <h3 class="font-bold text-amber-400 mb-2 text-lg">AI Intelligence</h3>
+                    <p class="text-sm text-slate-400 px-2 leading-relaxed">Predicts & automates decisions.</p>
+                </div>
+            </div>
+            
+            <!-- Global DX Wrap -->
+            <div class="mt-16 bg-slate-800/80 border border-slate-700 rounded-2xl p-6 max-w-4xl mx-auto backdrop-blur-md relative z-10 flex flex-col md:flex-row items-center justify-between">
+                <div class="flex items-center mb-4 md:mb-0">
+                    <div class="w-12 h-12 bg-slate-700 rounded-lg flex items-center justify-center mr-4">
+                        <i data-lucide="layers" class="w-6 h-6 text-slate-300"></i>
+                    </div>
+                    <div class="text-left">
+                        <h4 class="font-bold text-white text-lg">DX Enterprise Layer</h4>
+                        <p class="text-slate-400 text-sm">Connects the entire stack to business ERP/CRM</p>
+                    </div>
+                </div>
+                <div class="bg-emerald-900/50 border border-emerald-500/30 px-5 py-3 rounded-xl flex items-center">
+                    <i data-lucide="shield-check" class="w-5 h-5 mr-3 text-emerald-400"></i>
+                    <span class="text-emerald-100 font-medium text-sm">Unified ISA-95 Data Model</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- PHASE 1: POC SCOPE -->
+        <section class="bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden relative mt-16 layer-card">
+            <!-- Header -->
+            <div class="bg-slate-900 p-8 text-white relative overflow-hidden">
+                <div class="absolute -top-12 -right-12 w-32 h-32 bg-indigo-500 rounded-full blur-3xl opacity-30 pointer-events-none"></div>
+                <div class="relative z-10 flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                        <div class="text-indigo-400 font-bold tracking-widest text-xs mb-2 uppercase flex items-center"><span class="w-2 h-2 rounded-full bg-indigo-400 mr-2"></span>Initial Deployment Phase</div>
+                        <h2 class="text-3xl font-extrabold mb-2">Phase 1: Proof of Concept (POC) Scope</h2>
+                        <p class="text-slate-400 text-lg">Focused data acquisition, baseline monitoring, and targeted ecosystem activation.</p>
+                    </div>
+                    <div class="bg-indigo-900/50 border border-indigo-500/30 px-4 py-2 rounded-lg flex items-center text-sm font-medium text-indigo-200">
+                        <i data-lucide="target" class="w-4 h-4 mr-2"></i> POC Boundary Defined
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-8">
+                <!-- Data Points Section -->
+                <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center">
+                    <i data-lucide="table-properties" class="w-6 h-6 mr-2 text-indigo-600"></i>
+                    Suggested Data Points to be Collected (Based on Tag Availability)
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                        <div class="flex items-center mb-3">
+                            <div class="bg-blue-100 text-blue-700 p-2 rounded-lg mr-3"><i data-lucide="activity-square" class="w-5 h-5"></i></div>
+                            <h4 class="font-bold text-slate-800">Production Metrics</h4>
+                        </div>
+                        <p class="text-sm text-slate-600 leading-relaxed">Cycle time, throughput, batch count, production rate.</p>
+                    </div>
+                    
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                        <div class="flex items-center mb-3">
+                            <div class="bg-emerald-100 text-emerald-700 p-2 rounded-lg mr-3"><i data-lucide="power" class="w-5 h-5"></i></div>
+                            <h4 class="font-bold text-slate-800">Machine Status</h4>
+                        </div>
+                        <p class="text-sm text-slate-600 leading-relaxed">Running, idle, or alarm state, utilization percentage.</p>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                        <div class="flex items-center mb-3">
+                            <div class="bg-purple-100 text-purple-700 p-2 rounded-lg mr-3"><i data-lucide="check-circle" class="w-5 h-5"></i></div>
+                            <h4 class="font-bold text-slate-800">Quality Parameters</h4>
+                        </div>
+                        <p class="text-sm text-slate-600 leading-relaxed">Temperature, pressure, weight, fill levels, reject counts.</p>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                        <div class="flex items-center mb-3">
+                            <div class="bg-amber-100 text-amber-700 p-2 rounded-lg mr-3"><i data-lucide="zap" class="w-5 h-5"></i></div>
+                            <h4 class="font-bold text-slate-800">Energy Consumption</h4>
+                        </div>
+                        <p class="text-sm text-slate-600 leading-relaxed">Power usage per machine/line, energy efficiency tracking.</p>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                        <div class="flex items-center mb-3">
+                            <div class="bg-red-100 text-red-700 p-2 rounded-lg mr-3"><i data-lucide="wrench" class="w-5 h-5"></i></div>
+                            <h4 class="font-bold text-slate-800">Maintenance Indicators</h4>
+                        </div>
+                        <p class="text-sm text-slate-600 leading-relaxed">Vibration, runtime hours, error codes, downtime events.</p>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                        <div class="flex items-center mb-3">
+                            <div class="bg-cyan-100 text-cyan-700 p-2 rounded-lg mr-3"><i data-lucide="settings" class="w-5 h-5"></i></div>
+                            <h4 class="font-bold text-slate-800">Process Variables</h4>
+                        </div>
+                        <p class="text-sm text-slate-600 leading-relaxed">Detergent mixing ratios, aerosol pressure levels, conveyor speed.</p>
+                    </div>
+                </div>
+
+                <!-- Ecosystem Activation Scope -->
+                <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center border-t border-slate-200 pt-8">
+                    <i data-lucide="toggle-right" class="w-6 h-6 mr-2 text-indigo-600"></i>
+                    Ecosystem Activation Scope
+                </h3>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    
+                    <!-- Unlocked Modules -->
+                    <div class="bg-emerald-50 rounded-2xl p-6 border border-emerald-200 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                            <i data-lucide="unlock" class="w-24 h-24 text-emerald-600"></i>
+                        </div>
+                        <h4 class="font-bold text-emerald-800 mb-3 flex items-center text-lg"><i data-lucide="unlock" class="w-5 h-5 mr-2"></i> Unlocked Modules (Active)</h4>
+                        <p class="text-sm text-emerald-700 mb-5">The following specific modules will be provisioned to capture, store, and visualize the requested POC data points:</p>
+                        
+                        <div class="space-y-3 relative z-10">
+                            <!-- Connectivity Layer Apps -->
+                            <div class="flex items-center bg-white p-3 rounded-lg border border-emerald-100 shadow-sm">
+                                <div class="bg-blue-100 text-blue-600 p-1.5 rounded mr-3"><i data-lucide="activity" class="w-4 h-4"></i></div>
+                                <span class="font-medium text-slate-800 text-sm flex-1">DAQ & SCADA System</span>
+                                <span class="text-xs text-emerald-600 font-semibold bg-emerald-100 px-2 py-1 rounded">Layer 01</span>
+                            </div>
+                            <div class="flex items-center bg-white p-3 rounded-lg border border-emerald-100 shadow-sm">
+                                <div class="bg-blue-100 text-blue-600 p-1.5 rounded mr-3"><i data-lucide="clock" class="w-4 h-4"></i></div>
+                                <span class="font-medium text-slate-800 text-sm flex-1">Time-Series DB</span>
+                                <span class="text-xs text-emerald-600 font-semibold bg-emerald-100 px-2 py-1 rounded">Layer 01</span>
+                            </div>
+                            <!-- MES Layer Apps -->
+                            <div class="flex items-center bg-white p-3 rounded-lg border border-emerald-100 shadow-sm">
+                                <div class="bg-emerald-100 text-emerald-600 p-1.5 rounded mr-3"><i data-lucide="gauge" class="w-4 h-4"></i></div>
+                                <span class="font-medium text-slate-800 text-sm flex-1">Real-Time Dashboards & OEE</span>
+                                <span class="text-xs text-emerald-600 font-semibold bg-emerald-100 px-2 py-1 rounded">Layer 02</span>
+                            </div>
+                            <div class="flex items-center bg-white p-3 rounded-lg border border-emerald-100 shadow-sm">
+                                <div class="bg-emerald-100 text-emerald-600 p-1.5 rounded mr-3"><i data-lucide="timer-off" class="w-4 h-4"></i></div>
+                                <span class="font-medium text-slate-800 text-sm flex-1">Downtime Management</span>
+                                <span class="text-xs text-emerald-600 font-semibold bg-emerald-100 px-2 py-1 rounded">Layer 02</span>
+                            </div>
+                            <div class="flex items-center bg-white p-3 rounded-lg border border-emerald-100 shadow-sm">
+                                <div class="bg-emerald-100 text-emerald-600 p-1.5 rounded mr-3"><i data-lucide="check-square" class="w-4 h-4"></i></div>
+                                <span class="font-medium text-slate-800 text-sm flex-1">Quality Management (Data Collection)</span>
+                                <span class="text-xs text-emerald-600 font-semibold bg-emerald-100 px-2 py-1 rounded">Layer 02</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Locked Modules -->
+                    <div class="bg-slate-100 rounded-2xl p-6 border border-slate-200 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                            <i data-lucide="lock" class="w-24 h-24 text-slate-600"></i>
+                        </div>
+                        <h4 class="font-bold text-slate-700 mb-3 flex items-center text-lg"><i data-lucide="lock" class="w-5 h-5 mr-2"></i> Locked Modules (Out of Scope)</h4>
+                        <p class="text-sm text-slate-500 mb-5">To ensure a rapid, focused, and successful POC, all other ecosystem applications will remain locked until subsequent deployment phases.</p>
+                        
+                        <div class="space-y-3 relative z-10">
+                            <div class="flex items-center opacity-60">
+                                <i data-lucide="x-circle" class="w-4 h-4 text-slate-400 mr-3"></i>
+                                <span class="text-sm text-slate-600 font-medium">Layer 03: Simulation & Optimization Layer</span>
+                            </div>
+                            <div class="flex items-center opacity-60">
+                                <i data-lucide="x-circle" class="w-4 h-4 text-slate-400 mr-3"></i>
+                                <span class="text-sm text-slate-600 font-medium">Layer 04: AI & Intelligence Layer (Predictive/Autonomy)</span>
+                            </div>
+                            <div class="flex items-center opacity-60">
+                                <i data-lucide="x-circle" class="w-4 h-4 text-slate-400 mr-3"></i>
+                                <span class="text-sm text-slate-600 font-medium">Advanced MES (APS Scheduling, Recipes, Labor Tracking)</span>
+                            </div>
+                            <div class="flex items-center opacity-60">
+                                <i data-lucide="x-circle" class="w-4 h-4 text-slate-400 mr-3"></i>
+                                <span class="text-sm text-slate-600 font-medium">DX Enterprise Integrations (ERP, CRM, BPM Workflows)</span>
+                            </div>
+                            <div class="flex items-center opacity-60">
+                                <i data-lucide="x-circle" class="w-4 h-4 text-slate-400 mr-3"></i>
+                                <span class="text-sm text-slate-600 font-medium">Emerging Technologies (Blockchain, AR/VR)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        // Initialize Lucide Icons for high-quality SVG rendering
+        lucide.createIcons();
+    </script>
+</body>
+</html>

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MES360° ضمن منظومة Industry360° — تحليل التغطية والفجوات</title>
+<meta name="description" content="مستند تحليلي يقارن منصة MES360° بطبقات منظومة Industry360°: أوجه التشابه، التغطية، الفجوات، والتوصيات." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --green:#0F3D2E; --green2:#2D6B4F; --teal:#1A4D5C; --gold:#C9A961; --gold-d:#a8862f;
+  --cream:#F7F4EC; --paper:#fffdf8; --ink:#17251F; --muted:#5b6b62; --line:#e4dccb; --line2:#d8d0bf;
+  --ok:#2D6B4F; --okbg:#e6f1ea; --warn:#b9892b; --warnbg:#faf2dd; --no:#a83a2e; --nobg:#f7e7e3;
+  --L1:#1A4D5C; --L2:#2D6B4F; --L3:#6d28d9; --L4:#b9892b; --LDX:#475569; --LE:#4f46e5;
+  --serif:'Instrument Serif',Georgia,serif;
+  --ar:'IBM Plex Sans Arabic','Tajawal',sans-serif;
+  --en:'Inter Tight',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--ar);background:var(--cream);color:var(--ink);line-height:1.7;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+.en{font-family:var(--en);direction:ltr;unicode-bidi:isolate}
+.serif{font-family:var(--serif)}
+h2.sec{font-family:var(--serif);font-weight:700;font-size:clamp(28px,4vw,42px);color:var(--green);line-height:1.1;margin-bottom:6px}
+.sec-en{font-family:var(--en);font-weight:600;letter-spacing:.5px;color:var(--gold-d);font-size:13px;text-transform:uppercase;margin-bottom:14px;display:block}
+.lead{font-size:clamp(15px,1.5vw,18px);color:var(--muted);max-width:74ch;line-height:1.85}
+
+/* ===== Header ===== */
+header.hero{background:linear-gradient(150deg,#0c3225 0%,#0F3D2E 45%,#143f31 100%);color:#fff;position:relative;overflow:hidden;border-bottom:4px solid var(--gold)}
+header.hero::after{content:"";position:absolute;inset:0;background:radial-gradient(700px 360px at 88% -8%,rgba(201,169,97,.22),transparent 60%);pointer-events:none}
+.hero-in{max-width:1080px;margin:0 auto;padding:56px 22px 48px;position:relative;z-index:1}
+.brandrow{display:flex;align-items:center;gap:16px;margin-bottom:34px}
+.brandrow .logo{width:48px;height:48px}
+.brandrow b{font-family:var(--en);font-weight:700;font-size:20px;letter-spacing:.5px}
+.brandrow b span{color:var(--gold)}
+.brandrow .div{width:1px;height:26px;background:rgba(255,255,255,.25)}
+.brandrow .tagar{font-size:13px;color:rgba(255,255,255,.7)}
+.hero h1{font-family:var(--serif);font-weight:700;font-size:clamp(34px,5.6vw,60px);line-height:1.08;margin-bottom:18px}
+.hero h1 span{color:var(--gold)}
+.hero p{font-size:clamp(15px,1.6vw,19px);color:rgba(255,255,255,.82);max-width:70ch;line-height:1.85}
+.hero .badges{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+.hero .badge{font-family:var(--en);font-size:12.5px;padding:7px 14px;border-radius:99px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#efe9d8}
+.hero .badge.gold{background:rgba(201,169,97,.16);border-color:rgba(201,169,97,.4);color:#f4e9c9}
+
+/* ===== Legend bar (sticky) ===== */
+.legend{position:sticky;top:0;z-index:40;background:rgba(247,244,236,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line2)}
+.legend-in{max-width:1080px;margin:0 auto;padding:11px 22px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;font-size:13px}
+.legend .lg{display:inline-flex;align-items:center;gap:7px;color:var(--muted)}
+.dotb{width:13px;height:13px;border-radius:4px;display:inline-block}
+.legend b{color:var(--ink)}
+
+section{padding:52px 0;border-bottom:1px solid var(--line)}
+section:last-of-type{border-bottom:none}
+
+/* ===== Exec summary cards ===== */
+.exec{background:var(--paper);border:1px solid var(--line2);border-radius:18px;padding:30px 32px;box-shadow:0 12px 30px -18px rgba(15,61,46,.4)}
+.exec p{font-size:16px;color:#3a4640;line-height:1.95}
+.exec p strong{color:var(--green)}
+.pos{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
+.pos .p{border:1px solid var(--line2);border-radius:13px;padding:16px 18px;background:var(--cream)}
+.pos .p .h{font-family:var(--en);font-size:12px;color:var(--gold-d);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.pos .p .t{font-size:14.5px;color:#3a4640}
+.pos .p .t b{color:var(--green)}
+
+/* ===== Coverage cards ===== */
+.cov{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.covcard{background:var(--paper);border:1px solid var(--line2);border-radius:16px;padding:22px;position:relative;overflow:hidden;transition:.2s}
+.covcard:hover{transform:translateY(-3px);box-shadow:0 16px 34px -20px rgba(15,61,46,.5)}
+.covcard .top{height:5px;position:absolute;top:0;right:0;left:0}
+.covcard .lyr{font-family:var(--en);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.8}
+.covcard h3{font-family:var(--serif);font-size:23px;color:var(--green);margin:4px 0 3px;line-height:1.15}
+.covcard .he{font-family:var(--en);font-size:12.5px;color:var(--muted);margin-bottom:16px}
+.ring{display:flex;align-items:center;gap:14px}
+.ring .pct{font-family:var(--en);font-weight:700;font-size:30px;line-height:1}
+.bar{height:9px;border-radius:99px;background:#eadfca;overflow:hidden;flex:1}
+.bar i{display:block;height:100%;border-radius:99px}
+.covcard .cnt{display:flex;gap:12px;margin-top:14px;font-size:12.5px;color:var(--muted)}
+.covcard .cnt b{font-family:var(--en)}
+
+/* ===== Layer detail tables ===== */
+.layer{margin-top:30px;border:1px solid var(--line2);border-radius:16px;overflow:hidden;background:var(--paper)}
+.layer-h{padding:20px 24px;color:#fff;display:flex;align-items:center;gap:16px;position:relative;overflow:hidden}
+.layer-h .n{font-family:var(--serif);font-size:34px;font-weight:700;opacity:.9;min-width:48px}
+.layer-h h3{font-size:21px;font-weight:700;margin-bottom:2px}
+.layer-h .e{font-family:var(--en);font-size:12.5px;opacity:.85}
+.layer-h .score{margin-inline-start:auto;text-align:center;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:8px 16px}
+.layer-h .score .v{font-family:var(--en);font-weight:700;font-size:24px;line-height:1}
+.layer-h .score .l{font-size:10.5px;opacity:.85}
+.rows{padding:8px 0}
+.row{display:grid;grid-template-columns:22px 1.1fr 1.5fr 110px;gap:14px;align-items:start;padding:13px 24px;border-top:1px solid var(--line)}
+.row:first-child{border-top:none}
+.row .st{margin-top:3px}
+.stmark{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff}
+.row .cmp b{display:block;font-size:14.5px;color:var(--ink)}
+.row .cmp .role{font-size:12px;color:var(--muted)}
+.row .ev{font-size:12.5px;color:#3a4640;line-height:1.55}
+.row .ev .rt{font-family:var(--en);font-size:11px;color:var(--teal);background:#eaf0f0;padding:1px 6px;border-radius:5px;display:inline-block;margin:2px 2px 0 0;direction:ltr}
+.row .badge2{justify-self:start;font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:7px;white-space:nowrap}
+.b-ok{background:var(--okbg);color:var(--ok)} .b-warn{background:var(--warnbg);color:var(--warn)} .b-no{background:var(--nobg);color:var(--no)}
+
+/* ===== Similarities / gaps ===== */
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.panel{border:1px solid var(--line2);border-radius:16px;padding:24px 26px;background:var(--paper)}
+.panel.sim{border-top:4px solid var(--ok)}
+.panel.gap{border-top:4px solid var(--no)}
+.panel h3{font-family:var(--serif);font-size:24px;color:var(--green);margin-bottom:14px}
+.panel ul{list-style:none;display:grid;gap:13px}
+.panel li{display:flex;gap:11px;font-size:14px;color:#3a4640;line-height:1.6}
+.panel li .m{flex:0 0 auto;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;color:#fff;margin-top:2px}
+.panel li b{color:var(--ink)}
+
+/* ===== Roadmap ===== */
+.road{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:10px}
+.stage{border:1px solid var(--line2);border-radius:13px;padding:16px 14px;background:var(--paper);position:relative;text-align:center}
+.stage .num{font-family:var(--en);font-weight:700;font-size:13px;color:var(--gold-d)}
+.stage h4{font-family:var(--en);font-size:13.5px;color:var(--green);margin:6px 0 8px;line-height:1.25}
+.stage p{font-size:11.5px;color:var(--muted);line-height:1.5}
+.stage .lbl{position:absolute;top:-11px;right:50%;transform:translateX(50%);font-size:10px;font-weight:700;padding:2px 10px;border-radius:99px;white-space:nowrap}
+.stage.done{background:var(--okbg);border-color:var(--ok)}
+.stage.done .num,.stage.done h4{color:var(--ok)}
+.stage.done .lbl{background:var(--ok);color:#fff}
+.stage.cur{background:linear-gradient(160deg,#163f30,#0F3D2E);border-color:var(--green);color:#fff;box-shadow:0 14px 30px -16px rgba(15,61,46,.8)}
+.stage.cur h4{color:#fff} .stage.cur p{color:rgba(255,255,255,.82)} .stage.cur .num{color:var(--gold)}
+.stage.cur .lbl{background:var(--gold);color:var(--ink)}
+.stage.gap{background:var(--nobg);border-color:var(--no);border-style:dashed}
+.stage.gap .num,.stage.gap h4{color:var(--no)}
+.stage.gap .lbl{background:var(--no);color:#fff}
+.stage.part{background:var(--warnbg);border-color:var(--warn);border-style:dashed}
+.stage.part .num,.stage.part h4{color:var(--warn)}
+.stage.part .lbl{background:var(--warn);color:#fff}
+
+/* ===== Recommendations ===== */
+.recs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+.rec{border:1px solid var(--line2);border-left:4px solid var(--gold);border-radius:12px;padding:18px 20px;background:var(--paper)}
+.rec .tag{font-family:var(--en);font-size:11px;font-weight:600;color:#fff;padding:2px 9px;border-radius:6px;display:inline-block;margin-bottom:9px}
+.rec h4{font-size:16px;color:var(--green);margin-bottom:6px}
+.rec p{font-size:13px;color:var(--muted);line-height:1.65}
+
+.note{font-size:12.5px;color:var(--muted);margin-top:18px;line-height:1.7;border-inline-start:3px solid var(--line2);padding-inline-start:14px}
+footer{background:var(--green);color:#fff;text-align:center;padding:40px 22px}
+footer .lg{font-family:var(--en);font-weight:700;font-size:18px}
+footer .lg span{color:var(--gold)}
+footer p{font-size:13px;color:rgba(255,255,255,.7);margin-top:8px}
+
+@media print{.legend{display:none}.covcard:hover{transform:none}}
+@media (max-width:880px){
+  .cov,.pos,.recs{grid-template-columns:1fr}
+  .cols2{grid-template-columns:1fr}
+  .road{grid-template-columns:repeat(2,1fr)}
+  .row{grid-template-columns:20px 1fr;gap:8px}
+  .row .ev,.row .badge2{grid-column:2}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-in">
+    <div class="brandrow">
+      <span class="logo" id="logo"></span>
+      <b>INDUSTRY<span>360°</span></b>
+      <span class="div"></span>
+      <span class="tagar">المنصة الصناعية الأم · The Industrial Intelligence Platform</span>
+    </div>
+    <h1>أين يقع <span>MES360°</span><br>داخل منظومة Industry360°؟</h1>
+    <p>مستند تحليلي يقارن ما تم بناؤه فعلياً في منصة MES360° (أكثر من 107 شاشة) بطبقات منظومة Industry360° الأربع — يوضّح أوجه التشابه، ونسبة التغطية لكل طبقة، والفجوات الحالية، وما يُنصح بإضافته لاستكمال المنظومة.</p>
+    <div class="badges">
+      <span class="badge">4 طبقات تشغيلية</span>
+      <span class="badge">+ DX Enterprise + Emerging Tech</span>
+      <span class="badge gold">ISA-95 Reference</span>
+      <span class="badge">تحليل قائم على الشاشات الفعلية</span>
+    </div>
+  </div>
+</header>
+
+<div class="legend">
+  <div class="legend-in">
+    <span class="lg"><b>مفتاح الحالة:</b></span>
+    <span class="lg"><span class="dotb" style="background:var(--ok)"></span> مُطبّق في MES360°</span>
+    <span class="lg"><span class="dotb" style="background:var(--warn)"></span> مُطبّق جزئياً / أساس موجود</span>
+    <span class="lg"><span class="dotb" style="background:var(--no)"></span> غير مُطبّق (فجوة)</span>
+  </div>
+</div>
+
+<!-- ===== EXECUTIVE SUMMARY ===== -->
+<section><div class="wrap">
+  <span class="sec-en">Executive Summary</span>
+  <h2 class="sec">الخلاصة التنفيذية</h2>
+  <p class="lead" style="margin:10px 0 26px">باختصار: <strong style="color:var(--green)">MES360° هو التجسيد الكامل للطبقة الثانية (MES) في منظومة Industry360°</strong>، ويمتدّ ليغطّي الجانب المتّصل بالأجهزة من الطبقة الأولى، وطبقة عرض البيانات وكشف الشذوذ من الطبقة الرابعة. أما طبقة المحاكاة والتوأم الرقمي (03)، ومعظم الذكاء الاصطناعي المتقدّم (04)، وتكاملات DX المؤسسية، والأمن السيبراني الصناعي، والتقنيات الناشئة — فهي الحدود المفتوحة للتوسّع.</p>
+  <div class="exec">
+    <p>منظومة <strong>Industry360°</strong> هي الرؤية الأم: رحلة بيانات صناعية من <em>الإشارة إلى القرار</em> عبر أربع طبقات (الاتصال ← التشغيل MES ← المحاكاة ← الذكاء)، مغلّفة بطبقة DX مؤسسية وتقنيات ناشئة، ضمن خارطة تحوّل من ست مراحل. <strong>MES360°</strong> هو المنتج التشغيلي الذي يشغّل قلب هذه المنظومة اليوم على أرض الواقع في 5 مصانع.</p>
+    <div class="pos">
+      <div class="p"><div class="h">Strongest Fit</div><div class="t"><b>الطبقة 02 — MES</b><br>تغطية شبه كاملة: الإنتاج، الجودة، الصيانة، الطاقة، التتبّع، الـ OEE.</div></div>
+      <div class="p"><div class="h">Partial Fit</div><div class="t"><b>الطبقتان 01 و 04</b><br>الاتصال الصناعي وعرض الذكاء موجودان؛ الأمن الصناعي والذكاء المتقدّم ناقصان.</div></div>
+      <div class="p"><div class="h">Open Frontier</div><div class="t"><b>الطبقة 03 + DX + الناشئة</b><br>التوأم الرقمي والمحاكاة وتكاملات ERP/CRM والتقنيات الناشئة فرص توسّع.</div></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===== COVERAGE AT A GLANCE ===== -->
+<section><div class="wrap">
+  <span class="sec-en">Coverage at a Glance</span>
+  <h2 class="sec">التغطية بنظرة واحدة</h2>
+  <p class="lead" style="margin:10px 0 26px">نسبة تقديرية لتغطية MES360° لكل طبقة من طبقات المنظومة، مبنية على مطابقة شاشات التطبيق الفعلية بمكوّنات كل طبقة.</p>
+  <div class="cov" id="covGrid"></div>
+  <p class="note">النسب مؤشرات تحليلية إرشادية (✅=1، ⚠️=0.5، ❌=0 لكل مكوّن) تعكس نضج التغطية الوظيفية، وليست قياس أداء ميداني. الهدف توجيه أولويات التوسّع لا التقييم الكمّي النهائي.</p>
+</div></section>
+
+<!-- ===== LAYER DETAIL ===== -->
+<section><div class="wrap">
+  <span class="sec-en">Layer-by-Layer Mapping</span>
+  <h2 class="sec">المقارنة التفصيلية — طبقة بطبقة</h2>
+  <p class="lead" style="margin:10px 0 4px">لكل مكوّن في منظومة Industry360°: دوره، حالته في MES360°، والشاشة/القدرة المقابلة فعلياً.</p>
+  <div id="layers"></div>
+</div></section>
+
+<!-- ===== SIMILARITIES & GAPS ===== -->
+<section><div class="wrap">
+  <span class="sec-en">Alignment & Gaps</span>
+  <h2 class="sec">أوجه التشابه والفجوات</h2>
+  <div class="cols2" style="margin-top:24px">
+    <div class="panel sim">
+      <h3>✓ أوجه التشابه والقوة</h3>
+      <ul>
+        <li><span class="m" style="background:var(--ok)">✓</span><div><b>طبقة MES كاملة</b> — كل مكوّنات الطبقة 02 تقريباً (جدولة، أوامر عمل، تتبّع، جودة، صيانة CMMS، APM، OEE، طاقة) مُطبّقة كشاشات حيّة.</div></li>
+        <li><span class="m" style="background:var(--ok)">✓</span><div><b>نفس فلسفة "من الإشارة إلى القرار"</b> — التقاط لحظي عبر MQTT/OPC-UA ← تخزين ← بث ← لوحات قرار، مطابق لتدفّق البيانات السباعي للمنظومة.</div></li>
+        <li><span class="m" style="background:var(--ok)">✓</span><div><b>اتصال صناعي وبنية بيانات</b> — Edge Gateway، إدارة الأجهزة، Historian، وقاعدة سلاسل زمنية (InfluxDB) تغطّي جوهر الطبقة 01.</div></li>
+        <li><span class="m" style="background:var(--ok)">✓</span><div><b>بذرة الذكاء والتحليلات</b> — مركز AI (كشف الشذوذ، المقارنات المرجعية) ولوحات KPI تمثّل مدخل الطبقة 04.</div></li>
+        <li><span class="m" style="background:var(--ok)">✓</span><div><b>متعدد المصانع وقابل للتوسّع</b> — يتسق مع مبدأ المنظومة «وسّع تدريجياً من خط إلى مصانع».</div></li>
+      </ul>
+    </div>
+    <div class="panel gap">
+      <h3>✕ الفجوات الرئيسية</h3>
+      <ul>
+        <li><span class="m" style="background:var(--no)">✕</span><div><b>الطبقة 03 غائبة تقريباً</b> — لا توأم رقمي (Product/Process/Factory Twin)، ولا محرك محاكاة أو What-If أو Virtual Commissioning.</div></li>
+        <li><span class="m" style="background:var(--no)">✕</span><div><b>الذكاء المتقدّم</b> — رؤية حاسوبية، التنبؤ بالطلب، تحسين العمليات اللحظي، روبوتات ذاتية، ومحرك قرار آلي غير مُطبّقة.</div></li>
+        <li><span class="m" style="background:var(--no)">✕</span><div><b>الأمن السيبراني الصناعي (OT)</b> — جدار ناري صناعي، منصة OT Security، وأنظمة IDS غير موجودة كمكوّنات.</div></li>
+        <li><span class="m" style="background:var(--no)">✕</span><div><b>تكاملات DX المؤسسية</b> — لا تكامل مباشر مع ERP/CRM/DMS أو منصّة BPM عامة (تتوفّر مسارات اعتماد محدّدة فقط).</div></li>
+        <li><span class="m" style="background:var(--no)">✕</span><div><b>منصّة بيانات موسّعة</b> — لا Data Lake / Data Warehouse / iPaaS / Kafka / ETL مُدارة للتكامل واسع النطاق.</div></li>
+        <li><span class="m" style="background:var(--no)">✕</span><div><b>التقنيات الناشئة</b> — Blockchain، AR/VR للصيانة، والمصنع المستقل، وتتبّع بصمة الكربون.</div></li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===== DX ROADMAP POSITION ===== -->
+<section><div class="wrap">
+  <span class="sec-en">Digital Transformation Maturity</span>
+  <h2 class="sec">موقع MES360° على خارطة التحوّل</h2>
+  <p class="lead" style="margin:10px 0 30px">خارطة Industry360° من ست مراحل. أنجز MES360° المراحل <b style="color:var(--green)">01 و 02 و 03</b> بالكامل — فالمؤشرات والتحليلات المترابطة (OEE · KPIs · مراكز القيادة · التحليلات) <b style="color:var(--green)">مُطبّقة فعلاً</b>، ما يضعه راسخاً في طور <b style="color:var(--green)">«Smart Manufacturing»</b>. الفجوة البارزة عند <b style="color:var(--no)">«Digital Twin» (04)</b> التي تخطّاها، بينما بدأ يلامس <b style="color:var(--warn)">«AI-Driven» (05)</b> عبر مركز الذكاء (كشف الشذوذ والمقارنات المرجعية).</p>
+  <div class="road">
+    <div class="stage done"><span class="lbl">مُنجَز</span><div class="num">01</div><h4 class="en">Connected Factory</h4><p>تأسيس الاتصال وجمع البيانات.</p></div>
+    <div class="stage done"><span class="lbl">مُنجَز</span><div class="num">02</div><h4 class="en">Digital Operations</h4><p>رقمنة الإنتاج والجودة والصيانة والطاقة.</p></div>
+    <div class="stage cur"><span class="lbl">موقع MES360° الآن</span><div class="num">03</div><h4 class="en">Smart Manufacturing</h4><p>مؤشرات وتحليلات مترابطة (OEE/KPIs) — مُطبّقة.</p></div>
+    <div class="stage gap"><span class="lbl">فجوة</span><div class="num">04</div><h4 class="en">Digital Twin</h4><p>محاكاة وتحليل سيناريوهات — متخطّاة.</p></div>
+    <div class="stage part"><span class="lbl">بدأ جزئياً</span><div class="num">05</div><h4 class="en">AI-Driven Mfg</h4><p>تنبؤ وتحسين قرارات بالذكاء.</p></div>
+    <div class="stage"><div class="num">06</div><h4 class="en">Autonomous Factory</h4><p>قرار آلي وتحسين مستمر.</p></div>
+  </div>
+</div></section>
+
+<!-- ===== RECOMMENDATIONS ===== -->
+<section><div class="wrap">
+  <span class="sec-en">What Could Fit Next</span>
+  <h2 class="sec">ما الذي يُنصح بإضافته للمنظومة</h2>
+  <p class="lead" style="margin:10px 0 24px">توصيات مرتّبة لاستكمال طبقات المنظومة انطلاقاً مما هو مبنيّ بالفعل — من الأقرب تحقيقاً إلى الأبعد.</p>
+  <div class="recs" id="recs"></div>
+  <p class="note">جميع التوصيات تبني على الأصول القائمة في MES360° (Edge Gateway، InfluxDB، مركز AI، APS) بدل إعادة البناء — تماشياً مع مبدأ المنظومة «مصمّمة لتتكامل مع مصنعك لا لتستبدله».</p>
+</div></section>
+
+<footer>
+  <div class="lg">MES<span>360°</span> &nbsp;·&nbsp; INDUSTRY<span>360°</span></div>
+  <p>تحليل التغطية والفجوات ضمن المنظومة الصناعية · 2026 — Industrial Intelligence for Saudi Arabia</p>
+</footer>
+
+<script>
+/* logo mark — green/gold ring emblem matching Industry360 identity */
+document.getElementById('logo').innerHTML = `<svg width="48" height="48" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <circle cx="50" cy="50" r="44" stroke="#C9A961" stroke-width="3"/>
+  <circle cx="50" cy="50" r="44" stroke="#ffffff" stroke-width="3" stroke-dasharray="20 240" stroke-linecap="round"/>
+  <path d="M30 64V40l20 14 20-14v24" stroke="#fff" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="50" cy="50" r="6" fill="#C9A961"/></svg>`;
+
+/* ===== DATA: ecosystem layers × MES360 coverage ===== */
+const OK='ok',WARN='warn',NO='no';
+const layers=[
+  {n:'01',color:'var(--L1)',title:'الاتصال والبنية الرقمية',en:'Connectivity & Data Foundation',pct:40,
+   comps:[
+     {s:OK,  c:'Device Management',role:'سجلّ مركزي ودورة حياة الأجهزة',ev:['/iot/devices','/iot/gateways','/iot/drivers']},
+     {s:WARN,c:'DAQ System',role:'جمع عالي السرعة (55+ بروتوكول)',ev:['MQTT · OPC-UA · Modbus','/iot/streams — نطاق بروتوكولات أضيق']},
+     {s:WARN,c:'SCADA',role:'تحكّم ومراقبة إشرافية',ev:['/manufacturing/control','/shop-floor — مراقبة؛ تحكّم SCADA كامل غير مطبّق']},
+     {s:WARN,c:'Edge Analytics',role:'معالجة محلية عند الآلة',ev:['apps/edgegateway — تجميع عند الحافة؛ تحليلات محدودة']},
+     {s:OK,  c:'Time-Series DB',role:'تخزين بيانات عالي التردد',ev:['InfluxDB','/iot/historian']},
+     {s:OK,  c:'IAM',role:'وصول وصلاحيات قائمة على الأدوار',ev:['/users','JWT · RBAC']},
+     {s:NO,  c:'Industrial Firewall',role:'تجزئة شبكة واعية بالـ OT',ev:['غير مُطبّق']},
+     {s:NO,  c:'OT Security Platform',role:'كشف تهديدات مستمر',ev:['غير مُطبّق']},
+     {s:NO,  c:'IDS Platform',role:'كشف الوصول غير المصرّح',ev:['غير مُطبّق']},
+     {s:WARN,c:'API Management',role:'بوابة API مُدارة وآمنة',ev:['REST API (NestJS) + Swagger؛ بوابة API مُدارة غير مطبّقة']},
+     {s:NO,  c:'iPaaS Platform',role:'ربط OT/IT والمؤسسة',ev:['غير مُطبّق']},
+     {s:WARN,c:'ETL Pipelines',role:'نقل بيانات مُهيكل',ev:['scripts مزامنة؛ منصّة ETL غير مطبّقة']},
+     {s:WARN,c:'Kafka Streaming',role:'تدفّق أحداث لحظي',ev:['Socket.IO · MQTT · Redis pub/sub؛ Kafka غير مطبّق']},
+     {s:NO,  c:'Data Lake',role:'تخزين خام قابل للتوسّع',ev:['غير مُطبّق']},
+     {s:NO,  c:'Data Warehouse',role:'مستودع مُهيكل للـ BI',ev:['PostgreSQL تشغيلي؛ Warehouse مخصّص غير مطبّق']},
+   ]},
+  {n:'02',color:'var(--L2)',title:'تنفيذ وإدارة العمليات (MES)',en:'Manufacturing Operations Platform',pct:92,
+   comps:[
+     {s:OK,c:'Production Scheduling',role:'جدولة خطوط وورديات رقمية',ev:['/scheduling','/production/scheduling','/production/shifts']},
+     {s:OK,c:'Dispatching & Execution',role:'أوامر عمل لحظية',ev:['/production/job-orders','/production/orders']},
+     {s:OK,c:'Work Order Management',role:'دورة حياة رقمية كاملة',ev:['/production/orders','/production/production-orders']},
+     {s:OK,c:'WIP Tracking',role:'رؤية عبر كل المراحل',ev:['/production/batches','/production']},
+     {s:OK,c:'Traceability & Genealogy',role:'من المادة الخام للمنتج',ev:['/traceability/genealogy','/traceability/consumption']},
+     {s:OK,c:'Quality Management',role:'فحوصات، SPC، عيوب',ev:['/quality/inspections','/quality/spc','/quality/ncr','/quality/capa']},
+     {s:OK,c:'Downtime Management',role:'التقاط آلي وتحليل جذري',ev:['/downtime','/production/downtime','/scheduling/planned-downtime']},
+     {s:WARN,c:'Labor Management',role:'حضور وإنتاجية العمالة',ev:['/production/shifts — الورديات؛ تتبّع حضور/إنتاجية كامل محدود']},
+     {s:OK,c:'Recipe & Batch (ISA-88)',role:'سجلات دفعات ووصفات',ev:['/production/recipes','/production/batches']},
+     {s:OK,c:'APS Module',role:'تحسين قائم على القيود',ev:['/scheduling/production']},
+     {s:OK,c:'OEE Monitoring',role:'فاعلية لحظية',ev:['/production/oee','/manufacturing/oee']},
+     {s:OK,c:'Real-Time Dashboards',role:'حالة الخط/الآلة المباشرة',ev:['/command-center','/manufacturing/control','/executive']},
+     {s:OK,c:'EMS Platform',role:'تتبّع استهلاك الطاقة',ev:['/energy','/energy/meters','/energy/live']},
+     {s:OK,c:'QMS Integration',role:'تدقيق وامتثال',ev:['/quality/records','/quality/intelligence']},
+     {s:OK,c:'CMMS',role:'أوامر صيانة وجداول وقائية',ev:['/maintenance/work-orders','/maintenance/preventive']},
+     {s:OK,c:'APM System',role:'صحة وموثوقية الأصول',ev:['/maintenance/reliability — MTBF/MTTR','/maintenance/assets']},
+   ]},
+  {n:'03',color:'var(--L3)',title:'المحاكاة والتوأم الرقمي',en:'Simulation & Optimization',pct:15,
+   comps:[
+     {s:NO,c:'Product Twin',role:'نموذج مواصفات ودورة حياة',ev:['/plm/design قريب لكنه ليس توأماً رقمياً']},
+     {s:NO,c:'Process Twin',role:'مرآة معايير حيّة',ev:['غير مُطبّق']},
+     {s:NO,c:'Factory Twin',role:'نسخة 3D كاملة مع طبقة بيانات',ev:['غير مُطبّق']},
+     {s:NO,c:'Simulation Engine',role:'أحداث منفصلة/مستمرة',ev:['غير مُطبّق']},
+     {s:NO,c:'Sync Engine',role:'مزامنة مع الواقع الفيزيائي',ev:['غير مُطبّق']},
+     {s:NO,c:'What-If Analysis',role:'نمذجة سيناريوهات',ev:['غير مُطبّق']},
+     {s:WARN,c:'Capacity Planning',role:'تحسين عبر الورديات',ev:['APS يوفّر جدولة مقيّدة؛ تخطيط سعة محاكٍ غير مطبّق']},
+     {s:WARN,c:'Bottleneck Analysis',role:'تحديد نقاط القيد',ev:['التحليلات قد تُظهر الاختناقات؛ أداة مخصّصة غير موجودة']},
+     {s:WARN,c:'Energy Optimization',role:'موازنة أحمال وخفض',ev:['/energy — مراقبة وتحليل؛ محرك تحسين/موازنة غير مطبّق']},
+     {s:NO,c:'Virtual Commissioning',role:'اختبار المعدات افتراضياً',ev:['غير مُطبّق']},
+   ]},
+  {n:'04',color:'var(--L4)',title:'الذكاء الصناعي والتحليلات',en:'AI & Intelligence',pct:30,
+   comps:[
+     {s:WARN,c:'Predictive Maintenance',role:'تنبؤ بالأعطال 7-14 يوم',ev:['/ai · /maintenance/reliability — إطار قائم؛ نماذج تنبؤ بحاجة تحقّق']},
+     {s:NO,c:'Computer Vision',role:'فحص بصري آلي',ev:['غير مُطبّق']},
+     {s:NO,c:'Demand Forecasting',role:'منطق شراء بالذكاء',ev:['غير مُطبّق']},
+     {s:WARN,c:'AI Scheduling',role:'تقليل التحويلات',ev:['APS موجود؛ تحسين بالذكاء غير مؤكّد']},
+     {s:NO,c:'Process Optimization',role:'توصيات معايير لحظية',ev:['غير مُطبّق']},
+     {s:OK,c:'Anomaly Detection',role:'مسح مئات المتغيّرات حيّاً',ev:['/ai']},
+     {s:NO,c:'Autonomous Robotics',role:'مناولة مواد موجّهة بالذكاء',ev:['غير مُطبّق']},
+     {s:NO,c:'AI Chatbots',role:'دعم المشغّل في الأعطال',ev:['غير مُطبّق']},
+     {s:WARN,c:'Smart Monitoring',role:'فلترة تنبيهات ذكية',ev:['/alarms · /notifications/rules — قائم على القواعد']},
+     {s:NO,c:'Auto Decision Engine',role:'تنفيذ قواعد وML',ev:['غير مُطبّق']},
+     {s:WARN,c:'Streaming Analytics',role:'استدلال على بيانات حيّة',ev:['خط لحظي موجود؛ استدلال ML غير مطبّق']},
+     {s:NO,c:'Big Data & Models',role:'إدارة خطوط ML',ev:['غير مُطبّق']},
+     {s:OK,c:'KPI Cockpits',role:'تعمّق تشغيلي',ev:['/production/kpi','/manufacturing/kpi','/dashboard-center']},
+   ]},
+  {n:'DX',color:'var(--LDX)',title:'طبقة التحوّل المؤسسي',en:'Digital Transformation (Enterprise)',pct:28,
+   comps:[
+     {s:NO,c:'ERP Systems',role:'تكامل ثنائي مع SAP/Oracle/Odoo',ev:['غير مُطبّق']},
+     {s:NO,c:'CRM Integration',role:'رؤية طلبات العملاء',ev:['غير مُطبّق']},
+     {s:WARN,c:'DMS (Documents)',role:'تحكّم وثائقي للـ SOPs',ev:['/archive · /quality/records قد يغطّي جزئياً؛ DMS مخصّص لا']},
+     {s:WARN,c:'BPM & Workflows',role:'مسارات أعمال آلية',ev:['مسارات اعتماد (reschedule · NCR · CAPA)؛ منصّة BPM عامة لا']},
+     {s:OK,c:'BI Ecosystem',role:'لوحات تنفيذية وذكاء أعمال',ev:['/executive','/analytics','/reports/builder']},
+   ]},
+  {n:'E',color:'var(--LE)',title:'التقنيات الناشئة',en:'Emerging Technologies',pct:10,
+   comps:[
+     {s:NO,c:'Blockchain Tracking',role:'سجلات غير قابلة للتعديل',ev:['غير مُطبّق']},
+     {s:NO,c:'AR/VR Maintenance',role:'طبقات واقع معزّز للإصلاح',ev:['غير مُطبّق']},
+     {s:NO,c:'Remote Assist',role:'دعم خبير عبر فيديو حيّ',ev:['غير مُطبّق']},
+     {s:NO,c:'Autonomous Factory',role:'تدفّق ذاتي التنظيم',ev:['غير مُطبّق']},
+     {s:WARN,c:'Green Manufacturing',role:'تتبّع بصمة الكربون',ev:['/energy أساس متاح؛ تتبّع كربون/استدامة غير مطبّق']},
+   ]},
+];
+
+const stColor={ok:'var(--ok)',warn:'var(--warn)',no:'var(--no)'};
+const stMark={ok:'✓',warn:'~',no:'✕'};
+const stBadge={ok:['b-ok','مُطبّق'],warn:['b-warn','جزئي'],no:['b-no','ناقص']};
+
+/* coverage cards */
+const covGrid=document.getElementById('covGrid');
+layers.forEach(L=>{
+  const ok=L.comps.filter(c=>c.s===OK).length;
+  const wn=L.comps.filter(c=>c.s===WARN).length;
+  const no=L.comps.filter(c=>c.s===NO).length;
+  const el=document.createElement('div');
+  el.className='covcard';
+  el.innerHTML=`<div class="top" style="background:${L.color}"></div>
+    <div class="lyr" style="color:${L.color}">Layer ${L.n}</div>
+    <h3>${L.title}</h3>
+    <div class="he en">${L.en}</div>
+    <div class="ring"><span class="pct en" style="color:${L.color}">${L.pct}%</span>
+      <span class="bar"><i style="width:${L.pct}%;background:${L.color}"></i></span></div>
+    <div class="cnt">
+      <span><span class="dotb" style="background:var(--ok);width:9px;height:9px"></span> <b>${ok}</b> مُطبّق</span>
+      <span><span class="dotb" style="background:var(--warn);width:9px;height:9px"></span> <b>${wn}</b> جزئي</span>
+      <span><span class="dotb" style="background:var(--no);width:9px;height:9px"></span> <b>${no}</b> ناقص</span>
+    </div>`;
+  covGrid.appendChild(el);
+});
+
+/* layer detail tables */
+const host=document.getElementById('layers');
+layers.forEach(L=>{
+  const rows=L.comps.map(c=>{
+    const ev=c.ev.map(e=>e.startsWith('/')||/^[A-Za-z]/.test(e)&&e.includes('/')?`<span class="rt">${e}</span>`:e.startsWith('/')?`<span class="rt">${e}</span>`:e).join(' ');
+    const [bc,bl]=stBadge[c.s];
+    return `<div class="row">
+      <div class="st"><span class="stmark" style="background:${stColor[c.s]}">${stMark[c.s]}</span></div>
+      <div class="cmp"><b class="en">${c.c}</b><span class="role">${c.role}</span></div>
+      <div class="ev">${c.ev.map(e=> (e.startsWith('/')? `<span class="rt">${e}</span>` : e)).join(' ')}</div>
+      <div><span class="badge2 ${bc}">${bl}</span></div>
+    </div>`;
+  }).join('');
+  const ok=L.comps.filter(c=>c.s===OK).length, tot=L.comps.length;
+  const sec=document.createElement('div');
+  sec.className='layer';
+  sec.innerHTML=`<div class="layer-h" style="background:linear-gradient(110deg,${L.color},${L.color}dd)">
+      <div class="n">${L.n}</div>
+      <div><h3>${L.title}</h3><div class="e">${L.en}</div></div>
+      <div class="score"><div class="v">${L.pct}%</div><div class="l">${ok}/${tot} مكوّن</div></div>
+    </div><div class="rows">${rows}</div>`;
+  host.appendChild(sec);
+});
+
+/* recommendations */
+const recs=[
+  {c:'var(--L2)',tag:'إكمال الطبقة 02',t:'إدارة العمالة الكاملة (Labor)',p:'البناء على شاشة الورديات لإضافة تتبّع الحضور والإنتاجية وربطها بأوامر العمل — أقرب فجوة وأسرعها إغلاقاً.'},
+  {c:'var(--L4)',tag:'تعميق الطبقة 04',t:'تفعيل الصيانة التنبؤية فعلياً',p:'استثمار بيانات InfluxDB ومركز AI لبناء نماذج تنبؤ بالأعطال (7-14 يوم) وربطها مباشرة بأوامر CMMS.'},
+  {c:'var(--L1)',tag:'تحصين الطبقة 01',t:'طبقة أمن سيبراني صناعي (OT)',p:'إضافة جدار ناري صناعي و OT Security/IDS لتأمين خط الـ IIoT — متطلّب حوكمة أساسي في المنظومة.'},
+  {c:'var(--LDX)',tag:'فتح طبقة DX',t:'تكامل ERP / CRM ثنائي الاتجاه',p:'جسر بين أوامر الإنتاج والأنظمة المؤسسية (SAP/Oracle/Odoo) عبر بوابة API مُدارة + iPaaS.'},
+  {c:'var(--L1)',tag:'توسعة البيانات',t:'منصّة بيانات (Lake + Warehouse)',p:'إضافة Data Lake/Warehouse و Kafka/ETL لتغذية التحليلات واسعة النطاق ونماذج الذكاء.'},
+  {c:'var(--L3)',tag:'فتح الطبقة 03',t:'توأم رقمي للعمليات + What-If',p:'بدءاً بـ Process Twin يحاكي الخط من بيانات MES الحيّة، ثم محرّك سيناريوهات لتخطيط السعة وتحليل الاختناقات.'},
+];
+const rhost=document.getElementById('recs');
+recs.forEach(r=>{
+  const el=document.createElement('div');el.className='rec';el.style.borderLeftColor=r.c;
+  el.innerHTML=`<span class="tag" style="background:${r.c}">${r.tag}</span><h4>${r.t}</h4><p>${r.p}</p>`;
+  rhost.appendChild(el);
+});
+</script>
+</body>
+</html>
