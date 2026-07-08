@@ -1,15 +1,33 @@
 # MES360° Edge Gateway
 
-On-prem service that polls **Modbus** devices, turns register changes into
-production counts (rising edge → **Total / Good / Bad**, Bad = Total − Good),
-feeds the **in-progress Job Order** of the bound machine, and publishes every
-reading to **MQTT** + **InfluxDB** + **Postgres**. It talks to the *same*
-Dockerised services as the platform and has its own local dashboard at
+On-prem service that polls **Modbus** devices (TCP, RTU and RTU-over-TCP), turns
+what it reads into production data for the MES, and pushes every value to the
+*same* Dockerised backends as the platform (**Postgres + MQTT + InfluxDB**). It
+runs unattended on a plant PC and has its own local dashboard at
 `http://localhost:4900`.
+
+From each polled tag it can:
+
+- **Count production** — a rising edge on a `COUNTER` tag increments the bound
+  machine's *in-progress* Job Order (**Total / Good / Bad**, Bad = Total − Good).
+  Counters are **restart-safe** (state persisted in `GatewayCounterState`, no
+  double-counting on restart) and only accumulate while the machine is
+  **RUNNING**.
+- **Drive machine state & downtime** — a designated machine-status tag (BOOL or
+  mapped INT) sets the machine's live state, opens/closes `DowntimeEvent`s, and
+  feeds the downtime + OEE engine.
+- **Meter energy** — an energy meter's tags (e.g. a Schneider **PM5110** via a
+  template) become throttled `EnergyReading` rows plus rich per-phase history.
+- **Historise everything** — every reading is written to InfluxDB (per-tag
+  opt-out), upserted as the tag's current value in Postgres, and published to
+  MQTT.
+
+It's resilient by design: a DB/MQTT/InfluxDB outage never stops acquisition —
+readings are **buffered to disk** and replayed when the sink returns.
 
 There are two ways to use it:
 
-- **A — Run it directly** (no packaging): for development or a quick run on a PC that already has Node 20. ← start here
+- **A — Run it directly** (no packaging): for development or a quick run on a PC that already has Node 20+. ← start here
 - **B — Deploy it as a Windows service** (`.exe` + NSSM): for a plant PC that must auto-start on boot and run unattended.
 
 ---
@@ -21,8 +39,12 @@ There are two ways to use it:
   docker compose -f docker-compose.prod-local.yml up -d
   ```
   Host ports used by the gateway: Postgres `5433`, MQTT `1883`, InfluxDB `8086`.
-- A platform user account (any account that can log into the web app) — used for the dashboard login.
+- A platform user account (any account that can log into the web app) — used to view gateways/data in the cloud app. The **gateway dashboard itself** logs in with two fixed edge accounts (see below).
 - The gateway's `JWT_SECRET` **must match** the API's (`docker-compose.prod-local.yml` → `JWT_SECRET`).
+
+> The gateway uses its **own** Prisma client, generated from the API's schema via
+> `pnpm prisma:sync` (`scripts/sync-schema.mjs`) into `src/generated/prisma`, so
+> the two schemas never collide. `build` / `package:win` run this automatically.
 
 ---
 
@@ -34,9 +56,12 @@ From the **monorepo root** (`MES360° PLATFORM/`):
 # 1. Install workspace deps (once, or after dependency changes)
 pnpm install
 
-# 2. Build the shared driver lib + generate the Prisma client + compile the gateway
+# 2. Build the shared driver lib + sync/generate the Prisma client + compile the gateway
 pnpm --filter @mes360/edgegateway build
 ```
+
+(`build` runs `prebuild`, which builds `@mes360/industrial-drivers`, syncs the
+schema from the API and runs `prisma generate`.)
 
 Then configure and run from the gateway folder:
 
@@ -66,7 +91,7 @@ A successful start logs:
 [EdgeGateway]   MES360° Edge Gateway listening on http://0.0.0.0:4900
 ```
 
-Open **http://localhost:4900** and log in with a platform user.
+Open **http://localhost:4900** and log in with an edge account (see *Dashboard access* below).
 
 > Stop it with `Ctrl-C`. This mode does **not** survive a reboot or terminal
 > close — use mode **B** for that.
@@ -88,6 +113,16 @@ INFLUX_BUCKET=mes_timeseries
 JWT_SECRET=mes360-jwt-secret-key-change-in-production-32charss
 ```
 
+Optional tuning (all have sane defaults):
+
+```ini
+DEFAULT_POLL_INTERVAL_MS=1000       # per-device poll rate when a device sets none
+HEARTBEAT_INTERVAL_MS=15000         # how often ONLINE is stamped for the cloud app
+BUFFER_DIR=./buffer                 # where offline records are queued
+MES_PLATFORM_URL=http://localhost:8080   # enables the dashboard's MES reachability check
+GATEWAY_ID=                         # pin a fixed gateway row id (else matched by name+factory)
+```
+
 > **⚠ Factory binding matters.** `GATEWAY_FACTORY_CODE` decides which factory the
 > gateway registers under. The web app's **IIoT → Edge Gateways** page only shows
 > gateways in *your* factory, so this must match the factory you're logged into,
@@ -99,7 +134,7 @@ JWT_SECRET=mes360-jwt-secret-key-change-in-production-32charss
 
 ## B — Deploy as a Windows service (step by step)
 
-Run these on the **plant PC** (or a Windows build machine), Node 20 + pnpm installed.
+Run these on the **plant PC** (or a Windows build machine), Node 20+ + pnpm installed.
 
 ### 1. Build the standalone executable
 
@@ -110,7 +145,8 @@ pnpm install
 pnpm --filter @mes360/edgegateway package:win
 ```
 
-This produces a self-contained **`apps/edgegateway/build/`** folder:
+This compiles, packages with `pkg` (node22-win-x64) and copies the Prisma engine
+next to the exe, producing a self-contained **`apps/edgegateway/build/`** folder:
 
 ```
 build/
@@ -167,7 +203,7 @@ It then starts the service.
 
 ### 5. Verify
 
-- Dashboard: **http://localhost:4900** (log in with a platform user).
+- Dashboard: **http://localhost:4900** (log in with an edge account).
 - Web app: **IIoT → Edge Gateways** shows the gateway **Online** (log into the
   factory matching `GATEWAY_FACTORY_CODE`).
 - Reboot the PC → confirm the service comes back automatically.
@@ -206,24 +242,52 @@ so the edge admin can always log in even when the database/MES is offline.
 Styled to match the MES360° web app (logo, dark theme, sidebar). Tabbed
 management UI, usable on the edge PC without the cloud app:
 
-- **Overview** — live device status, executing Job-Order counts, live tag values.
-- **Devices** — add/edit/delete Modbus devices (IP/port, unit id, poll, machine binding; auto-bound to this gateway).
-- **Tags** — add/edit/delete tags with register address/type, scaling, and counter role/edge.
-- **Settings** — edit service connections (**DB / MQTT / InfluxDB / MES Platform**) + gateway name/factory/poll. Saved to `gateway-config.json` (overrides `.env`); use **Save & Restart** to apply (as a Windows service it auto-restarts; in dev re-run `node dist/main.js`).
+- **Overview** — live device status, sink health (DB / MQTT / InfluxDB / MES),
+  disk-buffer backlog, executing Job-Order counts, and live tag values.
+- **Devices** — add/edit/delete Modbus devices (protocol, IP/port or serial
+  params, unit id, poll interval, machine binding; auto-bound to this gateway).
+- **Tags** — add/edit/delete tags with register address/type, scaling
+  (`scaleFactor`/`offset`), word count/order, and counter role/edge.
+- **Meters** — add energy meters (with their linked Modbus device), pick a
+  template (e.g. PM5110) to auto-create the meter's ENERGY tags.
+- **Settings** — edit service connections (**DB / MQTT / InfluxDB / MES Platform**)
+  + gateway name/factory/poll. Saved to `gateway-config.json` (overrides `.env`);
+  use **Save & Restart** to apply (as a Windows service it auto-restarts; in dev
+  re-run `node dist/main.js`).
 
 ## After it's running — configure acquisition
 
-In the web app **or** the gateway's own dashboard (Devices / Tags tabs):
+In the web app **or** the gateway's own dashboard (Devices / Tags / Meters tabs):
 
-1. **IIoT → Devices → Add Device**: Protocol *Modbus TCP*, IP + Port, **Assigned
-   Gateway** = this gateway, **Bound Machine** = the machine to count for, Unit ID.
-2. **IIoT → Tag Browser → Add Tag**: Tag Type *Counter*, Source Device, register
-   **Address** + **Type** (Holding/Input/Coil/Discrete), **Counter Role**
-   (`Total`+`Good`, or `Good`+`Bad`), Edge Trigger *Rising*.
+1. **Add a device**: Protocol *Modbus TCP* (or RTU / RTU-over-TCP), IP + Port
+   (or serial port/baud/parity/data/stop bits), **Assigned Gateway** = this
+   gateway, **Bound Machine** = the machine to count for, Unit ID.
+2. **Add tags** on the device:
+   - **Counter**: Tag Type *Counter*, register **Address** + **Type**
+     (Holding/Input/Coil/Discrete), **Counter Role** (`Total`+`Good`, or
+     `Good`+`Bad`), Edge Trigger *Rising*. A machine may have at most one active
+     tag per role (a duplicate is rejected to prevent double-counting).
+   - **Machine status** (optional): mark the tag as the machine-status tag —
+     BOOL (`true`=RUNNING, `false`=stopped) or an INT with a `statusMap`
+     (defaults to the standard 0-based map: `0` IDLE, `1` RUNNING, `2` BREAKDOWN,
+     `3` PLANNED_STOP, `4` SETUP, …). Down states open a `DowntimeEvent`
+     automatically.
+   - **Energy**: usually created for you by the meter template; set `energyRole`
+     (`ENERGY_IMPORT_TOTAL`, `ACTIVE_POWER_TOTAL`, per-phase V/I/P/PF/Hz, …).
 
-The running gateway reloads config every ~10 s — no restart needed. Each rising
-edge increments the bound machine's **EXECUTING** Job Order (Good/Bad/Total) and
-publishes to MQTT + InfluxDB.
+The running gateway reconciles device/tag config against the DB **every ~10 s** —
+no restart needed. Each rising edge increments the bound machine's **EXECUTING**
+Job Order (Good/Bad/Total, only while RUNNING) and everything published to MQTT +
+InfluxDB.
+
+### MQTT topics published
+
+| Topic | Payload |
+|---|---|
+| `mes360/<factoryId>/<machineCode|id>/<tagCode>` | per-poll `{ tagId, value, quality, ts }` |
+| `mes360/<factoryId>/jo/<jobOrderId>/count` | count event `{ role, good, rejected, total, goodDelta, scrapDelta, ts }` |
+| `mes360/<factoryId>/energy/<meterId>` | energy event `{ readingId, value, powerKw, ts }` |
+| `mes360/control/historian` *(subscribed)* | retained `{ paused }` from the platform's System console — pauses/resumes this gateway's InfluxDB writes |
 
 ---
 
@@ -305,9 +369,12 @@ Get-NetTCPConnection -LocalPort 4900,1502 -State Listen | ForEach-Object { Stop-
 | Symptom | Cause / fix |
 |---|---|
 | Gateway not shown in web **Edge Gateways** | `GATEWAY_FACTORY_CODE` ≠ the factory you're viewing. Set it and restart (or view as the matching factory / a SUPER_ADMIN). |
-| Dashboard login `401 Invalid credentials` | Use a real platform account; `JWT_SECRET` must match the API. |
+| Dashboard login `401 Invalid credentials` | Use an **edge account** (`admin@mes360.sa` / `engineer@mes360.sa`), not a platform user. Passwords are set in `config-users.ts` / env. |
 | `Can't reach database server at …:5433` | Stack not up, wrong `DATABASE_URL` host, or firewall. Gateway keeps running and buffers to disk; it recovers when the DB returns. |
-| Device stays `DISCONNECTED` | Wrong IP/port/unit id, or the PLC isn't reachable from the gateway PC. Check `lastError` on the device. |
-| Counts not moving | Tag must be `COUNTER` with a `counterRole`, bound to a machine that has an **EXECUTING** Job Order. |
+| Device stays `DISCONNECTED` / `ERROR` | Wrong IP/port/unit id (or serial params), or the PLC isn't reachable from the gateway PC. Check `lastError` on the device. |
+| Counts not moving | Tag must be `COUNTER` with a `counterRole`, bound to a machine with an **EXECUTING** Job Order — **and** the machine must be RUNNING (a machine-status tag reporting a non-RUNNING state gates the counter). |
+| Downtime not recorded | Needs a tag flagged as the machine-status tag; INT tags need a valid `statusMap` value (or use the default 0-based map). |
+| Energy readings missing | Meter needs a `templateKey` (tags auto-provision on the next reload) and the device must report `ENERGY_IMPORT_TOTAL` / `ACTIVE_POWER_TOTAL`; writes are throttled to ~1 / 10 s per meter. |
+| History empty but MQTT/DB fine | InfluxDB writes may be **paused** remotely (`mes360/control/historian`), Influx not configured, or the tag has historization disabled. |
 | `pkg` build fails on Prisma | The engine ships beside the exe via `scripts/copy-runtime-assets.mjs`; keep `query_engine-windows.dll.node` next to `edgegateway.exe`. |
 | Build fails with `EPERM … rename query_engine-windows.dll.node` | A **running gateway** has the Prisma engine DLL loaded, so `prisma generate` can't overwrite it. Stop the gateway (Ctrl-C, or `nssm stop Mes360EdgeGateway`) before building, then rebuild. |
