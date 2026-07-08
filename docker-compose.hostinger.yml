@@ -31,6 +31,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-mes_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    # Published for off-site Edge Gateways (plant PCs) that connect DIRECTLY over
+    # TCP — Traefik only fronts HTTP(S), so these raw ports must be exposed.
+    # ⚠ SECURITY: lock the VPS firewall so 5433 is reachable ONLY from the plant's
+    # static IP(s), and keep a strong POSTGRES_PASSWORD.
+    ports:
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -68,6 +74,10 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG:-mes360}
       DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET:-mes_timeseries}
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    # Published for off-site Edge Gateways (historian writes). ⚠ Firewall to the
+    # plant IP(s); the INFLUX_TOKEN is the only credential here.
+    ports:
+      - "8086:8086"
     volumes:
       - influxdb_data:/var/lib/influxdb2
     networks:
@@ -82,6 +92,10 @@ services:
     image: eclipse-mosquitto:2
     container_name: mes-mqtt-prod
     restart: always
+    # Published for off-site Edge Gateways (tag/count/energy publishes). ⚠ Firewall
+    # to the plant IP(s); enable auth in mosquitto.conf before exposing publicly.
+    ports:
+      - "1883:1883"
     volumes:
       - ./infrastructure/docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
       - mosquitto_data:/mosquitto/data
