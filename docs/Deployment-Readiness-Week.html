@@ -1,0 +1,493 @@
+<style>
+  :root{
+    --ground:#e9edef;
+    --paper:#ffffff;
+    --ink:#16232d;
+    --muted:#5c6e7a;
+    --steel:#284457;
+    --steel-2:#37627c;
+    --accent:#d97a1e;
+    --accent-soft:#f6e6d2;
+    --line:#d4dbe0;
+    --line-strong:#b9c4cb;
+    --ready:#2e7d57;
+    --ready-soft:#e0efe7;
+    --crit:#b6492f;
+    --grid:#dde3e7;
+    /* role colors */
+    --aut:#a85812;      --aut-bg:#f7e7d3;   --aut-bd:#e7c9a5;
+    --sw:#2b6a8a;       --sw-bg:#dfeef4;    --sw-bd:#bcdae6;
+    --font:"Segoe UI","Tahoma","Geneva Pro",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  .doc{
+    direction:rtl;
+    text-align:right;
+    font-family:var(--font);
+    color:var(--ink);
+    background:var(--ground);
+    line-height:1.7;
+    font-size:16px;
+    -webkit-font-smoothing:antialiased;
+    padding:0 0 64px;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+
+  /* ---------- Header / blueprint band ---------- */
+  .masthead{
+    background:linear-gradient(180deg,#22404f 0%, #1b3543 100%);
+    color:#eaf1f5;position:relative;overflow:hidden;
+    border-bottom:3px solid var(--accent);
+  }
+  .masthead::before{
+    content:"";position:absolute;inset:0;
+    background-image:
+      linear-gradient(to right,rgba(255,255,255,.05) 1px,transparent 1px),
+      linear-gradient(to bottom,rgba(255,255,255,.05) 1px,transparent 1px);
+    background-size:34px 34px;pointer-events:none;
+  }
+  .masthead .wrap{position:relative;padding:38px 20px 34px}
+  .eyebrow{
+    font-size:12.5px;letter-spacing:.18em;text-transform:uppercase;
+    color:#9fc0d0;font-weight:600;margin-bottom:14px;
+    display:flex;gap:10px;align-items:center;
+  }
+  .eyebrow .dot{width:8px;height:8px;background:var(--accent);border-radius:50%;display:inline-block}
+  h1{margin:0;font-size:clamp(26px,4.4vw,40px);font-weight:800;line-height:1.2;text-wrap:balance;letter-spacing:-.01em}
+  .sub{margin:12px 0 0;color:#bcd2dd;font-size:16px;max-width:60ch}
+  .meta{display:flex;flex-wrap:wrap;gap:10px 26px;margin-top:24px;font-size:13.5px;color:#cfe0e8}
+  .meta b{color:#fff;font-weight:600}
+  .meta .k{color:#8eb1c2;display:block;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px}
+
+  /* ---------- Section ---------- */
+  section{margin-top:46px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px}
+  .sec-head h2{margin:0;font-size:21px;font-weight:800;color:var(--steel)}
+  .sec-head .rule{flex:1;height:1px;background:var(--line-strong)}
+  .sec-head .num{font-variant-numeric:tabular-nums;font-weight:700;color:var(--accent);font-size:14px;border:1.5px solid var(--accent);border-radius:6px;padding:1px 9px}
+
+  /* ---------- Hardware table ---------- */
+  .tbl-wrap{overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+  table{border-collapse:collapse;width:100%;min-width:680px;font-size:14.5px}
+  thead th{background:#f1f4f6;color:var(--steel);text-align:right;font-weight:700;padding:12px 16px;border-bottom:2px solid var(--line-strong);font-size:13px;letter-spacing:.02em}
+  tbody td{padding:11px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:nth-child(even){background:#fafbfc}
+  td .model{color:var(--muted);font-size:13px}
+  .proto{display:inline-block;font-size:12px;font-weight:600;background:#eef3f6;color:var(--steel-2);border:1px solid var(--line);padding:1px 8px;border-radius:20px;white-space:nowrap}
+
+  /* ---------- Role chips ---------- */
+  .role{
+    display:inline-block;font-size:11px;font-weight:700;line-height:1.5;
+    padding:1px 8px;border-radius:5px;white-space:nowrap;
+    text-decoration:none!important;vertical-align:middle;letter-spacing:.01em;
+  }
+  .role.aut{color:var(--aut);background:var(--aut-bg);border:1px solid var(--aut-bd)}
+  .role.sw{color:var(--sw);background:var(--sw-bg);border:1px solid var(--sw-bd)}
+  .legend{
+    display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;
+    background:var(--paper);border:1px solid var(--line);border-radius:10px;
+    padding:12px 16px;margin-bottom:18px;font-size:13.5px;color:var(--muted);
+  }
+  .legend .item{display:flex;align-items:center;gap:8px}
+
+  /* ---------- Parallel tracks (Gantt) ---------- */
+  .gantt-wrap{overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+  .gantt{min-width:720px;display:flex;flex-direction:column;gap:8px}
+  .gtrack{display:grid;grid-template-columns:150px repeat(7,1fr);gap:6px;align-items:center}
+  .gtrack.head .gcell{font-size:12px;color:var(--muted);text-align:center;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.3}
+  .gtrack.head .gcell .dt{display:block;font-size:10px;font-weight:500;opacity:.8}
+  .glabel{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px;justify-content:flex-start}
+  .gbar{
+    border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;line-height:1.35;
+    min-height:38px;display:flex;align-items:center;text-align:center;justify-content:center;
+  }
+  .gbar.aut{background:var(--aut-bg);color:var(--aut);border:1px solid var(--aut-bd)}
+  .gbar.sw{background:var(--sw-bg);color:var(--sw);border:1px solid var(--sw-bd)}
+  .gbar.shared{background:#e7edf0;color:var(--steel);border:1px solid var(--line-strong)}
+  .gnote{margin-top:14px;font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:flex-start}
+  .gnote b{color:var(--steel-2)}
+
+  /* ---------- Timeline ---------- */
+  .timeline{position:relative}
+  .day{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:18px;position:relative;box-shadow:0 1px 2px rgba(20,40,55,.04)}
+  .day-top{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-bottom:14px;margin-bottom:14px;border-bottom:1px dashed var(--line-strong)}
+  .badge{flex-shrink:0;width:52px;height:52px;border-radius:12px;background:var(--steel);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+  .badge .lbl{font-size:9px;letter-spacing:.12em;opacity:.75;margin-bottom:3px}
+  .badge .n{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+  .day.onsite .badge{background:var(--accent)}
+  .day-title{flex:1;min-width:200px}
+  .day-title h3{margin:0;font-size:18px;font-weight:800}
+  .day-title .date{color:var(--muted);font-size:13.5px;margin-top:2px;font-variant-numeric:tabular-nums}
+  .phase{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:3px 11px;border-radius:20px;white-space:nowrap}
+  .prog{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;background:#f1f4f6;border-radius:20px;padding:3px 11px;white-space:nowrap}
+  .prog.full{background:var(--ready-soft);color:var(--ready);font-weight:600}
+
+  ul.tasks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+  ul.tasks li{display:flex;gap:11px;align-items:flex-start}
+  ul.tasks input[type=checkbox]{appearance:none;-webkit-appearance:none;flex-shrink:0;width:19px;height:19px;margin:3px 0 0;border:1.8px solid var(--line-strong);border-radius:5px;background:#fff;cursor:pointer;position:relative;transition:.12s}
+  ul.tasks input[type=checkbox]:hover{border-color:var(--steel-2)}
+  ul.tasks input[type=checkbox]:checked{background:var(--steel);border-color:var(--steel)}
+  ul.tasks input[type=checkbox]:checked::after{content:"";position:absolute;inset:0;background:no-repeat center/12px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E")}
+  ul.tasks input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  ul.tasks label{cursor:pointer;font-size:15px}
+  ul.tasks label .roles{margin-inline-start:6px}
+  ul.tasks input:checked + label{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-strong)}
+  .tag-key{font-weight:700;color:var(--steel-2)}
+  code{font-family:"Cascadia Mono","Consolas",monospace;font-size:13px;background:#eef3f6;color:#1f3a49;padding:1px 6px;border-radius:5px;direction:ltr;display:inline-block;border:1px solid #e0e8ec}
+  .note{margin-top:14px;background:#fbf3e8;border-inline-start:3px solid var(--accent);border-radius:0 8px 8px 0;padding:10px 14px;font-size:13.5px;color:#7a5320}
+  .note b{color:var(--accent)}
+
+  /* ---------- Responsibility split ---------- */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .split .col{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+  .split .col.aut{border-top:3px solid var(--aut)}
+  .split .col.sw{border-top:3px solid var(--sw)}
+  .split .col h3{margin:0 0 4px;font-size:17px;font-weight:800;display:flex;align-items:center;gap:10px}
+  .split .col .who{font-size:12.5px;color:var(--muted);margin-bottom:14px}
+  .split ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .split li{display:flex;gap:9px;font-size:14px;align-items:flex-start}
+  .split li::before{content:"";flex-shrink:0;width:7px;height:7px;border-radius:2px;margin-top:8px}
+  .split .col.aut li::before{background:var(--aut)}
+  .split .col.sw li::before{background:var(--sw)}
+  .split .shared{grid-column:1 / -1;background:#f4f7f8;border:1px dashed var(--line-strong);border-radius:14px;padding:16px 22px}
+  .split .shared h3{margin:0 0 10px;font-size:15px;font-weight:800;color:var(--steel)}
+  .split .shared ul{flex-direction:row;flex-wrap:wrap;gap:8px 20px}
+  .split .shared li::before{background:var(--steel-2);border-radius:50%}
+
+  /* ---------- Deliverables / cards ---------- */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;gap:13px;align-items:flex-start}
+  .card .ic{flex-shrink:0;width:34px;height:34px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+  .card h4{margin:0 0 3px;font-size:15px;font-weight:700}
+  .card p{margin:0;font-size:13px;color:var(--muted);line-height:1.55}
+
+  /* ---------- Go/No-Go ---------- */
+  .gonogo{background:linear-gradient(180deg,#22404f,#1b3543);color:#eaf1f5;border-radius:14px;padding:26px 28px;border:1px solid #14323f}
+  .gonogo h2{color:#fff;margin:0 0 6px;font-size:20px}
+  .gonogo p{margin:0 0 18px;color:#bcd2dd;font-size:14px}
+  .gonogo ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 22px}
+  .gonogo li{display:flex;gap:10px;align-items:center;font-size:14.5px}
+  .gonogo li::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--accent);flex-shrink:0}
+
+  footer{margin-top:46px;text-align:center;color:var(--muted);font-size:12.5px}
+  footer .rule{height:1px;background:var(--line-strong);margin-bottom:18px}
+
+  @media (max-width:640px){.split{grid-template-columns:1fr}}
+  @media print{.doc{background:#fff}.day,.card,.tbl-wrap,.split .col{box-shadow:none;break-inside:avoid}.masthead::before{display:none}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="doc">
+  <header class="masthead">
+    <div class="wrap">
+      <div class="eyebrow"><span class="dot"></span> MES360° · SDPF — National Care Company</div>
+      <h1>خطة تجهيز التشغيل قبل النزول للموقع</h1>
+      <p class="sub">خطوات الأسبوع الواحد لتجهيز الكمبيوتر الصناعي وأجهزة الميدان وتدفّق البيانات (Modbus → MQTT → MES) حتى الجاهزية الكاملة للتشغيل — مع تصنيف كل مهمة حسب المسؤول.</p>
+      <div class="meta">
+        <div><span class="k">المدة</span><b>30 يونيو ← 7 يوليو 2026</b></div>
+        <div><span class="k">المصنع</span><b>SDPF</b></div>
+        <div><span class="k">المنصّة</span><b>MES360° (Edge + API + Web)</b></div>
+        <div><span class="k">النزول للموقع</span><b>7 يوليو 2026</b></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <!-- Hardware -->
+    <section>
+      <div class="sec-head"><span class="num">A</span><h2>الهاردوير في الموقع</h2><span class="rule"></span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>الجهاز</th><th>الموديل</th><th>الدور</th><th>البروتوكول</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>IO Module ‎#1</td><td class="model">IO Modbus 8-CH</td><td>دخل/خرج رقمي — عدّادات وحالة الماكينة</td><td><span class="proto">Modbus TCP</span></td></tr>
+            <tr><td>IO Module ‎#2</td><td class="model">IO Modbus 8-CH</td><td>دخل/خرج رقمي — عدّادات وحالة الماكينة</td><td><span class="proto">Modbus TCP</span></td></tr>
+            <tr><td>IIoT Gateway</td><td class="model">Weintek cMT-G01</td><td>تجميع وسطي</td><td><span class="proto">Modbus / MQTT</span></td></tr>
+            <tr><td>عدّادات الطاقة</td><td class="model">Schneider PM5110 · Siemens PAC2200 / PAC3220</td><td>قياس الطاقة والتيار</td><td><span class="proto">Modbus TCP/RTU</span></td></tr>
+            <tr><td>Remote I/O</td><td class="model">Ansamotion 16-port</td><td>دخل/خرج رقمي</td><td><span class="proto">Modbus TCP</span></td></tr>
+            <tr><td>حسّاسات الكراتين</td><td class="model">Carlo Gavazzi — Through-beam + Retro-reflective</td><td>كشف وعدّ الكراتين</td><td><span class="proto">DI → IO</span></td></tr>
+            <tr><td>ريليهات عزل (SSR)</td><td class="model">Phoenix Contact PLC-OPT 24DC</td><td>عزل إشارة الحسّاسات</td><td><span class="proto">—</span></td></tr>
+            <tr><td>Industrial Switch</td><td class="model">Ansamotion EDS-205A 8-port</td><td>الشبكة الصناعية</td><td><span class="proto">Ethernet</span></td></tr>
+            <tr><td>محوّل RS485↔Ethernet</td><td class="model">HXSP-2108E-C</td><td>ربط العدّادات التسلسلية</td><td><span class="proto">Modbus Serial→TCP</span></td></tr>
+            <tr><td>محوّلات تيار (CTs)</td><td class="model">ENTES 100/5 · 200/5</td><td>قياس التيار للعدّادات</td><td><span class="proto">→ Meters</span></td></tr>
+            <tr><td>الكمبيوتر الصناعي</td><td class="model">Industrial PC</td><td>تشغيل منصّة MES360° كاملة (Docker)</td><td><span class="proto">Host</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Parallel tracks -->
+    <section>
+      <div class="sec-head"><span class="num">B</span><h2>المسارات المتوازية · أوتوميشن ∥ سوفتوير</h2><span class="rule"></span></div>
+      <div class="gantt-wrap">
+        <div class="gantt">
+          <div class="gtrack head">
+            <div class="gcell"></div>
+            <div class="gcell">1<span class="dt">30/6</span></div>
+            <div class="gcell">2<span class="dt">1/7</span></div>
+            <div class="gcell">3<span class="dt">2/7</span></div>
+            <div class="gcell">4<span class="dt">3/7</span></div>
+            <div class="gcell">5<span class="dt">4/7</span></div>
+            <div class="gcell">6<span class="dt">5/7</span></div>
+            <div class="gcell">7<span class="dt">6-7/7</span></div>
+          </div>
+          <div class="gtrack">
+            <div class="glabel"><span class="role aut">أوتوميشن</span></div>
+            <div class="gbar aut" style="grid-column:2 / 5">تهيئة الأجهزة والشبكة والحسّاسات (Bench) + Register Map</div>
+            <div class="gbar aut" style="grid-column:7 / 8">مخطط الشبكة + Backup الأجهزة</div>
+          </div>
+          <div class="gtrack">
+            <div class="glabel"><span class="role sw">سوفتوير</span></div>
+            <div class="gbar sw" style="grid-column:2 / 3">PC + Docker</div>
+            <div class="gbar sw" style="grid-column:3 / 4">DB + Master Data</div>
+            <div class="gbar sw" style="grid-column:4 / 6">Edge Gateway + توبيكات MQTT</div>
+            <div class="gbar sw" style="grid-column:7 / 8">Backup DB + Images</div>
+          </div>
+          <div class="gtrack">
+            <div class="glabel">مشترك</div>
+            <div class="gbar shared" style="grid-column:5 / 7">استقبال البيانات + E2E + UAT</div>
+            <div class="gbar shared" style="grid-column:8 / 9">Dry-run + Go-Live</div>
+          </div>
+        </div>
+        <div class="gnote"><span>◆</span><span><b>الأيام 1–3:</b> الفريقان يعملان بالتوازي بالكامل — الأوتوميشن على أجهزة الميدان والشبكة، والسوفتوير على الكمبيوتر الصناعي والداتابيز والـ Edge. <b>يوم 4–5:</b> نقطة الالتقاء (التكامل واستقبال البيانات والاختبار الكامل). <b>يوم 6–7:</b> النسخ الاحتياطية ثم التشغيل التجريبي والنزول.</span></div>
+      </div>
+    </section>
+
+    <!-- Timeline -->
+    <section>
+      <div class="sec-head"><span class="num">C</span><h2>الخطة التنفيذية — يوم بيوم</h2><span class="rule"></span></div>
+      <div class="legend">
+        <span>تصنيف كل مهمة حسب المسؤول:</span>
+        <span class="item"><span class="role aut">أوتوميشن</span> مهندس الأوتوميشن — الأجهزة والشبكة والميدان</span>
+        <span class="item"><span class="role sw">سوفتوير</span> مهندس السوفتوير — المنصّة والبيانات والتكامل</span>
+        <span class="item"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span> مهمة مشتركة</span>
+      </div>
+      <div class="timeline">
+
+        <!-- Day 1 -->
+        <article class="day" data-day="1">
+          <div class="day-top">
+            <div class="badge"><span class="lbl">اليوم</span><span class="n">1</span></div>
+            <div class="day-title"><h3>تهيئة الكمبيوتر الصناعي</h3><div class="date">الثلاثاء · 30 يونيو</div></div>
+            <span class="phase">البنية التحتية</span>
+            <span class="prog">0 / 5</span>
+          </div>
+          <ul class="tasks">
+            <li><input type="checkbox" id="d1t1"><label for="d1t1">تثبيت نظام التشغيل + التحديثات + <span class="tag-key">Docker + docker-compose</span><span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d1t2"><label for="d1t2">تجهيز ملف <code>.env</code> للإنتاج من <code>.env.prod.example</code>: <code>DATABASE_URL</code>, <code>MQTT_BROKER_URL</code>, <code>INFLUX_*</code>, <code>JWT_SECRET</code> (≥32 حرف), <code>ENCRYPTION_KEY</code>, <code>CORS_ORIGINS</code><span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d1t3"><label for="d1t3">تشغيل الستاك: <code>docker compose -f docker-compose.prod-local.yml up -d</code> (API + Web + Postgres + InfluxDB + Redis + MQTT broker)<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d1t4"><label for="d1t4">تأكيد الإقلاع التلقائي للخدمات بعد إعادة تشغيل الجهاز (<code>restart: always</code>)<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d1t5"><label for="d1t5">ضبط IP ثابت للـ PC + فتح المنافذ في الـ Firewall: <code>1883</code> MQTT، <code>3000</code> Web، API، <code>8086</code> Influx، <code>4900</code> Gateway<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+          </ul>
+        </article>
+
+        <!-- Day 2 -->
+        <article class="day" data-day="2">
+          <div class="day-top">
+            <div class="badge"><span class="lbl">اليوم</span><span class="n">2</span></div>
+            <div class="day-title"><h3>قاعدة البيانات والبيانات الأساسية</h3><div class="date">الأربعاء · 1 يوليو</div></div>
+            <span class="phase">Master Data</span>
+            <span class="prog">0 / 5</span>
+          </div>
+          <ul class="tasks">
+            <li><input type="checkbox" id="d2t1"><label for="d2t1"><code>prisma migrate deploy</code> + تأكيد اتصال Postgres و InfluxDB<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d2t2"><label for="d2t2">إدخال هيكل ISA-95: Enterprise → Factory (SDPF) → Areas → Lines → <span class="tag-key">Machines</span> بأكوادها<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d2t3"><label for="d2t3">إدخال الـ SKUs + Recipes + Routing Steps<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d2t4"><label for="d2t4">إنشاء المستخدمين والأدوار (مرجع <code>SEED-USERS-REFERENCE.md</code>)<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d2t5"><label for="d2t5">التأكد أن أكواد الماكينات تطابق الـ <code>machineKey</code> المستخدَم في توبيكات MQTT<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+          </ul>
+          <div class="note"><b>هام:</b> أي اختلاف بين كود الماكينة في الداتابيز و الـ machineKey في الـ Edge هيمنع ربط البيانات اللحظية بالماكينة الصحيحة — يتفق عليه الطرفان.</div>
+        </article>
+
+        <!-- Day 3 -->
+        <article class="day" data-day="3">
+          <div class="day-top">
+            <div class="badge"><span class="lbl">اليوم</span><span class="n">3</span></div>
+            <div class="day-title"><h3>تهيئة شبكة وأجهزة الميدان</h3><div class="date">الخميس · 2 يوليو</div></div>
+            <span class="phase">الأجهزة والشبكة</span>
+            <span class="prog">0 / 6</span>
+          </div>
+          <ul class="tasks">
+            <li><input type="checkbox" id="d3t1"><label for="d3t1">إعطاء IPs ثابتة لكل جهاز Modbus TCP (IO Modbus 8-CH ×2, PAC2200/3220, Remote I/O, Weintek) على نفس الـ subnet عبر EDS-205A<span class="roles"><span class="role aut">أوتوميشن</span></span></label></li>
+            <li><input type="checkbox" id="d3t2"><label for="d3t2">ضبط محوّل <span class="tag-key">HXSP RS485↔Ethernet</span> للعدّادات التسلسلية (Slave ID، baud، parity) + خريطة Modbus TCP<span class="roles"><span class="role aut">أوتوميشن</span></span></label></li>
+            <li><input type="checkbox" id="d3t3"><label for="d3t3">تهيئة وحدتَي <span class="tag-key">IO Modbus 8-CH</span>: ضبط الـ Slave ID وخريطة الـ registers للقنوات (GOOD/BAD/TOTAL) وحالة الماكينة<span class="roles"><span class="role aut">أوتوميشن</span></span></label></li>
+            <li><input type="checkbox" id="d3t4"><label for="d3t4">توصيل حسّاسات الكراتين على قنوات الـ DI (عبر SSR للعزل) في وحدات الـ IO<span class="roles"><span class="role aut">أوتوميشن</span></span></label></li>
+            <li><input type="checkbox" id="d3t5"><label for="d3t5">ضبط نسب الـ CTs (100/5، 200/5) في إعدادات كل Power Meter<span class="roles"><span class="role aut">أوتوميشن</span></span></label></li>
+            <li><input type="checkbox" id="d3t6"><label for="d3t6">إعداد جدول <span class="tag-key">Register Map</span> موحّد لكل جهاز (address، نوع البيانات، scaling)<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+          </ul>
+        </article>
+
+        <!-- Day 4 -->
+        <article class="day" data-day="4">
+          <div class="day-top">
+            <div class="badge"><span class="lbl">اليوم</span><span class="n">4</span></div>
+            <div class="day-title"><h3>تهيئة Edge Gateway واستقبال البيانات</h3><div class="date">الجمعة · 3 يوليو</div></div>
+            <span class="phase">تدفّق البيانات</span>
+            <span class="prog">0 / 5</span>
+          </div>
+          <ul class="tasks">
+            <li><input type="checkbox" id="d4t1"><label for="d4t1">تشغيل <code>apps/edgegateway</code> وضبط <code>gateway-config.json</code>: <code>GATEWAY_FACTORY_CODE</code>, <code>MQTT_BROKER_URL</code>, <code>INFLUX_*</code>, <code>DATABASE_URL</code><span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d4t2"><label for="d4t2">تعريف الأجهزة والـ Tags لكل ماكينة: تصنيف <code>MEASUREMENT / COUNTER / ENERGY</code> + meter-templates + scaling + rising-edge counter<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d4t3"><label for="d4t3">تأكيد نشر التوبيكات: <code>mes360/{factory}/{machineKey}/{tagCode}</code> · <code>.../jo/{joId}/count</code> · <code>.../energy/{meterId}</code><span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d4t4"><label for="d4t4">مراقبة الـ broker (<code>mosquitto_sub</code>) لتأكيد وصول القيم بـ QoS 1<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d4t5"><label for="d4t5">اختبار store-and-forward: فصل الشبكة لحظياً وتأكيد تفريغ <code>buffer/*.jsonl</code> بعد العودة<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+          </ul>
+        </article>
+
+        <!-- Day 5 -->
+        <article class="day" data-day="5">
+          <div class="day-top">
+            <div class="badge"><span class="lbl">اليوم</span><span class="n">5</span></div>
+            <div class="day-title"><h3>اختبار التدفّق الكامل + UAT</h3><div class="date">السبت · 4 يوليو</div></div>
+            <span class="phase">End-to-End</span>
+            <span class="prog">0 / 6</span>
+          </div>
+          <ul class="tasks">
+            <li><input type="checkbox" id="d5t1"><label for="d5t1">Scenario 0: إنشاء Production Order → Auto-generate Work Orders → Job Orders → بدء التشغيل وتسجيل العدّ<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d5t2"><label for="d5t2">تأكيد سلسلة العدّ: Edge counter → JobOrder → WorkOrder → ProductionOrder<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d5t3"><label for="d5t3">تأكيد بثّ WebSocket للداشبورد: <code>production:count:updated</code>, <code>machine:telemetry</code>, <code>energy:reading</code><span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d5t4"><label for="d5t4">التحقق من حساب OEE / AT-OEE بعد دقيقة (historian sampler)<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d5t5"><label for="d5t5">اختبار تغيّر حالة الماكينة (RUNNING ↔ BREAKDOWN) وانعكاسه على downtime و JO<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d5t6"><label for="d5t6">اختبار قراءة الطاقة + كشف الـ anomaly<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+          </ul>
+        </article>
+
+        <!-- Day 6 -->
+        <article class="day" data-day="6">
+          <div class="day-top">
+            <div class="badge"><span class="lbl">اليوم</span><span class="n">6</span></div>
+            <div class="day-title"><h3>التحضير اللوجستي والنسخ الاحتياطي</h3><div class="date">الأحد · 5 يوليو</div></div>
+            <span class="phase">التحضير</span>
+            <span class="prog">0 / 5</span>
+          </div>
+          <ul class="tasks">
+            <li><input type="checkbox" id="d6t1"><label for="d6t1">رسم مخطط الشبكة التنفيذي (Network/Wiring Diagram): كل جهاز + IP + Switch port + الكابل + الربط بالـ Edge/PC<span class="roles"><span class="role aut">أوتوميشن</span></span></label></li>
+            <li><input type="checkbox" id="d6t2"><label for="d6t2">إعداد جدول I/O النهائي (Sensor → DI → IO register → Tag → MQTT topic → Machine)<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d6t3"><label for="d6t3">أخذ Backup للداتابيز وملفات الإعداد (<code>backup-database.bat</code>) + image للـ Docker stack<span class="roles"><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d6t4"><label for="d6t4">تجهيز عُدّة الموقع: كابلات Ethernet/M12، لابتوب config، أداة MQTT، multimeter<span class="roles"><span class="role aut">أوتوميشن</span></span></label></li>
+            <li><input type="checkbox" id="d6t5"><label for="d6t5">نسخة احتياطية من إعدادات وحدات الـ IO Modbus و Weintek والعدّادات<span class="roles"><span class="role aut">أوتوميشن</span></span></label></li>
+          </ul>
+        </article>
+
+        <!-- Day 7 -->
+        <article class="day onsite" data-day="7">
+          <div class="day-top">
+            <div class="badge"><span class="lbl">اليوم</span><span class="n">7</span></div>
+            <div class="day-title"><h3>المراجعة النهائية ثم النزول للموقع</h3><div class="date">الاثنين · 6 يوليو &nbsp;←&nbsp; النزول 7 يوليو</div></div>
+            <span class="phase">Go-Live</span>
+            <span class="prog">0 / 4</span>
+          </div>
+          <ul class="tasks">
+            <li><input type="checkbox" id="d7t1"><label for="d7t1">تشغيل تجريبي كامل لمدة ساعة بمحاكاة بيانات وتأكيد ثبات الداشبورد<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d7t2"><label for="d7t2">استيفاء قائمة Go/No-Go (بالأسفل)<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d7t3"><label for="d7t3">طباعة المخططات + Register Maps + خطة الموقع وتوزيع المهام على الفريق<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+            <li><input type="checkbox" id="d7t4"><label for="d7t4">النزول للموقع (7 يوليو) والتركيب وفق المخطط ثم التشغيل<span class="roles"><span class="role aut">أوتوميشن</span><span class="role sw">سوفتوير</span></span></label></li>
+          </ul>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- Responsibility split -->
+    <section>
+      <div class="sec-head"><span class="num">D</span><h2>توزيع الأدوار والمسؤوليات</h2><span class="rule"></span></div>
+      <div class="split">
+        <div class="col aut">
+          <h3><span class="role aut">أوتوميشن</span> مهندس الأوتوميشن</h3>
+          <div class="who">الأجهزة · الشبكة الصناعية · الميدان · التوصيلات</div>
+          <ul>
+            <li>إعطاء IPs ثابتة لكل أجهزة Modbus وربطها على الـ Switch</li>
+            <li>ضبط محوّل RS485↔Ethernet للعدّادات التسلسلية</li>
+            <li>تهيئة وحدتَي IO Modbus 8-CH وخريطة الـ registers</li>
+            <li>توصيل حسّاسات الكراتين عبر ريليهات SSR على الـ DI</li>
+            <li>ضبط نسب الـ CTs في عدّادات الطاقة</li>
+            <li>رسم مخطط الشبكة والتوصيلات (Wiring Diagram)</li>
+            <li>نسخ احتياطية لإعدادات الأجهزة (IO / Weintek / العدّادات)</li>
+            <li>تجهيز عُدّة الموقع الميدانية</li>
+          </ul>
+        </div>
+        <div class="col sw">
+          <h3><span class="role sw">سوفتوير</span> مهندس السوفتوير</h3>
+          <div class="who">المنصّة · الداتابيز · التكامل · الداشبورد</div>
+          <ul>
+            <li>تجهيز الكمبيوتر الصناعي وتشغيل ستاك Docker كامل</li>
+            <li>ضبط ملفات <code>.env</code> والمنافذ والإقلاع التلقائي</li>
+            <li>تهيئة الداتابيز والبيانات الأساسية (ISA-95 + SKUs + Users)</li>
+            <li>تشغيل وتهيئة Edge Gateway وتعريف الـ Tags</li>
+            <li>تأكيد نشر توبيكات MQTT ومراقبة الـ broker</li>
+            <li>اختبار سلسلة العدّ وبثّ WebSocket للداشبورد</li>
+            <li>التحقق من حساب OEE / AT-OEE و store-and-forward</li>
+            <li>Backup الداتابيز و Docker images</li>
+          </ul>
+        </div>
+        <div class="shared">
+          <h3>مهام مشتركة (تنسيق الطرفين)</h3>
+          <ul>
+            <li>مطابقة كود الماكينة مع machineKey</li>
+            <li>جدول Register Map و I/O</li>
+            <li>تعريف الأجهزة والـ Tags في الـ Edge</li>
+            <li>اختبار التدفّق الكامل (E2E) و UAT</li>
+            <li>التشغيل التجريبي وقائمة Go/No-Go</li>
+            <li>التركيب والتشغيل في الموقع</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Deliverables -->
+    <section>
+      <div class="sec-head"><span class="num">E</span><h2>المخرجات الجاهزة قبل النزول</h2><span class="rule"></span></div>
+      <div class="cards">
+        <div class="card"><div class="ic">1</div><div><h4>مخطط الشبكة + جدول IPs</h4><p>توزيع كل جهاز على الـ Switch مع عناوينه</p></div></div>
+        <div class="card"><div class="ic">2</div><div><h4>جدول I/O و Register Map</h4><p>لكل جهاز Modbus وكل حسّاس</p></div></div>
+        <div class="card"><div class="ic">3</div><div><h4>PC صناعي مُختبَر</h4><p>الستاك كامل يعمل ويُقلع تلقائياً</p></div></div>
+        <div class="card"><div class="ic">4</div><div><h4>Edge Gateway مُهيّأ</h4><p>كل الـ Devices والـ Tags مُعرّفة</p></div></div>
+        <div class="card"><div class="ic">5</div><div><h4>Master Data كاملة</h4><p>ISA-95 + SKUs + Users</p></div></div>
+        <div class="card"><div class="ic">6</div><div><h4>نسخ احتياطية</h4><p>للداتابيز وإعدادات الأجهزة</p></div></div>
+      </div>
+    </section>
+
+    <!-- Go / No-Go -->
+    <section>
+      <div class="gonogo">
+        <h2>قائمة Go / No-Go قبل التشغيل</h2>
+        <p>كل البنود لازم تكون مُحقّقة قبل اعتماد بدء التشغيل في الموقع.</p>
+        <ul>
+          <li>كل خدمات الـ Docker تعمل</li>
+          <li>الداتابيز مُهيّأة بالبيانات الأساسية</li>
+          <li>MQTT broker يستقبل القيم</li>
+          <li>Edge Gateway يقرأ كل الأجهزة</li>
+          <li>OEE / AT-OEE تُحسب صحيحة</li>
+          <li>WebSocket يبثّ للداشبورد</li>
+          <li>store-and-forward مُختبَر</li>
+          <li>النسخ الاحتياطية مأخوذة</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer>
+      <div class="rule"></div>
+      MES360° · National Care Company — SDPF &nbsp;·&nbsp; خطة تجهيز التشغيل &nbsp;·&nbsp; إعداد 30 يونيو 2026
+    </footer>
+
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.day').forEach(function(day){
+    var boxes = day.querySelectorAll('input[type=checkbox]');
+    var prog = day.querySelector('.prog');
+    var total = boxes.length;
+    function update(){
+      var done = day.querySelectorAll('input[type=checkbox]:checked').length;
+      prog.textContent = done + ' / ' + total;
+      prog.classList.toggle('full', done === total && total > 0);
+    }
+    boxes.forEach(function(b){ b.addEventListener('change', update); });
+    update();
+  });
+</script>
