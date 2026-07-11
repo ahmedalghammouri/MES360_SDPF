@@ -185,10 +185,10 @@ export function QualityOverview() {
             <Download size={13} />
             {t('common.export')}
           </Button>
-          <Button size="sm" className="gap-1.5 h-8 text-xs">
+          {/* <Button size="sm" className="gap-1.5 h-8 text-xs">
             <Plus size={13} />
             {t('ovw.newNcr')}
-          </Button>
+          </Button> */}
         </div>
       </div>
 
