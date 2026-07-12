@@ -1,18 +1,16 @@
-import type { ModbusDataType, RegisterType, WordOrder } from './types';
+// Energy/power-meter register-map templates — VENDORED COPY.
+//
+// The canonical source is packages/industrial-drivers/src/meter-templates.ts, which the
+// edge gateway uses to provision + poll meter tags. The API keeps this standalone copy
+// because the containerized API build (apps/api/Dockerfile) has a per-app build context
+// and can't reach the workspace package. Keep the two in sync when register maps change;
+// provisioning is idempotent (factoryId+code) so the gateway won't duplicate what the API
+// creates here.
 
-/**
- * Standardised energy/power-meter register templates. Selecting a template
- * auto-creates the meter's ENERGY tags (separate from machine tags) with the
- * right register binding, scaling, unit and energy role.
- *
- * NOTE: register addresses follow each vendor's published Modbus map and are
- * 0-based protocol offsets. Real devices occasionally differ by ±1 or by
- * firmware — every field is editable in the UI after the template is applied.
- * Instantaneous electrical values are IEEE-754 Float32 (wordCount 2);
- * energy counters are 64-bit integers (wordCount 4).
- */
+type RegisterType = 'HOLDING' | 'INPUT' | 'COIL' | 'DISCRETE';
+type ModbusDataType = 'BOOL' | 'INT' | 'FLOAT' | 'STRING' | 'TIMESTAMP';
+type WordOrder = 'BIG' | 'LITTLE';
 
-/** Canonical role a meter tag plays (drives EnergyReading + UI labels). */
 export type EnergyRole =
   | 'ACTIVE_POWER_TOTAL' | 'REACTIVE_POWER_TOTAL' | 'APPARENT_POWER_TOTAL'
   | 'ENERGY_IMPORT_TOTAL' | 'ENERGY_EXPORT_TOTAL'
@@ -22,8 +20,7 @@ export type EnergyRole =
   | 'PF_TOTAL' | 'PF_L1' | 'PF_L2' | 'PF_L3'
   | 'FREQUENCY' | 'THD_V' | 'THD_I';
 
-export interface MeterTagSpec {
-  /** Short code suffix (prefixed with the meter number to form a unique tag code). */
+interface MeterTagSpec {
   key: string;
   name: string;
   energyRole: EnergyRole;
@@ -36,11 +33,11 @@ export interface MeterTagSpec {
   scaleFactor?: number;
 }
 
-export interface MeterTemplate {
+interface MeterTemplate {
   key: string;
   label: string;
   manufacturer: string;
-  models: string[]; // catalog/order numbers this template fits
+  models: string[];
   tags: MeterTagSpec[];
 }
 
@@ -49,21 +46,8 @@ const F = (key: string, name: string, energyRole: EnergyRole, address: number, u
 const I64 = (key: string, name: string, energyRole: EnergyRole, address: number, unit: string, scaleFactor?: number): MeterTagSpec =>
   ({ key, name, energyRole, registerType: 'HOLDING', address, wordCount: 4, wordOrder: 'BIG', dataType: 'INT', unit, ...(scaleFactor ? { scaleFactor } : {}) });
 
-// Schneider PowerLogic PM5100 series (PM5110) — all FLOAT32 (IEEE-754, 2 regs, ABCD
-// big-endian) per the vendor register map (see apps/edgegateway/PM5110 Register map/
-// schneider_pm5110_modbus_register_map.md). Every measurement register on the PM5110
-// is a Float32 read with FC 03, so there is no Int64 decode to get wrong.
-//
-// Two deliberate choices from that map's recommendations:
-//  • Power Factor uses register 3192 (a plain FLOAT32) instead of 3078–3092, which are
-//    "4-quadrant encoded" (values outside ±1 encode the quadrant). We don't quadrant-decode,
-//    so reading the encoded register would yield wrong PF — 3192 avoids that entirely.
-//  • Active energy uses the FLOAT32 kWh registers 2700/2702 (delivered/received, "ready to
-//    use") rather than the Int64 Wh counters at 3204/3208. Simpler and no scaling.
-//
-// Addresses are the register numbers as published by Schneider (map §13 notes these are
-// 1-based; some meters/firmware present them as the 0-based wire address). If a real meter
-// reads one register low, subtract 1 — every field stays editable in the UI after apply.
+// Schneider PowerLogic PM5110 — all FLOAT32; PF from the simple-float register 3192 (not the
+// 4-quadrant-encoded 3078–3092) and energy from the Float32 kWh registers 2700/2702.
 const SCHNEIDER_PM5110: MeterTemplate = {
   key: 'SCHNEIDER_PM5110',
   label: 'Schneider PowerLogic PM5110',
@@ -89,7 +73,6 @@ const SCHNEIDER_PM5110: MeterTemplate = {
   ],
 };
 
-// Siemens SENTRON PAC3200 — Float32 map (per-phase + totals).
 const SIEMENS_PAC3200: MeterTemplate = {
   key: 'SIEMENS_PAC3200',
   label: 'Siemens SENTRON PAC3200',
@@ -114,7 +97,6 @@ const SIEMENS_PAC3200: MeterTemplate = {
   ],
 };
 
-// Siemens SENTRON PAC2200 — essential Float32 map.
 const SIEMENS_PAC2200: MeterTemplate = {
   key: 'SIEMENS_PAC2200',
   label: 'Siemens SENTRON PAC2200',
@@ -134,7 +116,6 @@ const SIEMENS_PAC2200: MeterTemplate = {
   ],
 };
 
-// Generic 3-phase power meter — minimal essential set (Float32 holding regs from 0).
 const GENERIC_PM: MeterTemplate = {
   key: 'GENERIC_PM',
   label: 'Generic 3-phase Power Meter',
@@ -150,15 +131,12 @@ const GENERIC_PM: MeterTemplate = {
   ],
 };
 
-export const METER_TEMPLATES: MeterTemplate[] = [
-  SCHNEIDER_PM5110, SIEMENS_PAC3200, SIEMENS_PAC2200, GENERIC_PM,
-];
+const METER_TEMPLATES: MeterTemplate[] = [SCHNEIDER_PM5110, SIEMENS_PAC3200, SIEMENS_PAC2200, GENERIC_PM];
 
-export function getMeterTemplate(key: string): MeterTemplate | undefined {
+function getMeterTemplate(key: string): MeterTemplate | undefined {
   return METER_TEMPLATES.find((t) => t.key === key);
 }
 
-/** Payload for creating one tag (subset of TagDefinition fields). */
 export interface MeterTagCreate {
   code: string;
   name: string;
@@ -173,10 +151,7 @@ export interface MeterTagCreate {
   energyRole: EnergyRole;
 }
 
-/**
- * Build tag-create payloads for a meter from a template. Codes are prefixed
- * with the meter number so they're globally unique (e.g. `EM-PM-01_P_TOTAL`).
- */
+/** Build tag-create payloads for a meter from a template (codes prefixed with the meter number). */
 export function instantiateMeterTags(templateKey: string, meterNumber: string): MeterTagCreate[] {
   const tpl = getMeterTemplate(templateKey);
   if (!tpl) return [];

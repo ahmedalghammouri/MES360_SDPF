@@ -194,7 +194,7 @@
       "edgeGateway": "Edge Gateway", "noneManual": "— none (manual) —", "meterTemplate": "Meter Template", "noneDash": "— none —", "onlineSuffix": " • online",
       "protocol": "Protocol", "pModbusTcp": "Modbus TCP", "pModbusRtuTcp": "Modbus RTU over TCP", "pModbusRtu": "Modbus RTU (serial)",
       "modbusUnitId": "Modbus Unit ID", "serialPort": "Serial Port", "baudRate": "Baud Rate", "parity": "Parity", "pNone": "None", "pEven": "Even", "pOdd": "Odd",
-      "stopBits": "Stop Bits", "ipAddress": "IP Address", "port": "Port", "manufacturer": "Manufacturer", "model": "Model",
+      "stopBits": "Stop Bits", "dataBits": "Data Bits", "ipAddress": "IP Address", "port": "Port", "manufacturer": "Manufacturer", "model": "Model",
       "deleteTitle": "Delete Energy Meter", "deleteConfirmPre": "Are you sure you want to delete", "deleteConfirmPost": "? This will also delete all associated readings.", "deleting": "Deleting...", "delete": "Delete",
       "addReadingTitle": "Add Reading — {{name}}", "readingDesc": "Enter current meter value in {{unit}}", "valuePlaceholder": "Value ({{unit}})"
     },

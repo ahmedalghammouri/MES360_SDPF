@@ -44,6 +44,8 @@ export interface ReadResult {
   value: number | boolean | string | null;
   quality: Quality;
   timestamp: Date;
+  /** On a failed read (quality !== GOOD), the underlying error message (e.g. "Timed out", "CRC error"). */
+  error?: string;
 }
 
 /** Modbus transport: TCP, native serial (RTU), or RTU framing over a TCP socket. */

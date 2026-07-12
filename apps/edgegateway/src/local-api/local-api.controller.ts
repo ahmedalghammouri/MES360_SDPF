@@ -9,6 +9,7 @@ import { InfluxService } from '../services/influx.service';
 import { GatewayContextService } from '../context/gateway-context.service';
 import { ModbusPollerService } from '../acquisition/modbus-poller.service';
 import { BufferService } from '../acquisition/buffer.service';
+import { ModbusLogService } from '../acquisition/modbus-log.service';
 import { METER_TEMPLATES, instantiateMeterTags } from '@mes360/industrial-drivers';
 import { readConfigFile, writeConfigFile } from '../config/config-store';
 import { AuthService } from './auth.service';
@@ -27,6 +28,7 @@ export class LocalApiController {
     private readonly ctx: GatewayContextService,
     private readonly poller: ModbusPollerService,
     private readonly buffer: BufferService,
+    private readonly mlog: ModbusLogService,
     private readonly auth: AuthService,
     private readonly config: ConfigService,
   ) {}
@@ -436,6 +438,14 @@ export class LocalApiController {
       orderBy: { timestamp: 'desc' },
       take: 200,
     });
+  }
+
+  /** Tail of the Modbus error log (timeouts, CRC/port errors) for the dashboard. */
+  @UseGuards(JwtAuthGuard)
+  @Get('logs/modbus')
+  modbusLog(@Query('lines') lines?: string) {
+    const n = Math.min(Math.max(parseInt(lines ?? '200', 10) || 200, 1), 1000);
+    return { path: this.mlog.path(), lines: this.mlog.tail(n) };
   }
 
   @UseGuards(JwtAuthGuard)

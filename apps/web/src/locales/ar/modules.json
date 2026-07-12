@@ -194,7 +194,7 @@
       "edgeGateway": "بوابة الحافة", "noneManual": "— بدون (يدوي) —", "meterTemplate": "قالب العدّاد", "noneDash": "— بدون —", "onlineSuffix": " • متصل",
       "protocol": "البروتوكول", "pModbusTcp": "Modbus TCP", "pModbusRtuTcp": "Modbus RTU عبر TCP", "pModbusRtu": "Modbus RTU (تسلسلي)",
       "modbusUnitId": "معرّف وحدة Modbus", "serialPort": "المنفذ التسلسلي", "baudRate": "معدل الباود", "parity": "التماثل", "pNone": "بدون", "pEven": "زوجي", "pOdd": "فردي",
-      "stopBits": "بتات التوقف", "ipAddress": "عنوان IP", "port": "المنفذ", "manufacturer": "الصانع", "model": "الموديل",
+      "stopBits": "بتات التوقف", "dataBits": "بتات البيانات", "ipAddress": "عنوان IP", "port": "المنفذ", "manufacturer": "الصانع", "model": "الموديل",
       "deleteTitle": "حذف عدّاد الطاقة", "deleteConfirmPre": "هل أنت متأكد أنك تريد حذف", "deleteConfirmPost": "؟ سيؤدي هذا أيضًا إلى حذف كل القراءات المرتبطة.", "deleting": "جارٍ الحذف...", "delete": "حذف",
       "addReadingTitle": "إضافة قراءة — {{name}}", "readingDesc": "أدخل قيمة العدّاد الحالية بـ {{unit}}", "valuePlaceholder": "القيمة ({{unit}})"
     },

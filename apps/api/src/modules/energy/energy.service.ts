@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { EnergyPeriod } from '@prisma/client';
+import { instantiateMeterTags } from './meter-templates';
 
 @Injectable()
 export class EnergyService {
@@ -472,7 +473,7 @@ export class EnergyService {
       deviceId = device.id;
     }
 
-    return this.prisma.energyMeter.create({
+    const meter = await this.prisma.energyMeter.create({
       data: {
         factoryId: resolvedFactoryId,
         deviceId,
@@ -491,6 +492,36 @@ export class EnergyService {
         isActive: true,
       },
     });
+
+    // Materialize the meter's ENERGY tags from its register-map template now, so they
+    // exist immediately on insert (the edge gateway also provisions them on reload as a
+    // safety net — provisioning is idempotent by factoryId+code, so this never duplicates).
+    if (dto.templateKey) {
+      await this.provisionMeterTags(resolvedFactoryId, meter.id, deviceId, machineId || null, dto.meterNumber, dto.templateKey);
+    }
+
+    return meter;
+  }
+
+  /** Create a meter's ENERGY TagDefinitions from its template (idempotent). */
+  private async provisionMeterTags(
+    factoryId: string, meterId: string, deviceId: string | null,
+    machineId: string | null, meterNumber: string, templateKey: string,
+  ) {
+    const specs = instantiateMeterTags(templateKey, meterNumber);
+    for (const s of specs) {
+      const exists = await this.prisma.tagDefinition.findFirst({ where: { factoryId, code: s.code } });
+      if (exists) continue;
+      await this.prisma.tagDefinition.create({
+        data: {
+          factoryId, meterId, deviceId, machineId,
+          code: s.code, name: s.name, dataType: s.dataType as any, tagType: 'ENERGY',
+          unit: s.unit, address: s.address, registerType: s.registerType,
+          wordCount: s.wordCount, wordOrder: s.wordOrder, scaleFactor: s.scaleFactor,
+          energyRole: s.energyRole,
+        },
+      });
+    }
   }
 
   async updateMeter(factoryId: string | null, id: string, dto: {

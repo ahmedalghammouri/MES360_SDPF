@@ -30,14 +30,17 @@ function refresh() {
   const jitter = (x, pct) => x * (1 + (Math.sin(Date.now() / 3000 + SEED) * pct));
   const v = jitter(228 + (SEED % 5), 0.02), i = jitter(8 + (SEED * 1.7) % 14, 0.15), pf = 0.90 + (SEED % 6) * 0.015;
   const pPh = (v * i * pf) / 1000; // kW per phase
-  // PM5110 (SCHNEIDER_PM5110) Float32 addresses
-  setFloat(3000, i); setFloat(3002, i); setFloat(3004, i); setFloat(3010, i);          // currents
-  setFloat(3028, v); setFloat(3030, v); setFloat(3032, v); setFloat(3036, v);          // voltages L-N
+  // PM5110 (SCHNEIDER_PM5110) Float32 addresses — mirrors the meter-templates.ts register map
+  setFloat(3000, i); setFloat(3002, i); setFloat(3004, i); setFloat(3010, i);          // currents L1/L2/L3/avg
+  setFloat(3026, v * Math.SQRT2 * Math.sqrt(1.5));                                      // voltage L-L avg (≈ v·√3)
+  setFloat(3028, v); setFloat(3030, v); setFloat(3032, v); setFloat(3036, v);          // voltages L-N + avg
   setFloat(3060, pPh * 3);                                                              // active power total kW
   setFloat(3068, pPh * 3 * 0.3); setFloat(3076, pPh * 3 / pf);                          // reactive / apparent
-  setFloat(3084, pf); setFloat(3110, jitter(50, 0.002));                                // PF / frequency
+  setFloat(3110, jitter(50, 0.002));                                                    // frequency Hz
+  setFloat(3192, pf); setFloat(3084, pf);                                               // PF total (simple float 3192 + legacy 3084)
   energyWh += (pPh * 3) * 1000 * (1.5 / 3600);  // integrate kW over the 1.5s tick → Wh
-  setU64(3204, energyWh); setU64(3208, exportWh);                                        // energy import/export (Wh)
+  setFloat(2700, energyWh / 1000); setFloat(2702, exportWh / 1000);                     // active energy import/export (kWh, Float32)
+  setU64(3204, energyWh); setU64(3208, exportWh);                                        // legacy Int64 energy (Wh)
   coil0 = !coil0;
 }
 refresh();

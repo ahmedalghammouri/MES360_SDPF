@@ -123,9 +123,9 @@ export class ModbusClient {
       const scaled = applyScaling(raw, { scaleFactor: tag.scaleFactor, offset: tag.offset });
       const value = coerce(scaled, tag.dataType);
       return { raw, value, quality: 'GOOD', timestamp };
-    } catch {
+    } catch (err) {
       this.connected = false;
-      return { raw: null, value: null, quality: 'BAD', timestamp };
+      return { raw: null, value: null, quality: 'BAD', timestamp, error: (err as Error)?.message ?? String(err) };
     }
   }
 }

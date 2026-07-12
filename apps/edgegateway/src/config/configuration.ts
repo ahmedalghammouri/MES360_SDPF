@@ -18,6 +18,7 @@ export interface GatewayConfig {
   defaultPollIntervalMs: number;
   heartbeatIntervalMs: number;
   bufferDir: string;
+  logDir: string;
 }
 
 export default (): GatewayConfig => {
@@ -45,5 +46,6 @@ export default (): GatewayConfig => {
     defaultPollIntervalMs: f.defaultPollIntervalMs ?? parseInt(process.env.DEFAULT_POLL_INTERVAL_MS || '1000', 10),
     heartbeatIntervalMs: parseInt(process.env.HEARTBEAT_INTERVAL_MS || '15000', 10),
     bufferDir: process.env.BUFFER_DIR || './buffer',
+    logDir: process.env.LOG_DIR || './logs',
   };
 };

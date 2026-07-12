@@ -42,6 +42,16 @@ const TYPE_COLORS: Record<string, string> = {
   CHILLED_WATER: 'text-green-400 bg-green-500/20',
 };
 
+// Per-template identity + comms defaults applied when a template is chosen in the meter form.
+// Values follow each vendor's published defaults (PM5110: RS485-only, Modbus RTU, 19200 8E1).
+const TEMPLATE_DEFAULTS: Record<string, Record<string, unknown>> = {
+  SCHNEIDER_PM5110: {
+    type: 'ELECTRICAL', unit: 'kWh', model: 'METSEPM5110',
+    protocol: 'MODBUS_RTU', unitId: 1, serialPort: 'COM3',
+    baudRate: 19200, parity: 'even', dataBits: 8, stopBits: 1,
+  },
+};
+
 const TYPE_ICONS: Record<string, React.FC<{ className?: string }>> = {
   ELECTRICAL: Zap,
   NATURAL_GAS: Thermometer,
@@ -146,6 +156,17 @@ export function EnergyMetersView() {
     setValue('unit', meter.unit);
     setValue('location', meter.location || '');
     setShowMeterForm(true);
+  };
+
+  // Selecting a meter template pre-fills identity + the vendor's RS485 comms defaults so
+  // the created device polls without hand-tuning. PM5110 ships RS485-only @ 19200 8E1 (see
+  // its register map md). Fields stay editable afterward.
+  const applyTemplate = (key: string) => {
+    setValue('templateKey', key);
+    const tpl = templateOptions.find((t) => t.key === key);
+    if (tpl?.manufacturer) setValue('manufacturer', tpl.manufacturer);
+    const d = TEMPLATE_DEFAULTS[key];
+    if (d) for (const [k, v] of Object.entries(d)) setValue(k, v as any);
   };
 
   const onSubmitMeter = (data: any) => {
@@ -437,7 +458,7 @@ export function EnergyMetersView() {
                       <Label>{t('energy.mform.meterTemplate')}</Label>
                       <SelectMenu size="md" fullWidth className="mt-1"
                         value={(watch('templateKey') as string) ?? ''}
-                        onValueChange={(v) => setValue('templateKey', v)}
+                        onValueChange={(v) => applyTemplate(v)}
                         options={[{ value: '', label: t('energy.mform.noneDash') }, ...templateOptions.map((tpl) => ({ value: tpl.key, label: tpl.label }))]}
                       />
                     </div>
@@ -463,11 +484,12 @@ export function EnergyMetersView() {
                   {watch('protocol') === 'MODBUS_RTU' ? (
                     <div className="grid grid-cols-2 gap-3">
                       <div><Label>{t('energy.mform.serialPort')}</Label><Input {...register('serialPort')} placeholder="COM3" className="mt-1" /></div>
-                      <div><Label>{t('energy.mform.baudRate')}</Label><Input type="number" {...register('baudRate', { valueAsNumber: true })} placeholder="9600" className="mt-1" /></div>
+                      <div><Label>{t('energy.mform.baudRate')}</Label><Input type="number" {...register('baudRate', { valueAsNumber: true })} placeholder="19200" className="mt-1" /></div>
                       <div><Label>{t('energy.mform.parity')}</Label>
-                        <SelectMenu size="md" fullWidth className="mt-1" value={(watch('parity') as string) ?? 'none'} onValueChange={(v) => setValue('parity', v)}
+                        <SelectMenu size="md" fullWidth className="mt-1" value={(watch('parity') as string) ?? 'even'} onValueChange={(v) => setValue('parity', v)}
                           options={[{ value: 'none', label: t('energy.mform.pNone') }, { value: 'even', label: t('energy.mform.pEven') }, { value: 'odd', label: t('energy.mform.pOdd') }]} />
                       </div>
+                      <div><Label>{t('energy.mform.dataBits')}</Label><Input type="number" {...register('dataBits', { valueAsNumber: true })} placeholder="8" className="mt-1" /></div>
                       <div><Label>{t('energy.mform.stopBits')}</Label><Input type="number" {...register('stopBits', { valueAsNumber: true })} placeholder="1" className="mt-1" /></div>
                     </div>
                   ) : (

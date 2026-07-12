@@ -13,6 +13,7 @@ import { IngestService, type TagReadingRecord } from './ingest.service';
 import { CounterService, type CounterTag } from './counter.service';
 import { EnergyReadingService, type MeterContext } from './energy-reading.service';
 import { StatusService, type StatusTag } from './status.service';
+import { ModbusLogService } from './modbus-log.service';
 
 interface PolledTag {
   binding: TagBinding;
@@ -67,6 +68,7 @@ export class ModbusPollerService implements OnModuleDestroy {
     private readonly statusSvc: StatusService,
     private readonly ctx: GatewayContextService,
     private readonly config: ConfigService,
+    private readonly mlog: ModbusLogService,
   ) {}
 
   onModuleDestroy() {
@@ -208,7 +210,12 @@ export class ModbusPollerService implements OnModuleDestroy {
       // many clients at once on the first poll tick triggers a connect storm
       // that modbus-serial mishandles (most reads then "Timed out"). The reload
       // loop is already serial, so awaiting here connects devices one at a time.
-      await runtime.client.connect().catch(() => undefined);
+      await runtime.client.connect().catch((err) => {
+        const conn = dev.protocol === 'MODBUS_RTU'
+          ? `${dev.serialPort ?? '?'} @ ${dev.baudRate ?? '?'} ${dev.parity ?? 'none'}`
+          : `${dev.ipAddress ?? '?'}:${dev.port ?? 502}`;
+        this.mlog.log(dev.name, 'connect', (err as Error)?.message ?? String(err), { proto: dev.protocol, conn, unitId: dev.unitId ?? 1 });
+      });
       runtime.timer = setInterval(() => void this.pollDevice(runtime), runtime.intervalMs);
       this.devices.set(dev.id, runtime);
       this.logger.log(`Device "${dev.name}" loaded: ${tags.length} tag(s) @ ${runtime.intervalMs}ms`);
@@ -235,7 +242,13 @@ export class ModbusPollerService implements OnModuleDestroy {
         const ts = res.timestamp.toISOString();
         lastTs = ts;
 
-        if (res.quality !== 'GOOD') { anyError = true; continue; }
+        if (res.quality !== 'GOOD') {
+          anyError = true;
+          this.mlog.log(dev.name, 'read', res.error ?? 'read failed', {
+            tag: tag.code, address: tag.binding.address, register: tag.binding.registerType, quality: res.quality,
+          });
+          continue;
+        }
 
         const numeric =
           typeof res.value === 'number' ? res.value
@@ -280,6 +293,7 @@ export class ModbusPollerService implements OnModuleDestroy {
 
       await this.markDevice(dev.id, anyError ? 'ERROR' : 'CONNECTED', anyError ? 'One or more tag reads failed' : null);
     } catch (err) {
+      this.mlog.log(dev.name, 'poll', (err as Error)?.message ?? String(err));
       await this.markDevice(dev.id, 'ERROR', (err as Error).message);
     } finally {
       dev.busy = false;

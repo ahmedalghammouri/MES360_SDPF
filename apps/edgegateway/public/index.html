@@ -392,7 +392,15 @@
     }catch(e){document.getElementById('meterRows').innerHTML=emptyRow(6,e.message)}
   }
   function tplOpts(sel){return'<option value="">— none —</option>'+(cache.templates||[]).map(t=>`<option value="${t.key}" ${t.key===sel?'selected':''}>${esc(t.label)}</option>`).join('')}
-  async function meterTemplate(id){const key=prompt('Template key (SCHNEIDER_PM5110 / SIEMENS_PAC3200 / SIEMENS_PAC2200 / GENERIC_PM):');if(!key)return;try{await api('/meters/'+id+'/apply-template',{method:'POST',body:JSON.stringify({templateKey:key})});loadMeters()}catch(e){alert(e.message)}}
+  function meterTemplate(id){const m=(cache.meters||[]).find(x=>x.id===id);
+    openModal('Apply Meter Template',`
+      <div><label>Register-map template</label><select id="mt_key">${tplOpts(m?.templateKey||'')}</select></div>
+      <p style="color:hsl(var(--muted-fg));font-size:12px;margin-top:8px;line-height:1.5">Creates the meter's ENERGY tags (voltage, current, power, PF, frequency, energy import/export) from the selected device's register map. Existing tags are kept — safe to re-apply.</p>`,
+      async()=>{const key=val('mt_key');if(!key)throw new Error('Select a template');
+        const r=await api('/meters/'+id+'/apply-template',{method:'POST',body:JSON.stringify({templateKey:key})});
+        closeModal();loadMeters();
+        alert(`Template ${key} applied — ${r.created} new tag(s) created.`+(r.created===0?'\n(All tags for this template already existed.)':''));
+      });}
   function openMeterForm(){
     openModal('Add Energy Meter',`<div class="grid2">
       <div><label>Meter Number *</label><input id="m_num" placeholder="EM-PM-01"></div>

@@ -15,9 +15,11 @@ test('PM5110 template has the key roles', () => {
   assert.ok(roles.has('ACTIVE_POWER_TOTAL'));
   assert.ok(roles.has('ENERGY_IMPORT_TOTAL'));
   assert.ok(roles.has('VOLTAGE_L1'));
-  // energy counters are 64-bit
+  // PM5110 energy uses the Float32 kWh registers (2700/2702), not the Int64 Wh counters
   const e = t.tags.find((x) => x.energyRole === 'ENERGY_IMPORT_TOTAL')!;
-  assert.equal(e.wordCount, 4);
+  assert.equal(e.dataType, 'FLOAT');
+  assert.equal(e.wordCount, 2);
+  assert.equal(e.address, 2700);
   // instantaneous are float32
   const p = t.tags.find((x) => x.energyRole === 'ACTIVE_POWER_TOTAL')!;
   assert.equal(p.dataType, 'FLOAT');
