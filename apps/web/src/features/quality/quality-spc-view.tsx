@@ -320,7 +320,7 @@ export function QualitySpcView() {
                     <ReferenceLine y={ucl} stroke="#ef4444" strokeDasharray="6 3" label={{ value: 'UCL', fill: '#ef4444', fontSize: 10 }} />
                   )}
                   {cl != null && (
-                    <ReferenceLine y={cl} stroke="#6366f1" strokeDasharray="4 4" label={{ value: 'CL', fill: '#6366f1', fontSize: 10 }} />
+                    <ReferenceLine y={cl} stroke="#4c7571" strokeDasharray="4 4" label={{ value: 'CL', fill: '#4c7571', fontSize: 10 }} />
                   )}
                   {lcl != null && (
                     <ReferenceLine y={lcl} stroke="#ef4444" strokeDasharray="6 3" label={{ value: 'LCL', fill: '#ef4444', fontSize: 10 }} />

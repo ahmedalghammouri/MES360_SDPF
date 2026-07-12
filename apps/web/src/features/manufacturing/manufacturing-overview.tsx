@@ -571,8 +571,8 @@ export default function ManufacturingOverview() {
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gradTarget" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#4c7571" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#4c7571" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -599,7 +599,7 @@ export default function ManufacturingOverview() {
               <Area
                 type="monotone"
                 dataKey="target"
-                stroke="#6366f1"
+                stroke="#4c7571"
                 strokeWidth={1.5}
                 strokeDasharray="4 2"
                 fill="url(#gradTarget)"

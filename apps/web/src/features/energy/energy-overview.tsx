@@ -45,7 +45,7 @@ interface EnergyMeter {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  ELECTRICAL: '#6366f1',
+  ELECTRICAL: '#4c7571',
   NATURAL_GAS: '#f59e0b',
   COMPRESSED_AIR: '#06b6d4',
   WATER: '#3b82f6',
@@ -388,8 +388,8 @@ export function EnergyOverview() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="energyGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#4c7571" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#4c7571" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
@@ -403,7 +403,7 @@ export function EnergyOverview() {
                     key={type}
                     type="monotone"
                     dataKey={type}
-                    stroke={TYPE_COLORS[type] ?? '#6366f1'}
+                    stroke={TYPE_COLORS[type] ?? '#4c7571'}
                     fill="url(#energyGrad)"
                     strokeWidth={2}
                     /* show dots when sparse — a single point with dot={false} renders nothing */
@@ -412,7 +412,7 @@ export function EnergyOverview() {
                     name={type.replace(/_/g, ' ')}
                   />
                 )) : (
-                  <Area type="monotone" dataKey="value" stroke="#6366f1" fill="url(#energyGrad)" strokeWidth={2} dot={chartData.length <= 3 ? { r: 3 } : false} connectNulls />
+                  <Area type="monotone" dataKey="value" stroke="#4c7571" fill="url(#energyGrad)" strokeWidth={2} dot={chartData.length <= 3 ? { r: 3 } : false} connectNulls />
                 )}
                 {energyTypes.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
               </AreaChart>
@@ -436,7 +436,7 @@ export function EnergyOverview() {
                 <Tooltip
                   contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--popover-foreground))', borderRadius: '8px' }}
                 />
-                <Bar dataKey="value" fill="#6366f1" name={t('energy.consumption')} radius={[0, 4, 4, 0]} />
+                <Bar dataKey="value" fill="#4c7571" name={t('energy.consumption')} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}

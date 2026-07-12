@@ -81,9 +81,9 @@ function GlobalStats({ summary }: { summary: FactoriesOverview['summary'] | null
   return (
     <div className="grid grid-cols-4 gap-3 mb-4">
       {[
-        { label: t('factorySel.avgOee'), value: avgOEE, unit: '%', color: '#818cf8', icon: Activity },
+        { label: t('factorySel.avgOee'), value: avgOEE, unit: '%', color: '#4c7571', icon: Activity },
         { label: t('factorySel.factories'), value: factories, unit: t('factorySel.sites'), color: '#22c55e', icon: Building2 },
-        { label: t('factorySel.employees'), value: employees, unit: t('factorySel.total'), color: '#a855f7', icon: Users },
+        { label: t('factorySel.employees'), value: employees, unit: t('factorySel.total'), color: '#d9bb75', icon: Users },
         { label: t('factorySel.activeAlarms'), value: alarms, unit: '', color: alarms > 5 ? '#ef4444' : '#f59e0b', icon: AlertTriangle },
       ].map((s) => (
         <div key={s.label} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/5 bg-white/[0.03]">
@@ -175,26 +175,26 @@ export function FactorySelector() {
     <div
       className="min-h-screen w-full flex flex-col overflow-hidden"
       style={{
-        background: 'radial-gradient(ellipse at 60% 40%, #0d1020 0%, #0a0c16 50%, #07090f 100%)',
+        background: 'radial-gradient(ellipse at 60% 40%, #05130f 0%, #04100c 50%, #030a08 100%)',
         fontFamily: 'var(--font-geist-sans), sans-serif',
       }}
     >
       {/* Scanline overlay */}
       <div
         className="pointer-events-none fixed inset-0 z-0 opacity-[0.03]"
-        style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(129,140,248,0.5) 2px, rgba(129,140,248,0.5) 3px)', backgroundSize: '100% 4px' }}
+        style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(76,117,113,0.5) 2px, rgba(76,117,113,0.5) 3px)', backgroundSize: '100% 4px' }}
       />
 
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-8 py-4 border-b border-white/[0.06]">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center font-black text-[13px] tracking-tight text-white">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-accent-300 to-accent-500 flex items-center justify-center font-black text-[13px] tracking-tight text-brand-800">
               360°
             </div>
             <div>
-              <div className="text-white font-bold text-lg tracking-tight leading-none">MES360°</div>
-              <div className="text-indigo-300/70 text-xs font-mono tracking-widest">{t('factorySel.mfgExecution')}</div>
+              <div className="font-bold text-lg tracking-tight leading-none"><span className="text-white">MES</span><span style={{ color: '#D9BB75' }}>360°</span></div>
+              <div className="text-brand-300/70 text-xs font-mono tracking-widest">{t('factorySel.mfgExecution')}</div>
             </div>
           </div>
           <div className="h-6 w-px bg-white/10 mx-2" />
@@ -209,7 +209,7 @@ export function FactorySelector() {
             <Wifi size={12} />
             <span>{t('factorySel.ksaNetwork')}</span>
           </div>
-          <div className="flex items-center gap-2 text-indigo-300 text-sm font-mono">
+          <div className="flex items-center gap-2 text-brand-300 text-sm font-mono">
             <Clock size={14} />
             <span suppressHydrationWarning>
               {mounted && time ? time.toLocaleTimeString('en-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}
@@ -227,7 +227,7 @@ export function FactorySelector() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">
-              {t('factorySel.mfgNetwork')} <span className="text-indigo-300">{t('factorySel.ksa')}</span>
+              {t('factorySel.mfgNetwork')} <span className="text-brand-300">{t('factorySel.ksa')}</span>
             </h1>
             <p className="text-white/40 text-sm mt-0.5">
               {t('factorySel.selectFacilityDesc')}
@@ -312,13 +312,13 @@ export function FactorySelector() {
 
           {/* Center — Map */}
           <div className="flex-1 relative rounded-2xl border border-white/[0.06] overflow-hidden"
-            style={{ background: 'radial-gradient(ellipse at center, #12152a 0%, #0a0c18 100%)' }}
+            style={{ background: 'radial-gradient(ellipse at center, #0a1a16 0%, #05100c 100%)' }}
           >
             {/* Corner decorations */}
-            <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-indigo-500/30 rounded-tl-2xl" />
-            <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-indigo-500/30 rounded-tr-2xl" />
-            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-indigo-500/30 rounded-bl-2xl" />
-            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-indigo-500/30 rounded-br-2xl" />
+            <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-brand-400/30 rounded-tl-2xl" />
+            <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-brand-400/30 rounded-tr-2xl" />
+            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-brand-400/30 rounded-bl-2xl" />
+            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-brand-400/30 rounded-br-2xl" />
 
             <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-mono text-white/20 tracking-widest uppercase">
               {t('factorySel.mapTitle')}
@@ -394,7 +394,7 @@ export function FactorySelector() {
                 {/* KPI grid */}
                 <div className="grid grid-cols-2 gap-2">
                   <KPIBadge label={t('factorySel.production')} value={active.kpis.production.toLocaleString()} unit={active.kpis.productionUnit ?? t('factorySel.today')} icon={TrendingUp} color={active.color} />
-                  <KPIBadge label={t('factorySel.employees')} value={active.kpis.employees} icon={Users} color="#a855f7" />
+                  <KPIBadge label={t('factorySel.employees')} value={active.kpis.employees} icon={Users} color="#d9bb75" />
                   <KPIBadge label={t('factorySel.uptime')} value={active.kpis.uptime} unit="%" icon={Zap} color="#22c55e" />
                   <KPIBadge label={t('factorySel.shiftsToday')} value={active.kpis.shiftsToday} icon={Clock} color="#f59e0b" />
                 </div>

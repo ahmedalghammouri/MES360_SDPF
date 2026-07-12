@@ -284,8 +284,8 @@ export function ProductionOEEView() {
                     <ComposedChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
                       <defs>
                         <linearGradient id="oeeFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#6366f1" stopOpacity={0.45} />
-                          <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
+                          <stop offset="0%" stopColor="#4c7571" stopOpacity={0.45} />
+                          <stop offset="100%" stopColor="#4c7571" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} strokeOpacity={0.4} />
@@ -298,11 +298,11 @@ export function ProductionOEEView() {
                       <ReferenceLine y={WORLD_CLASS} stroke="#22c55e" strokeDasharray="6 4" strokeOpacity={0.6} />
                       {/* Primary OEE series — render style follows the ScopePanel View toggle */}
                       {trendType === 'bar' ? (
-                        <Bar dataKey="oee" name="oee" fill="#818cf8" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                        <Bar dataKey="oee" name="oee" fill="#4c7571" radius={[3, 3, 0, 0]} maxBarSize={28} />
                       ) : trendType === 'line' ? (
-                        <Line type="monotone" dataKey="oee" name="oee" stroke="#818cf8" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="oee" name="oee" stroke="#4c7571" strokeWidth={2} dot={false} />
                       ) : (
-                        <Area type="monotone" dataKey="oee" name="oee" stroke="#818cf8" strokeWidth={2} fill="url(#oeeFill)" />
+                        <Area type="monotone" dataKey="oee" name="oee" stroke="#4c7571" strokeWidth={2} fill="url(#oeeFill)" />
                       )}
                       {/* Time-based OEE (AT-OEE) overlaid as a dashed line for comparison */}
                       <Line type="monotone" dataKey="oeeTb" name="oeeTb" stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" dot={false} />

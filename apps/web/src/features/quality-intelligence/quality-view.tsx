@@ -66,7 +66,7 @@ export function QualityIntelligenceView() {
 
           {/* NCR mix + CAPA + Inspections */}
           <motion.section variants={itemVariants}>
-            <SectionTitle icon={Activity} color="#6175f4">{t('cockpit.sections.ncr')}</SectionTitle>
+            <SectionTitle icon={Activity} color="#4c7571">{t('cockpit.sections.ncr')}</SectionTitle>
             <div className="grid grid-cols-12 gap-4">
               <div className="industrial-card p-4 col-span-12 md:col-span-6 lg:col-span-3">
                 <div className="text-xs font-semibold text-muted-foreground mb-3">{t('cockpit.bySeverity')}</div>

@@ -86,7 +86,7 @@ export interface ReportModel {
 }
 
 const COLORS = {
-  brand: '#6366f1',
+  brand: '#4c7571',
   cyan: '#06b6d4',
   green: '#22c55e',
   amber: '#f59e0b',
@@ -96,7 +96,7 @@ const COLORS = {
   teal: '#14b8a6',
 };
 
-export const DONUT_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7', '#3b82f6', '#14b8a6', '#ec4899', '#84cc16'];
+export const DONUT_COLORS = ['#4c7571', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7', '#3b82f6', '#14b8a6', '#ec4899', '#84cc16'];
 
 // ---------------------------------------------------------------------------
 // Per-type model builders

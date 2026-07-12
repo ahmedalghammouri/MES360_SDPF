@@ -76,7 +76,7 @@ const CSS = `
     letter-spacing: 0.06em;
     color: var(--c);
     text-shadow: 0 0 6px var(--c);
-    background: rgba(0,4,18,0.88);
+    background: rgba(2,15,12,0.88);
     border: 1px solid color-mix(in srgb, var(--c) 50%, transparent);
     padding: 1px 5px;
     border-radius: 3px;
@@ -86,7 +86,7 @@ const CSS = `
   .fpin.active .fpin-label {
     font-size: 10px;
     padding: 2px 7px;
-    background: rgba(0,4,18,0.95);
+    background: rgba(2,15,12,0.95);
   }
 
   @keyframes fpulse {
@@ -94,21 +94,21 @@ const CSS = `
     50%      { transform: translateX(-50%) scale(1.4); opacity: 0.15; }
   }
 
-  /* ---- Leaflet dark overrides ---- */
-  .leaflet-container { background: #060d1f !important; }
+  /* ---- Leaflet dark overrides (brand teal-green) ---- */
+  .leaflet-container { background: #04120f !important; }
   .leaflet-tile-pane { filter: brightness(0.92) contrast(1.05); }
 
   .leaflet-control-zoom {
-    border: 1px solid rgba(0,200,255,0.15) !important;
+    border: 1px solid rgba(71,174,150,0.18) !important;
     border-radius: 8px !important;
     box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
     overflow: hidden;
     margin: 12px !important;
   }
   .leaflet-control-zoom a {
-    background: rgba(4,10,28,0.92) !important;
-    border-bottom: 1px solid rgba(0,200,255,0.1) !important;
-    color: rgba(0,200,255,0.6) !important;
+    background: rgba(6,20,16,0.92) !important;
+    border-bottom: 1px solid rgba(71,174,150,0.12) !important;
+    color: rgba(71,174,150,0.7) !important;
     width: 30px !important;
     height: 30px !important;
     line-height: 30px !important;
@@ -117,14 +117,14 @@ const CSS = `
     transition: all 0.15s;
   }
   .leaflet-control-zoom a:hover {
-    background: rgba(0,200,255,0.12) !important;
-    color: rgba(0,200,255,1) !important;
+    background: rgba(71,174,150,0.14) !important;
+    color: rgba(71,174,150,1) !important;
   }
   .leaflet-control-zoom-in { border-radius: 0 !important; }
   .leaflet-control-zoom-out { border-radius: 0 !important; border-bottom: none !important; }
 
   .leaflet-control-attribution {
-    background: rgba(0,4,18,0.75) !important;
+    background: rgba(2,15,12,0.75) !important;
     color: rgba(255,255,255,0.25) !important;
     font-size: 9px !important;
     backdrop-filter: blur(4px);

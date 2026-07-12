@@ -120,7 +120,7 @@ export function ReliabilityView() {
 
           {/* Workload */}
           <motion.section variants={itemVariants}>
-            <SectionTitle icon={Layers} color="#6175f4">{t('cockpit.sections.workload')}</SectionTitle>
+            <SectionTitle icon={Layers} color="#4c7571">{t('cockpit.sections.workload')}</SectionTitle>
             <div className="grid grid-cols-12 gap-4">
               <div className="industrial-card p-4 col-span-12 md:col-span-4">
                 <div className="text-xs font-semibold text-muted-foreground mb-2">{t('cockpit.byStatus')}</div>

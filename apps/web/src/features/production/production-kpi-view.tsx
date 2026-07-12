@@ -564,10 +564,10 @@ export default function ProductionKpiView() {
                 <Radar
                   name={t('kpiv.seriesActual')}
                   dataKey="Actual"
-                  stroke="#6366f1"
-                  fill="#6366f1"
+                  stroke="#4c7571"
+                  fill="#4c7571"
                   fillOpacity={0.3}
-                  dot={{ r: 3, fill: '#6366f1' }}
+                  dot={{ r: 3, fill: '#4c7571' }}
                 />
                 <Radar
                   name={t('kpiv.seriesWorldClass')}
@@ -688,7 +688,7 @@ export default function ProductionKpiView() {
                 }}
               />
               <Legend wrapperStyle={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }} />
-              <Bar dataKey="planned" name={t('kpiv.seriesPlanned')} fill="#6366f1" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="planned" name={t('kpiv.seriesPlanned')} fill="#4c7571" radius={[3, 3, 0, 0]} />
               <Bar dataKey="actual" name={t('kpiv.seriesActual')} fill="#10b981" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -737,10 +737,10 @@ export default function ProductionKpiView() {
                 type="monotone"
                 dataKey="quality"
                 name={t('cards.quality')}
-                stroke="#6366f1"
+                stroke="#4c7571"
                 strokeWidth={2}
                 dot={false}
-                activeDot={{ r: 4, fill: '#6366f1' }}
+                activeDot={{ r: 4, fill: '#4c7571' }}
               />
             </LineChart>
           </ResponsiveContainer>

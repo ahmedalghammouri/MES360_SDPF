@@ -275,7 +275,7 @@ function JoPdmDiagram({ jobs, onStart, onComplete, pending }: {
               {/* progress bar */}
               <rect x={pos.x + 10} y={pos.y + 56} width={PDM_BOX_W - 50} height="4" rx="2" fill="#1e2235" />
               <rect x={pos.x + 10} y={pos.y + 56} width={(PDM_BOX_W - 50) * pct} height="4" rx="2"
-                fill={jo.status === 'COMPLETE' ? '#10b981' : '#6366f1'} />
+                fill={jo.status === 'COMPLETE' ? '#10b981' : '#4c7571'} />
               {/* quick action on node */}
               {['READY', 'PAUSED'].includes(jo.status) && (
                 <g className="cursor-pointer" opacity={pending ? 0.4 : 1} onClick={() => !pending && onStart(jo.id)}>

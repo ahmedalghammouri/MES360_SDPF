@@ -60,7 +60,7 @@ const RANGES: { labelKey: string; ms: number; everyMin: number }[] = [
   { labelKey: 'historian.rangeLast7Days', ms: 7 * 24 * 3600_000, everyMin: 30 },
 ];
 
-const PALETTE = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7', '#ec4899', '#84cc16'];
+const PALETTE = ['#4c7571', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7', '#ec4899', '#84cc16'];
 
 // OEE / KPI metric leaves offered per machine.
 const KPI_METRICS: { field: string; labelKey: string; unit: string; kind: 'oee' | 'prod' }[] = [

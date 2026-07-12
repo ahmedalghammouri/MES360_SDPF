@@ -19,33 +19,33 @@ const config: Config = {
     },
     extend: {
       colors: {
-        // Brand colors
+        // Brand colors — MES360° deep teal-green (docs/theme Primary #003933)
         brand: {
-          50: '#f0f4ff',
-          100: '#e0eaff',
-          200: '#c7d7fe',
-          300: '#a4bcfd',
-          400: '#8098fb',
-          500: '#6175f4',
-          600: '#4f55e8',
-          700: '#4341d0',
-          800: '#3837a9',
-          900: '#323485',
-          950: '#1e1e4f',
+          50: '#f3f7f7',
+          100: '#e4eceb',
+          200: '#cad7d6',
+          300: '#98b0ad',
+          400: '#4c7571',
+          500: '#265651',
+          600: '#164b45',
+          700: '#003933',
+          800: '#002e29',
+          900: '#00201d',
+          950: '#001512',
         },
-        // Industrial accent - Electric Purple
+        // Brand accent - Gold (docs/theme Secondary #D9BB75)
         accent: {
-          50: '#fdf4ff',
-          100: '#fae8ff',
-          200: '#f5d0fe',
-          300: '#f0abfc',
-          400: '#e879f9',
-          500: '#d946ef',
-          600: '#c026d3',
-          700: '#a21caf',
-          800: '#86198f',
-          900: '#701a75',
-          950: '#4a044e',
+          50: '#fcfcfa',
+          100: '#faf9f2',
+          200: '#f5f1e3',
+          300: '#efe4c8',
+          400: '#e4d09f',
+          500: '#d9bb75',
+          600: '#c9a85b',
+          700: '#b08e42',
+          800: '#8c6f34',
+          900: '#6e5728',
+          950: '#3f3216',
         },
         // Success - Green
         success: {
@@ -152,9 +152,11 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['var(--font-geist-sans)', ...fontFamily.sans],
+        // DIN Next LT Arabic is the brand face (docs/theme/Font.png); falls back
+        // to the Next-loaded Geist / system sans when the webfont is unavailable.
+        sans: ['"DIN Next LT Arabic"', 'var(--font-geist-sans)', ...fontFamily.sans],
         mono: ['var(--font-geist-mono)', ...fontFamily.mono],
-        arabic: ['var(--font-arabic)', 'Tajawal', 'Cairo', 'sans-serif'],
+        arabic: ['"DIN Next LT Arabic"', 'var(--font-arabic)', 'Tajawal', 'Cairo', 'sans-serif'],
         industrial: ['var(--font-industrial)', 'Space Grotesk', 'sans-serif'],
       },
       keyframes: {
@@ -199,11 +201,11 @@ const config: Config = {
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'gradient-industrial': 'linear-gradient(135deg, hsl(var(--background)) 0%, hsl(220 30% 8%) 100%)',
+        'gradient-industrial': 'linear-gradient(135deg, hsl(var(--background)) 0%, hsl(174 30% 8%) 100%)',
         'glass-gradient': 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
       },
       boxShadow: {
-        'glow-brand': '0 0 20px rgba(97, 117, 244, 0.3)',
+        'glow-brand': '0 0 20px rgba(0, 57, 51, 0.3)',
         'glow-success': '0 0 20px rgba(34, 197, 94, 0.3)',
         'glow-warning': '0 0 20px rgba(245, 158, 11, 0.3)',
         'glow-danger': '0 0 20px rgba(244, 63, 94, 0.3)',

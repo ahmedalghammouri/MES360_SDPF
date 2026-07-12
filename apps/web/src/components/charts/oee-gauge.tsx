@@ -58,7 +58,7 @@ export function OEEGauge({ oee, availability, performance, quality, isLoading }:
   const gaugeOption = useMemo(() => {
     const color =
       oee >= 85 ? '#22c55e' :
-      oee >= 65 ? '#6175f4' :
+      oee >= 65 ? '#4c7571' :
       oee >= 45 ? '#f59e0b' : '#f43f5e';
 
     return {
@@ -79,7 +79,7 @@ export function OEEGauge({ oee, availability, performance, quality, isLoading }:
               color: [
                 [0.45, '#f43f5e'],
                 [0.65, '#f59e0b'],
-                [0.85, '#6175f4'],
+                [0.85, '#4c7571'],
                 [1, '#22c55e'],
               ],
             },

@@ -6,7 +6,7 @@ import { useTheme } from 'next-themes';
 import { useTranslation } from 'react-i18next';
 
 const STATUS_COLOR: Record<string, string> = {
-  OPEN: '#6175f4',
+  OPEN: '#4c7571',
   AWAITING_PARTS: '#f59e0b',
   ASSIGNED: '#06b6d4',
   IN_PROGRESS: '#22c55e',
@@ -19,7 +19,7 @@ const TYPE_COLOR: Record<string, string> = {
   EMERGENCY: '#dc2626',
   PREVENTIVE: '#22c55e',
   PREDICTIVE: '#06b6d4',
-  INSPECTION: '#6175f4',
+  INSPECTION: '#4c7571',
   LUBRICATION: '#eab308',
 };
 
@@ -66,7 +66,7 @@ export function AgingBars({ aging }: { aging: { lt1d: number; d1to3: number; d3t
   const isDark = resolvedTheme === 'dark';
   const cats = [
     { key: 'lt1d', color: '#22c55e' },
-    { key: 'd1to3', color: '#6175f4' },
+    { key: 'd1to3', color: '#4c7571' },
     { key: 'd3to7', color: '#f59e0b' },
     { key: 'gt7d', color: '#f43f5e' },
   ] as const;

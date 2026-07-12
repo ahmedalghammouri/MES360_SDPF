@@ -792,8 +792,8 @@ export function Sidebar() {
         <div className="flex items-center gap-2.5 min-w-0">
           {/* Brand mark — 360° */}
           <div
-            className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center font-black text-[11px] tracking-tight text-white"
-            style={{ background: 'linear-gradient(135deg, #818cf8, #a78bfa)' }}
+            className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center font-black text-[11px] tracking-tight text-[#003933]"
+            style={{ background: 'linear-gradient(135deg, #E4D09F, #D9BB75)' }}
             aria-label="MES360°"
           >
             360°
@@ -803,11 +803,11 @@ export function Sidebar() {
               <div className="whitespace-nowrap leading-none">
                 <span
                   className="font-black text-[15px] tracking-tight"
-                  style={{ background: 'linear-gradient(90deg, #818cf8, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+                  style={{ background: 'linear-gradient(90deg, #003933, #4c7571)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
                 >
                   MES
                 </span>
-                <span className="font-bold text-[15px] tracking-tight text-sidebar-foreground/75">360°</span>
+                <span className="font-bold text-[15px] tracking-tight" style={{ color: '#B08E42' }}>360°</span>
               </div>
               <div className="text-sidebar-foreground/35 text-[9px] font-semibold tracking-[0.12em] uppercase whitespace-nowrap mt-0.5">
                 {ts('tagline')}

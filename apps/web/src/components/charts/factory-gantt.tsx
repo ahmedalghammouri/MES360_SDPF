@@ -402,7 +402,7 @@ export function FactoryGantt({
 
   // Group summary span
   const groupSpan = (r: FlatRow): { x1: number; x2: number; color: string } | null => {
-    let min = Infinity, max = -Infinity, color = '#6366f1';
+    let min = Infinity, max = -Infinity, color = '#4c7571';
     for (const id of r.taskIds) {
       const t = taskById.get(id);
       if (!t) continue;

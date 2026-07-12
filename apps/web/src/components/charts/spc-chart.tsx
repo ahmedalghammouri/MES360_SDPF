@@ -79,7 +79,7 @@ export function SPCChart({
         {
           type: 'line',
           data: values,
-          lineStyle: { color: '#6175f4', width: 2 },
+          lineStyle: { color: '#4c7571', width: 2 },
           symbol: 'circle',
           symbolSize: (val: number) =>
             (ucl != null && val > ucl) || (lcl != null && val < lcl) ? 8 : 4,
@@ -87,7 +87,7 @@ export function SPCChart({
             color: (params: { data: number }) =>
               (ucl != null && params.data > ucl) || (lcl != null && params.data < lcl)
                 ? '#f43f5e'
-                : '#6175f4',
+                : '#4c7571',
           },
           smooth: false,
           markLine: {

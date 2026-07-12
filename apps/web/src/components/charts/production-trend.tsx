@@ -90,8 +90,8 @@ export function ProductionTrendChart({ data, isLoading, trendType = 'bar' }: Pro
                   type: 'linear',
                   x: 0, y: 0, x2: 0, y2: 1,
                   colorStops: [
-                    { offset: 0, color: '#6175f4' },
-                    { offset: 1, color: '#6175f430' },
+                    { offset: 0, color: '#4c7571' },
+                    { offset: 1, color: '#4c757130' },
                   ],
                 },
                 borderRadius: [3, 3, 0, 0],
@@ -102,10 +102,10 @@ export function ProductionTrendChart({ data, isLoading, trendType = 'bar' }: Pro
               name: t('charts.production.actualOutput'),
               type: 'line',
               data: actual,
-              lineStyle: { color: '#6175f4', width: 2 },
+              lineStyle: { color: '#4c7571', width: 2 },
               symbol: 'circle', symbolSize: 4, smooth: true,
               ...(trendType === 'area'
-                ? { areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#6175f440' }, { offset: 1, color: 'transparent' }] } } }
+                ? { areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#4c757140' }, { offset: 1, color: 'transparent' }] } } }
                 : {}),
             },
         {

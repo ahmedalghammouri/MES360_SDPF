@@ -46,7 +46,7 @@ export function DashboardCard({
   const { t } = useTranslation('modules');
   const Icon = resolveIcon(dashboard.icon);
   const source = SOURCE_META[dashboard.source];
-  const accent = dashboard.category?.color ?? '#6175f4';
+  const accent = dashboard.category?.color ?? '#4c7571';
 
   return (
     <motion.div

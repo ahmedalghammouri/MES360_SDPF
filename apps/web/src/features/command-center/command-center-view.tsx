@@ -85,7 +85,7 @@ export function CommandCenterView() {
 
           {/* ── Performance & OEE ── */}
           <motion.section variants={itemVariants}>
-            <SectionTitle icon={Gauge} color="#6175f4">{t('commandCenter.sections.performance')}</SectionTitle>
+            <SectionTitle icon={Gauge} color="#4c7571">{t('commandCenter.sections.performance')}</SectionTitle>
             <div className="grid grid-cols-12 gap-4">
               <div className="col-span-12 lg:col-span-4">
                 <OEEGauge oee={(atOee ? kpis?.oeeTb : kpis?.oee) ?? 0} availability={(atOee ? kpis?.availabilityTb : kpis?.availability) ?? 0} performance={kpis?.performance ?? 0} quality={kpis?.quality ?? 0} isLoading={isLoading} />

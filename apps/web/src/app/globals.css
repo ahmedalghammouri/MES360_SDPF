@@ -111,102 +111,103 @@
 
 @layer base {
   :root {
-    /* Light theme - Industrial Professional */
-    --background: 220 20% 97%;
-    --foreground: 222 47% 11%;
+    /* Light theme — MES360° brand: deep teal-green + gold on a near-white base.
+       Derived from docs/theme (Primary #003933, Secondary #D9BB75, Third #699635). */
+    --background: 180 100% 99%;      /* #FDFFFF */
+    --foreground: 0 0% 8%;           /* Font 1 #141414 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card: 180 20% 98%;             /* Card #F8FAFA */
+    --card-foreground: 0 0% 8%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 180 20% 98%;
+    --popover-foreground: 0 0% 8%;
 
-    --primary: 236 72% 64%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 174 100% 11%;         /* Primary #003933 */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 91%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 174 18% 91%;        /* Primary 10% #E4ECEB */
+    --secondary-foreground: 174 100% 11%;
 
-    --muted: 220 14% 91%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 180 20% 96%;            /* Primary 4% #F3F7F7 */
+    --muted-foreground: 180 4% 42%;  /* Font 2/3 */
 
-    --accent: 280 100% 60%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 42 57% 66%;            /* Secondary gold #D9BB75 */
+    --accent-foreground: 0 0% 8%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 88%;
-    --input: 220 13% 88%;
-    --ring: 236 72% 64%;
+    --border: 180 8% 85%;            /* Font 5 #D7DCDC */
+    --input: 180 8% 85%;
+    --ring: 174 100% 11%;
 
     --radius: 0.625rem;
 
-    /* Chart colors */
-    --chart-1: 236 72% 64%;
-    --chart-2: 160 84% 39%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 0 84% 60%;
-    --chart-5: 280 100% 60%;
+    /* Chart colors — brand green, gold, third-green, teal, red */
+    --chart-1: 174 100% 15%;
+    --chart-2: 42 57% 55%;
+    --chart-3: 88 48% 40%;           /* Third #699635 */
+    --chart-4: 174 25% 45%;
+    --chart-5: 0 72% 55%;
 
-    /* Sidebar — light mode: a clean light surface so embedded badges/labels
-       (which derive from the light palette) keep proper contrast. */
-    --sidebar-background: 220 24% 98%;
-    --sidebar-foreground: 222 47% 13%;
-    --sidebar-primary: 236 64% 56%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 220 16% 92%;
-    --sidebar-accent-foreground: 222 47% 13%;
-    --sidebar-border: 220 13% 88%;
-    --sidebar-ring: 236 72% 64%;
+    /* Sidebar — light mode: a clean light green-tinted surface so embedded
+       badges/labels (which derive from the light palette) keep proper contrast. */
+    --sidebar-background: 174 22% 97%;
+    --sidebar-foreground: 174 30% 12%;
+    --sidebar-primary: 174 100% 11%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 174 18% 91%;
+    --sidebar-accent-foreground: 174 100% 11%;
+    --sidebar-border: 180 8% 85%;
+    --sidebar-ring: 174 100% 11%;
   }
 
   .dark {
-    /* Dark theme - Industrial Control Room */
-    --background: 222 47% 7%;
-    --foreground: 213 31% 91%;
+    /* Dark theme — brand green-tinted control room, gold accent */
+    --background: 174 32% 7%;
+    --foreground: 180 8% 90%;
 
-    --card: 215 28% 10%;
-    --card-foreground: 213 31% 91%;
+    --card: 174 24% 10%;
+    --card-foreground: 180 8% 90%;
 
-    --popover: 215 28% 10%;
-    --popover-foreground: 213 31% 91%;
+    --popover: 174 24% 10%;
+    --popover-foreground: 180 8% 90%;
 
-    --primary: 236 72% 64%;
-    --primary-foreground: 222 47% 7%;
+    --primary: 168 42% 48%;          /* brightened brand green for dark */
+    --primary-foreground: 174 60% 8%;
 
-    --secondary: 215 28% 15%;
-    --secondary-foreground: 213 31% 91%;
+    --secondary: 174 20% 16%;
+    --secondary-foreground: 180 8% 90%;
 
-    --muted: 215 28% 13%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 174 18% 14%;
+    --muted-foreground: 180 6% 60%;
 
-    --accent: 280 100% 65%;
-    --accent-foreground: 222 47% 7%;
+    --accent: 42 55% 62%;            /* gold */
+    --accent-foreground: 0 0% 10%;
 
     --destructive: 0 72% 51%;
-    --destructive-foreground: 213 31% 91%;
+    --destructive-foreground: 180 8% 90%;
 
-    --border: 215 28% 17%;
-    --input: 215 28% 17%;
-    --ring: 236 72% 64%;
+    --border: 174 18% 18%;
+    --input: 174 18% 18%;
+    --ring: 168 42% 48%;
 
     /* Chart colors (vivid for dark) */
-    --chart-1: 236 72% 64%;
-    --chart-2: 142 71% 45%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 0 72% 51%;
-    --chart-5: 280 100% 65%;
+    --chart-1: 168 45% 52%;
+    --chart-2: 42 55% 62%;
+    --chart-3: 88 48% 52%;
+    --chart-4: 174 30% 55%;
+    --chart-5: 0 72% 58%;
 
     /* Sidebar */
-    --sidebar-background: 220 35% 6%;
-    --sidebar-foreground: 213 31% 85%;
-    --sidebar-primary: 236 72% 64%;
-    --sidebar-primary-foreground: 213 31% 91%;
-    --sidebar-accent: 215 28% 12%;
-    --sidebar-accent-foreground: 213 31% 85%;
-    --sidebar-border: 215 28% 14%;
-    --sidebar-ring: 236 72% 64%;
+    --sidebar-background: 174 38% 5%;
+    --sidebar-foreground: 180 8% 85%;
+    --sidebar-primary: 168 42% 48%;
+    --sidebar-primary-foreground: 174 60% 8%;
+    --sidebar-accent: 174 22% 12%;
+    --sidebar-accent-foreground: 180 8% 85%;
+    --sidebar-border: 174 20% 13%;
+    --sidebar-ring: 168 42% 48%;
   }
 }
 
@@ -224,9 +225,10 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* RTL Support — Arabic font loaded via <link> in layout; system fallbacks for offline. */
+  /* RTL Support — DIN Next LT Arabic is the brand face (docs/theme/Font.png);
+     falls back to loaded webfonts / system Arabic fonts when unavailable. */
   [dir="rtl"] {
-    font-family: 'IBM Plex Sans Arabic', 'Tajawal', 'Cairo', 'Segoe UI', sans-serif;
+    font-family: 'DIN Next LT Arabic', 'IBM Plex Sans Arabic', 'Tajawal', 'Cairo', 'Segoe UI', sans-serif;
   }
 
   /* Scrollbar styling */
@@ -272,7 +274,7 @@
     @apply border border-border shadow-sm rounded-lg;
   }
   .dark .industrial-card {
-    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(215 28% 8%) 100%);
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(174 26% 8%) 100%);
     @apply border-border/50 shadow-industrial;
   }
 

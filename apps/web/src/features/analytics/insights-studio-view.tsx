@@ -144,8 +144,8 @@ export function InsightsStudioView() {
                 <AreaChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
                   <defs>
                     <linearGradient id="isOee" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#6366f1" stopOpacity={0.45} />
-                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor="#4c7571" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="#4c7571" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={GRID} strokeOpacity={0.4} />
@@ -153,7 +153,7 @@ export function InsightsStudioView() {
                   <YAxis domain={[0, 100]} tick={AXIS} />
                   <ReTooltip contentStyle={TT} labelStyle={TTL} itemStyle={TTL} formatter={(v: any, n: any) => [`${Number(v).toFixed(1)}%`, n === 'oeeTb' ? 'OEE (Time-Based)' : 'OEE']} />
                   <ReferenceLine y={WORLD_CLASS} stroke="#22c55e" strokeDasharray="6 4" strokeOpacity={0.6} />
-                  <Area type="monotone" dataKey="oee" stroke="#818cf8" strokeWidth={2} fill="url(#isOee)" />
+                  <Area type="monotone" dataKey="oee" stroke="#4c7571" strokeWidth={2} fill="url(#isOee)" />
                   <Area type="monotone" dataKey="oeeTb" stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" fill="none" />
                 </AreaChart>
               </ResponsiveContainer>

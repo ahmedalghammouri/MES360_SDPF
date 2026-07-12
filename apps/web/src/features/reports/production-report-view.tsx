@@ -186,7 +186,7 @@ export function ProductionReportView() {
                   contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                   formatter={(v: number) => [`${v}%`]}
                 />
-                <Line type="monotone" dataKey="oee" stroke="#6366f1" strokeWidth={2} dot={false} name={t('reports.prod.oee')} />
+                <Line type="monotone" dataKey="oee" stroke="#4c7571" strokeWidth={2} dot={false} name={t('reports.prod.oee')} />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -210,8 +210,8 @@ export function ProductionReportView() {
                 <Tooltip
                   contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                 />
-                <Bar dataKey="planned" fill="rgba(99,102,241,0.2)" name={t('reports.prod.target')} radius={[0, 4, 4, 0]} />
-                <Bar dataKey="actual"  fill="#6366f1" name={t('reports.prod.actual')} radius={[0, 4, 4, 0]} />
+                <Bar dataKey="planned" fill="rgba(76,117,113,0.25)" name={t('reports.prod.target')} radius={[0, 4, 4, 0]} />
+                <Bar dataKey="actual"  fill="#4c7571" name={t('reports.prod.actual')} radius={[0, 4, 4, 0]} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </BarChart>
             </ResponsiveContainer>

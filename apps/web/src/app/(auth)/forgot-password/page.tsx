@@ -47,11 +47,11 @@ export default function ForgotPasswordPage() {
       >
         <div className="glass-card rounded-2xl p-8">
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center">
-              <Factory className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-300 to-accent-500 flex items-center justify-center">
+              <Factory className="w-5 h-5 text-brand-800" />
             </div>
             <div>
-              <div className="font-bold text-foreground">MES360°</div>
+              <div className="font-bold text-foreground"><span>MES</span><span style={{ color: '#B08E42' }}>360°</span></div>
               <div className="text-xs text-muted-foreground">MES Platform</div>
             </div>
           </div>

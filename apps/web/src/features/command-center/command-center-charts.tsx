@@ -192,7 +192,7 @@ export function ExecutiveComparison({
         data: rows.map((r) => ({
           value: Math.round(r.oee * 10) / 10,
           itemStyle: {
-            color: r.oee >= 85 ? '#22c55e' : r.oee >= 65 ? '#6175f4' : r.oee >= 45 ? '#f59e0b' : '#f43f5e',
+            color: r.oee >= 85 ? '#22c55e' : r.oee >= 65 ? '#4c7571' : r.oee >= 45 ? '#f59e0b' : '#f43f5e',
             borderRadius: [4, 4, 0, 0],
           },
         })),

@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 const SEVERITY_COLOR: Record<string, string> = { CRITICAL: '#f43f5e', MAJOR: '#f59e0b', MINOR: '#eab308' };
 const RESULT_COLOR: Record<string, string> = { PASS: '#22c55e', CONDITIONAL: '#f59e0b', FAIL: '#f43f5e', PENDING: '#64748b' };
-const CAPA_COLOR: Record<string, string> = { OPEN: '#6175f4', IN_PROGRESS: '#f59e0b', VERIFIED: '#06b6d4', CLOSED: '#22c55e' };
+const CAPA_COLOR: Record<string, string> = { OPEN: '#4c7571', IN_PROGRESS: '#f59e0b', VERIFIED: '#06b6d4', CLOSED: '#22c55e' };
 const NCR_STATUS_COLOR: Record<string, string> = { OPEN: '#f43f5e', IN_REVIEW: '#f59e0b', CAPA_PENDING: '#a855f7', RESOLVED: '#06b6d4', CLOSED: '#22c55e' };
 
 /** First-pass-yield trend (line, 0–100%). */

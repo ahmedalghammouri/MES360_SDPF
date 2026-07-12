@@ -34,7 +34,7 @@ export function DowntimeTrend({ data, type = 'bar' }: { data: Array<{ date: stri
       yAxis: { type: 'value', name: 'min', splitLine: { lineStyle: { color: isDark ? '#ffffff10' : '#00000010' } }, ...axis(isDark) },
       series: [
         series(t('cockpit.unplanned'), 'unplanned', '#f43f5e'),
-        series(t('cockpit.planned'), 'planned', '#6175f4'),
+        series(t('cockpit.planned'), 'planned', '#4c7571'),
       ],
     };
   }, [data, isDark, type, t]);
@@ -97,7 +97,7 @@ export function PlannedSplit({ planned, unplanned }: { planned: number; unplanne
       label: { show: false }, labelLine: { show: false },
       data: [
         { name: t('cockpit.unplanned'), value: unplanned, itemStyle: { color: '#f43f5e' } },
-        { name: t('cockpit.planned'), value: planned, itemStyle: { color: '#6175f4' } },
+        { name: t('cockpit.planned'), value: planned, itemStyle: { color: '#4c7571' } },
       ],
     }],
   }), [planned, unplanned, isDark, t]);

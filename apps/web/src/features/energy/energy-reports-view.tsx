@@ -31,7 +31,7 @@ interface ConsumptionResp {
 
 // Color per energy type for the stacked area chart.
 const TYPE_COLOR: Record<string, string> = {
-  ELECTRICAL: '#6366f1',
+  ELECTRICAL: '#4c7571',
   NATURAL_GAS: '#f59e0b',
   COMPRESSED_AIR: '#10b981',
   WATER: '#22d3ee',

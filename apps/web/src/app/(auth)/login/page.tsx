@@ -135,7 +135,7 @@ function LoginPageInner() {
   return (
     <div className="min-h-screen flex items-stretch">
       {/* Left — Industrial Background */}
-      <div className="hidden lg:flex lg:flex-1 relative overflow-hidden bg-gradient-to-br from-[#0a0c14] via-[#0d1020] to-[#080b18]">
+      <div className="hidden lg:flex lg:flex-1 relative overflow-hidden bg-gradient-to-br from-[#05100d] via-[#04120f] to-[#030a08]">
         <div className="absolute inset-0 industrial-grid opacity-20" />
         <div className="absolute inset-0 bg-gradient-radial from-primary/10 via-transparent to-transparent" />
 
@@ -144,11 +144,11 @@ function LoginPageInner() {
 
         <div className="relative z-10 flex flex-col justify-between p-16">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-400 to-violet-400 flex items-center justify-center font-black text-[13px] tracking-tight text-white">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-accent-300 to-accent-500 flex items-center justify-center font-black text-[13px] tracking-tight text-brand-800">
               360°
             </div>
             <div>
-              <div className="text-white font-bold text-xl tracking-tight">MES360°</div>
+              <div className="font-bold text-xl tracking-tight"><span className="text-white">MES</span><span style={{ color: '#D9BB75' }}>360°</span></div>
               <div className="text-primary/70 text-xs font-medium tracking-widest uppercase">Manufacturing Execution</div>
             </div>
           </div>
@@ -204,10 +204,10 @@ function LoginPageInner() {
         >
           {/* Mobile logo */}
           <div className="flex items-center gap-3 lg:hidden">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-violet-400 flex items-center justify-center font-black text-[12px] tracking-tight text-white">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-300 to-accent-500 flex items-center justify-center font-black text-[12px] tracking-tight text-brand-800">
               360°
             </div>
-            <div className="font-bold text-lg">MES360°</div>
+            <div className="font-bold text-lg"><span>MES</span><span style={{ color: '#B08E42' }}>360°</span></div>
           </div>
 
           {/* Factory context badge */}

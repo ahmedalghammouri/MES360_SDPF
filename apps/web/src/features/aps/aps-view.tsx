@@ -361,7 +361,7 @@ export function ApsView() {
 
       {/* KPI bar */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiTile icon={Clock} label={t('aps.kpi.makespan')} value={m?.makespanHours ?? '—'} unit="h" color="#6366f1" />
+        <KpiTile icon={Clock} label={t('aps.kpi.makespan')} value={m?.makespanHours ?? '—'} unit="h" color="#4c7571" />
         <KpiTile icon={CheckCircle2} label={t('aps.kpi.onTime')} value={m?.onTimePct ?? '—'} unit="%" color="#22c55e" hint={t('aps.kpi.ordersCount', { count: m?.onTimeOrders ?? 0 })} />
         <KpiTile icon={AlertTriangle} label={t('aps.kpi.lateOrders')} value={m?.lateOrderCount ?? '—'} color={(m?.lateOrderCount ?? 0) > 0 ? '#ef4444' : '#22c55e'} />
         <KpiTile icon={Gauge} label={t('aps.kpi.utilization')} value={m?.utilizationPct ?? '—'} unit="%" color="#a855f7" />

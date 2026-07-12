@@ -4,20 +4,21 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>MES360° Edge Gateway</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23818cf8'/><stop offset='1' stop-color='%23a78bfa'/></linearGradient></defs><rect width='64' height='64' rx='14' fill='url(%23g)'/><text x='32' y='43' font-family='Segoe UI,sans-serif' font-size='20' font-weight='900' fill='white' text-anchor='middle'>360°</text></svg>" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23e4d09f'/><stop offset='1' stop-color='%23d9bb75'/></linearGradient></defs><rect width='64' height='64' rx='14' fill='url(%23g)'/><text x='32' y='43' font-family='Segoe UI,sans-serif' font-size='20' font-weight='900' fill='%23003933' text-anchor='middle'>360°</text></svg>" />
 <style>
   :root{
-    --bg:222 47% 7%; --bg2:220 40% 9%; --fg:213 31% 92%;
-    --card:215 28% 11%; --card2:215 28% 9%; --border:215 25% 18%;
-    --muted:215 28% 14%; --muted-fg:215 18% 58%;
-    --primary:236 72% 64%; --primary2:265 70% 68%;
-    --sidebar:220 38% 6%; --sidebar-fg:213 31% 85%; --sidebar-accent:215 28% 13%; --sidebar-border:215 25% 13%;
-    --good:152 58% 50%; --bad:0 80% 68%; --warn:38 92% 58%; --brand1:#818cf8; --brand2:#a78bfa;
+    /* MES360° brand — deep teal-green + gold (see docs/theme) */
+    --bg:174 35% 6%; --bg2:174 30% 8%; --fg:180 10% 92%;
+    --card:174 24% 10%; --card2:174 24% 8%; --border:174 20% 18%;
+    --muted:174 20% 14%; --muted-fg:180 8% 58%;
+    --primary:168 42% 46%; --primary2:42 55% 60%;
+    --sidebar:174 40% 5%; --sidebar-fg:180 8% 85%; --sidebar-accent:174 22% 12%; --sidebar-border:174 20% 12%;
+    --good:152 55% 48%; --bad:0 80% 68%; --warn:38 92% 58%; --brand1:#4c7571; --brand2:#003933;
     --shadow:0 10px 30px rgba(0,0,0,.35);
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;color:hsl(var(--fg));font-size:14px;
-    background:hsl(var(--bg));background-image:radial-gradient(900px 500px at 100% -5%,hsl(265 70% 60%/.07),transparent),radial-gradient(900px 500px at 0% 0%,hsl(236 72% 60%/.07),transparent)}
+  body{margin:0;font-family:'DIN Next LT Arabic','Segoe UI',system-ui,-apple-system,Roboto,sans-serif;color:hsl(var(--fg));font-size:14px;
+    background:hsl(var(--bg));background-image:radial-gradient(900px 500px at 100% -5%,hsl(42 55% 55%/.07),transparent),radial-gradient(900px 500px at 0% 0%,hsl(168 45% 45%/.08),transparent)}
   *::-webkit-scrollbar{width:9px;height:9px}*::-webkit-scrollbar-thumb{background:hsl(var(--border));border-radius:5px}
   .hidden{display:none!important}.grow{flex:1}.mono{font-variant-numeric:tabular-nums;font-family:'Cascadia Code',Consolas,monospace}
   input,select{width:100%;background:hsl(var(--bg2));border:1px solid hsl(var(--border));color:hsl(var(--fg));border-radius:9px;padding:10px 12px;margin-top:6px;font-size:13px;transition:.15s}
@@ -31,7 +32,7 @@
   button.danger:hover{background:hsl(var(--bad)/.12);transform:none}
   button.sm{padding:6px 11px;font-size:12px}
   .brand-mark{font-weight:800;background:linear-gradient(90deg,var(--brand1),var(--brand2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-  .brand-tile{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--brand1),var(--brand2));color:#fff;font-weight:900;letter-spacing:-.02em;flex:none}
+  .brand-tile{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e4d09f,#d9bb75);color:#003933;font-weight:900;letter-spacing:-.02em;flex:none}
   .logo .brand-tile{width:40px;height:40px;border-radius:11px;font-size:12px}
   .login-head .brand-tile{width:44px;height:44px;border-radius:12px;font-size:13px}
   .err{color:hsl(var(--bad));font-size:12px;margin-top:10px;min-height:16px}
@@ -52,12 +53,12 @@
   nav .sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:hsl(var(--sidebar-fg)/.32);padding:16px 12px 7px}
   nav button{position:relative;display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:transparent;color:hsl(var(--sidebar-fg)/.72);border-radius:10px;padding:11px 13px;font-weight:500;font-size:13px;box-shadow:none}
   nav button:hover{background:hsl(var(--sidebar-accent)/.7);color:hsl(var(--sidebar-fg));transform:none}
-  nav button.active{background:hsl(var(--primary)/.16);color:#c7ccff;font-weight:600}
+  nav button.active{background:hsl(var(--primary)/.16);color:#a9c7c3;font-weight:600}
   nav button.active::before{content:"";position:absolute;left:-12px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(var(--brand1),var(--brand2))}
   nav button svg{width:17px;height:17px;flex-shrink:0}
   .side-foot{padding:13px;border-top:1px solid hsl(var(--sidebar-border))}
   .u{display:flex;align-items:center;gap:10px}
-  .avatar{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,hsl(var(--primary)/.3),hsl(var(--primary2)/.3));color:#c7ccff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+  .avatar{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,hsl(var(--primary)/.3),hsl(var(--primary2)/.3));color:#a9c7c3;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
 
   .content{margin-left:248px;flex:1;display:flex;flex-direction:column;min-width:0}
   header{display:flex;align-items:center;gap:10px;padding:15px 26px;border-bottom:1px solid hsl(var(--border));background:hsl(var(--bg)/.7);backdrop-filter:blur(10px);position:sticky;top:0;z-index:5}
@@ -76,7 +77,7 @@
   .kpi::after{content:"";position:absolute;right:-20px;top:-20px;width:70px;height:70px;border-radius:50%;background:hsl(var(--primary)/.08)}
   .kpi .l{font-size:11px;color:hsl(var(--muted-fg));text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:8px}
   .kpi .v{font-size:27px;font-weight:800;letter-spacing:-.02em}
-  .kpi .v.good{color:hsl(var(--good))}.kpi .v.bad{color:hsl(var(--bad))}.kpi .v.brand{color:#aab1ff}
+  .kpi .v.good{color:hsl(var(--good))}.kpi .v.bad{color:hsl(var(--bad))}.kpi .v.brand{color:#8fb3ae}
 
   .card{background:linear-gradient(150deg,hsl(var(--card)),hsl(var(--card2)));border:1px solid hsl(var(--border));border-radius:16px;box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden}
   .card-h{display:flex;justify-content:space-between;align-items:center;padding:15px 18px;border-bottom:1px solid hsl(var(--border))}
@@ -91,7 +92,7 @@
   .tg .d{width:6px;height:6px;border-radius:50%}
   .tg.GOOD,.tg.on{color:hsl(var(--good));border-color:hsl(var(--good)/.35);background:hsl(var(--good)/.12)}
   .tg.GOOD .d,.tg.on .d{background:hsl(var(--good))}
-  .tg.TOTAL{color:#aab1ff;border-color:hsl(var(--primary)/.4);background:hsl(var(--primary)/.14)}
+  .tg.TOTAL{color:#8fb3ae;border-color:hsl(var(--primary)/.4);background:hsl(var(--primary)/.14)}
   .tg.BAD,.tg.off{color:hsl(var(--bad));border-color:hsl(var(--bad)/.35);background:hsl(var(--bad)/.12)}
   .tg.off .d{background:hsl(var(--bad))}
   .tg.warn{color:hsl(var(--warn));border-color:hsl(var(--warn)/.35);background:hsl(var(--warn)/.12)}
@@ -112,17 +113,17 @@
   code{background:hsl(var(--muted));padding:2px 6px;border-radius:5px;font-size:12px}
 
   /* Light theme (sidebar stays dark, matching the MES web app) */
-  body.light{--bg:220 20% 97%;--bg2:220 16% 93%;--fg:222 47% 13%;
-    --card:0 0% 100%;--card2:220 25% 98%;--border:220 13% 87%;
-    --muted:220 14% 92%;--muted-fg:215 16% 42%;--shadow:0 6px 22px rgba(30,40,70,.08)}
-  body.light table th{background:hsl(220 16% 95%)}
+  body.light{--bg:180 100% 99%;--bg2:180 20% 94%;--fg:0 0% 8%;
+    --card:0 0% 100%;--card2:174 20% 98%;--border:180 10% 85%;
+    --muted:180 16% 92%;--muted-fg:180 4% 42%;--shadow:0 6px 22px rgba(0,40,35,.08)}
+  body.light table th{background:hsl(174 15% 95%)}
   .theme-btn{cursor:pointer;background:hsl(var(--card)/.7);border:1px solid hsl(var(--border));color:hsl(var(--fg));width:30px;height:30px;padding:0;border-radius:8px;font-size:14px;box-shadow:none}
   .theme-btn:hover{background:hsl(var(--muted)/.7);transform:none}
 
   /* Scrollable table body with sticky header */
   .tbl-wrap{max-height:440px;overflow:auto}
   .tbl-wrap thead th{position:sticky;top:0;z-index:2;background:hsl(var(--card2))}
-  body.light .tbl-wrap thead th{background:hsl(220 18% 94%)}
+  body.light .tbl-wrap thead th{background:hsl(174 16% 94%)}
   /* Pagination */
   .pager{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;border-top:1px solid hsl(var(--border));font-size:12px;color:hsl(var(--muted-fg))}
   .pager .pg{display:flex;gap:8px;align-items:center}
@@ -134,7 +135,7 @@
   <div id="login">
     <div class="login-card">
       <div class="login-head"><div class="brand-tile" aria-label="MES360°">360°</div>
-        <div><div style="font-size:19px"><span class="brand-mark">MES</span><span style="color:hsl(var(--muted-fg));font-weight:700">360°</span></div>
+        <div><div style="font-size:19px"><span class="brand-mark">MES</span><span style="color:#c9a85b;font-weight:700">360°</span></div>
           <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:hsl(var(--muted-fg));font-weight:600">Edge Gateway</div></div>
       </div>
       <div style="color:hsl(var(--muted-fg));font-size:12.5px;margin-top:8px">Local monitoring &amp; configuration</div>
@@ -149,7 +150,7 @@
   <div id="app" class="hidden">
     <aside>
       <div class="logo"><div class="brand-tile" aria-label="MES360°">360°</div>
-        <div><div class="t1"><span class="brand-mark">MES</span><span style="color:hsl(var(--sidebar-fg)/.75);font-weight:700">360°</span></div>
+        <div><div class="t1"><span class="brand-mark">MES</span><span style="color:#c9a85b;font-weight:700">360°</span></div>
           <div class="t2">Edge Gateway</div></div>
       </div>
       <nav>
@@ -302,7 +303,7 @@
   function goDevPage(p){devPage=p;renderDevices()}
   function renderDevices(){const all=cache.devices;const pages=Math.max(1,Math.ceil(all.length/PAGE));if(devPage>pages)devPage=pages;const d=all.slice((devPage-1)*PAGE,devPage*PAGE);
     document.getElementById('devKpis').innerHTML=kpi('Total Devices',all.length)+kpi('Connected',all.filter(x=>x.status==='CONNECTED').length,'good')+kpi('Errors',all.filter(x=>x.status==='ERROR').length,'bad');
-    document.getElementById('devRows').innerHTML=d.map(x=>`<tr><td class="mono" style="color:#aab1ff;font-weight:600">${esc(x.deviceCode)}</td><td>${esc(x.name)}</td><td class="mono">${esc(x.ipAddress||'—')} : ${x.port||502}</td><td>${esc(x.machine?.name||'—')}</td><td id="ds_${x.id}"><span class="tg ${x.status==='CONNECTED'?'on':'off'}"><span class="d"></span>${esc(x.status)}</span>${x.status==='ERROR'&&x.lastError?`<div style="color:hsl(var(--bad));font-size:10px;margin-top:2px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.lastError)}">${esc(x.lastError)}</div>`:''}</td><td class="mono">${(x.tagDefinitions||[]).length}</td><td style="text-align:right;white-space:nowrap"><button class="ghost sm" onclick='openDeviceForm(${JSON.stringify(x)})'>Edit</button> <button class="danger sm" onclick="delDevice('${x.id}','${esc(x.name)}')">Delete</button></td></tr>`).join('')||emptyRow(7,'No devices — add one to start polling');
+    document.getElementById('devRows').innerHTML=d.map(x=>`<tr><td class="mono" style="color:#8fb3ae;font-weight:600">${esc(x.deviceCode)}</td><td>${esc(x.name)}</td><td class="mono">${esc(x.ipAddress||'—')} : ${x.port||502}</td><td>${esc(x.machine?.name||'—')}</td><td id="ds_${x.id}"><span class="tg ${x.status==='CONNECTED'?'on':'off'}"><span class="d"></span>${esc(x.status)}</span>${x.status==='ERROR'&&x.lastError?`<div style="color:hsl(var(--bad));font-size:10px;margin-top:2px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.lastError)}">${esc(x.lastError)}</div>`:''}</td><td class="mono">${(x.tagDefinitions||[]).length}</td><td style="text-align:right;white-space:nowrap"><button class="ghost sm" onclick='openDeviceForm(${JSON.stringify(x)})'>Edit</button> <button class="danger sm" onclick="delDevice('${x.id}','${esc(x.name)}')">Delete</button></td></tr>`).join('')||emptyRow(7,'No devices — add one to start polling');
     document.getElementById('devPager').innerHTML=pager(devPage,all.length,'goDevPage')}
   function pollDeviceStatus(){const map={};(window._devStatus||[]).forEach(d=>map[d.id]=d);cache.devices.forEach(x=>{const c=document.getElementById('ds_'+x.id);if(c&&map[x.id]){const on=map[x.id].connected;c.innerHTML=`<span class="tg ${on?'on':'off'}"><span class="d"></span>${on?'CONNECTED':'ERROR'}</span>`}})}
   function machineOpts(sel){return'<option value="">— none —</option>'+cache.machines.map(m=>`<option value="${m.id}" ${m.id===sel?'selected':''}>${esc(m.name)} (${esc(m.code)})</option>`).join('')}
@@ -337,7 +338,7 @@
   function renderTags(){const all=cache.tags;const pages=Math.max(1,Math.ceil(all.length/PAGE));if(tagPage>pages)tagPage=pages;const t=all.slice((tagPage-1)*PAGE,tagPage*PAGE);
     document.getElementById('tagKpis').innerHTML=kpi('Total Tags',all.length)+kpi('Counters',all.filter(x=>x.tagType==='COUNTER').length,'brand')+kpi('Mapped',all.filter(x=>x.counterRole&&x.counterRole!=='NONE').length,'good');
     document.getElementById('tagRows').innerHTML=t.map(x=>{const r=x.counterRole,dev=cache.devices.find(d=>d.id===x.deviceId);return`<tr>
-      <td><div class="mono" style="color:#aab1ff;font-weight:600">${esc(x.code)}</div><div style="color:hsl(var(--muted-fg));font-size:12px">${esc(x.name)}</div></td>
+      <td><div class="mono" style="color:#8fb3ae;font-weight:600">${esc(x.code)}</div><div style="color:hsl(var(--muted-fg));font-size:12px">${esc(x.name)}</div></td>
       <td>${esc(dev?.name||x.device?.name||'—')}</td>
       <td><span class="tg neutral">${esc(x.tagType)}</span> ${r&&r!=='NONE'?`<span class="tg ${r}">${r}</span>`:''}</td>
       <td class="mono">${esc(x.registerType||'')} ${esc(x.address||'')}</td>
@@ -382,7 +383,7 @@
       const online=cache.meters.filter(m=>m.device?.status==='CONNECTED').length;
       document.getElementById('meterKpis').innerHTML=kpi('Meters',cache.meters.length)+kpi('Connected',online,'good')+kpi('Templates',cache.templates.length,'brand');
       document.getElementById('meterRows').innerHTML=cache.meters.map(m=>{const dv=m.device;const conn=dv?(dv.protocol==='MODBUS_RTU'?'serial':`${dv.protocol}`):'manual';const st=dv?.status||'—';return`<tr>
-        <td><div class="mono" style="color:#aab1ff;font-weight:600">${esc(m.meterNumber)}</div><div style="color:hsl(var(--muted-fg));font-size:12px">${esc(m.name)}</div></td>
+        <td><div class="mono" style="color:#8fb3ae;font-weight:600">${esc(m.meterNumber)}</div><div style="color:hsl(var(--muted-fg));font-size:12px">${esc(m.name)}</div></td>
         <td>${esc(m.model||m.templateKey||'—')}</td>
         <td class="mono">${esc(conn)}</td>
         <td><span class="tg ${st==='CONNECTED'?'on':'off'}"><span class="d"></span>${esc(st)}</span></td>

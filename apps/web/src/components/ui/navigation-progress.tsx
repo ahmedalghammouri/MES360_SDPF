@@ -66,10 +66,10 @@ export function NavigationProgress() {
         style={{
           width: `${progress}%`,
           transitionDuration: progress === 100 ? '300ms' : '600ms',
-          background: 'linear-gradient(90deg, #6366f1 0%, #a78bfa 50%, #60a5fa 100%)',
+          background: 'linear-gradient(90deg, #003933 0%, #d9bb75 50%, #4c7571 100%)',
           boxShadow:
-            '0 0 8px rgba(99,102,241,0.8),' +
-            '0 0 20px rgba(99,102,241,0.4)',
+            '0 0 8px rgba(0,57,51,0.8),' +
+            '0 0 20px rgba(0,57,51,0.4)',
           opacity: visible ? 1 : 0,
           transitionProperty: progress === 100 ? 'width, opacity' : 'width',
         }}
