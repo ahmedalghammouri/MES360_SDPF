@@ -61,31 +61,32 @@ const I64 = (key: string, name: string, energyRole: EnergyRole, address: number,
 //  • Active energy uses the FLOAT32 kWh registers 2700/2702 (delivered/received, "ready to
 //    use") rather than the Int64 Wh counters at 3204/3208. Simpler and no scaling.
 //
-// Addresses are the register numbers as published by Schneider (map §13 notes these are
-// 1-based; some meters/firmware present them as the 0-based wire address). If a real meter
-// reads one register low, subtract 1 — every field stays editable in the UI after apply.
+// Addresses are the vendor's documented register numbers − 1. The PM5110 map lists its
+// registers 1-based (e.g. Current A at "3000"), while modbus-serial uses 0-based PDU
+// addresses — so the wire address is number − 1 (2999). Verified over RS-485 against real
+// METSEPM5110 hardware. Every field stays editable in the UI after the template is applied.
 const SCHNEIDER_PM5110: MeterTemplate = {
   key: 'SCHNEIDER_PM5110',
   label: 'Schneider PowerLogic PM5110',
   manufacturer: 'Schneider Electric',
   models: ['METSEPM5110', 'PM5100'],
   tags: [
-    F('I_A', 'Current L1', 'CURRENT_L1', 3000, 'A'),
-    F('I_B', 'Current L2', 'CURRENT_L2', 3002, 'A'),
-    F('I_C', 'Current L3', 'CURRENT_L3', 3004, 'A'),
-    F('I_AVG', 'Current Avg', 'CURRENT_AVG', 3010, 'A'),
-    F('V_LL_AVG', 'Voltage L-L Avg', 'VOLTAGE_LL_AVG', 3026, 'V'),
-    F('V_AN', 'Voltage L1-N', 'VOLTAGE_L1', 3028, 'V'),
-    F('V_BN', 'Voltage L2-N', 'VOLTAGE_L2', 3030, 'V'),
-    F('V_CN', 'Voltage L3-N', 'VOLTAGE_L3', 3032, 'V'),
-    F('V_LN_AVG', 'Voltage L-N Avg', 'VOLTAGE_AVG', 3036, 'V'),
-    F('P_TOTAL', 'Active Power Total', 'ACTIVE_POWER_TOTAL', 3060, 'kW'),
-    F('Q_TOTAL', 'Reactive Power Total', 'REACTIVE_POWER_TOTAL', 3068, 'kVAR'),
-    F('S_TOTAL', 'Apparent Power Total', 'APPARENT_POWER_TOTAL', 3076, 'kVA'),
-    F('PF_TOTAL', 'Power Factor Total', 'PF_TOTAL', 3192, ''),
-    F('FREQ', 'Frequency', 'FREQUENCY', 3110, 'Hz'),
-    F('E_IMP', 'Active Energy Import', 'ENERGY_IMPORT_TOTAL', 2700, 'kWh'),
-    F('E_EXP', 'Active Energy Export', 'ENERGY_EXPORT_TOTAL', 2702, 'kWh'),
+    F('I_A', 'Current L1', 'CURRENT_L1', 2999, 'A'),
+    F('I_B', 'Current L2', 'CURRENT_L2', 3001, 'A'),
+    F('I_C', 'Current L3', 'CURRENT_L3', 3003, 'A'),
+    F('I_AVG', 'Current Avg', 'CURRENT_AVG', 3009, 'A'),
+    F('V_LL_AVG', 'Voltage L-L Avg', 'VOLTAGE_LL_AVG', 3025, 'V'),
+    F('V_AN', 'Voltage L1-N', 'VOLTAGE_L1', 3027, 'V'),
+    F('V_BN', 'Voltage L2-N', 'VOLTAGE_L2', 3029, 'V'),
+    F('V_CN', 'Voltage L3-N', 'VOLTAGE_L3', 3031, 'V'),
+    F('V_LN_AVG', 'Voltage L-N Avg', 'VOLTAGE_AVG', 3035, 'V'),
+    F('P_TOTAL', 'Active Power Total', 'ACTIVE_POWER_TOTAL', 3059, 'kW'),
+    F('Q_TOTAL', 'Reactive Power Total', 'REACTIVE_POWER_TOTAL', 3067, 'kVAR'),
+    F('S_TOTAL', 'Apparent Power Total', 'APPARENT_POWER_TOTAL', 3075, 'kVA'),
+    F('PF_TOTAL', 'Power Factor Total', 'PF_TOTAL', 3191, ''),
+    F('FREQ', 'Frequency', 'FREQUENCY', 3109, 'Hz'),
+    F('E_IMP', 'Active Energy Import', 'ENERGY_IMPORT_TOTAL', 2699, 'kWh'),
+    F('E_EXP', 'Active Energy Export', 'ENERGY_EXPORT_TOTAL', 2701, 'kWh'),
   ],
 };
 

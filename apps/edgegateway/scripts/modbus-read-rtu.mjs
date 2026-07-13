@@ -28,12 +28,12 @@ async function pollOnce() {
   // Read sequentially — a serial RTU bus allows only ONE transaction in flight at a
   // time (this is exactly how the edge gateway's poller reads, tag by tag). Firing
   // these concurrently would collide on the wire and time out.
-  const i = await f32(3000);            // current L1 (A)
-  const v = await f32(3028);            // voltage L1-N (V)
-  const p = await f32(3060);            // active power total (kW)
-  const pf = await f32(3192);           // power factor total (simple float)
-  const hz = await f32(3110);           // frequency (Hz)
-  const energyKWh = await f32(2700);    // active energy import (kWh, Float32)
+  const i = await f32(2999);            // current L1 (A)  — vendor doc 3000 −1 (0-based)
+  const v = await f32(3027);            // voltage L1-N (V) — 3028 −1
+  const p = await f32(3059);            // active power total (kW) — 3060 −1
+  const pf = await f32(3191);           // power factor total (simple float) — 3192 −1
+  const hz = await f32(3109);           // frequency (Hz) — 3110 −1
+  const energyKWh = await f32(2699);    // active energy import (kWh, Float32) — 2700 −1
   const coil = await client.readCoils(0, 1).then((r) => r.data[0]);
   const t = new Date().toLocaleTimeString();
   console.log(

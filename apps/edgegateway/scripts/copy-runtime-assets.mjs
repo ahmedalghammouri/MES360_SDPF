@@ -52,6 +52,44 @@ if (prismaDir) {
   throw new Error('[copy-runtime-assets] could not locate the generated Prisma client (run prisma:generate first)');
 }
 
+// serialport native binding (@serialport/bindings-cpp) — pkg cannot snapshot the
+// native .node either. node-gyp-build has a built-in fallback: when the in-snapshot
+// lookup fails it searches `prebuilds/<platform>-<arch>/` NEXT TO the executable
+// (path.dirname(process.execPath)). So stage the win32-x64 prebuild under
+// build/prebuilds/win32-x64/ and it loads from disk — enabling Modbus RTU (RS485).
+function findSerialportPrebuild() {
+  const rel = join('@serialport', 'bindings-cpp', 'prebuilds', 'win32-x64');
+  const candidates = [
+    join(root, 'node_modules', rel),
+    join(monorepoRoot, 'node_modules', rel),
+  ];
+  for (const d of candidates) {
+    if (existsSync(d) && readdirSync(d).some((f) => f.endsWith('.node'))) return d;
+  }
+  const pnpmDir = join(monorepoRoot, 'node_modules', '.pnpm');
+  if (existsSync(pnpmDir)) {
+    for (const pkg of readdirSync(pnpmDir)) {
+      if (!pkg.startsWith('@serialport+bindings-cpp@')) continue;
+      const d = join(pnpmDir, pkg, 'node_modules', rel);
+      if (existsSync(d) && readdirSync(d).some((f) => f.endsWith('.node'))) return d;
+    }
+  }
+  return null;
+}
+
+const spDir = findSerialportPrebuild();
+if (spDir) {
+  const dest = join(build, 'prebuilds', 'win32-x64');
+  mkdirSync(dest, { recursive: true });
+  let copied = 0;
+  for (const f of readdirSync(spDir)) {
+    if (f.endsWith('.node')) { copyFileSync(join(spDir, f), join(dest, f)); copied++; }
+  }
+  if (!copied) throw new Error(`[copy-runtime-assets] no serialport .node found in ${spDir}`);
+} else {
+  throw new Error('[copy-runtime-assets] could not locate @serialport/bindings-cpp win32-x64 prebuild');
+}
+
 // Schema + dashboard + env template.
 const copies = [
   ['prisma/schema.prisma', 'schema.prisma'],

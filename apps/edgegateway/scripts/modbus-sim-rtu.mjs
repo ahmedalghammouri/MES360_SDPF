@@ -43,26 +43,22 @@ function makeMeter(seed) {
     const b = Buffer.alloc(4); b.writeFloatBE(val, 0);
     regs[addr] = b.readUInt16BE(0); regs[addr + 1] = b.readUInt16BE(2); // BIG word order
   };
-  const setU64 = (addr, val) => {
-    const b = Buffer.alloc(8); b.writeBigUInt64BE(BigInt(Math.round(val)), 0);
-    for (let i = 0; i < 4; i++) regs[addr + i] = b.readUInt16BE(i * 2);
-  };
 
   const refresh = () => {
     const jitter = (x, pct) => x * (1 + (Math.sin(Date.now() / 3000 + seed) * pct));
     const v = jitter(228 + (seed % 5), 0.02), i = jitter(8 + (seed * 1.7) % 14, 0.15), pf = 0.90 + (seed % 6) * 0.015;
     const pPh = (v * i * pf) / 1000; // kW per phase
-    // PM5110 (SCHNEIDER_PM5110) Float32 addresses — mirrors the meter-templates.ts register map
-    setFloat(3000, i); setFloat(3002, i); setFloat(3004, i); setFloat(3010, i);          // currents L1/L2/L3/avg
-    setFloat(3026, v * Math.SQRT2 * Math.sqrt(1.5));                                      // voltage L-L avg (≈ v·√3)
-    setFloat(3028, v); setFloat(3030, v); setFloat(3032, v); setFloat(3036, v);          // voltages L-N + avg
-    setFloat(3060, pPh * 3);                                                              // active power total kW
-    setFloat(3068, pPh * 3 * 0.3); setFloat(3076, pPh * 3 / pf);                          // reactive / apparent
-    setFloat(3110, jitter(50, 0.002));                                                    // frequency Hz
-    setFloat(3192, pf); setFloat(3084, pf);                                               // PF total (simple float 3192 + legacy 3084)
+    // PM5110 (SCHNEIDER_PM5110) Float32 addresses — mirrors meter-templates.ts (vendor doc
+    // register number − 1, i.e. the 0-based wire address on real METSEPM5110 hardware).
+    setFloat(2999, i); setFloat(3001, i); setFloat(3003, i); setFloat(3009, i);          // currents L1/L2/L3/avg
+    setFloat(3025, v * Math.SQRT2 * Math.sqrt(1.5));                                      // voltage L-L avg (≈ v·√3)
+    setFloat(3027, v); setFloat(3029, v); setFloat(3031, v); setFloat(3035, v);          // voltages L-N + avg
+    setFloat(3059, pPh * 3);                                                              // active power total kW
+    setFloat(3067, pPh * 3 * 0.3); setFloat(3075, pPh * 3 / pf);                          // reactive / apparent
+    setFloat(3109, jitter(50, 0.002));                                                    // frequency Hz
+    setFloat(3191, pf);                                                                   // PF total (simple float)
     energyWh += (pPh * 3) * 1000 * (1.5 / 3600);  // integrate kW over the 1.5s tick → Wh
-    setFloat(2700, energyWh / 1000); setFloat(2702, exportWh / 1000);                     // active energy import/export (kWh, Float32)
-    setU64(3204, energyWh); setU64(3208, exportWh);                                        // legacy Int64 energy (Wh)
+    setFloat(2699, energyWh / 1000); setFloat(2701, exportWh / 1000);                     // active energy import/export (kWh, Float32)
     coil0 = !coil0;
   };
   refresh();

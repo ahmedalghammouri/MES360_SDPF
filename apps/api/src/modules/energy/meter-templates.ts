@@ -46,30 +46,33 @@ const F = (key: string, name: string, energyRole: EnergyRole, address: number, u
 const I64 = (key: string, name: string, energyRole: EnergyRole, address: number, unit: string, scaleFactor?: number): MeterTagSpec =>
   ({ key, name, energyRole, registerType: 'HOLDING', address, wordCount: 4, wordOrder: 'BIG', dataType: 'INT', unit, ...(scaleFactor ? { scaleFactor } : {}) });
 
-// Schneider PowerLogic PM5110 — all FLOAT32; PF from the simple-float register 3192 (not the
-// 4-quadrant-encoded 3078–3092) and energy from the Float32 kWh registers 2700/2702.
+// Schneider PowerLogic PM5110 — all FLOAT32; PF from the simple-float register (not the
+// 4-quadrant-encoded 3078–3092) and energy from the Float32 kWh energy registers.
+// Addresses are the vendor's documented register numbers − 1 (map is 1-based; modbus-serial
+// uses 0-based PDU addresses, so wire address = number − 1). Verified over RS-485 against real
+// METSEPM5110 hardware. Keep in sync with packages/industrial-drivers/src/meter-templates.ts.
 const SCHNEIDER_PM5110: MeterTemplate = {
   key: 'SCHNEIDER_PM5110',
   label: 'Schneider PowerLogic PM5110',
   manufacturer: 'Schneider Electric',
   models: ['METSEPM5110', 'PM5100'],
   tags: [
-    F('I_A', 'Current L1', 'CURRENT_L1', 3000, 'A'),
-    F('I_B', 'Current L2', 'CURRENT_L2', 3002, 'A'),
-    F('I_C', 'Current L3', 'CURRENT_L3', 3004, 'A'),
-    F('I_AVG', 'Current Avg', 'CURRENT_AVG', 3010, 'A'),
-    F('V_LL_AVG', 'Voltage L-L Avg', 'VOLTAGE_LL_AVG', 3026, 'V'),
-    F('V_AN', 'Voltage L1-N', 'VOLTAGE_L1', 3028, 'V'),
-    F('V_BN', 'Voltage L2-N', 'VOLTAGE_L2', 3030, 'V'),
-    F('V_CN', 'Voltage L3-N', 'VOLTAGE_L3', 3032, 'V'),
-    F('V_LN_AVG', 'Voltage L-N Avg', 'VOLTAGE_AVG', 3036, 'V'),
-    F('P_TOTAL', 'Active Power Total', 'ACTIVE_POWER_TOTAL', 3060, 'kW'),
-    F('Q_TOTAL', 'Reactive Power Total', 'REACTIVE_POWER_TOTAL', 3068, 'kVAR'),
-    F('S_TOTAL', 'Apparent Power Total', 'APPARENT_POWER_TOTAL', 3076, 'kVA'),
-    F('PF_TOTAL', 'Power Factor Total', 'PF_TOTAL', 3192, ''),
-    F('FREQ', 'Frequency', 'FREQUENCY', 3110, 'Hz'),
-    F('E_IMP', 'Active Energy Import', 'ENERGY_IMPORT_TOTAL', 2700, 'kWh'),
-    F('E_EXP', 'Active Energy Export', 'ENERGY_EXPORT_TOTAL', 2702, 'kWh'),
+    F('I_A', 'Current L1', 'CURRENT_L1', 2999, 'A'),
+    F('I_B', 'Current L2', 'CURRENT_L2', 3001, 'A'),
+    F('I_C', 'Current L3', 'CURRENT_L3', 3003, 'A'),
+    F('I_AVG', 'Current Avg', 'CURRENT_AVG', 3009, 'A'),
+    F('V_LL_AVG', 'Voltage L-L Avg', 'VOLTAGE_LL_AVG', 3025, 'V'),
+    F('V_AN', 'Voltage L1-N', 'VOLTAGE_L1', 3027, 'V'),
+    F('V_BN', 'Voltage L2-N', 'VOLTAGE_L2', 3029, 'V'),
+    F('V_CN', 'Voltage L3-N', 'VOLTAGE_L3', 3031, 'V'),
+    F('V_LN_AVG', 'Voltage L-N Avg', 'VOLTAGE_AVG', 3035, 'V'),
+    F('P_TOTAL', 'Active Power Total', 'ACTIVE_POWER_TOTAL', 3059, 'kW'),
+    F('Q_TOTAL', 'Reactive Power Total', 'REACTIVE_POWER_TOTAL', 3067, 'kVAR'),
+    F('S_TOTAL', 'Apparent Power Total', 'APPARENT_POWER_TOTAL', 3075, 'kVA'),
+    F('PF_TOTAL', 'Power Factor Total', 'PF_TOTAL', 3191, ''),
+    F('FREQ', 'Frequency', 'FREQUENCY', 3109, 'Hz'),
+    F('E_IMP', 'Active Energy Import', 'ENERGY_IMPORT_TOTAL', 2699, 'kWh'),
+    F('E_EXP', 'Active Energy Export', 'ENERGY_EXPORT_TOTAL', 2701, 'kWh'),
   ],
 };
 

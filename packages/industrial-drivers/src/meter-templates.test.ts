@@ -19,7 +19,7 @@ test('PM5110 template has the key roles', () => {
   const e = t.tags.find((x) => x.energyRole === 'ENERGY_IMPORT_TOTAL')!;
   assert.equal(e.dataType, 'FLOAT');
   assert.equal(e.wordCount, 2);
-  assert.equal(e.address, 2700);
+  assert.equal(e.address, 2699);
   // instantaneous are float32
   const p = t.tags.find((x) => x.energyRole === 'ACTIVE_POWER_TOTAL')!;
   assert.equal(p.dataType, 'FLOAT');

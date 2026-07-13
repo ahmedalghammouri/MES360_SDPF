@@ -51,11 +51,30 @@ export class ModbusClient {
     return this.connected;
   }
 
+  /**
+   * Best-effort close of the current client, releasing its serial/TCP handle.
+   * Serial (RS-485) ports are exclusive on Windows: if a prior handle is left
+   * open, the next connectRTUBuffered fails with "Access denied". So we must
+   * close before reopening. Guarded with a timeout since modbus-serial's close
+   * may never invoke its callback when the port isn't actually open.
+   */
+  private async closeQuietly(): Promise<void> {
+    const c = this.client as unknown as { isOpen?: boolean; close?: (cb: () => void) => void };
+    if (!c?.isOpen) return; // nothing open — avoid a needless delay on first connect
+    await new Promise<void>((resolve) => {
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      try { c.close!(finish); } catch { finish(); }
+      setTimeout(finish, 1500);
+    });
+  }
+
   /** Connect (idempotent). Concurrent callers share one in-flight attempt. */
   async connect(): Promise<void> {
     if (this.connected) return;
     if (this.connecting) return this.connecting;
     this.connecting = (async () => {
+      await this.closeQuietly(); // release any leaked handle before reopening (prevents "Access denied")
       this.client = new ModbusRTU();
       this.client.setTimeout(this.opts.timeoutMs ?? 3000);
       const transport = this.opts.transport ?? 'TCP';
@@ -85,9 +104,7 @@ export class ModbusClient {
 
   async disconnect(): Promise<void> {
     this.connected = false;
-    await new Promise<void>((resolve) => {
-      try { this.client.close(() => resolve()); } catch { resolve(); }
-    });
+    await this.closeQuietly();
   }
 
   private async readRaw(registerType: RegisterType, address: number, count: number): Promise<number[] | boolean[]> {
@@ -124,8 +141,15 @@ export class ModbusClient {
       const value = coerce(scaled, tag.dataType);
       return { raw, value, quality: 'GOOD', timestamp };
     } catch (err) {
-      this.connected = false;
-      return { raw: null, value: null, quality: 'BAD', timestamp, error: (err as Error)?.message ?? String(err) };
+      const e = err as { message?: string; modbusCode?: number };
+      const message = e?.message ?? String(err);
+      // A Modbus EXCEPTION response (illegal data value/address/function) means the
+      // link is healthy but that one register is unsupported — fail just this tag and
+      // keep the connection. Only a genuine TRANSPORT error (timeout, port/CRC, closed
+      // socket) marks us disconnected so the next read triggers a clean reconnect.
+      const isProtocolException = e?.modbusCode != null || /modbus exception/i.test(message);
+      if (!isProtocolException) this.connected = false;
+      return { raw: null, value: null, quality: 'BAD', timestamp, error: message };
     }
   }
 }
