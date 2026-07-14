@@ -10,7 +10,7 @@ import { GatewayContextService } from '../context/gateway-context.service';
 import { ModbusPollerService } from '../acquisition/modbus-poller.service';
 import { BufferService } from '../acquisition/buffer.service';
 import { ModbusLogService } from '../acquisition/modbus-log.service';
-import { METER_TEMPLATES, instantiateMeterTags } from '@mes360/industrial-drivers';
+import { METER_TEMPLATES, instantiateMeterTags, instantiateEdgeCounterTags, type EdgeCounterBlocks } from '@mes360/industrial-drivers';
 import { readConfigFile, writeConfigFile } from '../config/config-store';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -299,7 +299,8 @@ export class LocalApiController {
     const factoryId = this.ctx.getFactoryId();
     if (!factoryId) throw new BadRequestException('Gateway not bound to a factory yet');
     const scope = await this.resolveScope(b);
-    return this.prisma.device.create({
+    const isEdgeCounter = b.type === 'EDGE_COUNTER';
+    const device = await this.prisma.device.create({
       data: {
         factoryId,
         gatewayId: this.ctx.getGatewayId(),
@@ -315,13 +316,42 @@ export class LocalApiController {
         parity: b.parity ?? null,
         dataBits: b.dataBits ?? null,
         stopBits: b.stopBits ?? null,
-        pollIntervalMs: b.pollIntervalMs ?? null,
+        // EdgeCounter devices poll fast by default so short sensor pulses aren't missed.
+        pollIntervalMs: b.pollIntervalMs ?? (isEdgeCounter ? 100 : null),
         machineId: scope.machineId,
         lineId: scope.lineId,
         areaId: scope.areaId,
+        config: isEdgeCounter && b.edgeCounter ? { edgeCounter: b.edgeCounter } : undefined,
         status: 'DISCONNECTED',
       },
     });
+    if (isEdgeCounter && b.edgeCounter) {
+      await this.provisionEdgeCounterTags(device.id, device.deviceCode, factoryId, scope, b.edgeCounter as EdgeCounterBlocks);
+    }
+    return device;
+  }
+
+  /** Auto-create an EdgeCounter device's DI/Coil/HR/IR tags (idempotent by factory+code). */
+  private async provisionEdgeCounterTags(
+    deviceId: string, deviceCode: string, factoryId: string,
+    scope: { machineId: string | null; lineId: string | null; areaId: string | null },
+    blocks: EdgeCounterBlocks,
+  ) {
+    const specs = instantiateEdgeCounterTags(deviceCode, blocks);
+    for (const s of specs) {
+      const exists = await this.prisma.tagDefinition.findFirst({ where: { factoryId, code: s.code } });
+      if (exists) continue;
+      await this.prisma.tagDefinition.create({
+        data: {
+          factoryId, deviceId,
+          machineId: scope.machineId, lineId: scope.lineId, areaId: scope.areaId,
+          code: s.code, name: s.name, dataType: s.dataType as any, tagType: s.tagType as any,
+          address: s.address, registerType: s.registerType, wordCount: s.wordCount, wordOrder: s.wordOrder,
+          counterRole: (s.counterRole as any) ?? undefined, edgeType: s.edgeType ?? undefined,
+          mqttPublishMode: s.mqttPublishMode, historizationMode: s.historizationMode,
+        },
+      });
+    }
   }
 
   @UseGuards(JwtAuthGuard)
@@ -397,6 +427,11 @@ export class LocalApiController {
         counterRole: b.counterRole ?? null,
         edgeType: b.edgeType ?? 'RISING',
         pollIntervalMs: b.pollIntervalMs ?? null,
+        ...(b.mqttPublishMode !== undefined && { mqttPublishMode: b.mqttPublishMode }),
+        ...(b.mqttPublishRateSec !== undefined && { mqttPublishRateSec: b.mqttPublishRateSec }),
+        ...(b.historizationMode !== undefined && { historizationMode: b.historizationMode }),
+        ...(b.historizationRateSec !== undefined && { historizationRateSec: b.historizationRateSec }),
+        ...(b.deadband !== undefined && { deadband: b.deadband }),
       },
     });
   }
@@ -414,6 +449,7 @@ export class LocalApiController {
     const allowed = [
       'name', 'unit', 'dataType', 'tagType', 'machineId', 'lineId', 'areaId', 'deviceId', 'address', 'registerType',
       'wordCount', 'wordOrder', 'scaleFactor', 'offset', 'counterRole', 'edgeType', 'pollIntervalMs', 'isActive',
+      'mqttPublishMode', 'mqttPublishRateSec', 'historizationMode', 'historizationRateSec', 'deadband', 'historizationEnabled', 'isMachineStatus', 'statusMap',
     ];
     const data: Record<string, unknown> = {};
     for (const k of allowed) if (b[k] !== undefined) data[k] = b[k];

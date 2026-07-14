@@ -46,6 +46,7 @@ export function IotTagsView() {
     address: '', registerType: 'HOLDING', wordCount: '1', wordOrder: 'BIG',
     scaleFactor: '', offset: '', counterRole: 'NONE', edgeType: 'RISING', pollIntervalMs: '',
     historizationEnabled: true, isMachineStatus: false, statusMap: '',
+    mqttPublishMode: 'CHANGE', mqttPublishRateSec: '', historizationMode: 'CHANGE', historizationRateSec: '', deadband: '',
   };
   const [form, setForm] = useState({ ...emptyForm })
 
@@ -167,7 +168,9 @@ export function IotTagsView() {
       code: tag.code || '',
       name: tag.name || '',
       deviceId: tag.deviceId || '',
-      scopeType: tag.lineId ? 'line' : tag.areaId ? 'area' : 'machine',
+      // Machine is the most specific scope — prefer it over the line/area that
+      // are auto-derived from it (a machine-scoped tag also carries a lineId).
+      scopeType: tag.machineId ? 'machine' : tag.lineId ? 'line' : tag.areaId ? 'area' : 'machine',
       machineId: tag.machineId || '',
       lineId: tag.lineId || '',
       areaId: tag.areaId || '',
@@ -187,6 +190,11 @@ export function IotTagsView() {
       historizationEnabled: tag.historizationEnabled !== false,
       isMachineStatus: !!tag.isMachineStatus,
       statusMap: tag.statusMap ? JSON.stringify(tag.statusMap) : '',
+      mqttPublishMode: tag.mqttPublishMode || 'CHANGE',
+      mqttPublishRateSec: tag.mqttPublishRateSec != null ? String(tag.mqttPublishRateSec) : '',
+      historizationMode: tag.historizationMode || 'CHANGE',
+      historizationRateSec: tag.historizationRateSec != null ? String(tag.historizationRateSec) : '',
+      deadband: tag.deadband != null ? String(tag.deadband) : '',
     })
     setFormOpen(true)
   };
@@ -220,6 +228,11 @@ export function IotTagsView() {
       edgeType: form.edgeType,
       pollIntervalMs: num(form.pollIntervalMs),
       historizationEnabled: form.historizationEnabled,
+      mqttPublishMode: form.mqttPublishMode,
+      mqttPublishRateSec: form.mqttPublishMode === 'RATE' ? (num(form.mqttPublishRateSec) ?? 0) : undefined,
+      historizationMode: form.historizationMode,
+      historizationRateSec: form.historizationMode === 'RATE' ? (num(form.historizationRateSec) ?? 0) : undefined,
+      deadband: form.mqttPublishMode === 'CHANGE' || form.historizationMode === 'CHANGE' ? num(form.deadband) : undefined,
       isMachineStatus: form.isMachineStatus,
       statusMap: form.isMachineStatus && form.statusMap.trim()
         ? (() => { try { return JSON.parse(form.statusMap); } catch { return undefined; } })()
@@ -588,6 +601,50 @@ export function IotTagsView() {
               <span>{t('tform.machineStatusDriver')}</span>
             </label>
           </div>
+
+          {/* ── Emission control: MQTT + historian by change / by rate ── */}
+          <div className="col-span-2 pt-2 mt-1 border-t border-border/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t('tform.emissionControl')}
+          </div>
+          <div>
+            <Label>{t('tform.mqttPublishMode')}</Label>
+            <Select value={form.mqttPublishMode} onValueChange={v => setForm(f => ({ ...f, mqttPublishMode: v }))}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CHANGE">{t('tform.emitOnChange')}</SelectItem>
+                <SelectItem value="RATE">{t('tform.emitByRate')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {form.mqttPublishMode === 'RATE' && (
+            <div>
+              <Label>{t('tform.mqttPublishRateSec')}</Label>
+              <Input type="number" min={0} value={form.mqttPublishRateSec} onChange={e => setForm(v => ({ ...v, mqttPublishRateSec: e.target.value }))} className="mt-1" placeholder="e.g. 5" />
+            </div>
+          )}
+          <div>
+            <Label>{t('tform.historizationMode')}</Label>
+            <Select value={form.historizationMode} onValueChange={v => setForm(f => ({ ...f, historizationMode: v }))}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CHANGE">{t('tform.emitOnChange')}</SelectItem>
+                <SelectItem value="RATE">{t('tform.emitByRate')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {form.historizationMode === 'RATE' && (
+            <div>
+              <Label>{t('tform.historizationRateSec')}</Label>
+              <Input type="number" min={0} value={form.historizationRateSec} onChange={e => setForm(v => ({ ...v, historizationRateSec: e.target.value }))} className="mt-1" placeholder="e.g. 60" />
+            </div>
+          )}
+          {(form.mqttPublishMode === 'CHANGE' || form.historizationMode === 'CHANGE') && form.dataType !== 'BOOL' && form.dataType !== 'STRING' && (
+            <div className="col-span-2">
+              <Label>{t('tform.deadband')}</Label>
+              <Input value={form.deadband} onChange={e => setForm(v => ({ ...v, deadband: e.target.value }))} className="mt-1" placeholder={t('tform.deadbandPlaceholder')} />
+              <p className="text-[11px] text-muted-foreground mt-1">{t('tform.deadbandHelp')}</p>
+            </div>
+          )}
 
           {form.isMachineStatus && (
             <div className="col-span-2 rounded-lg border border-border/40 bg-muted/20 p-3 text-xs text-muted-foreground space-y-2">

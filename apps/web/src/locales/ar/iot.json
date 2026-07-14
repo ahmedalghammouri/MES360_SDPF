@@ -12,7 +12,9 @@
   "dform": {
     "createTitle": "إنشاء جهاز", "editTitle": "تعديل الجهاز",
     "deviceCode": "رمز الجهاز", "name": "الاسم", "type": "النوع", "protocol": "البروتوكول",
-    "tGateway": "بوابة", "tSensor": "حساس", "tMeter": "عدّاد", "tDrive": "محرّك",
+    "tGateway": "بوابة", "tSensor": "حساس", "tMeter": "عدّاد", "tDrive": "محرّك", "tEdgeCounter": "عدّاد طرفي (مدخلات رقمية سريعة)",
+    "ecBlocks": "العدّاد الطرفي — كتل السجلات", "ecHint": "عند الحفظ، يُنشأ وسم واحد لكل عنوان. تصبح المدخلات الرقمية/الملفّات وسوم عدّاد (عيّن الدور + الماكينة من شاشة الوسوم).", "ecEditNote": "تُحدَّد نطاقات الكتل عند الإنشاء وهي للقراءة فقط هنا — أضف/احذف الوسوم من شاشة الوسوم.",
+    "ecDiscrete": "المدخلات الرقمية (DI)", "ecCoil": "الملفّات (DO)", "ecHolding": "سجلات الاحتفاظ (HR)", "ecInput": "سجلات الإدخال (IR)", "ecStart": "البداية", "ecQty": "العدد",
     "pModbusTcp": "Modbus TCP", "pModbusRtuTcp": "Modbus RTU عبر TCP", "pModbusRtu": "Modbus RTU (تسلسلي)", "pOpcua": "OPC UA", "pHttp": "HTTP/REST",
     "serialPort": "المنفذ التسلسلي", "baudRate": "معدل الباود", "parity": "التماثل", "pNone": "بدون", "pEven": "زوجي", "pOdd": "فردي", "stopBits": "بتات التوقف",
     "ipAddress": "عنوان IP", "port": "المنفذ",
@@ -42,6 +44,7 @@
     "edgeTrigger": "مُشغّل الحافة", "etRising": "صاعد (0→1)", "etFalling": "هابط (1→0)", "etChange": "أي تغيير",
     "description": "الوصف",
     "historize": "أرشفة (تخزين السلاسل الزمنية في InfluxDB)", "machineStatusDriver": "مُحرّك حالة الماكينة (يقود التشغيل / الخمول / التوقف)",
+    "emissionControl": "النشر والأرشفة", "mqttPublishMode": "نشر MQTT", "historizationMode": "الأرشيف", "emitOnChange": "عند التغيّر", "emitByRate": "بمعدّل (فترة)", "mqttPublishRateSec": "فترة MQTT (ثانية)", "historizationRateSec": "فترة الأرشفة (ثانية)", "deadband": "النطاق الميّت (أدنى تغيّر)", "deadbandPlaceholder": "مثال: 0.5 (فارغ = أي تغيّر)", "deadbandHelp": "في وضع «عند التغيّر»، يُرسل فقط عندما تتغيّر القيمة بمقدار لا يقل عن هذا. اتركه فارغًا لأي تغيّر.",
     "boolHelp": "BOOL: صحيح → تشغيل؛ خطأ → عطل (توقف غير مخطط) عند وجود أمر عمل جارٍ، وإلا خمول.",
     "intHelp": "INT: القيمة → الحالة. اترك الخريطة فارغة لاستخدام الافتراضي القياسي (0 خمول · 1 تشغيل · 2 عطل · 3 توقف مخطط · 4 إعداد · 5 تغيير · 6 نقص تغذية · 7 محجوب · 8 غير متصل · 9 صيانة).",
     "countersRunningOnly": "تتراكم العدّادات فقط أثناء التشغيل.",

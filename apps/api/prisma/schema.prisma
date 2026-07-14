@@ -2071,6 +2071,13 @@ model TagDefinition {
   tagType              TagType     @default(MEASUREMENT)
   historizationEnabled Boolean     @default(true)
   historizationRateSec Int         @default(60)
+  // How the edge gateway decides to emit a reading (independent for the live MQTT
+  // stream vs. the InfluxDB historian). CHANGE = only when the value moves by at
+  // least `deadband`; RATE = at most once per `*RateSec` window (0 = every poll).
+  mqttPublishMode      String      @default("CHANGE") // CHANGE | RATE
+  mqttPublishRateSec   Int         @default(0)
+  historizationMode    String      @default("CHANGE") // CHANGE | RATE
+  deadband             Float? // min absolute change for CHANGE mode (null/0 = any change); mainly for analog tags
   // This tag DRIVES the machine's live state (one per machine):
   //   BOOL → true = RUNNING; false = BREAKDOWN (unplanned stop) if a JO is in progress, else IDLE.
   //   INT  → mapped via statusMap (0-based), e.g. {"0":"IDLE","1":"RUNNING","2":"BREAKDOWN",...}.

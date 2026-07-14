@@ -36,6 +36,9 @@ export function IotDevicesView() {
     port: '502', unitId: '1', pollIntervalMs: '', gatewayId: '',
     scopeType: 'machine', machineId: '', lineId: '', areaId: '',
     serialPort: '', baudRate: '9600', parity: 'none', stopBits: '1',
+    // EdgeCounter block ranges (start + quantity per register type).
+    ecDiStart: '0', ecDiQty: '8', ecCoilStart: '0', ecCoilQty: '0',
+    ecHrStart: '0', ecHrQty: '0', ecIrStart: '0', ecIrQty: '0',
   };
   const [form, setForm] = useState({ ...emptyForm })
 
@@ -115,7 +118,9 @@ export function IotDevicesView() {
       unitId: device.unitId != null ? String(device.unitId) : '1',
       pollIntervalMs: device.pollIntervalMs != null ? String(device.pollIntervalMs) : '',
       gatewayId: device.gatewayId || '',
-      scopeType: device.lineId ? 'line' : device.areaId ? 'area' : 'machine',
+      // Machine is the most specific scope — prefer it over the line/area that
+      // are auto-derived from it (a machine-scoped device also carries a lineId).
+      scopeType: device.machineId ? 'machine' : device.lineId ? 'line' : device.areaId ? 'area' : 'machine',
       machineId: device.machineId || '',
       lineId: device.lineId || '',
       areaId: device.areaId || '',
@@ -123,6 +128,14 @@ export function IotDevicesView() {
       baudRate: device.baudRate != null ? String(device.baudRate) : '9600',
       parity: device.parity || 'none',
       stopBits: device.stopBits != null ? String(device.stopBits) : '1',
+      ecDiStart: String(device.config?.edgeCounter?.discrete?.start ?? 0),
+      ecDiQty: String(device.config?.edgeCounter?.discrete?.quantity ?? 0),
+      ecCoilStart: String(device.config?.edgeCounter?.coil?.start ?? 0),
+      ecCoilQty: String(device.config?.edgeCounter?.coil?.quantity ?? 0),
+      ecHrStart: String(device.config?.edgeCounter?.holding?.start ?? 0),
+      ecHrQty: String(device.config?.edgeCounter?.holding?.quantity ?? 0),
+      ecIrStart: String(device.config?.edgeCounter?.input?.start ?? 0),
+      ecIrQty: String(device.config?.edgeCounter?.input?.quantity ?? 0),
     })
     setFormOpen(true)
   };
@@ -152,6 +165,17 @@ export function IotDevicesView() {
       parity: form.protocol === 'MODBUS_RTU' ? form.parity : undefined,
       stopBits: form.protocol === 'MODBUS_RTU' ? num(form.stopBits) : undefined,
     };
+    // EdgeCounter: send the block ranges so the backend auto-creates one tag per
+    // address. Only sent on create (auto-provision runs once).
+    if (form.type === 'EDGE_COUNTER' && !editDevice) {
+      const range = (start: string, qty: string) => ({ start: Number(start) || 0, quantity: Number(qty) || 0 });
+      dto.edgeCounter = {
+        discrete: range(form.ecDiStart, form.ecDiQty),
+        coil: range(form.ecCoilStart, form.ecCoilQty),
+        holding: range(form.ecHrStart, form.ecHrQty),
+        input: range(form.ecIrStart, form.ecIrQty),
+      };
+    }
     if (editDevice) updateMutation.mutate({ id: editDevice.id, dto })
     else createMutation.mutate(dto)
   };
@@ -306,7 +330,7 @@ export function IotDevicesView() {
           </div>
           <div>
             <Label>{t('dform.type')} *</Label>
-            <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
+            <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v, pollIntervalMs: v === 'EDGE_COUNTER' && !f.pollIntervalMs ? '100' : f.pollIntervalMs }))}>
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="PLC">PLC</SelectItem>
@@ -315,6 +339,7 @@ export function IotDevicesView() {
                 <SelectItem value="SENSOR">{t('dform.tSensor')}</SelectItem>
                 <SelectItem value="METER">{t('dform.tMeter')}</SelectItem>
                 <SelectItem value="DRIVE">{t('dform.tDrive')}</SelectItem>
+                <SelectItem value="EDGE_COUNTER">{t('dform.tEdgeCounter')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -424,6 +449,34 @@ export function IotDevicesView() {
             <Label>{t('dform.pollInterval')}</Label>
             <Input value={form.pollIntervalMs} onChange={e => setForm(v => ({ ...v, pollIntervalMs: e.target.value }))} className="mt-1" placeholder={t('dform.pollPlaceholder')} />
           </div>
+
+          {/* ── EdgeCounter: auto-create tags from register blocks ── */}
+          {form.type === 'EDGE_COUNTER' && (
+            <>
+              <div className="col-span-2 pt-2 mt-1 border-t border-border/40">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('dform.ecBlocks')}</div>
+                <p className="text-[11px] text-muted-foreground mt-1">{editDevice ? t('dform.ecEditNote') : t('dform.ecHint')}</p>
+              </div>
+              {([
+                ['discrete', t('dform.ecDiscrete'), 'ecDiStart', 'ecDiQty'],
+                ['coil', t('dform.ecCoil'), 'ecCoilStart', 'ecCoilQty'],
+                ['holding', t('dform.ecHolding'), 'ecHrStart', 'ecHrQty'],
+                ['input', t('dform.ecInput'), 'ecIrStart', 'ecIrQty'],
+              ] as const).map(([key, label, startKey, qtyKey]) => (
+                <div key={key} className="col-span-2 grid grid-cols-[1fr_auto_auto] items-end gap-2">
+                  <Label className="pb-2">{label}</Label>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">{t('dform.ecStart')}</Label>
+                    <Input type="number" min={0} disabled={!!editDevice} value={(form as any)[startKey]} onChange={e => setForm(v => ({ ...v, [startKey]: e.target.value }))} className="mt-1 w-24" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">{t('dform.ecQty')}</Label>
+                    <Input type="number" min={0} disabled={!!editDevice} value={(form as any)[qtyKey]} onChange={e => setForm(v => ({ ...v, [qtyKey]: e.target.value }))} className="mt-1 w-24" />
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </FormDialog>
 

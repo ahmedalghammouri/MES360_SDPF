@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, Logger } from '@nestj
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { EnergyContextService } from './energy-context.service';
+import { instantiateEdgeCounterTags, type EdgeCounterBlocks } from './edge-counter';
 
 export interface TelemetryDto {
   machineId: string;
@@ -409,10 +410,12 @@ export class IotService {
     gatewayId?: string; unitId?: number; pollIntervalMs?: number;
     serialPort?: string; baudRate?: number; parity?: string; dataBits?: number; stopBits?: number;
     lineId?: string; areaId?: string;
+    edgeCounter?: EdgeCounterBlocks;
   }) {
     const resolvedFactoryId = factoryId ?? await this.getDefaultFactoryId();
     const scope = await this.resolveScope({ machineId: dto.machineId, lineId: dto.lineId, areaId: dto.areaId });
-    return this.prisma.device.create({
+    const isEdgeCounter = dto.type === 'EDGE_COUNTER';
+    const device = await this.prisma.device.create({
       data: {
         factoryId: resolvedFactoryId,
         name: dto.name,
@@ -426,17 +429,48 @@ export class IotService {
         areaId: scope.areaId,
         gatewayId: dto.gatewayId || null,
         unitId: dto.unitId ?? null,
-        pollIntervalMs: dto.pollIntervalMs ?? null,
+        // EdgeCounter devices poll fast by default so short sensor pulses aren't missed.
+        pollIntervalMs: dto.pollIntervalMs ?? (isEdgeCounter ? 100 : null),
         serialPort: dto.serialPort ?? null,
         baudRate: dto.baudRate ?? null,
         parity: dto.parity ?? null,
         dataBits: dto.dataBits ?? null,
         stopBits: dto.stopBits ?? null,
         firmware: dto.firmware,
+        config: isEdgeCounter && dto.edgeCounter ? { edgeCounter: dto.edgeCounter as any } : undefined,
         status: 'DISCONNECTED',
         isActive: true,
       },
     });
+    if (isEdgeCounter && dto.edgeCounter) {
+      await this.provisionEdgeCounterTags(device.id, device.deviceCode, resolvedFactoryId, scope, dto.edgeCounter);
+    }
+    return device;
+  }
+
+  /** Auto-create an EdgeCounter device's DI/Coil/HR/IR tags (idempotent by factory+code). */
+  private async provisionEdgeCounterTags(
+    deviceId: string,
+    deviceCode: string,
+    factoryId: string,
+    scope: { machineId: string | null; lineId: string | null; areaId: string | null },
+    blocks: EdgeCounterBlocks,
+  ): Promise<void> {
+    const specs = instantiateEdgeCounterTags(deviceCode, blocks);
+    for (const s of specs) {
+      const exists = await this.prisma.tagDefinition.findFirst({ where: { factoryId, code: s.code } });
+      if (exists) continue;
+      await this.prisma.tagDefinition.create({
+        data: {
+          factoryId, deviceId,
+          machineId: scope.machineId, lineId: scope.lineId, areaId: scope.areaId,
+          code: s.code, name: s.name, dataType: s.dataType as any, tagType: s.tagType as any,
+          address: s.address, registerType: s.registerType, wordCount: s.wordCount, wordOrder: s.wordOrder,
+          counterRole: (s.counterRole as any) ?? undefined, edgeType: s.edgeType ?? undefined,
+          mqttPublishMode: s.mqttPublishMode, historizationMode: s.historizationMode,
+        },
+      });
+    }
   }
 
   async updateDevice(factoryId: string | null, id: string, dto: {
@@ -498,6 +532,7 @@ export class IotService {
     meterId?: string; energyRole?: string;
     lineId?: string; areaId?: string;
     historizationEnabled?: boolean; isMachineStatus?: boolean; statusMap?: Record<string, string> | null;
+    mqttPublishMode?: string; mqttPublishRateSec?: number; historizationMode?: string; historizationRateSec?: number; deadband?: number | null;
   }) {
     const resolvedFactoryId = factoryId ?? await this.getDefaultFactoryId();
     await this.assertCounterRoleUnique(resolvedFactoryId, dto.machineId || null, dto.counterRole, dto.tagType);
@@ -529,6 +564,11 @@ export class IotService {
         edgeType: dto.edgeType || 'RISING',
         pollIntervalMs: dto.pollIntervalMs ?? null,
         ...(dto.historizationEnabled !== undefined && { historizationEnabled: dto.historizationEnabled }),
+        ...(dto.mqttPublishMode !== undefined && { mqttPublishMode: dto.mqttPublishMode }),
+        ...(dto.mqttPublishRateSec !== undefined && { mqttPublishRateSec: dto.mqttPublishRateSec }),
+        ...(dto.historizationMode !== undefined && { historizationMode: dto.historizationMode }),
+        ...(dto.historizationRateSec !== undefined && { historizationRateSec: dto.historizationRateSec }),
+        ...(dto.deadband !== undefined && { deadband: dto.deadband }),
         isMachineStatus: !!dto.isMachineStatus,
         statusMap: (dto.statusMap as any) ?? undefined,
         isActive: true,
@@ -546,6 +586,7 @@ export class IotService {
     meterId?: string | null; energyRole?: string;
     lineId?: string | null; areaId?: string | null;
     historizationEnabled?: boolean; isMachineStatus?: boolean; statusMap?: Record<string, string> | null;
+    mqttPublishMode?: string; mqttPublishRateSec?: number; historizationMode?: string; historizationRateSec?: number; deadband?: number | null;
   }) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const tag = await this.prisma.tagDefinition.findFirst({ where: { id, ...factoryFilter } });
@@ -584,6 +625,11 @@ export class IotService {
         ...(dto.meterId !== undefined && { meterId: dto.meterId }),
         ...(dto.energyRole !== undefined && { energyRole: dto.energyRole }),
         ...(dto.historizationEnabled !== undefined && { historizationEnabled: dto.historizationEnabled }),
+        ...(dto.mqttPublishMode !== undefined && { mqttPublishMode: dto.mqttPublishMode }),
+        ...(dto.mqttPublishRateSec !== undefined && { mqttPublishRateSec: dto.mqttPublishRateSec }),
+        ...(dto.historizationMode !== undefined && { historizationMode: dto.historizationMode }),
+        ...(dto.historizationRateSec !== undefined && { historizationRateSec: dto.historizationRateSec }),
+        ...(dto.deadband !== undefined && { deadband: dto.deadband }),
         ...(dto.isMachineStatus !== undefined && { isMachineStatus: dto.isMachineStatus }),
         ...(dto.statusMap !== undefined && { statusMap: (dto.statusMap as any) }),
       },

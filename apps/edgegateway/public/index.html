@@ -236,7 +236,7 @@
   let timer=null,tab='overview',cache={devices:[],tags:[],machines:[],lines:[],areas:[]},prevVals={};
   function lineOpts(sel){return'<option value="">— select —</option>'+cache.lines.map(l=>`<option value="${l.id}" ${l.id===sel?'selected':''}>${esc(l.name)} (${esc(l.code)})</option>`).join('')}
   function areaOpts(sel){return'<option value="">— select —</option>'+cache.areas.map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)} (${esc(a.code)})</option>`).join('')}
-  function scopeSelect(p,e){e=e||{};const st=e.lineId?'line':e.areaId?'area':'machine';return `
+  function scopeSelect(p,e){e=e||{};const st=e.machineId?'machine':e.lineId?'line':e.areaId?'area':'machine';return `
     <div><label>Scope</label><select id="${p}_scope" onchange="egScopeToggle('${p}')">${selOpts2([['machine','Machine'],['line','Line'],['area','Area']],st)}</select></div>
     <div><label>Target (Machine / Line / Area)</label>
       <select id="${p}_machine" style="display:${st==='machine'?'block':'none'}">${machineOpts(e.machineId)}</select>
@@ -310,7 +310,7 @@
   function openDeviceForm(d){const e=d||{},ed=!!d;openModal((ed?'Edit':'Add')+' Device',`<div class="grid2">
     <div><label>Device Code *</label><input id="f_code" value="${esc(e.deviceCode||'')}" ${ed?'disabled':''} placeholder="PLC-LINE1"></div>
     <div><label>Name *</label><input id="f_name" value="${esc(e.name||'')}"></div>
-    <div><label>Type</label><select id="f_type">${['PLC','HMI','GATEWAY','SENSOR','METER','DRIVE'].map(t=>`<option ${e.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div><label>Type</label><select id="f_type" onchange="document.getElementById('ecBox').style.display=this.value==='EDGE_COUNTER'?'contents':'none';if(this.value==='EDGE_COUNTER'&&!document.getElementById('f_poll').value)document.getElementById('f_poll').value='100'">${['PLC','HMI','GATEWAY','SENSOR','METER','DRIVE','EDGE_COUNTER'].map(t=>`<option value="${t}" ${e.type===t?'selected':''}>${t==='EDGE_COUNTER'?'Edge Counter (fast DI)':t}</option>`).join('')}</select></div>
     ${scopeSelect('f',e)}
     <div><label>Protocol</label><select id="f_proto" onchange="document.getElementById('tcpBox').style.display=this.value==='MODBUS_RTU'?'none':'contents';document.getElementById('serBox').style.display=this.value==='MODBUS_RTU'?'contents':'none'">${selOpts2([['MODBUS','Modbus TCP'],['MODBUS_RTU_TCP','Modbus RTU over TCP'],['MODBUS_RTU','Modbus RTU (serial)']],e.protocol||'MODBUS')}</select></div>
     <div><label>Modbus Unit ID</label><input id="f_unit" value="${e.unitId??1}"></div>
@@ -324,11 +324,15 @@
       <div><label>Parity</label><select id="f_parity">${selOpts(['none','even','odd'],e.parity||'none')}</select></div>
       <div><label>Stop Bits</label><input id="f_stop" value="${e.stopBits??1}"></div>
     </div>
-    <div><label>Poll Interval (ms)</label><input id="f_poll" value="${e.pollIntervalMs??''}" placeholder="1000"></div></div>`,async()=>{
+    <div><label>Poll Interval (ms)</label><input id="f_poll" value="${e.pollIntervalMs??''}" placeholder="1000"></div>
+    ${(()=>{const ec=(e.config&&e.config.edgeCounter)||{};const rng=(k,ds,dq)=>{const r=ec[k]||{};return `<div style="display:flex;gap:6px;align-items:end"><div style="flex:1"><label>${({discrete:'Discrete Inputs (DI)',coil:'Coils (DO)',holding:'Holding Regs (HR)',input:'Input Regs (IR)'})[k]}</label></div><div><label style="font-size:10px">Start</label><input type="number" min="0" id="f_ec_${k}_s" value="${r.start??ds}" ${ed?'disabled':''} style="width:70px"></div><div><label style="font-size:10px">Qty</label><input type="number" min="0" id="f_ec_${k}_q" value="${r.quantity??dq}" ${ed?'disabled':''} style="width:70px"></div></div>`};
+      return `<div id="ecBox" style="display:${e.type==='EDGE_COUNTER'?'contents':'none'}"><div class="section">Edge Counter — register blocks (one tag auto-created per address; DI/coils become COUNTER tags)</div>${rng('discrete',0,8)}${rng('coil',0,0)}${rng('holding',0,0)}${rng('input',0,0)}</div>`})()}
+    </div>`,async()=>{
       const num=v=>v===''?undefined:Number(v);const proto=val('f_proto');
       const dto={name:val('f_name'),type:val('f_type'),protocol:proto,...scopeDto('f'),unitId:num(val('f_unit')),pollIntervalMs:num(val('f_poll'))};
       if(proto==='MODBUS_RTU'){dto.serialPort=val('f_serial')||null;dto.baudRate=num(val('f_baud'));dto.parity=val('f_parity');dto.stopBits=num(val('f_stop'))}
       else{dto.ipAddress=val('f_ip')||null;dto.port=num(val('f_port'))}
+      if(dto.type==='EDGE_COUNTER'&&!ed){const rg=k=>({start:Number(val('f_ec_'+k+'_s'))||0,quantity:Number(val('f_ec_'+k+'_q'))||0});dto.edgeCounter={discrete:rg('discrete'),coil:rg('coil'),holding:rg('holding'),input:rg('input')}}
       if(ed){await api('/devices/'+e.id,{method:'PATCH',body:JSON.stringify(dto)})}else{dto.deviceCode=val('f_code');if(!dto.deviceCode||!dto.name)throw new Error('Code and name required');await api('/devices',{method:'POST',body:JSON.stringify(dto)})}closeModal();loadDevices()})}
   async function delDevice(id,name){if(!confirm('Delete device '+name+'?'))return;await api('/devices/'+id,{method:'PATCH',body:JSON.stringify({isActive:false})});loadDevices()}
 
@@ -371,8 +375,14 @@
     <div id="counterBox" style="display:${e.tagType==='COUNTER'?'contents':'none'}"><div class="section">Counter mapping — +1 per edge → running Job Order</div>
       <div><label>Counter Role</label><select id="f_role">${selOpts(['NONE','TOTAL','GOOD','BAD'],e.counterRole||'NONE')}</select></div>
       <div><label>Edge Trigger</label><select id="f_edge">${selOpts(['RISING','FALLING','CHANGE'],e.edgeType||'RISING')}</select></div></div>
+    <div class="section">Publishing &amp; historian — emit on change or by fixed rate</div>
+    <div><label>MQTT publish</label><select id="f_mqmode">${selOpts2([['CHANGE','On change'],['RATE','By rate (interval)']],e.mqttPublishMode||'CHANGE')}</select></div>
+    <div><label>MQTT interval (sec)</label><input id="f_mqrate" value="${e.mqttPublishRateSec??''}" placeholder="0"></div>
+    <div><label>Historian</label><select id="f_hmode">${selOpts2([['CHANGE','On change'],['RATE','By rate (interval)']],e.historizationMode||'CHANGE')}</select></div>
+    <div><label>Historian interval (sec)</label><input id="f_hrate" value="${e.historizationRateSec??''}" placeholder="60"></div>
+    <div><label>Deadband (min change)</label><input id="f_deadband" value="${e.deadband??''}" placeholder="blank = any change"></div>
     </div>`,async()=>{const num=v=>v===''?undefined:Number(v),isC=val('f_ttype')==='COUNTER';
-      const dto={name:val('f_name'),tagType:val('f_ttype'),dataType:val('f_dtype'),deviceId:val('f_device')||null,unit:val('f_unit')||null,...scopeDto('f'),address:val('f_addr')||null,registerType:val('f_rtype'),wordCount:num(val('f_wc')),wordOrder:val('f_wo'),scaleFactor:num(val('f_scale')),offset:num(val('f_offset')),counterRole:isC?val('f_role'):'NONE',edgeType:isC?val('f_edge'):'RISING'};
+      const dto={name:val('f_name'),tagType:val('f_ttype'),dataType:val('f_dtype'),deviceId:val('f_device')||null,unit:val('f_unit')||null,...scopeDto('f'),address:val('f_addr')||null,registerType:val('f_rtype'),wordCount:num(val('f_wc')),wordOrder:val('f_wo'),scaleFactor:num(val('f_scale')),offset:num(val('f_offset')),counterRole:isC?val('f_role'):'NONE',edgeType:isC?val('f_edge'):'RISING',mqttPublishMode:val('f_mqmode'),mqttPublishRateSec:num(val('f_mqrate')),historizationMode:val('f_hmode'),historizationRateSec:num(val('f_hrate')),deadband:num(val('f_deadband'))};
       if(ed){await api('/tags/'+e.id,{method:'PATCH',body:JSON.stringify(dto)})}else{dto.code=val('f_code');if(!dto.code||!dto.name)throw new Error('Code and name required');await api('/tags',{method:'POST',body:JSON.stringify(dto)})}closeModal();loadTags()})}
   async function delTag(id,name){if(!confirm('Delete tag '+name+'?'))return;await api('/tags/'+id,{method:'DELETE'});loadTags()}
 

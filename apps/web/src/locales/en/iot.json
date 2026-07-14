@@ -12,7 +12,9 @@
   "dform": {
     "createTitle": "Create Device", "editTitle": "Edit Device",
     "deviceCode": "Device Code", "name": "Name", "type": "Type", "protocol": "Protocol",
-    "tGateway": "Gateway", "tSensor": "Sensor", "tMeter": "Meter", "tDrive": "Drive",
+    "tGateway": "Gateway", "tSensor": "Sensor", "tMeter": "Meter", "tDrive": "Drive", "tEdgeCounter": "Edge Counter (fast DI)",
+    "ecBlocks": "Edge Counter — register blocks", "ecHint": "On save, one tag is auto-created per address. Digital inputs/coils become COUNTER tags (assign role + machine in the Tags screen).", "ecEditNote": "Block ranges are set at creation and are read-only here — add/remove tags in the Tags screen.",
+    "ecDiscrete": "Discrete Inputs (DI)", "ecCoil": "Coils (DO)", "ecHolding": "Holding Registers (HR)", "ecInput": "Input Registers (IR)", "ecStart": "Start", "ecQty": "Qty",
     "pModbusTcp": "Modbus TCP", "pModbusRtuTcp": "Modbus RTU over TCP", "pModbusRtu": "Modbus RTU (serial)", "pOpcua": "OPC UA", "pHttp": "HTTP/REST",
     "serialPort": "Serial Port", "baudRate": "Baud Rate", "parity": "Parity", "pNone": "None", "pEven": "Even", "pOdd": "Odd", "stopBits": "Stop Bits",
     "ipAddress": "IP Address", "port": "Port",
@@ -42,6 +44,7 @@
     "edgeTrigger": "Edge Trigger", "etRising": "Rising (0→1)", "etFalling": "Falling (1→0)", "etChange": "Any change",
     "description": "Description",
     "historize": "Historize (store time-series in InfluxDB)", "machineStatusDriver": "Machine status driver (drives RUNNING / IDLE / stop)",
+    "emissionControl": "Publishing & historian", "mqttPublishMode": "MQTT publish", "historizationMode": "Historian", "emitOnChange": "On change", "emitByRate": "By rate (interval)", "mqttPublishRateSec": "MQTT interval (sec)", "historizationRateSec": "Historian interval (sec)", "deadband": "Deadband (min change)", "deadbandPlaceholder": "e.g. 0.5 (blank = any change)", "deadbandHelp": "In 'On change' mode, only emit when the value moves by at least this much. Leave blank for any change.",
     "boolHelp": "BOOL: true → RUNNING; false → BREAKDOWN (unplanned stop) when a job order is in progress, else IDLE.",
     "intHelp": "INT: value → state. Leave the map empty to use the standard 0-based default (0 IDLE · 1 RUNNING · 2 BREAKDOWN · 3 PLANNED_STOP · 4 SETUP · 5 CHANGEOVER · 6 STARVED · 7 BLOCKED · 8 OFFLINE · 9 MAINTENANCE).",
     "countersRunningOnly": "Counters only accumulate while RUNNING.",

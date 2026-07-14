@@ -1,5 +1,5 @@
 {
-  "gatewayName": "Local Dev Gateway",
+  "gatewayName": "Plant Edge Gateway 1",
   "factoryCode": "SDPF",
   "databaseUrl": "postgresql://mes_user:mes_password@localhost:5433/mes360?schema=public",
   "mqttBrokerUrl": "mqtt://localhost:1883",

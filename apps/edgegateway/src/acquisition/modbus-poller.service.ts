@@ -26,6 +26,11 @@ interface PolledTag {
   counterTag: CounterTag;
   energyRole: string | null;
   historize: boolean;
+  mqttPublishMode: string;
+  mqttPublishRateSec: number;
+  historizationMode: string;
+  historizationRateSec: number;
+  deadband: number | null;
   isMachineStatus: boolean;
   statusTag: StatusTag;
 }
@@ -120,7 +125,7 @@ export class ModbusPollerService implements OnModuleDestroy {
       const signature = JSON.stringify({
         proto: dev.protocol, ip: dev.ipAddress, port: dev.port, unit: dev.unitId, poll: dev.pollIntervalMs,
         serial: [dev.serialPort, dev.baudRate, dev.parity, dev.dataBits, dev.stopBits], meter: dev.energyMeter?.id ?? null,
-        tags: dev.tagDefinitions.map((t) => [t.id, t.address, t.registerType, t.dataType, t.scaleFactor, t.offset, t.wordCount, t.wordOrder, t.counterRole, t.edgeType, t.machineId, t.energyRole]),
+        tags: dev.tagDefinitions.map((t) => [t.id, t.address, t.registerType, t.dataType, t.scaleFactor, t.offset, t.wordCount, t.wordOrder, t.counterRole, t.edgeType, t.machineId, t.energyRole, (t as any).historizationEnabled, (t as any).mqttPublishMode, (t as any).mqttPublishRateSec, (t as any).historizationMode, (t as any).historizationRateSec, (t as any).deadband, (t as any).isMachineStatus]),
       });
       const existing = this.devices.get(dev.id);
       if (existing && existing.signature === signature) continue; // unchanged
@@ -175,6 +180,11 @@ export class ModbusPollerService implements OnModuleDestroy {
           },
           energyRole: t.energyRole ?? null,
           historize: (t as any).historizationEnabled !== false,
+          mqttPublishMode: ((t as any).mqttPublishMode as string) ?? 'CHANGE',
+          mqttPublishRateSec: ((t as any).mqttPublishRateSec as number) ?? 0,
+          historizationMode: ((t as any).historizationMode as string) ?? 'CHANGE',
+          historizationRateSec: ((t as any).historizationRateSec as number) ?? 60,
+          deadband: ((t as any).deadband as number | null) ?? null,
           isMachineStatus: !!(t as any).isMachineStatus,
           statusTag: {
             tagId: t.id,
@@ -237,8 +247,12 @@ export class ModbusPollerService implements OnModuleDestroy {
     const energyRoleValues = new Map<string, number>();
     let lastTs = new Date().toISOString();
     try {
+      // One coalesced set of block reads per cycle instead of a round-trip per
+      // tag — the key to fast counter polling and light meter reads.
+      const results = await dev.client.readTagsBlocked(dev.tags.map((t) => t.binding));
       for (const tag of dev.tags) {
-        const res = await dev.client.readTag(tag.binding);
+        const res = results.get(tag.tagId);
+        if (!res) continue;
         const ts = res.timestamp.toISOString();
         lastTs = ts;
 
@@ -267,6 +281,11 @@ export class ModbusPollerService implements OnModuleDestroy {
           quality: res.quality,
           timestamp: ts,
           historize: tag.historize,
+          mqttPublishMode: tag.mqttPublishMode,
+          mqttPublishRateSec: tag.mqttPublishRateSec,
+          historizationMode: tag.historizationMode,
+          historizationRateSec: tag.historizationRateSec,
+          deadband: tag.deadband,
         };
         await this.ingest.ingest(record);
 
