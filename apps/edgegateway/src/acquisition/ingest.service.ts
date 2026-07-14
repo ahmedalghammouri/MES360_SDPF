@@ -87,9 +87,12 @@ export class IngestService {
       const windowMs = Math.max(0, (rateSec ?? 0)) * 1000;
       emit = !prev || now - prev.ts >= windowMs;
     } else {
+      const deadband = Math.max(0, rec.deadband ?? 0);
       if (!prev) emit = true;
       else if (typeof curr === 'number' && typeof prev.value === 'number') {
-        emit = Math.abs(curr - prev.value) >= Math.max(0, rec.deadband ?? 0);
+        // deadband 0 = emit on any actual change (strict !=); a positive deadband
+        // requires the value to move by at least that much. (>= 0 would be always-true.)
+        emit = deadband > 0 ? Math.abs(curr - prev.value) >= deadband : curr !== prev.value;
       } else {
         emit = curr !== prev.value;
       }
