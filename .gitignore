@@ -65,3 +65,5 @@ SYSTEM-ADMIN-ACCESS.md
 
 # Edge gateway's own generated Prisma client
 apps/edgegateway/src/generated/
+
+# Local DB dumps (contain sensitive data - never commit)
