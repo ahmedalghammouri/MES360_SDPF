@@ -252,6 +252,9 @@ importers:
       typescript:
         specifier: ^5.5.4
         version: 5.9.3
+      xlsx:
+        specifier: ^0.18.5
+        version: 0.18.5
 
   apps/edgegateway:
     dependencies:
