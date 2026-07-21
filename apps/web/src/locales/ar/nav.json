@@ -70,7 +70,7 @@
   "Control Panel": "لوحة التحكم",
   "Production Orders (PO)": "أوامر الإنتاج",
   "Work Orders (WO)": "أوامر العمل",
-  "Dispatch List (JO)": "قائمة التشغيل",
+  "Job Orders": "قائمة التشغيل",
   "Shopfloor Live": "الإنتاج المباشر",
   "Downtime": "التوقفات",
   "Batches & Lots": "الدُفعات والتشغيلات",

@@ -89,7 +89,7 @@
   },
   "ov": {
     "schedule": "Schedule",
-    "newWorkOrder": "New Work Order",
+    "newWorkOrder": "New Maintenance Order",
     "kpiOpenWOs": "Open WOs",
     "kpiOverdue": "Overdue",
     "kpiCompletion": "Completion",
@@ -319,7 +319,7 @@
     "status": { "OVERDUE": "Overdue", "DUE": "Due", "SCHEDULED": "Scheduled", "COMPLETED": "Completed" }
   },
   "schedView": {
-    "list": "List", "calendar": "Calendar", "newWorkOrder": "New Work Order",
+    "list": "List", "calendar": "Calendar", "newWorkOrder": "New Maintenance Order",
     "kpiOpenWOs": "Open WOs", "kpiOverdue": "Overdue", "kpiMttr": "MTTR (hrs)", "kpiMtbf": "MTBF (hrs)", "kpiPmCompliance": "PM Compliance",
     "overdueCount_one": "{{count}} overdue work order", "overdueCount_other": "{{count}} overdue work orders",
     "moreOverdue": "+{{count}} more overdue items",

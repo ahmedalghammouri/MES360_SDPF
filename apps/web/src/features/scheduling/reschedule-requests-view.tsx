@@ -308,7 +308,7 @@ export function RescheduleRequestsView() {
 
                   <div className="rounded-lg border border-border/60 p-3 grid grid-cols-3 gap-2 text-xs">
                     <div className="flex flex-col">
-                      <span className="text-muted-foreground flex items-center gap-1"><Gauge size={11} /> Work content</span>
+                      <span className="text-muted-foreground flex items-center gap-1"><Gauge size={11} /> Actual time work</span>
                       <span className="font-medium">{fmtDur(detail.workContentMins)}</span>
                     </div>
                     <div className="flex flex-col">

@@ -212,7 +212,7 @@ const navItems: NavItem[] = [
         children: [
           { label: 'Production Orders (PO)', href: '/production/production-orders', icon: GitCommit      },
           { label: 'Work Orders (WO)',       href: '/production/orders',            icon: ClipboardList, dynamicKey: 'workOrders', badgeVariant: 'secondary' },
-          { label: 'Dispatch List (JO)',     href: '/production/job-orders',        icon: Layers         },
+          { label: 'Job Orders',     href: '/production/job-orders',        icon: Layers         },
         ],
       },
       {

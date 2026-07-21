@@ -23,6 +23,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:seed:master": "ts-node prisma/seed-ncc-master.ts",
     "prisma:seed:bb": "ts-node prisma/seed-bb-master.ts",
+    "prisma:seed:bb:prod": "ts-node --transpile-only prisma/seed-bb-master.ts",
     "prisma:seed:downtime": "ts-node prisma/seed-ncc-downtime.ts",
     "prisma:seed:dashboards": "ts-node prisma/seed-dashboard-center.ts",
     "prisma:studio": "prisma studio",

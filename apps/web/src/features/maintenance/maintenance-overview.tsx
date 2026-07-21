@@ -94,7 +94,7 @@ export function MaintenanceOverview() {
             {t('headers.overview.subtitle')}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
             <Calendar size={13} />
             {t('ov.schedule')}
@@ -103,7 +103,7 @@ export function MaintenanceOverview() {
             <Plus size={13} />
             {t('ov.newWorkOrder')}
           </Button>
-        </div>
+        </div> */}
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">

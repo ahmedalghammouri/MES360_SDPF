@@ -758,11 +758,13 @@ export function ProductionWorkOrdersView() {
           // i.e. outside this sheet's DOM. Without this guard, any click inside
           // that form reads as "interact outside" and closes the whole sheet.
           onPointerDownOutside={(e) => {
-            const t = e.target as HTMLElement | null;
+            // Radix passes a synthetic event whose `target` is the layer node, not
+            // the clicked element — the real target lives on the original event.
+            const t = (e.detail?.originalEvent?.target ?? e.target) as HTMLElement | null;
             if (t?.closest?.('[data-inline-form-panel],[data-radix-popper-content-wrapper]')) e.preventDefault();
           }}
           onInteractOutside={(e) => {
-            const t = e.target as HTMLElement | null;
+            const t = (e.detail?.originalEvent?.target ?? e.target) as HTMLElement | null;
             if (t?.closest?.('[data-inline-form-panel],[data-radix-popper-content-wrapper]')) e.preventDefault();
           }}
         >

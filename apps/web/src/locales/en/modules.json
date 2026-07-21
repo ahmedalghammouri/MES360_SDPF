@@ -115,7 +115,7 @@
       "reject": "Reject", "approve": "Approve", "approveReschedule": "Approve reschedule", "close": "Close",
       "byReviewer": "by {{name}}",
       "dialogTitle": "Reschedule — {{order}}",
-      "field": { "proposedStart": "Proposed start", "proposedFinish": "Proposed finish", "dueDate": "Due date", "requested": "Requested", "workContent": "Work content", "plannedStoppage": "Planned stoppage", "total": "Total" },
+      "field": { "proposedStart": "Proposed start", "proposedFinish": "Proposed finish", "dueDate": "Due date", "requested": "Requested", "workContent": "Actual time work", "plannedStoppage": "Planned stoppage", "total": "Total" },
       "requestDetails": "Request details", "origin": "Origin", "workOrder": "Work order", "runMakespan": "Run makespan",
       "planCovers": "Plan covers", "planCoversSuffix": "operation(s) — approving applies these exact times.",
       "reason": "Reason: ", "reviewedAt": "Reviewed {{when}}{{by}}.",
