@@ -56,7 +56,7 @@ const OEE_METRICS: ExplainerMetric[] = [
   },
   {
     name: { en: 'Quality', ar: 'الجودة' },
-    formula: 'Quality = Good Count ÷ Total Count',
+    formula: 'Quality = Acceptance Count ÷ Total Count',
     desc: {
       en: 'Share of produced units that met spec the first time. Lost to scrap and rework.',
       ar: 'نسبة الوحدات المنتجة التي طابقت المواصفات من المرة الأولى. تُفقد بسبب الهدر وإعادة العمل.',

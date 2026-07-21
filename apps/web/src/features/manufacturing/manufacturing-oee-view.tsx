@@ -42,7 +42,7 @@ interface OeeCalculateResponse {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (AT-OEE) variant emitted by the backend alongside schedule-based OEE.
+  // Time-based (Time Base-OEE) variant emitted by the backend alongside schedule-based OEE.
   oeeTb?: number;
   availabilityTb?: number;
   totalCount: number;
@@ -58,7 +58,7 @@ interface OeeRecord {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (AT-OEE) variant now emitted per record by the backend.
+  // Time-based (Time Base-OEE) variant now emitted per record by the backend.
   oeeTb?: number;
   availabilityTb?: number;
   totalOutput: number;
@@ -291,7 +291,7 @@ export default function ManufacturingOeeView() {
       ['Performance', `${oeeData?.performance.toFixed(1)}%`],
       ['Quality', `${oeeData?.quality.toFixed(1)}%`],
       ['Total Count', String(oeeData?.totalCount ?? 0)],
-      ['Good Count', String(oeeData?.goodCount ?? 0)],
+      ['Acceptance Count', String(oeeData?.goodCount ?? 0)],
       ['Downtime (min)', String(oeeData?.downtime ?? 0)],
     ];
     const csv = rows.map((r) => r.join(',')).join('\n');
@@ -335,7 +335,7 @@ export default function ManufacturingOeeView() {
           <MetricBox label={t('mfgOee.quality')} value={oeeData?.quality ?? 0} isLoading={isAnyLoading} />
         </div>
 
-        {/* Time-Based (AT-OEE) — shown beside the schedule-based numbers above */}
+        {/* Time-Based (Time Base-OEE) — shown beside the schedule-based numbers above */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground px-1">
           <span>{t('mfgOee.atOee')}: <b className="text-foreground">{(oeeData?.oeeTb ?? 0).toFixed(1)}%</b></span>
           <span>{t('mfgOee.availabilityTb')}: <b className="text-foreground">{(oeeData?.availabilityTb ?? 0).toFixed(1)}%</b></span>
@@ -516,7 +516,7 @@ export default function ManufacturingOeeView() {
                   dot={false}
                   activeDot={{ r: 4, fill: '#60a5fa' }}
                 />
-                {/* Time-based OEE (AT-OEE) overlay — dashed, no fill */}
+                {/* Time-based OEE (Time Base-OEE) overlay — dashed, no fill */}
                 <Area
                   type="monotone"
                   dataKey="oeeTb"

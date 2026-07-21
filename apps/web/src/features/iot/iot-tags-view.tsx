@@ -274,7 +274,7 @@ export function IotTagsView() {
           <KpiTile icon={Tag} label="Total Tags" value={kpis.total} tone="text-foreground" />
           <KpiTile icon={Activity} label="Active" value={kpis.active} tone="text-blue-400" />
           <KpiTile icon={Wifi} label="Live now" value={kpis.live} tone="text-green-400" />
-          <KpiTile icon={Gauge} label="Good Quality" value={kpis.good} tone="text-emerald-400" />
+          <KpiTile icon={Gauge} label="Acceptance Quality" value={kpis.good} tone="text-emerald-400" />
         </div>
 
         {/* Toolbar: filters + view switch */}
@@ -423,7 +423,7 @@ export function IotTagsView() {
           </div>
           <div>
             <Label>{t('tform.tagName')} *</Label>
-            <Input value={form.name} onChange={e => setForm(v => ({ ...v, name: e.target.value }))} className="mt-1" placeholder="e.g. Good count" />
+            <Input value={form.name} onChange={e => setForm(v => ({ ...v, name: e.target.value }))} className="mt-1" placeholder="e.g. Acceptance count" />
           </div>
           <div>
             <Label>{t('tform.tagType')}</Label>

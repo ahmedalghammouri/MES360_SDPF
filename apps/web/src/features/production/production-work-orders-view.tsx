@@ -1249,7 +1249,7 @@ export function ProductionWorkOrdersView() {
               <Input type="number" min={0} value={completeForm.actualQty} onChange={e => setCompleteForm(f => ({ ...f, actualQty: e.target.value }))} placeholder={`Planned: ${completeDialog?.plannedQty}`} className="mt-1" />
             </div>
             <div>
-              <Label>Good Quantity <span className="text-muted-foreground text-[10px]">(defaults to actual)</span></Label>
+              <Label>Acceptance Quantity <span className="text-muted-foreground text-[10px]">(defaults to actual)</span></Label>
               <Input type="number" min={0} value={completeForm.goodQty} onChange={e => setCompleteForm(f => ({ ...f, goodQty: e.target.value }))} placeholder="Leave blank = same as actual" className="mt-1" />
             </div>
           </div>

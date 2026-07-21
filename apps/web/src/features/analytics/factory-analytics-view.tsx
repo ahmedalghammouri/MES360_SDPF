@@ -103,7 +103,7 @@ export function FactoryAnalyticsView() {
           <KPICard title={t('analytics.quality')} value={cur?.quality ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
         </div>
 
-        {/* Time-Based (AT-OEE) + reliability strip */}
+        {/* Time-Based (Time Base-OEE) + reliability strip */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground -mt-1 px-1">
           <span>{t('analytics.atOee')}: <b className="text-foreground">{(cur?.oeeTb ?? 0).toFixed(1)}%</b></span>
           <span>{t('analytics.availabilityTb')}: <b className="text-foreground">{(cur?.availabilityTb ?? 0).toFixed(1)}%</b></span>

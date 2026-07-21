@@ -54,7 +54,7 @@ interface DashboardKpis {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (AT-OEE) variant emitted by the backend alongside schedule-based OEE.
+  // Time-based (Time Base-OEE) variant emitted by the backend alongside schedule-based OEE.
   oeeTb?: number;
   availabilityTb?: number;
   totalOutput: number;
@@ -539,7 +539,7 @@ export default function ProductionKpiView() {
           />
         </div>
 
-        {/* Time-Based (AT-OEE) — standardized backend metric, beside the schedule-based KPIs above */}
+        {/* Time-Based (Time Base-OEE) — standardized backend metric, beside the schedule-based KPIs above */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground -mt-3 px-1">
           <span>{t('atOee')}: <b className="text-foreground">{(kpis?.oeeTb ?? 0).toFixed(1)}%</b></span>
           <span>{t('availabilityTb')}: <b className="text-foreground">{(kpis?.availabilityTb ?? 0).toFixed(1)}%</b></span>

@@ -27,7 +27,7 @@ interface DashboardKPIs {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (AT-OEE) variant emitted by the backend alongside schedule-based OEE.
+  // Time-based (Time Base-OEE) variant emitted by the backend alongside schedule-based OEE.
   oeeTb?: number;
   availabilityTb?: number;
   totalOutput: number;

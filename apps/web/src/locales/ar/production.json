@@ -8,7 +8,7 @@
     "inProgress": "قيد التنفيذ",
     "completed": "مكتمل"
   },
-  "atOee": "الكفاءة الزمنية (AT-OEE)",
+  "atOee": "الكفاءة الزمنية (Time Base-OEE)",
   "availabilitySchedule": "التوافر (حسب الجدول)",
   "availabilityTb": "التوافر (زمني)",
   "workOrders": "أوامر العمل",

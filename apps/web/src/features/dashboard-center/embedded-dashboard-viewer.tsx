@@ -66,7 +66,7 @@ export function EmbeddedDashboardViewer({ dashboardId }: { dashboardId: string }
             </Badge>
           )}
 
-          {/* Time range — applies as Grafana from/to */}
+          {/* Time range — applies as Custom from/to */}
           <div className="flex items-center gap-1.5">
             <Clock size={13} className="text-muted-foreground" />
             <SelectMenu

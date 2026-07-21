@@ -46,7 +46,7 @@ interface ReportSummary {
   quality: number;
   totalDowntime: number;
   avgOEE: number;
-  // Time-based (AT-OEE) variant for report consistency with the dashboards.
+  // Time-based (Time Base-OEE) variant for report consistency with the dashboards.
   avgOeeTb?: number;
   availability?: number;
   availabilityTb?: number;
@@ -70,7 +70,7 @@ export function ProductionReportView() {
   const records: ReportRecord[] = (data as any)?.records ?? [];
 
   const handleExport = () => {
-    const header = ['Date', 'Machine', 'Planned', 'Actual', 'Good', 'OEE %', 'Downtime (min)'];
+    const header = ['Date', 'Machine', 'Planned', 'Actual', 'Acceptance', 'OEE %', 'Downtime (min)'];
     const body = records.map((r) => [r.date.slice(0, 10), r.machine, r.plannedQty, r.actualQty, r.goodQty, r.oee ?? '', r.downtime]);
     const csv = [header, ...body].map((row) => row.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));

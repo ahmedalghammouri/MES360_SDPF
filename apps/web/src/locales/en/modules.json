@@ -30,7 +30,7 @@
       "searchPlaceholder": "Search rows...", "allMachines": "All machines",
       "preset": { "today": "Today", "d7": "7d", "d30": "30d", "d90": "90d", "month": "This Month" },
       "kpi": {
-        "avgOee": "Avg OEE", "avgAtOee": "Avg AT-OEE", "avgAvailability": "Avg Availability",
+        "avgOee": "Avg OEE", "avgAtOee": "Avg Time Base-OEE", "avgAvailability": "Avg Availability",
         "availability": "Availability", "performance": "Performance", "quality": "Quality",
         "output": "Output", "downtime": "Downtime (min)",
         "machines": "Machines", "records": "Records",
@@ -43,9 +43,9 @@
         "totalConsumption": "Total Consumption", "peakDay": "Peak Day", "meters": "Meters", "energyTypes": "Energy Types"
       },
       "chart": {
-        "oeeTrend": "OEE Trend", "outputGoodScrap": "Output: Good vs Scrap", "byMachine": "Avg OEE by Machine",
+        "oeeTrend": "OEE Trend", "outputGoodScrap": "Output: Acceptance vs Scrap", "byMachine": "Avg OEE by Machine",
         "byType": "By Type", "byStatus": "By Status", "passFail": "Pass vs Fail", "ncrBySeverity": "NCRs by Severity",
-        "scrapPareto": "Scrap Pareto (by reason)", "good": "Good", "scrap": "Scrap",
+        "scrapPareto": "Scrap Pareto (by reason)", "good": "Acceptance", "scrap": "Scrap",
         "passed": "Passed", "failed": "Failed", "unspecified": "Unspecified", "noData": "No data for this period",
         "energyConsumption": "Energy Consumption by Type"
       },
@@ -54,9 +54,9 @@
         "COMPRESSED_AIR": "Compressed Air", "WATER": "Water", "STEAM": "Steam", "CHILLED_WATER": "Chilled Water"
       },
       "col": {
-        "date": "Date", "machine": "Machine", "planned": "Planned", "actual": "Actual", "good": "Good",
+        "date": "Date", "machine": "Machine", "planned": "Planned", "actual": "Actual", "good": "Acceptance",
         "oee": "OEE", "downtimeMin": "Downtime (min)", "availability": "Availability", "performance": "Performance",
-        "quality": "Quality", "atOee": "AT-OEE", "qty": "Qty", "category": "Category", "product": "Product",
+        "quality": "Quality", "atOee": "Time Base-OEE", "qty": "Qty", "category": "Category", "product": "Product",
         "operation": "Operation", "operator": "Operator", "reason": "Reason", "group": "Group", "name": "Name",
         "count": "Count", "ncrNumber": "NCR Number", "title": "Title", "severity": "Severity", "status": "Status",
         "detectedAt": "Detected At", "metric": "Metric", "value": "Value",
@@ -85,7 +85,7 @@
       "oeeTrend": "OEE Trend", "noOeeRecords": "No OEE records for this period", "oee": "OEE",
       "outputByMachine": "Output by Machine", "noOutputData": "No output data for this period", "target": "Target", "actual": "Actual",
       "detailRecords": "Detail Records ({{count}})",
-      "colDate": "Date", "colMachine": "Machine", "colPlanned": "Planned", "colActual": "Actual", "colGood": "Good", "colOee": "OEE %", "colDowntime": "Downtime (min)"
+      "colDate": "Date", "colMachine": "Machine", "colPlanned": "Planned", "colActual": "Actual", "colGood": "Acceptance", "colOee": "OEE %", "colDowntime": "Downtime (min)"
     },
     "maint": {
       "dateRange": "Date Range", "exportPdf": "Export PDF", "hrs": "hrs",
@@ -416,7 +416,7 @@
     "title": "Dashboard Center",
     "subtitle": "Discover, organize and launch every dashboard, report and analytics view in one place",
     "refresh": "Refresh",
-    "grafanaConnected": "Grafana connected", "grafanaUnreachable": "Grafana configured (unreachable)", "grafanaNotConfigured": "Grafana not configured",
+    "grafanaConnected": "Custom connected", "grafanaUnreachable": "Custom configured (unreachable)", "grafanaNotConfigured": "Custom not configured",
     "tabAll": "All", "tabFavorites": "Favorites", "tabTemplates": "Templates",
     "categories": "Categories", "allDashboards": "All Dashboards",
     "emptyFavorites": "Star dashboards to pin them here for quick access.",
@@ -424,20 +424,20 @@
     "emptyDefault": "Try adjusting your search or filters.",
     "toastCreated": "Dashboard created", "toastCreatedDesc": "\"{{title}}\" was added to your dashboards.", "toastCloneFailed": "Could not duplicate dashboard",
     "searchDashboards": "Search dashboards, tags…", "noDashboards": "No dashboards found", "source": "Source", "clear": "Clear",
-    "src": { "ALL": "All Sources", "MES360_NATIVE": "MES360°", "GRAFANA": "Grafana", "REPORT": "Reports", "EXTERNAL": "External" },
+    "src": { "ALL": "All Sources", "MES360_NATIVE": "MES360°", "GRAFANA": "Custom", "REPORT": "Reports", "EXTERNAL": "External" },
     "viewer": {
       "catalog": "Catalog", "loading": "Loading…", "allFactories": "All factories",
       "timeRange": "Time range", "reload": "Reload", "openNewTab": "Open in new tab", "dashboard": "Dashboard",
       "range1h": "Last 1h", "range6h": "Last 6h", "range24h": "Last 24h", "range7d": "Last 7d", "range30d": "Last 30d",
       "errorTitle": "Unable to load dashboard", "errorBody": "You may not have access, or the dashboard no longer exists.", "backToCatalog": "Back to catalog",
       "nativeTitle": "MES360° native dashboard", "nativeBody": "This dashboard opens directly inside MES360°.", "openDashboard": "Open dashboard",
-      "grafanaNotMappedTitle": "Grafana dashboard not mapped", "grafanaNotConfiguredTitle": "Grafana not configured",
-      "grafanaNotMappedBody": "This catalog entry has no Grafana dashboard UID assigned yet. An admin can map it from the dashboard settings.",
-      "grafanaNotConfiguredBody": "Grafana integration is not configured on this environment. Set GRAFANA_URL / GRAFANA_PUBLIC_URL to enable embedded dashboards.",
+      "grafanaNotMappedTitle": "Custom dashboard not mapped", "grafanaNotConfiguredTitle": "Custom not configured",
+      "grafanaNotMappedBody": "This catalog entry has no Custom dashboard UID assigned yet. An admin can map it from the dashboard settings.",
+      "grafanaNotConfiguredBody": "Custom integration is not configured on this environment. Set GRAFANA_URL / GRAFANA_PUBLIC_URL to enable embedded dashboards.",
       "nothingTitle": "Nothing to display", "nothingBody": "This dashboard has no embeddable target."
     },
     "card": {
-      "srcMes360": "MES360°", "srcGrafana": "Grafana", "srcReport": "Report", "srcExternal": "External", "srcTemplate": "Template",
+      "srcMes360": "MES360°", "srcGrafana": "Custom", "srcReport": "Report", "srcExternal": "External", "srcTemplate": "Template",
       "favorite": "Favorite", "unfavorite": "Unfavorite", "factoryAware": "Factory-aware",
       "use": "Use", "launch": "Launch", "duplicate": "Duplicate", "edit": "Edit", "delete": "Delete"
     }
@@ -473,7 +473,7 @@
     "industryTypicalOee": "Industry Typical OEE",
     "bench": {
       "worldClass": "World Class", "worldClassDesc": "Top-tier operations",
-      "good": "Good", "goodDesc": "Competitive performance",
+      "good": "Acceptance", "goodDesc": "Competitive performance",
       "fair": "Fair", "fairDesc": "Room to improve",
       "poor": "Poor", "poorDesc": "Significant losses"
     },
@@ -529,7 +529,7 @@
     "title": "Factory Analytics", "subtitlePre": "Deep OEE / loss / reliability analysis",
     "wholeFactory": "Whole factory",
     "oee": "OEE", "availability": "Availability", "performance": "Performance", "quality": "Quality",
-    "atOee": "Time-Based OEE (AT-OEE)", "availabilityTb": "Availability (Time-Based)",
+    "atOee": "Time-Based OEE (Time Base-OEE)", "availabilityTb": "Availability (Time-Based)",
     "mttr": "MTTR", "mtbf": "MTBF", "maintAvailability": "Maint. Availability",
     "oeeTrend": "OEE Trend — Schedule vs Time-Based", "target": "target {{value}}%",
     "noOeeRecords": "No OEE records in this period",
@@ -537,7 +537,7 @@
     "perMachine": "Per-Machine Breakdown", "machinesCount": "{{count}} machines", "noMachineOee": "No machine OEE in this period",
     "colMachine": "Machine", "colOeeTb": "OEE-TB", "colA": "A", "colATb": "A-TB", "colP": "P", "colQ": "Q", "colOutput": "Output",
     "downtimeClassification": "Downtime Classification", "dtTotal": "Total", "dtOeeImpact": "OEE impact", "dtPlanned": "Planned", "min": "min", "noDowntime": "No downtime in this period",
-    "outputPeriod": "Output (period)", "outTotal": "Total", "outGood": "Good", "outScrap": "Scrap"
+    "outputPeriod": "Output (period)", "outTotal": "Total", "outGood": "Acceptance", "outScrap": "Scrap"
   },
   "archive": {
     "title": "Archive", "subtitle": "Archived records are hidden from active lists but kept — restore them here anytime.",
@@ -554,7 +554,7 @@
     "subtitle": "OEE monitoring & machine performance",
     "tfToday": "Today", "tfWeek": "This Week", "tfMonth": "This Month",
     "overallOee": "Overall OEE", "target": "Target",
-    "atOee": "Time-Based OEE (AT-OEE)", "availabilityTb": "Availability (Time-Based)",
+    "atOee": "Time-Based OEE (Time Base-OEE)", "availabilityTb": "Availability (Time-Based)",
     "scheduleNote": "Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)",
     "trendTitle": "OEE Trend — Last 30 Records",
     "oeeSchedule": "OEE (Schedule)", "oeeTimeBased": "OEE (Time-Based)",
@@ -567,21 +567,21 @@
     "colMetric": "Metric", "colActual": "Actual", "colTarget": "Target", "colStatus": "Status",
     "totalOutput": "Total Output", "activeAlarms": "Active Alarms",
     "leaderboard": "Machine OEE Leaderboard", "colMachine": "Machine",
-    "bmWorldClass": "World Class", "bmGood": "Good", "bmAcceptable": "Acceptable", "bmPoor": "Poor",
+    "bmWorldClass": "World Class", "bmGood": "Acceptance", "bmAcceptable": "Acceptable", "bmPoor": "Poor",
     "metric": { "oee": "OEE", "availability": "Availability", "performance": "Performance", "quality": "Quality" }
   },
   "mfgOee": {
     "availability": "Availability", "performance": "Performance", "quality": "Quality", "oee": "OEE",
     "dashboardTitle": "OEE Dashboard", "oeeFull": "Overall Equipment Effectiveness",
-    "componentComparison": "OEE Component Comparison", "equipmentBreakdown": "Equipment OEE Breakdown",
+    "componentComparison": "OEE Analysis", "equipmentBreakdown": "Equipment OEE Breakdown",
     "colMachine": "Machine", "colArea": "Area", "colState": "State", "colOeePct": "OEE %",
-    "historyTitle": "OEE History (Last 50 Records)", "historySub": "Schedule-based (solid) vs Time-based / AT-OEE (dashed)",
+    "historyTitle": "OEE History (Last 50 Records)", "historySub": "Schedule-based (solid) vs Time-based / Time Base-OEE (dashed)",
     "benchmarkTitle": "World-Class Benchmark Position",
-    "bmPoor": "Poor (<45%)", "bmAcceptable": "Acceptable (45%)", "bmGood": "Good (65%)", "bmWorldClass": "World Class (85%)",
-    "worldClassPerf": "World-Class Performance", "goodBelow": "Good — {{gap}}% below World Class",
+    "bmPoor": "Poor (<45%)", "bmAcceptable": "Acceptable (45%)", "bmGood": "Acceptance (65%)", "bmWorldClass": "World Class (85%)",
+    "worldClassPerf": "World-Class Performance", "goodBelow": "Acceptance — {{gap}}% below World Class",
     "acceptableImprove": "Acceptable — improvement needed", "belowThreshold": "Below acceptable threshold",
     "export": "Export",
-    "atOee": "Time-Based OEE (AT-OEE)", "availabilityTb": "Availability (Time-Based)",
+    "atOee": "Time-Based OEE (Time Base-OEE)", "availabilityTb": "Availability (Time-Based)",
     "scheduleNote": "Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)"
   },
   "mfgOverview": {
@@ -589,7 +589,7 @@
     "machineStatusGrid": "Machine Status Grid", "activeOperations": "Active Operations", "noExecutingJo": "No executing job orders",
     "productionTrend": "Production Trend", "noTrendData": "No trend data available",
     "elapsed": "Elapsed", "output": "Output",
-    "atOee": "Time-Based OEE (AT-OEE)", "availabilityTb": "Availability (Time-Based)",
+    "atOee": "Time-Based OEE (Time Base-OEE)", "availabilityTb": "Availability (Time-Based)",
     "scheduleNote": "Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)",
     "machinesCount_one": "{{count}} machine", "machinesCount_other": "{{count}} machines",
     "noMachineData": "No machine data available",
@@ -615,7 +615,7 @@
     "title": "Manufacturing Control Panel", "subtitle": "Real-time work order control", "live": "Live",
     "searchPlaceholder": "Search WO / product…", "statusMenuLabel": "Status",
     "noWorkOrders": "No work orders",
-    "planned": "Planned", "good": "Good", "scrap": "Scrap",
+    "planned": "Planned", "good": "Acceptance", "scrap": "Scrap",
     "start": "Start", "hold": "Hold", "release": "Release", "complete": "Complete",
     "stepsProgress": "{{completed}}/{{total}} steps",
     "jobOrdersCount_one": "{{count}} Job Order", "jobOrdersCount_other": "{{count}} Job Orders",
@@ -624,7 +624,7 @@
     "joStatus": { "READY": "Ready", "EXECUTING": "Executing", "PAUSED": "Paused", "COMPLETE": "Complete", "SCHEDULED": "Scheduled", "CANCELLED": "Cancelled" },
     "statusFilter": { "all": "All Statuses", "planned": "Planned", "released": "Released", "inProgress": "In Progress", "onHold": "On Hold", "completed": "Completed" },
     "stat": { "inProgress": "In Progress", "plannedReleased": "Planned & Released", "onHold": "On Hold", "completedToday": "Completed Today" },
-    "completedCol": { "woNumber": "WO Number", "product": "Product", "plannedEnd": "Planned End", "goodQty": "Good Qty", "scrap": "Scrap", "oee": "OEE" },
+    "completedCol": { "woNumber": "WO Number", "product": "Product", "plannedEnd": "Planned End", "goodQty": "Acceptance Qty", "scrap": "Scrap", "oee": "OEE" },
     "po": {
       "header": "Production Orders — release & generate from here",
       "needAction": "{{count}} need action",

@@ -119,8 +119,8 @@
   },
   "atOee": {
     "schedule": "OEE",
-    "tb": "AT-OEE",
-    "hint": "تبديل بين OEE المبني على الجدول والزمني (AT-OEE)"
+    "tb": "Time Base-OEE",
+    "hint": "تبديل بين OEE المبني على الجدول والزمني (Time Base-OEE)"
   },
   "filters": {
     "title": "عوامل التصفية",

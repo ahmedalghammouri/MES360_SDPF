@@ -115,11 +115,11 @@
     "noStreams": "No streams found"
   },
   "tags": {
-    "kpiTotal": "Total Tags", "kpiActive": "Active", "kpiLive": "Live now", "kpiGoodQuality": "Good Quality",
+    "kpiTotal": "Total Tags", "kpiActive": "Active", "kpiLive": "Live now", "kpiGoodQuality": "Acceptance Quality",
     "searchPlaceholder": "Search tags…",
     "filterDevice": "Device", "filterType": "Type", "filterDataType": "Data type", "filterQuality": "Quality", "filterStatus": "Status",
     "allDevices": "All Devices", "noDevice": "No device", "allTypes": "All Types", "allDataTypes": "All Data Types",
-    "allQuality": "All Quality", "qGood": "Good", "qBad": "Bad", "qUncertain": "Uncertain", "qUnknown": "Unknown",
+    "allQuality": "All Quality", "qGood": "Acceptance", "qBad": "Bad", "qUncertain": "Uncertain", "qUnknown": "Unknown",
     "allStatus": "All Status", "sActive": "Active", "sInactive": "Inactive",
     "liveOnly": "Live only", "clearCount": "Clear ({{count}})",
     "viewLiveGrid": "Live grid", "viewTable": "Table", "viewByDevice": "By device",
@@ -145,7 +145,7 @@
     "rootTags": "Edge Historian — Tags", "rootKpi": "OEE & KPIs",
     "defaultArea": "default", "ioGroup": "io",
     "mOee": "OEE", "mOeeTb": "OEE (Time-Based)", "mAvailability": "Availability", "mAvailabilityTb": "Availability (Time-Based)",
-    "mPerformance": "Performance", "mQuality": "Quality", "mGood": "Good (cum.)", "mRejected": "Rejected (cum.)", "mRate": "Production Rate"
+    "mPerformance": "Performance", "mQuality": "Quality", "mGood": "Acceptance (cum.)", "mRejected": "Rejected (cum.)", "mRate": "Production Rate"
   },
   "mqtt": {
     "ratePerSec": "{{rate}}/s", "topicsCount": "{{count}} topics", "buffered": "{{count}} buffered",

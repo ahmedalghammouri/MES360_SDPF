@@ -13,7 +13,7 @@
     "alarms": "Active Alarms"
   },
   "units": "units",
-  "atOee": "Time-Based OEE (AT-OEE)",
+  "atOee": "Time-Based OEE (Time Base-OEE)",
   "availabilityTb": "Availability (Time-Based)",
   "atNote": "Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)",
   "commandCenter": {

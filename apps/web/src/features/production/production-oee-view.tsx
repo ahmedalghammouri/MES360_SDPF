@@ -37,7 +37,7 @@ interface EquipmentOee {
 }
 
 interface OeeCalcResponse {
-  // Schedule-based (classic) + time-based (AT-OEE) — both emitted by the backend.
+  // Schedule-based (classic) + time-based (Time Base-OEE) — both emitted by the backend.
   current: { oee: number; availability: number; performance: number; quality: number; oeeTb?: number; availabilityTb?: number };
   trend: { period: string; oee: number; oeeTb?: number }[];
   byEquipment: EquipmentOee[];
@@ -214,9 +214,9 @@ export function ProductionOEEView() {
           <KPICard title={t('cards.quality')} value={oeeData?.current.quality ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
         </div>
 
-        {/* Time-Based (AT-OEE) — shown beside the schedule-based numbers above */}
+        {/* Time-Based (Time Base-OEE) — shown beside the schedule-based numbers above */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground -mt-2 px-1">
-          <span>Time-Based OEE (AT-OEE): <b className="text-foreground">{(oeeData?.current.oeeTb ?? 0).toFixed(1)}%</b></span>
+          <span>Time-Based OEE (Time Base-OEE): <b className="text-foreground">{(oeeData?.current.oeeTb ?? 0).toFixed(1)}%</b></span>
           <span>Availability (Time-Based): <b className="text-foreground">{(oeeData?.current.availabilityTb ?? 0).toFixed(1)}%</b></span>
           <span className="opacity-70">Schedule-based above · time-based = uptime ÷ (uptime + downtime)</span>
         </div>
@@ -304,7 +304,7 @@ export function ProductionOEEView() {
                       ) : (
                         <Area type="monotone" dataKey="oee" name="oee" stroke="#4c7571" strokeWidth={2} fill="url(#oeeFill)" />
                       )}
-                      {/* Time-based OEE (AT-OEE) overlaid as a dashed line for comparison */}
+                      {/* Time-based OEE (Time Base-OEE) overlaid as a dashed line for comparison */}
                       <Line type="monotone" dataKey="oeeTb" name="oeeTb" stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" dot={false} />
                     </ComposedChart>
                   </ResponsiveContainer>

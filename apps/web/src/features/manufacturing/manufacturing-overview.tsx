@@ -38,7 +38,7 @@ interface KPIs {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (AT-OEE) variant emitted by the backend alongside schedule-based OEE.
+  // Time-based (Time Base-OEE) variant emitted by the backend alongside schedule-based OEE.
   oeeTb?: number;
   availabilityTb?: number;
   totalOutput: number;
@@ -422,7 +422,7 @@ export default function ManufacturingOverview() {
         ))}
       </div>
 
-      {/* Time-Based (AT-OEE) — shown beside the schedule-based KPIs above */}
+      {/* Time-Based (Time Base-OEE) — shown beside the schedule-based KPIs above */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground px-1">
         <span>{t('mfgOverview.atOee')}: <b className="text-foreground">{kpis ? formatPercent(kpis.oeeTb ?? 0) : '—'}</b></span>
         <span>{t('mfgOverview.availabilityTb')}: <b className="text-foreground">{kpis ? formatPercent(kpis.availabilityTb ?? 0) : '—'}</b></span>

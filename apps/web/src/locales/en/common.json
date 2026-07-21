@@ -119,8 +119,8 @@
   },
   "atOee": {
     "schedule": "OEE",
-    "tb": "AT-OEE",
-    "hint": "Toggle schedule-based OEE vs time-based (AT-OEE)"
+    "tb": "Time Base-OEE",
+    "hint": "Toggle schedule-based OEE vs time-based (Time Base-OEE)"
   },
   "filters": {
     "title": "Filters",

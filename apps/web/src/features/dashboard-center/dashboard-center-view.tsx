@@ -24,7 +24,7 @@ type Tab = 'all' | 'favorites' | 'templates';
 const SOURCE_FILTERS: { value: DashboardSource | 'ALL'; label: string }[] = [
   { value: 'ALL', label: 'All Sources' },
   { value: 'MES360_NATIVE', label: 'MES360°' },
-  { value: 'GRAFANA', label: 'Grafana' },
+  { value: 'GRAFANA', label: 'Custom' },
   { value: 'REPORT', label: 'Reports' },
   { value: 'EXTERNAL', label: 'External' },
 ];
@@ -64,7 +64,7 @@ export function DashboardCenterView() {
       router.push(d.route);
       return;
     }
-    // Grafana / external → embedded viewer (preserves MES360° chrome)
+    // Custom / external → embedded viewer (preserves MES360° chrome)
     router.push(`/dashboard-center/${d.id}`);
   }
 
@@ -113,7 +113,7 @@ export function DashboardCenterView() {
             >
               <span className={cn('w-1.5 h-1.5 rounded-full',
                 grafanaHealth.reachable ? 'bg-success-400' : grafanaHealth.configured ? 'bg-warning-400' : 'bg-muted-foreground')} />
-              Grafana
+              Custom
             </Badge>
           )}
           <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => refetch()} disabled={isFetching}>
