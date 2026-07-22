@@ -86,7 +86,12 @@ export function InlineFormPanel({
       {open && (
         <motion.div
           data-inline-form-panel
-          className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto p-4 sm:p-6"
+          // `pointer-events-auto` is essential: when this panel opens over a modal
+          // Radix Dialog/Sheet, that dialog sets `pointer-events: none` on <body>.
+          // Since this panel portals to <body> (outside the dialog's layer), it would
+          // otherwise inherit `none`, making the whole form un-clickable — clicks would
+          // fall through to the dialog's overlay and dismiss it, taking this form away.
+          className="pointer-events-auto fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto p-4 sm:p-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
