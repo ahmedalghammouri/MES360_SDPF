@@ -38,9 +38,14 @@ export class ProductionSnapshotService {
     }
   }
 
-  /** Capture the current minute bucket for every active job order. */
+  /** Capture the just-completed minute bucket for every active job order. */
   async captureMinute(at = new Date()): Promise<number> {
-    const bucketStart = new Date(Math.floor(at.getTime() / MIN) * MIN);
+    // The cron fires at second :00, so the bucket containing `at` has barely any
+    // elapsed time — capturing it recorded a full minute of plannedMin against ~2 ms
+    // of runMin, which collapsed schedule-based availability (and therefore OEE) to 0
+    // while the time-based variant stayed healthy. Snapshot the CLOSED minute instead:
+    // `at` is then past bucketEnd, so runMin is the full 60 s the job order actually ran.
+    const bucketStart = new Date(Math.floor(at.getTime() / MIN) * MIN - MIN);
     const bucketEnd = new Date(bucketStart.getTime() + MIN);
 
     // 1) Finalize any open MINUTE rows whose bucket has already ended (rollover).
