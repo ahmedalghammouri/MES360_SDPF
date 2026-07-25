@@ -61,13 +61,19 @@ export function AutoGenerateWODialog({ po, open, onClose, onDone }: Props) {
   // Per-step operator pre-assignment: routingStepId → operatorId
   const [assignments, setAssignments] = useState<Record<string, string>>({});
 
+  // Assignable users = everyone below the caller's role in their factory (operators
+  // and other sub-roles). Uses the dedicated endpoint so Production Managers /
+  // Supervisors can populate this without full user-management access.
   const { data: usersData } = useQuery({
-    queryKey: ['users-list'],
-    queryFn: () => api.get('/users', { params: { limit: 200 } }),
+    queryKey: ['assignable-users'],
+    queryFn: () => api.get('/users/assignable'),
     enabled: open,
     staleTime: 300_000,
   });
-  const operators: Array<{ id: string; name: string }> = ((usersData as any)?.data ?? []).map((u: any) => ({ id: u.id, name: u.name }));
+  const prettyRole = (r?: string) =>
+    (r ?? '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  const operators: Array<{ id: string; name: string; role?: string }> =
+    ((usersData as any) ?? []).map((u: any) => ({ id: u.id, name: u.name, role: u.role }));
 
   const fromIso = plannedStart ? new Date(plannedStart).toISOString() : undefined;
 
@@ -355,10 +361,14 @@ export function AutoGenerateWODialog({ po, open, onClose, onDone }: Props) {
                               <select
                                 value={assignments[step.stepId] ?? ''}
                                 onChange={e => setAssignments(a => ({ ...a, [step.stepId]: e.target.value }))}
-                                className="text-xs bg-background/80 border border-border rounded-md px-2 py-1.5 max-w-[140px] focus:outline-none focus:border-brand-400"
+                                className="text-xs bg-background/80 border border-border rounded-md px-2 py-1.5 min-w-[150px] max-w-[220px] focus:outline-none focus:border-brand-400"
                               >
                                 <option value="">{t('autogen.operatorOpt')}</option>
-                                {operators.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                {operators.map(u => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name}{u.role ? ` · ${prettyRole(u.role)}` : ''}
+                                  </option>
+                                ))}
                               </select>
                             ) : <span className="text-xs text-muted-foreground">—</span>}
                           </td>

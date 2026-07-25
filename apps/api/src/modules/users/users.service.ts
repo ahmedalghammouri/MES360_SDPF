@@ -1,10 +1,57 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import type { UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { resolveRolePermissions } from '../../common/rbac/permission-cache';
+
+// Seniority rank per role — used to answer "who is at a level UNDER me?" so a
+// manager/supervisor can assign job orders down the hierarchy but not sideways/up.
+const ROLE_RANK: Record<UserRole, number> = {
+  SUPER_ADMIN: 100,
+  FACTORY_ADMIN: 90,
+  PLANT_MANAGER: 80,
+  PRODUCTION_MANAGER: 70,
+  QUALITY_MANAGER: 70,
+  MAINTENANCE_MANAGER: 70,
+  ENERGY_MANAGER: 70,
+  PRODUCTION_SUPERVISOR: 60,
+  QUALITY_ENGINEER: 50,
+  MAINTENANCE_TECHNICIAN: 50,
+  OPERATOR: 40,
+  VIEWER: 10,
+};
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Users the caller may assign work (e.g. a job order) to: everyone in the
+   * caller's factory whose role rank is strictly BELOW the caller's — so a
+   * Production Manager/Supervisor can pick any operator (and other sub-roles)
+   * without needing full user-management access. SUPER_ADMIN (no factory) sees
+   * every active user. Returns lightweight rows for a picker.
+   */
+  async findAssignable(factoryId: string | null, callerRole: string) {
+    const callerRank = ROLE_RANK[callerRole as UserRole] ?? 0;
+    // Roles that sit below the caller in the hierarchy.
+    const belowRoles = (Object.keys(ROLE_RANK) as UserRole[]).filter(
+      (r) => ROLE_RANK[r] < callerRank,
+    );
+    if (belowRoles.length === 0) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        role: { in: belowRoles },
+        ...(factoryId ? { factoryId } : {}),
+      },
+      select: { id: true, name: true, role: true, jobTitle: true, department: true },
+      orderBy: [{ role: 'asc' }, { name: 'asc' }],
+    });
+    return users;
+  }
 
   async findAll(factoryId: string | null, filters: {
     search?: string; role?: string; page?: number; limit?: number;
@@ -53,7 +100,9 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('User not found');
     const { passwordHash, mfaSecret, ...safe } = user;
-    return safe;
+    // The role's live permission-key set drives frontend nav/route gating.
+    const permissions = await resolveRolePermissions(this.prisma, user.role);
+    return { ...safe, permissions };
   }
 
   async create(data: {

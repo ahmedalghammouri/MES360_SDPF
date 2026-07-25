@@ -62,6 +62,15 @@ function runSeed(file) {
     console.error('⚠ Dashboard Center seed failed (non-fatal):', e?.message ?? e);
   }
 
+  // RBAC — seed the canonical permission catalog on every boot (idempotent upserts,
+  // picks up newly shipped permissions) and the default role→permission matrix on
+  // first boot only (admin edits in the Access Control UI are never overwritten).
+  try {
+    runSeed('seed-rbac.ts');
+  } catch (e) {
+    console.error('⚠ RBAC seed skipped (non-fatal):', e?.message ?? e);
+  }
+
   // Backfill the ProductionSnapshot fact store from existing job-order history so
   // dashboards have real per-shift/WO/PO/product history immediately. Idempotent
   // (unique-key upserts). Uses the compiled service; non-fatal if dist isn't present.

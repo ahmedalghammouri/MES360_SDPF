@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -71,6 +71,7 @@ import { useSidebarStore } from '@/store/ui-store';
 import { useAuthStore } from '@/store/auth-store';
 import { useFactoryStore } from '@/store/factory-store';
 import { useNotificationStore } from '@/store/notification-store';
+import { filterNavByPermission } from '@/lib/nav-permissions';
 import { api } from '@/services/api.client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -448,9 +449,10 @@ const navItems: NavItem[] = [
 ];
 
 const bottomNavItems: NavItem[] = [
-  { label: 'Users & Roles', href: '/users',    icon: Users    },
-  { label: 'Archive',       href: '/archive',  icon: Archive  },
-  { label: 'Settings',      href: '/settings', icon: Settings },
+  { label: 'Users & Roles',  href: '/users',                icon: Users     },
+  { label: 'Access Control', href: '/users/access-control', icon: ShieldCheck, permission: 'rbac:manage' },
+  { label: 'Archive',        href: '/archive',              icon: Archive   },
+  { label: 'Settings',       href: '/settings',             icon: Settings  },
 ];
 
 // ── Live counts — single query, 4 parallel fetches, 1 cache entry ────────────
@@ -773,13 +775,24 @@ function BackToMapButton({ isCollapsed }: { isCollapsed: boolean }) {
 
 export function Sidebar() {
   const { isCollapsed, toggle } = useSidebarStore();
-  const { user } = useAuthStore();
+  const { user, hasPermission } = useAuthStore();
   const { unreadCount } = useNotificationStore();
   const countsMap = useSidebarCounts();
   const { t, i18n } = useTranslation('nav');
   const { t: ts } = useTranslation('shell');
   const isRtl = i18n.dir() === 'rtl';
   const tn = (label: string) => t(label, { keySeparator: false, nsSeparator: false, defaultValue: label });
+
+  // Show only what the user's permissions allow. Recomputed when the permission
+  // set changes (login / role edit). SUPER_ADMIN sees everything (hasPermission).
+  const visibleNav = useMemo(
+    () => filterNavByPermission(navItems, hasPermission),
+    [hasPermission, user?.permissions],
+  );
+  const visibleBottomNav = useMemo(
+    () => filterNavByPermission(bottomNavItems, hasPermission),
+    [hasPermission, user?.permissions],
+  );
 
   return (
     <motion.aside
@@ -829,7 +842,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-0.5 no-scrollbar">
-        {navItems.map((item) =>
+        {visibleNav.map((item) =>
           item.section ? (
             isCollapsed ? (
               <div key={`sec:${item.section}`} className="my-2 mx-2 border-t border-sidebar-border/60" />
@@ -860,7 +873,7 @@ export function Sidebar() {
 
       {/* Bottom nav */}
       <div className="px-2 py-2 border-t border-sidebar-border space-y-0.5">
-        {bottomNavItems.map((item) => (
+        {visibleBottomNav.map((item) => (
           <SidebarItem key={item.href} item={item} isCollapsed={isCollapsed} />
         ))}
       </div>

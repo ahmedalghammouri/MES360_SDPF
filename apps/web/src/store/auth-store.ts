@@ -8,6 +8,10 @@ export interface User {
   nameAr?: string;
   email: string;
   role: string;
+  // Live permission-key set for the user's role (resolved server-side). Drives
+  // nav/route gating. `platform:access` gates the desktop platform; its absence
+  // hard-locks the user (OPERATOR / MAINTENANCE_TECHNICIAN) to the Operation Hub.
+  permissions?: string[];
   enterpriseId: string;
   factoryId: string | null;
   factoryCode: string | null;
@@ -47,6 +51,7 @@ interface AuthActions {
   logout: () => void;
   setLoading: (loading: boolean) => void;
   hasRole: (role: string | string[]) => boolean;
+  hasPermission: (permission: string | string[]) => boolean;
   isSuperAdmin: () => boolean;
   canAccessFactory: (factoryId: string) => boolean;
 }
@@ -98,6 +103,18 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         if (!user) return false;
         const roles = Array.isArray(role) ? role : [role];
         return roles.includes(user.role);
+      },
+
+      // SUPER_ADMIN implicitly holds every permission (matches the backend guard).
+      // For an array, ANY match grants (OR semantics) — nav items list alternatives.
+      hasPermission: (permission: string | string[]) => {
+        const { user } = get();
+        if (!user) return false;
+        if (user.role === 'SUPER_ADMIN') return true;
+        const needed = Array.isArray(permission) ? permission : [permission];
+        if (needed.length === 0) return true;
+        const held = user.permissions ?? [];
+        return needed.some((p) => held.includes(p));
       },
 
       isSuperAdmin: () => {

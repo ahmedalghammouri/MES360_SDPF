@@ -10,6 +10,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { RbacModule } from './modules/rbac/rbac.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ProductionModule } from './modules/production/production.module';
 import { QualityModule } from './modules/quality/quality.module';
@@ -95,6 +96,7 @@ import { configuration } from './config/configuration';
     DatabaseModule,
     AuthModule,
     UsersModule,
+    RbacModule,
     DashboardModule,
     ProductionModule,
     QualityModule,
@@ -121,9 +123,11 @@ import { configuration } from './config/configuration';
     AttachmentsModule,
   ],
   providers: [
-    // Global guards
+    // Global guards — order matters: authenticate (sets req.user + permissions),
+    // resolve tenant, then enforce RBAC (@Roles / @RequirePermissions), then throttle.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
+    { provide: APP_GUARD, useClass: RbacGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
 
     // Global audit-trail interceptor (DI-provided so Reflector + Prisma inject)

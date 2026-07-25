@@ -9,6 +9,7 @@ import * as crypto from 'crypto';
 
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
+import { resolveRolePermissions } from '../../common/rbac/permission-cache';
 import type { User } from '@prisma/client';
 
 export interface JwtPayload {
@@ -106,14 +107,16 @@ export class AuthService {
 
     this.logger.log(`User ${user.email} logged in (factory: ${effectiveFactoryCode ?? 'all'})`);
 
-    // Return enriched user profile with factory info
+    // Return enriched user profile with factory info + the role's permission set
+    // (so the web app can gate nav / hard-lock hub roles immediately on login).
     const userWithFactory = await this.prisma.user.findUnique({
       where: { id: user.id },
       include: { factory: true, enterprise: true },
     });
+    const permissions = await resolveRolePermissions(this.prisma, user.role);
 
     return {
-      user: this.sanitizeUser(userWithFactory!),
+      user: { ...this.sanitizeUser(userWithFactory!), permissions },
       ...tokens,
     };
   }
@@ -155,7 +158,8 @@ export class AuthService {
         },
       });
 
-      return { user: this.sanitizeUser(user), ...tokens };
+      const permissions = await resolveRolePermissions(this.prisma, user.role);
+      return { user: { ...this.sanitizeUser(user), permissions }, ...tokens };
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }

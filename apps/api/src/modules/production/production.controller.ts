@@ -599,7 +599,9 @@ export class ProductionController {
   }
 
   @Post('production-orders/:id/auto-generate-work-orders')
-  @RequirePermissions('production:manage')
+  // production:write (not :manage) so Production Supervisors — not only Managers —
+  // can generate work orders + pre-assign operators from the auto-generate flow.
+  @RequirePermissions('production:write')
   @AuditLog('PRODUCTION_ORDER_AUTO_GENERATE_WOS')
   @ApiOperation({ summary: 'Auto-generate work orders from recipe routing steps (ISA-95 Control Recipe instantiation)' })
   async autoGenerateWorkOrders(

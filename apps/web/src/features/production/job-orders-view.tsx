@@ -34,7 +34,7 @@ import { TablePagination } from '@/components/ui/table-pagination';
 type JOStatus = 'SCHEDULED' | 'READY' | 'EXECUTING' | 'PAUSED' | 'COMPLETE' | 'CANCELLED';
 type DepType  = 'FINISH_TO_START' | 'START_TO_START' | 'START_TO_FINISH' | 'FINISH_TO_FINISH' | null;
 
-interface Operator { id: string; name: string; nameAr?: string }
+interface Operator { id: string; name: string; nameAr?: string; role?: string }
 
 interface JobOrder {
   id: string;
@@ -523,11 +523,13 @@ function WOCard({
                           setAssigningOpId(null);
                         }}
                         onBlur={() => setAssigningOpId(null)}
-                        className="text-[10px] bg-background border border-brand-400/40 rounded px-1 py-0.5 focus:outline-none max-w-[140px]"
+                        className="text-[10px] bg-background border border-brand-400/40 rounded px-1 py-0.5 focus:outline-none min-w-[150px] max-w-[220px]"
                       >
                         <option value="">{t('jo.unassign')}</option>
                         {users.map((u) => (
-                          <option key={u.id} value={u.id}>{u.name}</option>
+                          <option key={u.id} value={u.id}>
+                            {u.name}{u.role ? ` · ${u.role.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}` : ''}
+                          </option>
                         ))}
                       </select>
                     ) : jo.operator ? (
@@ -899,12 +901,15 @@ export function JobOrdersView() {
     refetchInterval: 15_000,
   });
 
+  // Assignable users = everyone below the caller's role in their factory. Uses the
+  // dedicated endpoint so Production Managers/Supervisors can (re)assign job orders
+  // without full user-management access.
   const { data: usersData } = useQuery({
-    queryKey: ['users-list'],
-    queryFn: () => api.get('/users', { params: { limit: 200 } }),
+    queryKey: ['assignable-users'],
+    queryFn: () => api.get('/users/assignable'),
     staleTime: 300_000,
   });
-  const users: Operator[] = (((usersData as any)?.data) ?? []).map((u: any) => ({ id: u.id, name: u.name, nameAr: u.nameAr }));
+  const users: Operator[] = ((usersData as any) ?? []).map((u: any) => ({ id: u.id, name: u.name, nameAr: u.nameAr, role: u.role }));
 
   const jobOrdersRaw: JobOrder[] = (rawData as any) ?? [];
   const { sortedData: jobOrders } = useSortedData(jobOrdersRaw, 'createdAt', 'desc');

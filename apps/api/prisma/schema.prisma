@@ -237,32 +237,32 @@ model Machine {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  factory           Factory                    @relation(fields: [factoryId], references: [id])
-  area              Area?                      @relation(fields: [areaId], references: [id])
-  line              ProductionLine?            @relation(fields: [lineId], references: [id])
-  currentStatus     MachineCurrentStatus?
-  modules           MachineModule[]
-  cycleTimes        MachineCycleTime[]
-  downtimeCauses    DowntimeCause[]
-  stateRecords      MachineStateRecord[]
+  factory             Factory                    @relation(fields: [factoryId], references: [id])
+  area                Area?                      @relation(fields: [areaId], references: [id])
+  line                ProductionLine?            @relation(fields: [lineId], references: [id])
+  currentStatus       MachineCurrentStatus?
+  modules             MachineModule[]
+  cycleTimes          MachineCycleTime[]
+  downtimeCauses      DowntimeCause[]
+  stateRecords        MachineStateRecord[]
   productionSnapshots ProductionSnapshot[]
-  downtimeEvents    DowntimeEvent[]
-  oeeRecords        OEERecord[]
-  maintenanceWOs    MaintenanceWO[]
-  pmPlans           PMPlan[]
-  pmTasks           PMTask[]
-  runtimeHours      MachineRuntimeHours[]
-  failureModes      FailureMode[]
-  inspectionResults InspectionResult[]
-  spcMeasurements   SPCMeasurement[]
-  devices           Device[]
-  tagDefinitions    TagDefinition[]
-  alarmEvents       AlarmEvent[]
-  energyMeters      EnergyMeter[]
-  energyTariffs     EnergyTariff[]
-  routingSteps      RoutingStep[]
-  jobOrders         JobOrder[]
-  stepOptions       RoutingStepMachineOption[]
+  downtimeEvents      DowntimeEvent[]
+  oeeRecords          OEERecord[]
+  maintenanceWOs      MaintenanceWO[]
+  pmPlans             PMPlan[]
+  pmTasks             PMTask[]
+  runtimeHours        MachineRuntimeHours[]
+  failureModes        FailureMode[]
+  inspectionResults   InspectionResult[]
+  spcMeasurements     SPCMeasurement[]
+  devices             Device[]
+  tagDefinitions      TagDefinition[]
+  alarmEvents         AlarmEvent[]
+  energyMeters        EnergyMeter[]
+  energyTariffs       EnergyTariff[]
+  routingSteps        RoutingStep[]
+  jobOrders           JobOrder[]
+  stepOptions         RoutingStepMachineOption[]
 
   @@unique([factoryId, code])
   @@index([factoryId])
@@ -578,8 +578,8 @@ model UnitOfMeasure {
 }
 
 model SKU {
-  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
-  id               String   @id @default(uuid())
+  archivedAt       DateTime? // soft-archive (hidden from active lists, restorable)
+  id               String    @id @default(uuid())
   factoryId        String
   familyId         String?
   itemNumber       String // NCC SAP item number (e.g. 10310064)
@@ -596,21 +596,21 @@ model SKU {
   baseUnitId       String?
   baseWeightId     String?
   weight           Float?
-  weightUnit       String   @default("kg")
+  weightUnit       String    @default("kg")
   length           Float?
   width            Float?
   height           Float?
-  dimensionUnit    String   @default("cm")
+  dimensionUnit    String    @default("cm")
   packagingType    String? // legacy text (kept in sync with packagingTypeRef.name)
-  unitsPerInner    Int      @default(1)
-  innersPerCarton  Int      @default(1)
-  cartonsPerPallet Int      @default(1)
-  baseUnit         String   @default("EA") // legacy text (kept in sync with baseUnitRef.code)
-  currentStock     Float    @default(0) // finished-goods on-hand in base units (sum of active finished_goods_lots)
-  isActive         Boolean  @default(true)
+  unitsPerInner    Int       @default(1)
+  innersPerCarton  Int       @default(1)
+  cartonsPerPallet Int       @default(1)
+  baseUnit         String    @default("EA") // legacy text (kept in sync with baseUnitRef.code)
+  currentStock     Float     @default(0) // finished-goods on-hand in base units (sum of active finished_goods_lots)
+  isActive         Boolean   @default(true)
   metadata         Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   storageLocationId String? // FK to StorageLocation (finished goods / dispatch)
 
@@ -663,7 +663,7 @@ model BOMComponent {
 
 // PRODUCTION ORDER (ERP / SAP level)
 model ProductionOrder {
-  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
+  archivedAt     DateTime? // soft-archive (hidden from active lists, restorable)
   id             String                @id @default(uuid())
   factoryId      String
   orderNumber    String                @unique
@@ -759,23 +759,23 @@ enum ProductionOrderStatus {
 // WORK ORDER (shop floor execution)
 model WorkOrder {
   archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
-  id                String          @id @default(uuid())
+  id                String               @id @default(uuid())
   factoryId         String
   productionOrderId String?
   lineId            String?
   skuId             String?
   shiftInstanceId   String?
-  orderNumber       String          @unique
-  status            WorkOrderStatus @default(PLANNED)
-  priority          Priority        @default(MEDIUM)
+  orderNumber       String               @unique
+  status            WorkOrderStatus      @default(PLANNED)
+  priority          Priority             @default(MEDIUM)
   // Auto-start: when true, the scheduler starts this WO (and cascades its job
   // orders) automatically once plannedStart arrives — no operator action needed.
-  autoStart         Boolean         @default(false)
+  autoStart         Boolean              @default(false)
   plannedQty        Int
-  actualQty         Int             @default(0)
-  goodQty           Int             @default(0)
-  scrapQty          Int             @default(0)
-  reworkQty         Int             @default(0)
+  actualQty         Int                  @default(0)
+  goodQty           Int                  @default(0)
+  scrapQty          Int                  @default(0)
+  reworkQty         Int                  @default(0)
   plannedStart      DateTime
   plannedEnd        DateTime
   actualStart       DateTime?
@@ -784,7 +784,7 @@ model WorkOrder {
   availability      Float?
   performance       Float?
   quality           Float?
-  downtimeMinutes   Float           @default(0)
+  downtimeMinutes   Float                @default(0)
   plannedCycleTime  Float? // seconds per unit
   recipeId          String? // locked recipe at WO creation
   recipeVersion     String?
@@ -800,8 +800,8 @@ model WorkOrder {
   completedById     String?
   operatorId        String?
   supervisorId      String?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
   deletedAt         DateTime?
 
   factory              Factory               @relation(fields: [factoryId], references: [id])
@@ -1070,14 +1070,14 @@ model ShiftInstance {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  factory       Factory              @relation(fields: [factoryId], references: [id])
-  shiftTemplate ShiftTemplate        @relation(fields: [shiftTemplateId], references: [id])
-  line          ProductionLine?      @relation(fields: [lineId], references: [id])
-  operator      User?                @relation("ShiftOperator", fields: [operatorId], references: [id])
-  supervisor    User?                @relation("ShiftSupervisor", fields: [supervisorId], references: [id])
-  workOrders    WorkOrder[]
-  stateRecords  MachineStateRecord[]
-  oeeRecords    OEERecord[]
+  factory             Factory              @relation(fields: [factoryId], references: [id])
+  shiftTemplate       ShiftTemplate        @relation(fields: [shiftTemplateId], references: [id])
+  line                ProductionLine?      @relation(fields: [lineId], references: [id])
+  operator            User?                @relation("ShiftOperator", fields: [operatorId], references: [id])
+  supervisor          User?                @relation("ShiftSupervisor", fields: [supervisorId], references: [id])
+  workOrders          WorkOrder[]
+  stateRecords        MachineStateRecord[]
+  oeeRecords          OEERecord[]
   productionSnapshots ProductionSnapshot[]
 
   @@index([factoryId, shiftDate])
@@ -1265,7 +1265,7 @@ model OEERecord {
 // WHERE isFinalStep; total = good + scrap (derived). Identical to kpi.finalStepCounts.
 // ────────────────────────────────────────────────────────────────
 model ProductionSnapshot {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
   // time bucket
   bucketStart DateTime
@@ -1405,14 +1405,14 @@ model QualityParameter {
   isKPI        Boolean @default(false)
   sortOrder    Int     @default(0)
 
-  plan QualityPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  plan    QualityPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
   spcTags TagDefinition[] @relation("TagSpc")
 
   @@map("quality_parameters")
 }
 
 model InspectionResult {
-  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
+  archivedAt       DateTime? // soft-archive (hidden from active lists, restorable)
   id               String            @id @default(uuid())
   factoryId        String
   planId           String?
@@ -1463,7 +1463,7 @@ enum InspectionResult2 {
 }
 
 model NCR {
-  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
+  archivedAt       DateTime? // soft-archive (hidden from active lists, restorable)
   id               String    @id @default(uuid())
   factoryId        String
   ncrNumber        String    @unique
@@ -1515,7 +1515,7 @@ enum Severity {
 }
 
 model CAPA {
-  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
+  archivedAt    DateTime? // soft-archive (hidden from active lists, restorable)
   id            String     @id @default(uuid())
   factoryId     String
   capaNumber    String     @unique
@@ -1723,7 +1723,7 @@ enum PMTaskStatus {
 }
 
 model MaintenanceWO {
-  archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
+  archivedAt            DateTime? // soft-archive (hidden from active lists, restorable)
   id                    String      @id @default(uuid())
   factoryId             String
   woNumber              String      @unique
@@ -1754,11 +1754,11 @@ model MaintenanceWO {
 
   productionWOId String?
 
-  factory      Factory            @relation(fields: [factoryId], references: [id])
-  machine      Machine            @relation(fields: [machineId], references: [id])
-  assignedTo   User?              @relation("MaintAssignedTo", fields: [assignedToId], references: [id])
-  requestedBy  User?              @relation("MaintRequestedBy", fields: [requestedById], references: [id])
-  productionWO WorkOrder?         @relation("MaintLinkedProdWO", fields: [productionWOId], references: [id])
+  factory      Factory                    @relation(fields: [factoryId], references: [id])
+  machine      Machine                    @relation(fields: [machineId], references: [id])
+  assignedTo   User?                      @relation("MaintAssignedTo", fields: [assignedToId], references: [id])
+  requestedBy  User?                      @relation("MaintRequestedBy", fields: [requestedById], references: [id])
+  productionWO WorkOrder?                 @relation("MaintLinkedProdWO", fields: [productionWOId], references: [id])
   sparesUsed   MaintWOSparePart[]
   failureModes MaintenanceWOFailureMode[]
 
@@ -1788,7 +1788,7 @@ enum MaintStatus {
 
 model SparePart {
   archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   factoryId         String
   partNumber        String
   name              String
@@ -1798,15 +1798,15 @@ model SparePart {
   model             String?
   supplier          String?
   unitCost          Float?
-  stockQty          Float    @default(0)
-  minStockQty       Float    @default(0)
+  stockQty          Float     @default(0)
+  minStockQty       Float     @default(0)
   maxStockQty       Float?
   storageLocation   String? // free-text (legacy)
   storageLocationId String? // FK to StorageLocation
   binNumber         String?
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   factory            Factory            @relation(fields: [factoryId], references: [id])
   storageLocationRef StorageLocation?   @relation(fields: [storageLocationId], references: [id])
@@ -1892,23 +1892,23 @@ enum EnergyType {
 }
 
 model EnergyReading {
-  id              String   @id @default(uuid())
-  meterId         String
-  factoryId       String
-  workCenterId    String? // WorkCenter active at reading time (for production context)
-  workOrderId     String? // WO active at reading time
+  id                String   @id @default(uuid())
+  meterId           String
+  factoryId         String
+  workCenterId      String? // WorkCenter active at reading time (for production context)
+  workOrderId       String? // WO active at reading time
   productionOrderId String? // PO active at reading time (correlation/rollup)
-  machineId       String? // specific machine if meter is machine-level
-  lineId          String? // line if meter is line-level
-  shiftInstanceId String?
-  timestamp       DateTime
-  value           Float // cumulative kWh / m³ (delta calculated at aggregation)
-  powerKw         Float? // instantaneous power draw at this timestamp
-  unit            String
-  machineState    String? // snapshot: RUNNING | IDLE | BREAKDOWN | PLANNED_STOP
-  source          String   @default("AUTO") // AUTO (from IoT), MANUAL
-  quality         String   @default("GOOD")
-  createdAt       DateTime @default(now())
+  machineId         String? // specific machine if meter is machine-level
+  lineId            String? // line if meter is line-level
+  shiftInstanceId   String?
+  timestamp         DateTime
+  value             Float // cumulative kWh / m³ (delta calculated at aggregation)
+  powerKw           Float? // instantaneous power draw at this timestamp
+  unit              String
+  machineState      String? // snapshot: RUNNING | IDLE | BREAKDOWN | PLANNED_STOP
+  source            String   @default("AUTO") // AUTO (from IoT), MANUAL
+  quality           String   @default("GOOD")
+  createdAt         DateTime @default(now())
 
   factory    Factory     @relation(fields: [factoryId], references: [id])
   meter      EnergyMeter @relation(fields: [meterId], references: [id])
@@ -1977,19 +1977,19 @@ enum EnergyPeriod {
 // machine > line > area > factory-default. Resolved per meter (by its scope +
 // energy type) to turn consumption into cost. One enabled row wins per scope.
 model EnergyTariff {
-  id           String     @id @default(uuid())
-  factoryId    String
-  energyType   EnergyType
+  id          String     @id @default(uuid())
+  factoryId   String
+  energyType  EnergyType
   // Scope target — null on all three = factory-wide default for this energy type.
-  machineId    String?
-  lineId       String?
-  areaId       String?
-  ratePerUnit  Float // cost per meter unit (e.g. SAR per kWh / m³ / L)
-  currency     String     @default("SAR")
-  label        String? // optional human label (e.g. "Peak tariff", "2026 contract")
-  isActive     Boolean    @default(true)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  machineId   String?
+  lineId      String?
+  areaId      String?
+  ratePerUnit Float // cost per meter unit (e.g. SAR per kWh / m³ / L)
+  currency    String     @default("SAR")
+  label       String? // optional human label (e.g. "Peak tariff", "2026 contract")
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   factory Factory         @relation(fields: [factoryId], references: [id])
   machine Machine?        @relation(fields: [machineId], references: [id])
@@ -2108,13 +2108,13 @@ model TagDefinition {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  factory          Factory             @relation(fields: [factoryId], references: [id])
-  machine          Machine?            @relation(fields: [machineId], references: [id])
-  line             ProductionLine?     @relation(fields: [lineId], references: [id])
-  area             Area?               @relation(fields: [areaId], references: [id])
-  device           Device?             @relation(fields: [deviceId], references: [id])
-  meter            EnergyMeter?        @relation(fields: [meterId], references: [id])
-  spcParameter     QualityParameter?   @relation("TagSpc", fields: [spcParameterId], references: [id], onDelete: SetNull)
+  factory          Factory              @relation(fields: [factoryId], references: [id])
+  machine          Machine?             @relation(fields: [machineId], references: [id])
+  line             ProductionLine?      @relation(fields: [lineId], references: [id])
+  area             Area?                @relation(fields: [areaId], references: [id])
+  device           Device?              @relation(fields: [deviceId], references: [id])
+  meter            EnergyMeter?         @relation(fields: [meterId], references: [id])
+  spcParameter     QualityParameter?    @relation("TagSpc", fields: [spcParameterId], references: [id], onDelete: SetNull)
   currentValue     TagCurrentValue?
   counterState     GatewayCounterState?
   alarmDefinitions AlarmDefinition[]
@@ -2311,11 +2311,11 @@ model User {
   updatedAt           DateTime  @updatedAt
   deletedAt           DateTime?
 
-  enterprise    Enterprise     @relation(fields: [enterpriseId], references: [id])
-  factory       Factory?       @relation(fields: [factoryId], references: [id])
-  sessions      UserSession[]
-  auditLogs     AuditLog[]
-  notifications Notification[]
+  enterprise              Enterprise               @relation(fields: [enterpriseId], references: [id])
+  factory                 Factory?                 @relation(fields: [factoryId], references: [id])
+  sessions                UserSession[]
+  auditLogs               AuditLog[]
+  notifications           Notification[]
   notificationPreferences NotificationPreference[]
 
   // Work Order relations
@@ -2343,13 +2343,13 @@ model User {
   traceEvents    TraceEvent[]    @relation("TracePerformedBy")
 
   // Recipes
-  approvedRecipes        Recipe[]        @relation("RecipeApprovedBy")
+  approvedRecipes        Recipe[]            @relation("RecipeApprovedBy")
   // Downtime operator relation
-  operatedDowntimes      DowntimeEvent[] @relation("DowntimeOperator")
-  jobOrdersAsOperator    JobOrder[]      @relation("JOOperator")
-  scrapLogsAsOperator    ScrapLog[]      @relation("ScrapLogOperator")
-  changeRequestsRaised   ChangeRequest[] @relation("CRRequestedBy")
-  changeRequestsReviewed ChangeRequest[] @relation("CRReviewedBy")
+  operatedDowntimes      DowntimeEvent[]     @relation("DowntimeOperator")
+  jobOrdersAsOperator    JobOrder[]          @relation("JOOperator")
+  scrapLogsAsOperator    ScrapLog[]          @relation("ScrapLogOperator")
+  changeRequestsRaised   ChangeRequest[]     @relation("CRRequestedBy")
+  changeRequestsReviewed ChangeRequest[]     @relation("CRReviewedBy")
   reschedulesRequested   RescheduleRequest[] @relation("RescheduleRequestedBy")
   reschedulesReviewed    RescheduleRequest[] @relation("RescheduleReviewedBy")
 
@@ -2389,6 +2389,49 @@ model UserSession {
 
   @@index([userId])
   @@map("user_sessions")
+}
+
+// ============================================================
+// RBAC — editable role → permission access control
+// ------------------------------------------------------------
+// Permission = a canonical `resource:action` capability (seeded, isSystem).
+// RolePermission = which roles are granted which permissions (editable in the
+// admin UI, no deploy needed). The set is resolved per request and attached to
+// req.user.permissions, which the global RbacGuard enforces against the
+// @RequirePermissions decorators already present across the controllers.
+// ============================================================
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique // canonical "resource:action", e.g. "production:write"
+  resource    String // "production", "quality", "maintenance", "hub", ...
+  action      String // "read" | "write" | "execute" | "manage" | "approve" | "operate"
+  label       String // human-readable label for the admin UI
+  description String?
+  category    String   @default("General") // grouping bucket in the admin UI
+  isSystem    Boolean  @default(true) // seeded canonical permission (non-deletable)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roleGrants RolePermission[]
+
+  @@index([resource])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  role         UserRole
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+  @@index([role])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 // ============================================================
@@ -2457,17 +2500,17 @@ enum NotificationSeverity {
 
 /// Per-user, per-category channel preferences. A missing row means "all channels on".
 model NotificationPreference {
-  id        String               @id @default(uuid())
-  userId    String
-  category  NotificationCategory
-  inApp     Boolean              @default(true)
-  email     Boolean              @default(false)
-  sms       Boolean              @default(false)
-  push      Boolean              @default(false)
+  id          String               @id @default(uuid())
+  userId      String
+  category    NotificationCategory
+  inApp       Boolean              @default(true)
+  email       Boolean              @default(false)
+  sms         Boolean              @default(false)
+  push        Boolean              @default(false)
   /// Minimum severity that produces a notification for this category.
   minSeverity NotificationSeverity @default(INFO)
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -2527,28 +2570,28 @@ model AuditLog {
 
 model RawMaterial {
   archivedAt        DateTime? // soft-archive (hidden from active lists, restorable)
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   factoryId         String
   code              String // SAP / internal material code
   name              String
   nameAr            String?
   description       String?
   category          String? // RAW, PACKAGING, CONSUMABLE, CHEMICAL, LABEL
-  unit              String   @default("KG") // legacy text (kept in sync with unitRef.code)
+  unit              String    @default("KG") // legacy text (kept in sync with unitRef.code)
   unitId            String? // FK to UnitOfMeasure (preferred)
   unitCost          Float?
-  currentStock      Float    @default(0)
-  reservedStock     Float    @default(0) // soft-reserved for active WOs
-  minStock          Float    @default(0)
+  currentStock      Float     @default(0)
+  reservedStock     Float     @default(0) // soft-reserved for active WOs
+  minStock          Float     @default(0)
   maxStock          Float?
   reorderPoint      Float?
   storageLocation   String? // free-text (legacy)
   storageLocationId String? // FK to StorageLocation
   supplierName      String?
   leadTimeDays      Int?
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   factory            Factory               @relation(fields: [factoryId], references: [id])
   storageLocationRef StorageLocation?      @relation(fields: [storageLocationId], references: [id])
@@ -2769,14 +2812,14 @@ model StorageLocation {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  factory          Factory            @relation(fields: [factoryId], references: [id])
-  rawMaterials     RawMaterial[]
-  materialLots     MaterialLot[]
-  spareParts       SparePart[]
-  skus             SKU[]
+  factory           Factory            @relation(fields: [factoryId], references: [id])
+  rawMaterials      RawMaterial[]
+  materialLots      MaterialLot[]
+  spareParts        SparePart[]
+  skus              SKU[]
   finishedGoodsLots FinishedGoodsLot[]
-  transfersFrom    StorageTransfer[]  @relation("TransferFrom")
-  transfersTo      StorageTransfer[]  @relation("TransferTo")
+  transfersFrom     StorageTransfer[]  @relation("TransferFrom")
+  transfersTo       StorageTransfer[]  @relation("TransferTo")
 
   @@unique([factoryId, code])
   @@map("storage_locations")
@@ -2931,10 +2974,10 @@ model ManufacturingProcess {
   categoryId   String? // scopeType = CATEGORY → all SKUs of this category
   baseWeightId String? // scopeType = BASE_WEIGHT → all SKUs of this weight
 
-  factory       Factory                   @relation(fields: [factoryId], references: [id])
-  sku           SKU?                      @relation(fields: [skuId], references: [id])
-  categoryRef   ProductCategory?          @relation(fields: [categoryId], references: [id])
-  baseWeightRef BaseWeight?               @relation(fields: [baseWeightId], references: [id])
+  factory        Factory                   @relation(fields: [factoryId], references: [id])
+  sku            SKU?                      @relation(fields: [skuId], references: [id])
+  categoryRef    ProductCategory?          @relation(fields: [categoryId], references: [id])
+  baseWeightRef  BaseWeight?               @relation(fields: [baseWeightId], references: [id])
   skuLinks       ManufacturingProcessSku[] // scopeType = PRODUCT_LIST
   routingSteps   RoutingStep[]
   recipes        Recipe[]
@@ -3248,13 +3291,13 @@ model JobOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  factory     Factory            @relation(fields: [factoryId], references: [id])
-  workOrder   WorkOrder          @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
-  routingStep RoutingStep?       @relation(fields: [routingStepId], references: [id])
-  machine     Machine?           @relation(fields: [machineId], references: [id])
-  workCenter  WorkCenter?        @relation(fields: [workCenterId], references: [id])
-  predecessor JobOrder?          @relation("JOChain", fields: [predecessorId], references: [id])
-  successors  JobOrder[]         @relation("JOChain")
+  factory              Factory               @relation(fields: [factoryId], references: [id])
+  workOrder            WorkOrder             @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  routingStep          RoutingStep?          @relation(fields: [routingStepId], references: [id])
+  machine              Machine?              @relation(fields: [machineId], references: [id])
+  workCenter           WorkCenter?           @relation(fields: [workCenterId], references: [id])
+  predecessor          JobOrder?             @relation("JOChain", fields: [predecessorId], references: [id])
+  successors           JobOrder[]            @relation("JOChain")
   productionSnapshots  ProductionSnapshot[]
   materials            JobOrderMaterial[]
   operator             User?                 @relation("JOOperator", fields: [operatorId], references: [id])

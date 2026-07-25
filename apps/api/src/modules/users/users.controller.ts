@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestj
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 interface RequestUser {
@@ -37,6 +38,15 @@ export class UsersController {
   @Get('me')
   async getMe(@CurrentUser() user: RequestUser) {
     return this.usersService.findById(user.id);
+  }
+
+  // Assignable users for job-order assignment — everyone below the caller's role
+  // in their factory. Gated by production:write so Production Managers/Supervisors
+  // can populate the "Assign to" picker without full user-management access.
+  @Get('assignable')
+  @RequirePermissions('production:write')
+  async findAssignable(@CurrentUser() user: RequestUser) {
+    return this.usersService.findAssignable(user.factoryId, user.role);
   }
 
   @Patch('me')

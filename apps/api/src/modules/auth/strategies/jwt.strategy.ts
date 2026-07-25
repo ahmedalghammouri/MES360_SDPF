@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { PrismaService } from '../../../database/prisma.service';
 import type { JwtPayload } from '../auth.service';
+import { resolveRolePermissions } from '../../../common/rbac/permission-cache';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -26,12 +27,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (!user) throw new UnauthorizedException('User account is not active');
 
-    // Attach full payload so guards can read factoryId and role
+    // Resolve the role's live permission set (cached) so the global RbacGuard can
+    // enforce @RequirePermissions. SUPER_ADMIN bypasses in the guard regardless.
+    const permissions = await resolveRolePermissions(this.prisma, user.role);
+
+    // Attach full payload so guards can read factoryId, role and permissions
     return {
       ...user,
       factoryId: payload.factoryId,
       factoryCode: payload.factoryCode,
       enterpriseId: payload.enterpriseId,
+      permissions,
     };
   }
 }
