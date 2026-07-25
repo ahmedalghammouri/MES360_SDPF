@@ -449,7 +449,13 @@ export class KpiService {
       GROUP BY s.period ORDER BY sort`);
     const trend = tr.map((r) => {
       const b = this.snapMetrics(r.good, r.scrap, r.ppt, r.run, r.down, r.earned);
-      return { period: r.period, oee: b.oee, oeeTb: b.oeeTb };
+      // Carry every metric per bucket so trend charts can plot any KPI (not just OEE).
+      return {
+        period: r.period, oee: b.oee, oeeTb: b.oeeTb,
+        availability: b.availability, availabilityTb: b.availabilityTb,
+        performance: b.performance, quality: b.quality,
+        output: b.totalCount, good: b.goodCount, scrap: b.totalCount - b.goodCount, down: b.downMin,
+      };
     });
 
     return {
@@ -600,7 +606,13 @@ export class KpiService {
       .map(([period, bjos]) => {
         const b = this.aggregateJos(bjos, win);
         const tb = this.timeBasedOee(bjos, downtime, b.performance, b.quality);
-        return { period, oee: b.oee, oeeTb: tb.oeeTb };
+        // Carry every metric per bucket so trend charts can plot any KPI (not just OEE).
+        return {
+          period, oee: b.oee, oeeTb: tb.oeeTb,
+          availability: b.availability, availabilityTb: tb.availabilityTb,
+          performance: b.performance, quality: b.quality,
+          output: b.totalCount, good: b.goodCount, scrap: b.totalCount - b.goodCount, down: tb.downtimeMin,
+        };
       });
 
     return {

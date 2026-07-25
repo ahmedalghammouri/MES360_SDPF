@@ -407,7 +407,7 @@ export class PlantDashboardsService {
         if (s.kpiCode.startsWith('TREND')) {
           const metric = s.kpiCode.split(':')[1] || 'OEE';
           const win = await this.windowFor(s.timeRange);
-          return { widgetId: s.widgetId, kpiCode: s.kpiCode, series: await this.resolveTrend(factoryId, metric, machineIds, win, s.timeRange), at: now(), quality: 'GOOD' as const };
+          return { widgetId: s.widgetId, kpiCode: s.kpiCode, series: await this.resolveTrend(factoryId, metric, machineIds, win, s.timeRange, s.scopeType, s.scopeId), at: now(), quality: 'GOOD' as const };
         }
         if (!KPI_CODES.has(s.kpiCode)) return { widgetId: s.widgetId, error: `Unknown KPI ${s.kpiCode}` };
         const win = await this.windowFor(s.timeRange);
@@ -451,15 +451,31 @@ export class PlantDashboardsService {
     }));
   }
 
-  /** Time series for a metric over the window (points for the trend-chart card). */
+  private static TREND_FIELD: Record<string, string> = {
+    OEE: 'oee', OEE_TB: 'oeeTb', AVAILABILITY: 'availability', AVAILABILITY_TB: 'availabilityTb',
+    PERFORMANCE: 'performance', QUALITY: 'quality',
+    TOTAL_PRODUCTION: 'output', GOOD_COUNT: 'good', REJECT_COUNT: 'scrap', DOWNTIME: 'down',
+  };
+
+  /** Time series for a metric over the window (points for the trend-chart card).
+   *  Each KPI plots its OWN metric — not just OEE. */
   private async resolveTrend(
     factoryId: string | null, metric: string, machineIds: string[],
-    win: { from: Date; to: Date }, timeRange?: string,
-  ) {
+    win: { from: Date; to: Date }, timeRange?: string, scopeType?: string, scopeId?: string,
+  ): Promise<Array<{ x: string; y: number }>> {
+    // Energy has its own daily series from the energy service.
+    if (metric === 'ENERGY_CONSUMPTION') {
+      const scope = scopeType === 'machine' ? { machineId: scopeId! }
+        : scopeType === 'line' ? { lineId: scopeId! }
+        : scopeType === 'area' ? { areaId: scopeId! } : undefined;
+      const e = await this.energy.getOverview(factoryId, scope).catch(() => null);
+      return (e?.trend ?? []).map((t: any) => ({ x: t.date, y: Math.round((t.value ?? 0) * 10) / 10 }));
+    }
+    const field = PlantDashboardsService.TREND_FIELD[metric];
+    if (!field) return []; // SPEED and unknowns have no historical series → card shows "No data"
     const bucket: 'hour' | 'day' = ['week', 'month'].includes((timeRange ?? '').toLowerCase()) ? 'day' : 'hour';
     const a = await this.kpi.oeeAnalytics(factoryId, win.from, win.to, machineIds.length ? machineIds : undefined, bucket);
-    const key = metric === 'OEE_TB' ? 'oeeTb' : 'oee';
-    return (a.trend ?? []).map((t: any) => ({ x: t.period, y: Math.round((t[key] ?? 0) * 10) / 10 }));
+    return (a.trend ?? []).map((t: any) => ({ x: t.period, y: Math.round(((t[field] ?? 0) as number) * 10) / 10 }));
   }
 
   private async resolveKpi(
