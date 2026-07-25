@@ -37,17 +37,27 @@ export function PlantLiveView({ entityType, entityId }: { entityType: string; en
 
   // Fill the whole viewport (independent X/Y) so the plant view + widgets use the
   // entire window — no letterbox margins. The artboard is anchored top-left.
+  // Robust measurement: ResizeObserver + window.resize + a short retry loop, because
+  // right after a production hydration re-render the container can measure 0 and the
+  // observer's first callback may fire before layout settles (seen only on the server).
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState({ x: 0.5, y: 0.5 });
+  const [scale, setScale] = useState({ x: 1, y: 1 });
   useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const recalc = () => setScale({ x: el.clientWidth / canvas.width, y: el.clientHeight / canvas.height });
+    const recalc = () => {
+      const el = wrapRef.current;
+      if (!el) return;
+      const w = el.clientWidth, h = el.clientHeight;
+      if (w > 0 && h > 0) setScale({ x: w / canvas.width, y: h / canvas.height });
+    };
     recalc();
     const ro = new ResizeObserver(recalc);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [canvas.width, canvas.height]);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    window.addEventListener('resize', recalc);
+    // Retry for ~1.5s so a late/zero initial layout still gets a correct scale.
+    let n = 0;
+    const id = setInterval(() => { recalc(); if (++n > 15) clearInterval(id); }, 100);
+    return () => { ro.disconnect(); window.removeEventListener('resize', recalc); clearInterval(id); };
+  }, [canvas.width, canvas.height, dash]);
 
   // Batched live-data polling for bound cards (one request, one row per widget×kpi).
   const subs = useMemo(() => buildSubscriptions(widgets), [widgets]);

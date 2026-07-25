@@ -112,6 +112,17 @@ export function OperatorHmiView() {
     onError: (e: any) => toast({ variant: 'destructive', title: 'Count failed', description: e?.response?.data?.message }),
   });
 
+  // Correct/adjust the ABSOLUTE totals (fixes a mis-count) — sets the real values.
+  const setOutput = useMutation({
+    mutationFn: ({ id, actualQtyGood, actualQtyRejected, scrapCategory, scrapReason }: { id: string; actualQtyGood: number; actualQtyRejected: number; scrapCategory?: string; scrapReason?: string }) =>
+      api.patch(`/production/job-orders/${id}/output`, {
+        actualQtyGood, actualQtyRejected,
+        ...(actualQtyRejected > 0 ? { scrapCategory: scrapCategory ?? 'OTHER', ...(scrapReason?.trim() ? { scrapReason: scrapReason.trim() } : {}) } : {}),
+      }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shop-floor-jobs'] }); setCountFor(null); },
+    onError: (e: any) => toast({ variant: 'destructive', title: 'Adjust failed', description: e?.response?.data?.message }),
+  });
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
       {/* Shift strip */}
@@ -222,7 +233,17 @@ export function OperatorHmiView() {
 
       {/* Dialogs */}
       <LogDowntimeDialog open={!!downtimeTarget} onOpenChange={(v) => !v && setDowntimeTarget(null)} target={downtimeTarget} />
-      {countFor && <CountDialog jo={countFor} onClose={() => setCountFor(null)} onSubmit={(g, s, cat, reason) => addCount.mutate({ id: countFor.id, goodDelta: g, scrapDelta: s, scrapCategory: cat, scrapReason: reason })} pending={addCount.isPending} />}
+      {countFor && (
+        <CountDialog
+          jo={countFor}
+          onClose={() => setCountFor(null)}
+          pending={addCount.isPending || setOutput.isPending}
+          onSubmit={(mode, g, s, cat, reason) => {
+            if (mode === 'set') setOutput.mutate({ id: countFor.id, actualQtyGood: g, actualQtyRejected: s, scrapCategory: cat, scrapReason: reason });
+            else addCount.mutate({ id: countFor.id, goodDelta: g, scrapDelta: s, scrapCategory: cat, scrapReason: reason });
+          }}
+        />
+      )}
       {dialog?.type === 'status' && <MachineStatusDialog machines={machines} defaultMachineId={dialog.machineId} onClose={() => setDialog(null)} />}
       {dialog?.type === 'alarm' && <RaiseAlarmDialog machines={machines} defaultMachineId={dialog.machineId} onClose={() => setDialog(null)} />}
       {dialog?.type === 'maint' && <RaiseMaintenanceDialog machines={machines} defaultMachineId={dialog.machineId} onClose={() => setDialog(null)} />}
@@ -280,15 +301,22 @@ function ActionBtn({ onClick, icon, label, tone }: { onClick: () => void; icon: 
   );
 }
 
-// Minimal count entry (good / scrap deltas). Native number inputs; inputMode numeric.
 const SCRAP_CATEGORIES = ['QUALITY', 'SETUP', 'DAMAGE', 'OVERRUN', 'MATERIAL', 'MACHINE', 'OPERATOR', 'OTHER'];
 
+/**
+ * Count entry with two modes:
+ *  • Add (+)     → increments the running totals (add-count deltas).
+ *  • Correct     → sets the ABSOLUTE totals to fix a mis-count (output endpoint),
+ *                  pre-filled with the current good/rejected so the operator edits
+ *                  the real numbers.
+ */
 function CountDialog({ jo, onClose, onSubmit, pending }: {
   jo: JO;
   onClose: () => void;
-  onSubmit: (good: number, scrap: number, scrapCategory: string, scrapReason: string) => void;
+  onSubmit: (mode: 'add' | 'set', good: number, scrap: number, scrapCategory: string, scrapReason: string) => void;
   pending: boolean;
 }) {
+  const [mode, setMode] = useState<'add' | 'set'>('add');
   const [good, setGood] = useState('');
   const [scrap, setScrap] = useState('');
   const [scrapCategory, setScrapCategory] = useState('QUALITY');
@@ -296,32 +324,55 @@ function CountDialog({ jo, onClose, onSubmit, pending }: {
   const scrapNum = Number(scrap) || 0;
   const unit = jo.outputUnit ? ` ${jo.outputUnit}` : '';
 
+  // Switching to Correct pre-fills the current totals; back to Add clears.
+  const switchMode = (m: 'add' | 'set') => {
+    setMode(m);
+    if (m === 'set') { setGood(String(jo.actualQtyGood ?? 0)); setScrap(String(jo.actualQtyRejected ?? 0)); }
+    else { setGood(''); setScrap(''); }
+  };
+
+  const canSave = mode === 'set' ? (good !== '' || scrap !== '') : (!!good || !!scrap);
+
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="w-full max-w-sm rounded-2xl bg-card border border-border p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 mb-1">
           <Package size={18} className="text-sky-400" />
-          <div className="font-bold text-foreground">Add count · {jo.workOrder?.orderNumber}</div>
+          <div className="font-bold text-foreground">{mode === 'set' ? 'Correct count' : 'Add count'} · {jo.workOrder?.orderNumber}</div>
         </div>
-        <div className="text-xs text-foreground/50 mb-4">{jo.machine?.name ?? jo.machine?.code ?? jo.operationName}{unit ? ` · counts in${unit}` : ''}</div>
+        <div className="text-xs text-foreground/50 mb-3">{jo.machine?.name ?? jo.machine?.code ?? jo.operationName}{unit ? ` · counts in${unit}` : ''}</div>
+
+        {/* Mode toggle */}
+        <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-muted/40 mb-3">
+          {(['add', 'set'] as const).map((m) => (
+            <button key={m} onClick={() => switchMode(m)}
+              className={cn('h-8 rounded-lg text-xs font-semibold transition', mode === m ? 'bg-sky-500 text-white' : 'text-foreground/60')}>
+              {m === 'add' ? 'Add (+)' : 'Correct total'}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'set' && (
+          <div className="text-[11px] text-amber-400 mb-2">Current: {jo.actualQtyGood ?? 0} good · {jo.actualQtyRejected ?? 0} rejected — edit to the correct totals.</div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-emerald-400">Accepted (+)</span>
+            <span className="text-xs font-medium text-emerald-400">{mode === 'set' ? 'Accepted (total)' : 'Accepted (+)'}</span>
             <input type="number" inputMode="numeric" min={0} value={good} onChange={(e) => setGood(e.target.value)}
               className="h-12 text-lg text-center rounded-xl bg-emerald-500/5 border border-emerald-500/25 focus:outline-none focus:border-emerald-400" autoFocus />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-red-400">Rejected (+)</span>
+            <span className="text-xs font-medium text-red-400">{mode === 'set' ? 'Rejected (total)' : 'Rejected (+)'}</span>
             <input type="number" inputMode="numeric" min={0} value={scrap} onChange={(e) => setScrap(e.target.value)}
               className="h-12 text-lg text-center rounded-xl bg-red-500/5 border border-red-500/25 focus:outline-none focus:border-red-400" />
           </label>
         </div>
 
-        {/* Scrap reason — only when a reject quantity is entered (matches the shop floor). */}
+        {/* Scrap reason — when a reject quantity is present. */}
         {scrapNum > 0 && (
           <div className="mt-3 space-y-2 rounded-xl bg-red-500/5 border border-red-500/20 p-2.5">
-            <div className="text-[11px] font-semibold text-red-400 flex items-center gap-1"><AlertTriangle size={12} /> Scrap reason (required)</div>
+            <div className="text-[11px] font-semibold text-red-400 flex items-center gap-1"><AlertTriangle size={12} /> Scrap reason</div>
             <select value={scrapCategory} onChange={(e) => setScrapCategory(e.target.value)}
               className="w-full h-10 px-2 text-sm rounded-lg bg-background border border-red-500/25 text-red-300 focus:outline-none focus:border-red-400">
               {SCRAP_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -335,11 +386,11 @@ function CountDialog({ jo, onClose, onSubmit, pending }: {
         <div className="flex gap-2 mt-4">
           <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border font-semibold text-sm active:scale-95">Cancel</button>
           <button
-            disabled={pending || (!good && !scrap)}
-            onClick={() => onSubmit(Number(good) || 0, scrapNum, scrapCategory, scrapReason)}
+            disabled={pending || !canSave}
+            onClick={() => onSubmit(mode, Number(good) || 0, scrapNum, scrapCategory, scrapReason)}
             className="flex-1 h-11 rounded-xl bg-sky-500 text-white font-semibold text-sm active:scale-95 disabled:opacity-50"
           >
-            {pending ? 'Saving…' : 'Save count'}
+            {pending ? 'Saving…' : mode === 'set' ? 'Save correction' : 'Save count'}
           </button>
         </div>
       </div>

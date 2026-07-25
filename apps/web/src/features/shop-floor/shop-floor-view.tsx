@@ -188,7 +188,7 @@ function useElapsed(jo: ShopFloorJO) {
 
 function ShopFloorCard({
   jo, users, pending,
-  onTransition, onRecord, onAssignOperator,
+  onTransition, onRecord, onCorrect, onAssignOperator,
   onOpenLive, onAction, shiftStatus, machineShift,
 }: {
   jo: ShopFloorJO;
@@ -196,6 +196,7 @@ function ShopFloorCard({
   pending: boolean;
   onTransition: (id: string, status: JOStatus, qty?: number) => void;
   onRecord: (id: string, rec: { goodDelta: number; scrapDelta: number; reason: string; category?: string; handoverQty?: number }) => void;
+  onCorrect: (id: string, rec: { actualQtyGood: number; actualQtyRejected: number; reason: string; category?: string }) => void;
   onAssignOperator: (id: string, operatorId: string | null) => void;
   onOpenLive: (jo: ShopFloorJO) => void;
   onAction: (kind: 'maintenance' | 'state' | 'alarm', jo: ShopFloorJO) => void;
@@ -203,7 +204,9 @@ function ShopFloorCard({
   machineShift?: any;
 }) {
   const { t } = useTranslation('production');
-  // Incremental entry — each save ADDS to the running totals (never replaces)
+  // Incremental entry — each save ADDS to the running totals (never replaces).
+  // `countMode='set'` instead CORRECTS the absolute totals (fixes a mis-count).
+  const [countMode, setCountMode] = useState<'add' | 'set'>('add');
   const [addGood,      setAddGood]      = useState('');
   const [addScrap,     setAddScrap]     = useState('');
   const [scrapReason,  setScrapReason]  = useState('');
@@ -409,22 +412,30 @@ function ShopFloorCard({
 
       {/* ── Smart incremental count (EXECUTING or PAUSED) ── */}
       {canLog && (() => {
+        const isSet = countMode === 'set';
         const gd = parseInt(addGood, 10) || 0;
         const sd = parseInt(addScrap, 10) || 0;
-        const newGood = jo.actualQtyGood + gd;
-        const newRejected = jo.actualQtyRejected + sd;
+        // In 'set' mode the inputs are the ABSOLUTE totals; in 'add' they are deltas.
+        const newGood = isSet ? gd : jo.actualQtyGood + gd;
+        const newRejected = isSet ? sd : jo.actualQtyRejected + sd;
         const newTotal = newGood + newRejected;
         const newQuality = newTotal > 0 ? (newGood / newTotal) * 100 : 100;
-        const nothing = gd === 0 && sd === 0 && !showHandover;
+        const nothing = isSet ? (addGood === '' && addScrap === '') : (gd === 0 && sd === 0 && !showHandover);
+        const toSet = (m: 'add' | 'set') => {
+          setCountMode(m);
+          if (m === 'set') { setAddGood(String(jo.actualQtyGood)); setAddScrap(String(jo.actualQtyRejected)); }
+          else { setAddGood(''); setAddScrap(''); }
+        };
         const submit = () => {
-          onRecord(jo.id, {
-            goodDelta: gd,
-            scrapDelta: sd,
-            reason: scrapReason,
-            category: scrapCategory,
-            ...(showHandover && handoverInput !== '' ? { handoverQty: parseInt(handoverInput, 10) || 0 } : {}),
-          });
-          setAddGood(''); setAddScrap(''); setScrapReason('');
+          if (isSet) {
+            onCorrect(jo.id, { actualQtyGood: gd, actualQtyRejected: sd, reason: scrapReason, category: scrapCategory });
+          } else {
+            onRecord(jo.id, {
+              goodDelta: gd, scrapDelta: sd, reason: scrapReason, category: scrapCategory,
+              ...(showHandover && handoverInput !== '' ? { handoverQty: parseInt(handoverInput, 10) || 0 } : {}),
+            });
+          }
+          setAddGood(''); setAddScrap(''); setScrapReason(''); setCountMode('add');
         };
         return (
           <div className="px-5 py-4 border-t border-border/20 space-y-3">
@@ -440,11 +451,17 @@ function ShopFloorCard({
               </span>
             </div>
 
+            {/* Add (increment) vs Correct (set absolute totals) */}
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted/40 text-xs font-semibold">
+              <button onClick={() => toSet('add')} className={`h-7 rounded-md transition ${!isSet ? 'bg-brand-500 text-white' : 'text-muted-foreground'}`}>{t('sfv.addMode', { defaultValue: 'Add (+)' })}</button>
+              <button onClick={() => toSet('set')} className={`h-7 rounded-md transition ${isSet ? 'bg-brand-500 text-white' : 'text-muted-foreground'}`}>{t('sfv.correctMode', { defaultValue: 'Correct total' })}</button>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               {/* Add Good */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-green-400 flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" />{t('sfv.addGood')}
+                  <Check className="w-3.5 h-3.5" />{isSet ? t('sfv.goodTotal', { defaultValue: 'Good (total)' }) : t('sfv.addGood')}
                 </label>
                 <input
                   type="number" inputMode="numeric" min={0}
@@ -457,7 +474,7 @@ function ShopFloorCard({
               {/* Add Bad / Scrap */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-red-400 flex items-center gap-1">
-                  <X className="w-3.5 h-3.5" />{t('sfv.addBadScrap')}
+                  <X className="w-3.5 h-3.5" />{isSet ? t('sfv.rejectTotal', { defaultValue: 'Rejected (total)' }) : t('sfv.addBadScrap')}
                 </label>
                 <input
                   type="number" inputMode="numeric" min={0}
@@ -866,6 +883,24 @@ export function ShopFloorView() {
     }),
   });
 
+  // Correct the ABSOLUTE totals (fix a mis-count) — sets exact good/rejected.
+  const correctMut = useMutation({
+    mutationFn: ({ id, rec }: { id: string; rec: { actualQtyGood: number; actualQtyRejected: number; reason: string; category?: string } }) =>
+      api.patch(`/production/job-orders/${id}/output`, {
+        actualQtyGood: rec.actualQtyGood,
+        actualQtyRejected: rec.actualQtyRejected,
+        ...(rec.actualQtyRejected > 0 ? { scrapReason: rec.reason, scrapCategory: rec.category ?? 'OTHER' } : {}),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shop-floor-jobs'] });
+      qc.invalidateQueries({ queryKey: ['job-orders'] });
+      qc.invalidateQueries({ queryKey: ['work-orders'] });
+      qc.invalidateQueries({ queryKey: ['jo-live'] });
+      toast({ title: t('sfv.toastCorrected', { defaultValue: 'Count corrected' }) });
+    },
+    onError: (e: any) => toast({ variant: 'destructive', title: t('sfv.toastFailedRecord'), description: e?.response?.data?.message }),
+  });
+
   const operatorMut = useMutation({
     mutationFn: ({ id, operatorId }: { id: string; operatorId: string | null }) =>
       api.patch(`/production/job-orders/${id}/operator`, { operatorId }),
@@ -877,7 +912,7 @@ export function ShopFloorView() {
     }),
   });
 
-  const isPending = transitionMut.isPending || countMut.isPending || operatorMut.isPending;
+  const isPending = transitionMut.isPending || countMut.isPending || correctMut.isPending || operatorMut.isPending;
 
   const lastRefresh = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : '—';
 
@@ -987,6 +1022,7 @@ export function ShopFloorView() {
                   pending={isPending}
                   onTransition={(id, status, qty) => transitionMut.mutate({ id, status, qty })}
                   onRecord={(id, rec) => countMut.mutate({ id, rec })}
+                  onCorrect={(id, rec) => correctMut.mutate({ id, rec })}
                   onAssignOperator={(id, operatorId) => operatorMut.mutate({ id, operatorId })}
                   onOpenLive={openLive}
                   onAction={openAction}
