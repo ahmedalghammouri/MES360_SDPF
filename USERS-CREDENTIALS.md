@@ -190,3 +190,32 @@ Email pattern: `<rolekey><1–2>_<factorycode-lowercase>@mes360.sa`
   docker exec mes-postgres-prod psql -U mes_user -d mes360 -c \
     "SELECT email, name, role, \"isActive\", \"lastLoginAt\" FROM users ORDER BY role, email;"
   ```
+
+
+docker exec -i mes-postgres-plocal psql -U mes_user -d mes360 <<'SQL'
+INSERT INTO permissions (id, key, resource, action, label, category, "isSystem", "sortOrder", "createdAt", "updatedAt")
+VALUES
+  (gen_random_uuid(),'plant_dashboard:view','plant_dashboard','view','View plant live dashboards','Plant Dashboards',true,0,now(),now()),
+  (gen_random_uuid(),'plant_dashboard:create','plant_dashboard','create','Create plant dashboards','Plant Dashboards',true,0,now(),now()),
+  (gen_random_uuid(),'plant_dashboard:edit','plant_dashboard','edit','Edit plant dashboards','Plant Dashboards',true,0,now(),now()),
+  (gen_random_uuid(),'plant_dashboard:delete','plant_dashboard','delete','Delete plant dashboards','Plant Dashboards',true,0,now(),now()),
+  (gen_random_uuid(),'plant_dashboard:publish','plant_dashboard','publish','Publish plant dashboards','Plant Dashboards',true,0,now(),now()),
+  (gen_random_uuid(),'plant_dashboard:configure_cross_scope','plant_dashboard','configure_cross_scope','Configure cross-plant dashboard scopes','Plant Dashboards',true,0,now(),now())
+ON CONFLICT (key) DO NOTHING;
+WITH perms AS (SELECT id,key FROM permissions WHERE key LIKE 'plant_dashboard:%'),
+grants AS (
+  SELECT r.role, p.id AS pid FROM perms p
+  CROSS JOIN (VALUES ('SUPER_ADMIN'),('FACTORY_ADMIN'),('PLANT_MANAGER'),('PRODUCTION_MANAGER')) AS r(role)
+  WHERE p.key IN ('plant_dashboard:view','plant_dashboard:create','plant_dashboard:edit','plant_dashboard:delete','plant_dashboard:publish')
+  UNION SELECT r.role,p.id FROM perms p CROSS JOIN (VALUES ('SUPER_ADMIN'),('FACTORY_ADMIN')) AS r(role) WHERE p.key='plant_dashboard:configure_cross_scope'
+  UNION SELECT r.role,p.id FROM perms p CROSS JOIN (VALUES ('PRODUCTION_SUPERVISOR'),('QUALITY_MANAGER'),('QUALITY_ENGINEER'),('MAINTENANCE_MANAGER'),('ENERGY_MANAGER'),('OPERATOR'),('VIEWER')) AS r(role) WHERE p.key='plant_dashboard:view'
+)
+INSERT INTO role_permissions (id, role, "permissionId", "createdAt")
+SELECT gen_random_uuid(), role::"UserRole", pid, now() FROM grants
+ON CONFLICT (role, "permissionId") DO NOTHING;
+SELECT rp.role, count(*) AS plant_dashboard_perms
+FROM role_permissions rp JOIN permissions p ON p.id=rp."permissionId"
+WHERE p.key LIKE 'plant_dashboard:%' GROUP BY rp.role ORDER BY rp.role;
+SQL
+
+docker restart mes-api-plocal

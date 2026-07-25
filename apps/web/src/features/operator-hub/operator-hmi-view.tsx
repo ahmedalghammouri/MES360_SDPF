@@ -17,7 +17,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Play, Pause, CheckSquare, Plus, AlertTriangle, Loader2, Package, Clock, Factory,
-  Activity, Bell, Wrench,
+  Activity, Bell, Wrench, Cpu,
 } from 'lucide-react';
 
 import { api } from '@/services/api.client';
@@ -55,7 +55,7 @@ export function OperatorHmiView() {
   const qc = useQueryClient();
   const [downtimeTarget, setDowntimeTarget] = useState<JOActionTarget | null>(null);
   const [countFor, setCountFor] = useState<JO | null>(null);
-  const [dialog, setDialog] = useState<null | 'status' | 'alarm' | 'maint'>(null);
+  const [dialog, setDialog] = useState<{ type: 'status' | 'alarm' | 'maint'; machineId?: string } | null>(null);
 
   const { data: me } = useCurrentUser();
 
@@ -103,8 +103,11 @@ export function OperatorHmiView() {
   });
 
   const addCount = useMutation({
-    mutationFn: ({ id, goodDelta, scrapDelta }: { id: string; goodDelta: number; scrapDelta: number }) =>
-      api.patch(`/production/job-orders/${id}/add-count`, { goodDelta, scrapDelta, reason: 'MANUAL' }),
+    mutationFn: ({ id, goodDelta, scrapDelta, scrapCategory, scrapReason }: { id: string; goodDelta: number; scrapDelta: number; scrapCategory?: string; scrapReason?: string }) =>
+      api.patch(`/production/job-orders/${id}/add-count`, {
+        goodDelta, scrapDelta,
+        ...(scrapDelta > 0 ? { scrapCategory: scrapCategory ?? 'OTHER', ...(scrapReason?.trim() ? { scrapReason: scrapReason.trim() } : {}) } : {}),
+      }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shop-floor-jobs'] }); setCountFor(null); },
     onError: (e: any) => toast({ variant: 'destructive', title: 'Count failed', description: e?.response?.data?.message }),
   });
@@ -125,12 +128,6 @@ export function OperatorHmiView() {
       {/* Machine-state summary dashboard */}
       <div className="mb-4"><MachineSummary /></div>
 
-      {/* Quick actions */}
-      <div className="grid grid-cols-3 gap-2 mb-5">
-        <ToolbarBtn onClick={() => setDialog('status')} icon={<Activity size={16} />} label="Machine status" />
-        <ToolbarBtn onClick={() => setDialog('alarm')} icon={<Bell size={16} />} label="Raise alarm" tone="red" />
-        <ToolbarBtn onClick={() => setDialog('maint')} icon={<Wrench size={16} />} label="Maint. request" tone="amber" />
-      </div>
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-muted-foreground py-10"><Loader2 className="animate-spin" size={16} /> Loading…</div>
@@ -148,21 +145,27 @@ export function OperatorHmiView() {
             const pct = target > 0 ? Math.min(100, Math.round((good / target) * 100)) : 0;
             const running = jo.status === 'EXECUTING';
             return (
-              <div key={jo.id} className="rounded-2xl border border-border/60 bg-card p-4">
-                {/* WO header */}
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold text-foreground truncate">{jo.workOrder?.orderNumber ?? '—'}</span>
-                      <span className={cn('text-[10px] font-bold uppercase px-2 py-0.5 rounded-full',
-                        running ? 'bg-green-500/15 text-green-400' : jo.status === 'PAUSED' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400')}>
-                        {jo.status}
-                      </span>
+              <div key={jo.id} className={cn('rounded-2xl border bg-card p-4 transition-colors',
+                running ? 'border-green-500/25' : jo.status === 'PAUSED' ? 'border-amber-500/25' : 'border-border/60')}>
+                {/* Header — machine name is the card title */}
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <Cpu size={15} className="text-brand-400 shrink-0" />
+                      <span className="text-base font-bold text-foreground truncate">{jo.machine?.name ?? jo.machine?.code ?? 'Machine'}</span>
+                      {jo.machine?.name && jo.machine?.code && (
+                        <span className="text-[10px] font-mono text-foreground/50 px-1.5 py-0.5 rounded bg-muted/60 shrink-0">{jo.machine.code}</span>
+                      )}
                     </div>
-                    <div className="text-sm text-foreground/50 truncate">
-                      {jo.workOrder?.sku?.name ?? jo.operationName} · {jo.machine?.code ?? jo.machine?.name ?? ''}
+                    <div className="flex items-center gap-2 mt-1 min-w-0">
+                      <span className="text-xs font-mono font-semibold text-brand-400/80 shrink-0">{jo.workOrder?.orderNumber ?? '—'}</span>
+                      <span className="text-xs text-foreground/50 truncate">{jo.workOrder?.sku?.name ?? jo.operationName}</span>
                     </div>
                   </div>
+                  <span className={cn('text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0',
+                    running ? 'bg-green-500/15 text-green-400' : jo.status === 'PAUSED' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400')}>
+                    {jo.status}
+                  </span>
                 </div>
 
                 {/* KPI tiles */}
@@ -177,7 +180,7 @@ export function OperatorHmiView() {
                   <div className="h-full bg-sky-500 transition-all" style={{ width: `${pct}%` }} />
                 </div>
 
-                {/* Actions — large touch targets */}
+                {/* Primary actions — large touch targets */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {running ? (
                     <ActionBtn onClick={() => transition.mutate({ id: jo.id, status: 'PAUSED' })} icon={<Pause size={18} />} label="Pause" tone="amber" />
@@ -190,6 +193,13 @@ export function OperatorHmiView() {
                     icon={<AlertTriangle size={18} />} label="Downtime" tone="red"
                   />
                   <ActionBtn onClick={() => transition.mutate({ id: jo.id, status: 'COMPLETE' })} icon={<CheckSquare size={18} />} label="Complete" tone="emerald" />
+                </div>
+
+                {/* Machine actions — scoped to THIS card's machine */}
+                <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-border/40">
+                  <ToolbarBtn onClick={() => setDialog({ type: 'status', machineId: jo.machine?.id })} icon={<Activity size={15} />} label="Machine status" />
+                  <ToolbarBtn onClick={() => setDialog({ type: 'alarm', machineId: jo.machine?.id })} icon={<Bell size={15} />} label="Raise alarm" tone="red" />
+                  <ToolbarBtn onClick={() => setDialog({ type: 'maint', machineId: jo.machine?.id })} icon={<Wrench size={15} />} label="Maint. request" tone="amber" />
                 </div>
               </div>
             );
@@ -212,10 +222,10 @@ export function OperatorHmiView() {
 
       {/* Dialogs */}
       <LogDowntimeDialog open={!!downtimeTarget} onOpenChange={(v) => !v && setDowntimeTarget(null)} target={downtimeTarget} />
-      {countFor && <CountDialog jo={countFor} onClose={() => setCountFor(null)} onSubmit={(g, s) => addCount.mutate({ id: countFor.id, goodDelta: g, scrapDelta: s })} pending={addCount.isPending} />}
-      {dialog === 'status' && <MachineStatusDialog machines={machines} onClose={() => setDialog(null)} />}
-      {dialog === 'alarm' && <RaiseAlarmDialog machines={machines} onClose={() => setDialog(null)} />}
-      {dialog === 'maint' && <RaiseMaintenanceDialog machines={machines} onClose={() => setDialog(null)} />}
+      {countFor && <CountDialog jo={countFor} onClose={() => setCountFor(null)} onSubmit={(g, s, cat, reason) => addCount.mutate({ id: countFor.id, goodDelta: g, scrapDelta: s, scrapCategory: cat, scrapReason: reason })} pending={addCount.isPending} />}
+      {dialog?.type === 'status' && <MachineStatusDialog machines={machines} defaultMachineId={dialog.machineId} onClose={() => setDialog(null)} />}
+      {dialog?.type === 'alarm' && <RaiseAlarmDialog machines={machines} defaultMachineId={dialog.machineId} onClose={() => setDialog(null)} />}
+      {dialog?.type === 'maint' && <RaiseMaintenanceDialog machines={machines} defaultMachineId={dialog.machineId} onClose={() => setDialog(null)} />}
     </div>
   );
 }
@@ -271,33 +281,62 @@ function ActionBtn({ onClick, icon, label, tone }: { onClick: () => void; icon: 
 }
 
 // Minimal count entry (good / scrap deltas). Native number inputs; inputMode numeric.
-function CountDialog({ jo, onClose, onSubmit, pending }: { jo: JO; onClose: () => void; onSubmit: (good: number, scrap: number) => void; pending: boolean }) {
+const SCRAP_CATEGORIES = ['QUALITY', 'SETUP', 'DAMAGE', 'OVERRUN', 'MATERIAL', 'MACHINE', 'OPERATOR', 'OTHER'];
+
+function CountDialog({ jo, onClose, onSubmit, pending }: {
+  jo: JO;
+  onClose: () => void;
+  onSubmit: (good: number, scrap: number, scrapCategory: string, scrapReason: string) => void;
+  pending: boolean;
+}) {
   const [good, setGood] = useState('');
   const [scrap, setScrap] = useState('');
+  const [scrapCategory, setScrapCategory] = useState('QUALITY');
+  const [scrapReason, setScrapReason] = useState('');
+  const scrapNum = Number(scrap) || 0;
+  const unit = jo.outputUnit ? ` ${jo.outputUnit}` : '';
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl bg-card border border-border p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 mb-4">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl bg-card border border-border p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 mb-1">
           <Package size={18} className="text-sky-400" />
           <div className="font-bold text-foreground">Add count · {jo.workOrder?.orderNumber}</div>
         </div>
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="text-xs text-foreground/50 mb-4">{jo.machine?.name ?? jo.machine?.code ?? jo.operationName}{unit ? ` · counts in${unit}` : ''}</div>
+
+        <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-emerald-400">Accepted (+)</span>
             <input type="number" inputMode="numeric" min={0} value={good} onChange={(e) => setGood(e.target.value)}
-              className="h-12 text-lg text-center rounded-xl bg-muted/40 border border-border focus:outline-none focus:border-sky-400" autoFocus />
+              className="h-12 text-lg text-center rounded-xl bg-emerald-500/5 border border-emerald-500/25 focus:outline-none focus:border-emerald-400" autoFocus />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-red-400">Rejected (+)</span>
             <input type="number" inputMode="numeric" min={0} value={scrap} onChange={(e) => setScrap(e.target.value)}
-              className="h-12 text-lg text-center rounded-xl bg-muted/40 border border-border focus:outline-none focus:border-red-400" />
+              className="h-12 text-lg text-center rounded-xl bg-red-500/5 border border-red-500/25 focus:outline-none focus:border-red-400" />
           </label>
         </div>
-        <div className="flex gap-2">
+
+        {/* Scrap reason — only when a reject quantity is entered (matches the shop floor). */}
+        {scrapNum > 0 && (
+          <div className="mt-3 space-y-2 rounded-xl bg-red-500/5 border border-red-500/20 p-2.5">
+            <div className="text-[11px] font-semibold text-red-400 flex items-center gap-1"><AlertTriangle size={12} /> Scrap reason (required)</div>
+            <select value={scrapCategory} onChange={(e) => setScrapCategory(e.target.value)}
+              className="w-full h-10 px-2 text-sm rounded-lg bg-background border border-red-500/25 text-red-300 focus:outline-none focus:border-red-400">
+              {SCRAP_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input type="text" value={scrapReason} onChange={(e) => setScrapReason(e.target.value)}
+              placeholder="Note / specific cause (optional)"
+              className="w-full h-10 px-3 text-sm rounded-lg bg-background border border-red-500/25 focus:outline-none focus:border-red-400 placeholder:text-foreground/30" />
+          </div>
+        )}
+
+        <div className="flex gap-2 mt-4">
           <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border font-semibold text-sm active:scale-95">Cancel</button>
           <button
             disabled={pending || (!good && !scrap)}
-            onClick={() => onSubmit(Number(good) || 0, Number(scrap) || 0)}
+            onClick={() => onSubmit(Number(good) || 0, scrapNum, scrapCategory, scrapReason)}
             className="flex-1 h-11 rounded-xl bg-sky-500 text-white font-semibold text-sm active:scale-95 disabled:opacity-50"
           >
             {pending ? 'Saving…' : 'Save count'}

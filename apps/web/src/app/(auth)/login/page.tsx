@@ -121,7 +121,8 @@ function LoginPageInner() {
         setFactory(factory);
       }
 
-      router.push('/apps');
+      // Root resolves the landing: factory default live view if set, else /apps.
+      router.push('/');
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||

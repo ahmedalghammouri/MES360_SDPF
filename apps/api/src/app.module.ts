@@ -33,6 +33,7 @@ import { HealthModule } from './modules/health/health.module';
 import { ArchiveModule } from './modules/archive/archive.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { AlarmsModule } from './modules/alarms/alarms.module';
+import { PlantDashboardsModule } from './modules/plant-dashboards/plant-dashboards.module';
 import { HistorianModule } from './modules/historian/historian.module';
 import { SystemModule } from './modules/system/system.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
@@ -115,6 +116,7 @@ import { configuration } from './config/configuration';
     ApsModule,
     PlmModule,
     AlarmsModule,
+    PlantDashboardsModule,
     HistorianModule,
     SystemModule,
     WebSocketGatewayModule,

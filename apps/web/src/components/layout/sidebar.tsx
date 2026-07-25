@@ -96,6 +96,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Apps', href: '/apps', icon: Grip },
+  { label: 'Plant Live Views', href: '/plant-live-view', icon: Monitor, permission: 'plant_dashboard:view' },
 
   // ═══════════════ INSIGHTS ═══════════════
   // Decision-support apps: dashboards, OEE, analytics & reports, AI & benchmarks.

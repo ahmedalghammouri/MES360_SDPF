@@ -88,11 +88,21 @@ export const PERMISSION_CATALOG: PermDef[] = [
   { key: 'rbac:manage', label: 'Edit roles & permissions', category: 'Administration' },
   { key: 'settings:read', label: 'View settings', category: 'Administration' },
   { key: 'settings:manage', label: 'Manage settings', category: 'Administration' },
+
+  { key: 'plant_dashboard:view', label: 'View plant live dashboards', category: 'Plant Dashboards' },
+  { key: 'plant_dashboard:create', label: 'Create plant dashboards', category: 'Plant Dashboards' },
+  { key: 'plant_dashboard:edit', label: 'Edit plant dashboards', category: 'Plant Dashboards' },
+  { key: 'plant_dashboard:delete', label: 'Delete plant dashboards', category: 'Plant Dashboards' },
+  { key: 'plant_dashboard:publish', label: 'Publish plant dashboards', category: 'Plant Dashboards' },
+  { key: 'plant_dashboard:configure_cross_scope', label: 'Configure cross-plant dashboard scopes', category: 'Plant Dashboards' },
 ];
 
 // Convenience groups used to compose the matrix below.
 const ALL = PERMISSION_CATALOG.map((p) => p.key);
 const READ_ONLY = ALL.filter((k) => k.endsWith(':read'));
+// Plant-dashboard builder set (managers) vs read-only view (everyone monitoring).
+const PD_BUILD = ['plant_dashboard:view', 'plant_dashboard:create', 'plant_dashboard:edit', 'plant_dashboard:delete', 'plant_dashboard:publish'];
+const PD_VIEW = 'plant_dashboard:view';
 
 // ── Default role → permission matrix ────────────────────────────────────────
 // The two hub-locked roles (OPERATOR, MAINTENANCE_TECHNICIAN) intentionally have
@@ -111,6 +121,7 @@ export const ROLE_MATRIX: Record<UserRole, string[]> = {
     'quality:read', 'quality:approve', 'traceability:read',
     'maintenance:read', 'energy:read', 'iot:read', 'inventory:read', 'plm:read',
     'alarms:read', 'alarms:manage', 'notifications:read', 'users:read',
+    ...PD_BUILD,
   ],
 
   PRODUCTION_MANAGER: [
@@ -122,6 +133,7 @@ export const ROLE_MATRIX: Record<UserRole, string[]> = {
     'downtime:read', 'shifts:read', 'shifts:manage',
     'quality:read', 'maintenance:read', 'energy:read', 'inventory:read', 'inventory:write',
     'traceability:read', 'alarms:read', 'notifications:read',
+    ...PD_BUILD,
   ],
 
   PRODUCTION_SUPERVISOR: [
@@ -132,6 +144,7 @@ export const ROLE_MATRIX: Record<UserRole, string[]> = {
     'scheduling:read', 'downtime:read', 'shifts:read',
     'quality:read', 'maintenance:read', 'inventory:read',
     'alarms:read', 'notifications:read',
+    PD_VIEW,
   ],
 
   QUALITY_MANAGER: [
@@ -140,6 +153,7 @@ export const ROLE_MATRIX: Record<UserRole, string[]> = {
     'quality:read', 'quality:write', 'quality:approve', 'traceability:read',
     'production:read', 'maintenance:read', 'plm:read', 'plm:write',
     'alarms:read', 'alarms:manage', 'notifications:read',
+    PD_VIEW,
   ],
 
   QUALITY_ENGINEER: [
@@ -155,6 +169,7 @@ export const ROLE_MATRIX: Record<UserRole, string[]> = {
     'maintenance:read', 'maintenance:write', 'maintenance:execute',
     'production:read', 'energy:read', 'iot:read', 'iot:manage', 'inventory:read', 'inventory:write',
     'alarms:read', 'alarms:manage', 'notifications:read', 'notifications:manage',
+    PD_VIEW,
   ],
 
   ENERGY_MANAGER: [
@@ -162,11 +177,13 @@ export const ROLE_MATRIX: Record<UserRole, string[]> = {
     'dashboard:read', 'analytics:read', 'ai:read', 'reports:read', 'reports:manage',
     'energy:read', 'energy:manage', 'iot:read', 'iot:manage',
     'production:read', 'maintenance:read', 'alarms:read', 'notifications:read',
+    PD_VIEW,
   ],
 
   VIEWER: [
     'platform:access',
     ...READ_ONLY,
+    PD_VIEW,
   ],
 
   // ── Hub-locked floor roles (NO platform:access) ──
@@ -177,6 +194,7 @@ export const ROLE_MATRIX: Record<UserRole, string[]> = {
     // Shop-floor read access: machine states, alarm log + KPIs, and the operator's
     // own maintenance requests (all surfaced on the operator HMI dashboard).
     'iot:read', 'alarms:read', 'maintenance:read',
+    PD_VIEW,
   ],
 
   MAINTENANCE_TECHNICIAN: [

@@ -63,7 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (isAuthenticated && isPublic) {
       refreshAttempted.current = false;
-      router.replace(hubLocked ? HUB_ROUTE : '/apps');
+      if (hubLocked) { router.replace(HUB_ROUTE); return; }
+      // Send other public routes (e.g. /login) to root; let RootPage itself resolve
+      // the landing (factory default plant live view, else /apps) — avoids a bounce.
+      if (pathname !== '/') router.replace('/');
       return;
     }
 

@@ -3541,3 +3541,66 @@ model Attachment {
   @@index([factoryId])
   @@map("attachments")
 }
+
+// ============================================================
+// PLANT DASHBOARD BUILDER (configurable live plant dashboards)
+// A dashboard is scoped to a hierarchy entity (plant|area|line|machine, stored
+// polymorphically as entityType+entityId). The DRAFT is the live set of widget
+// rows the builder edits; PUBLISHING serialises the full state into
+// `publishedSnapshot`, which the read-only Live View renders — so editing a draft
+// never disturbs the running Live View.
+// ============================================================
+model PlantDashboard {
+  id                 String    @id @default(uuid())
+  factoryId          String // tenant scope (the plant the entity belongs to)
+  name               String
+  entityType         String // plant | area | line | machine
+  entityId           String
+  backgroundImageUrl String?
+  backgroundSettings Json? // fit, position, opacity, ...
+  canvasSettings     Json? // width, height, grid, snap, zoom
+  status             String    @default("draft") // draft | published
+  isDefault          Boolean   @default(false) // the factory's landing live view (one per factory)
+  version            Int       @default(1)
+  publishedSnapshot  Json? // full {settings, widgets[]} captured at publish
+  publishedVersion   Int?
+  publishedAt        DateTime?
+  createdById        String?
+  updatedById        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  widgets PlantDashboardWidget[]
+
+  @@index([factoryId, entityType, entityId])
+  @@index([entityType, entityId, status])
+  @@map("plant_dashboards")
+}
+
+model PlantDashboardWidget {
+  id              String   @id @default(uuid())
+  dashboardId     String
+  widgetType      String // kpiValue | equipmentStatus | multiKpi | productionSummary | oeeSummary | trendChart | activeAlarms | lineStatus | text | image | navButton
+  title           String?
+  x               Float    @default(0)
+  y               Float    @default(0)
+  width           Float    @default(220)
+  height          Float    @default(140)
+  zIndex          Int      @default(1)
+  rotation        Float    @default(0)
+  locked          Boolean  @default(false)
+  visible         Boolean  @default(true)
+  scopeConfig     Json? // {scopeType, scopeId, includeChildren, timeRange, ...}
+  dataConfig      Json? // {kpiCode, source, aggregation, unit, precision, kpis[], ...}
+  displayConfig   Json? // styling + show/hide flags
+  refreshConfig   Json? // {mode, intervalSec}
+  thresholdConfig Json? // rules[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  dashboard PlantDashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@index([dashboardId])
+  @@map("plant_dashboard_widgets")
+}

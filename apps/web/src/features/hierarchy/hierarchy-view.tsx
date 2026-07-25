@@ -2,11 +2,13 @@
 import { useTranslation } from 'react-i18next';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Building2, Layers, Cpu, Activity, ChevronRight, ChevronDown, Circle,
   Plus, Pencil, Trash2, MoreVertical, X, Settings, AlertTriangle,
+  LayoutDashboard, Monitor,
 } from 'lucide-react';
 import { api } from '@/services/api.client';
 import { Badge } from '@/components/ui/badge';
@@ -82,10 +84,13 @@ function TreeNode({
   node, depth = 0, onEdit, onDelete,
 }: { node: HierarchyNode; depth?: number; onEdit: (n: HierarchyNode) => void; onDelete: (n: HierarchyNode) => void }) {
   const { t } = useTranslation('modules');
+  const router = useRouter();
   const [expanded, setExpanded] = useState(depth < 2);
   const cfg = TYPE_CFG[node.type] ?? TYPE_CFG.MACHINE;
   const Icon = cfg.icon;
   const hasChildren = node.children && node.children.length > 0;
+  // Hierarchy node type → dashboard entity type.
+  const entityType = ({ FACTORY: 'plant', AREA: 'area', PRODUCTION_LINE: 'line', MACHINE: 'machine' } as Record<string, string>)[node.type] ?? 'machine';
 
   return (
     <div>
@@ -124,24 +129,33 @@ function TreeNode({
           </div>
         )}
 
-        {node.type !== 'FACTORY' && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0">
-                <MoreVertical className="w-3 h-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="text-xs">
-              <DropdownMenuItem onClick={e => { e.stopPropagation(); onEdit(node); }}>
-                <Pencil className="w-3 h-3 mr-2" /> {t('hierarchy.edit')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={e => { e.stopPropagation(); onDelete(node); }} className="text-destructive">
-                <Trash2 className="w-3 h-3 mr-2" /> {t('hierarchy.delete')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0">
+              <MoreVertical className="w-3 h-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="text-xs">
+            {/* Configure Live Dashboard / Open Live View — for Plant, Area, Line, Machine */}
+            <DropdownMenuItem onClick={e => { e.stopPropagation(); router.push(`/plant-hierarchy/dashboard-builder/${entityType}/${node.id}`); }}>
+              <LayoutDashboard className="w-3 h-3 mr-2 text-brand-400" /> {t('hierarchy.configureDashboard', { defaultValue: 'Configure Live Dashboard' })}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={e => { e.stopPropagation(); router.push(`/plant-live-view/${entityType}/${node.id}`); }}>
+              <Monitor className="w-3 h-3 mr-2 text-emerald-400" /> {t('hierarchy.openLiveView', { defaultValue: 'Open Live View' })}
+            </DropdownMenuItem>
+            {node.type !== 'FACTORY' && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={e => { e.stopPropagation(); onEdit(node); }}>
+                  <Pencil className="w-3 h-3 mr-2" /> {t('hierarchy.edit')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={e => { e.stopPropagation(); onDelete(node); }} className="text-destructive">
+                  <Trash2 className="w-3 h-3 mr-2" /> {t('hierarchy.delete')}
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {expanded && hasChildren && (
