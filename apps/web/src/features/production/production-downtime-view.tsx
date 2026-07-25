@@ -185,7 +185,14 @@ export function CauseTreeSelect({
   }, []);
 
   useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 50);
+    if (!open) return;
+    // On touch devices (tablets), auto-focusing the search box pops the on-screen
+    // keyboard, which covers the options list and blocks scrolling/selection. Only
+    // auto-focus on fine-pointer (mouse) devices so operators can scroll the tree.
+    const coarse = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(pointer: coarse)').matches;
+    if (!coarse) setTimeout(() => searchRef.current?.focus(), 50);
   }, [open]);
 
   const flatLeaves = useMemo(() => flattenTree(reasonTree, machineId), [reasonTree, machineId]);

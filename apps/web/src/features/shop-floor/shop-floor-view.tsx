@@ -725,9 +725,10 @@ export function ShopFloorView() {
     refetchInterval: 10_000,
   });
 
+  // Assignable users (role-scoped) — production roles can't call /users directly.
   const { data: usersData } = useQuery({
-    queryKey: ['users-list'],
-    queryFn: () => api.get('/users', { params: { limit: 200 } }),
+    queryKey: ['assignable-users'],
+    queryFn: () => api.get('/users/assignable'),
     staleTime: 300_000,
   });
 
@@ -747,7 +748,7 @@ export function ShopFloorView() {
     for (const row of (shiftA?.machines ?? [])) m.set(row.id, row);
     return m;
   }, [shiftA]);
-  const users: Operator[] = (((usersData as any)?.data) ?? []).map((u: any) => ({
+  const users: Operator[] = ((usersData as any) ?? []).map((u: any) => ({
     id: u.id, name: u.name, nameAr: u.nameAr,
   }));
 

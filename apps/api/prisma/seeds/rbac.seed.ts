@@ -174,6 +174,9 @@ export const ROLE_MATRIX: Record<UserRole, string[]> = {
     'hub:operate', 'shopfloor:operate',
     'production:read', 'production:execute',
     'downtime:read',
+    // Shop-floor read access: machine states, alarm log + KPIs, and the operator's
+    // own maintenance requests (all surfaced on the operator HMI dashboard).
+    'iot:read', 'alarms:read', 'maintenance:read',
   ],
 
   MAINTENANCE_TECHNICIAN: [

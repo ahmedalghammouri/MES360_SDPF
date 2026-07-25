@@ -148,6 +148,27 @@ export class MaintenanceController {
     return this.maintenanceService.createMaintenanceWO(user.factoryId, user.id, dto);
   }
 
+  // Operator/shop-floor maintenance request — creates a CORRECTIVE work order in
+  // OPEN state, requested by the caller. Gated by production:execute (which
+  // operators hold) so they can raise a request without full maintenance:write.
+  @Post('requests')
+  @RequirePermissions('production:execute')
+  @AuditLog('MAINTENANCE_REQUEST_CREATE')
+  @ApiOperation({ summary: 'Raise a maintenance request from the shop floor (operator)' })
+  @ApiResponse({ status: 201 })
+  async createRequest(
+    @CurrentUser() user: RequestUser,
+    @Body() body: { machineId: string; title: string; description?: string; priority?: string },
+  ) {
+    return this.maintenanceService.createMaintenanceWO(user.factoryId, user.id, {
+      type: 'CORRECTIVE',
+      priority: (body.priority ?? 'MEDIUM'),
+      machineId: body.machineId,
+      title: body.title,
+      description: body.description,
+    } as CreateMaintenanceWODto);
+  }
+
   @Patch('work-orders/:id')
   @RequirePermissions('maintenance:write')
   @AuditLog('MAINTENANCE_WO_UPDATE')

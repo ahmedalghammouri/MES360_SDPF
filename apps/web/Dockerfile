@@ -9,7 +9,11 @@ RUN npm install -g pnpm@9
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml* .npmrc* ./
-RUN pnpm install --no-frozen-lockfile
+# Persist the pnpm content-addressable store across builds so packages are not
+# re-downloaded/re-extracted every time (cuts build time + the memory/IO spike
+# that can OOM-kill the BuildKit builder). Requires BuildKit (default).
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --no-frozen-lockfile --store-dir=/pnpm/store
 
 FROM base AS development
 WORKDIR /app

@@ -151,10 +151,11 @@ services:
   # ============================================================
 
   migrate-seed:
-    build:
-      context: ./apps/api
-      dockerfile: Dockerfile
-      target: production
+    # No `build:` on purpose — this is the SAME image as the `api` service below.
+    # Declaring the build twice makes BuildKit compile mes360-api:prodlocal as two
+    # separate targets in parallel, which doubles peak memory and OOM-kills the
+    # builder ("rpc error ... EOF"). The `api` service builds the image; this
+    # service just runs it with a different command.
     image: mes360-api:prodlocal
     container_name: mes-migrate-seed-plocal
     restart: "no"

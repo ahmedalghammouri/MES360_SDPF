@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
-import { ShopFloorView } from '@/features/shop-floor/shop-floor-view';
+import { OperatorHmiView } from '@/features/operator-hub/operator-hmi-view';
 
 export const metadata: Metadata = { title: 'Shop Floor | Operation Hub' };
 
+// The simplified, tablet-first operator screen (key info + core actions), not the
+// full desktop ShopFloorView. Supervisors still get the full view on the platform.
 export default function HubShopFloorPage() {
-  return <ShopFloorView />;
+  return <OperatorHmiView />;
 }
