@@ -584,10 +584,9 @@ export class ProductionService implements OnApplicationBootstrap {
     if (po.status === 'CANCELLED') throw new BadRequestException('Cannot create WO for a cancelled production order');
     if (!po.skuId) throw new BadRequestException('Production order has no SKU assigned');
 
-    // Generate WO number: WO-{YYYY}-{seq}
+    // Generate WO number: WO-{YYYY}-{seq} — collision-safe (max suffix + 1).
     const year = new Date().getFullYear();
-    const count = await this.prisma.workOrder.count({ where: { factoryId } });
-    const orderNumber = `WO-${year}-${String(count + 1).padStart(4, '0')}`;
+    const orderNumber = await this.nextYearlyWONumber(year);
 
     const wo = await this.prisma.workOrder.create({
       data: {
@@ -1420,7 +1419,6 @@ export class ProductionService implements OnApplicationBootstrap {
       if (cf > end) end = cf;
     }
     const year  = new Date().getFullYear();
-    const existing = await this.prisma.workOrder.count({ where: { factoryId } });
 
     // ISA-95: 1 Work Order per Production Order (the production run)
     // N Job Orders are the dispatch list (one per routing step)
@@ -1435,28 +1433,37 @@ export class ProductionService implements OnApplicationBootstrap {
       lineId = m?.lineId ?? null;
     }
 
-    const orderNumber = `WO-${year}-${String(existing + 1).padStart(4, '0')}`;
-
-    const wo = await this.prisma.workOrder.create({
-      data: {
-        factoryId,
-        productionOrderId: poId,
-        skuId: po.skuId!,
-        lineId,
-        orderNumber,
-        status: 'PLANNED',
-        priority: po.priority as any,
-        autoStart: dto.autoStart ?? false,
-        plannedQty: po.targetQty,
-        plannedStart: start,
-        plannedEnd: end,
-        notes: `Auto-generated from PO ${po.orderNumber}${preview.process ? ` — Process: ${preview.process.name}` : ''}`,
-        createdById: userId,
-      },
-      include: {
-        sku: { select: { name: true, code: true } },
-      },
-    });
+    // Robust, collision-safe numbering: derive from the max existing suffix and
+    // retry on the rare concurrent-create unique clash instead of failing with 500.
+    let wo: Awaited<ReturnType<typeof this.prisma.workOrder.create>> | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const orderNumber = await this.nextYearlyWONumber(year);
+      try {
+        wo = await this.prisma.workOrder.create({
+          data: {
+            factoryId,
+            productionOrderId: poId,
+            skuId: po.skuId!,
+            lineId,
+            orderNumber,
+            status: 'PLANNED',
+            priority: po.priority as any,
+            autoStart: dto.autoStart ?? false,
+            plannedQty: po.targetQty,
+            plannedStart: start,
+            plannedEnd: end,
+            notes: `Auto-generated from PO ${po.orderNumber}${preview.process ? ` — Process: ${preview.process.name}` : ''}`,
+            createdById: userId,
+          },
+          include: { sku: { select: { name: true, code: true } } },
+        });
+        break;
+      } catch (e: any) {
+        if (e?.code === 'P2002' && attempt < 4) continue; // number taken → recompute
+        throw e;
+      }
+    }
+    if (!wo) throw new BadRequestException('Could not allocate a unique work-order number, please retry');
 
     // Generate dispatch list (Job Orders) for each routing step
     const joResult = await this.generateJobOrders(factoryId, wo.id, {
@@ -3358,6 +3365,22 @@ export class ProductionService implements OnApplicationBootstrap {
     if (wo.status === 'CANCELLED') return 0;
     if (!wo.actualQty) return 0;
     return Math.min(Math.round((wo.actualQty / wo.plannedQty) * 100), 100);
+  }
+
+  /**
+   * Next `WO-<year>-NNNN` number — robust to gaps, soft-deleted rows and other
+   * factories (orderNumber is GLOBALLY unique). Derives the sequence from the highest
+   * existing suffix + 1, NOT a live row count (which collides when numbers are skipped
+   * or a soft-deleted WO still holds its number).
+   */
+  private async nextYearlyWONumber(year: number): Promise<string> {
+    const last = await this.prisma.workOrder.findFirst({
+      where: { orderNumber: { startsWith: `WO-${year}-` } },
+      orderBy: { orderNumber: 'desc' },
+      select: { orderNumber: true },
+    });
+    const seq = last ? (parseInt(last.orderNumber.split('-').pop() || '0', 10) || 0) + 1 : 1;
+    return `WO-${year}-${String(seq).padStart(4, '0')}`;
   }
 
   private async generateOrderNumber(factoryId: string): Promise<string> {
