@@ -154,6 +154,10 @@ services:
     restart: always
     environment:
       NODE_ENV: production
+      # Plant timezone — so server-side date logic (shift windows, getHours(),
+      # working-day calendar) runs in Riyadh local time instead of UTC. Without this
+      # the api container defaults to UTC and every HH:mm shift boundary is off by +3h.
+      TZ: Asia/Riyadh
       # Read OEE/KPI/output from the persisted ProductionSnapshot fact store (the
       # canonical, dimension-classified source) — matches prod-local + Grafana.
       SNAPSHOTS_READ: "on"

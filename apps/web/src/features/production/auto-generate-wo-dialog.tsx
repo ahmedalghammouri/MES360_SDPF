@@ -45,10 +45,26 @@ interface Props {
   onDone?: () => void;
 }
 
+// Plant timezone offset (Asia/Riyadh = UTC+3, no DST). Datetime-local inputs are
+// interpreted in the FACTORY timezone — never the operator's browser timezone — so
+// a picked "8:00 PM" always means 8 PM in Riyadh and stores the correct UTC instant
+// regardless of where the browser is.
+const FACTORY_OFFSET_MS = 3 * 3_600_000;
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** UTC ISO → datetime-local string in factory (Riyadh) time. */
 function toLocalInput(iso?: string | null): string {
-  const d = iso ? new Date(iso) : new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const base = iso ? new Date(iso).getTime() : Date.now();
+  const d = new Date(base + FACTORY_OFFSET_MS); // shift, then read via getUTC*
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+/** datetime-local string (interpreted as factory/Riyadh time) → UTC ISO to send. */
+function factoryInputToUtcIso(naive: string): string {
+  const [datePart, timePart] = naive.split('T');
+  const [y, mo, dd] = datePart.split('-').map(Number);
+  const [h, mi] = (timePart ?? '00:00').split(':').map(Number);
+  return new Date(Date.UTC(y, mo - 1, dd, h, mi) - FACTORY_OFFSET_MS).toISOString();
 }
 
 export function AutoGenerateWODialog({ po, open, onClose, onDone }: Props) {
@@ -75,7 +91,7 @@ export function AutoGenerateWODialog({ po, open, onClose, onDone }: Props) {
   const operators: Array<{ id: string; name: string; role?: string }> =
     ((usersData as any) ?? []).map((u: any) => ({ id: u.id, name: u.name, role: u.role }));
 
-  const fromIso = plannedStart ? new Date(plannedStart).toISOString() : undefined;
+  const fromIso = plannedStart ? factoryInputToUtcIso(plannedStart) : undefined;
 
   const { data: preview, isLoading: previewLoading } = useQuery({
     queryKey: ['po-autogen-preview', po.id, fromIso],
@@ -136,8 +152,8 @@ export function AutoGenerateWODialog({ po, open, onClose, onDone }: Props) {
 
   const genMut = useMutation({
     mutationFn: () => api.post(`/production/production-orders/${po.id}/auto-generate-work-orders`, {
-      plannedStart: new Date(plannedStart).toISOString(),
-      plannedEnd: new Date(plannedEnd).toISOString(),
+      plannedStart: factoryInputToUtcIso(plannedStart),
+      plannedEnd: factoryInputToUtcIso(plannedEnd),
       autoStart,
       assignments: Object.entries(assignments)
         .filter(([, operatorId]) => operatorId)
@@ -173,7 +189,7 @@ export function AutoGenerateWODialog({ po, open, onClose, onDone }: Props) {
   const joSteps: any[] = prev?.jobOrdersToCreate ?? prev?.workOrdersToCreate ?? [];
   const isDispatchMode = prev?.mode === 'dispatch' || joSteps.length > 1;
   const blockedByReschedule = !!smart?.exceedsDue && !approvedReschedule;
-  const fmtDateTime = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
+  const fmtDateTime = (iso?: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { timeZone: 'Asia/Riyadh' }) : '—');
   const fmtDur = (mins?: number) => {
     if (mins == null) return '—';
     const h = Math.floor(mins / 60), m = Math.round(mins % 60);

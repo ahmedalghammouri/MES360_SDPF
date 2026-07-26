@@ -3739,6 +3739,18 @@ export class ProductionService implements OnApplicationBootstrap {
         })
       : created;
 
+    // Keep the WORK ORDER window consistent with its scheduled JOB ORDERS — the JOs
+    // are the schedule of record (finite-capacity + calendar), so the WO must reflect
+    // their real span instead of the raw user-input window they diverged from.
+    const jStarts = jobOrders.map((j: any) => (j.plannedStart ? +new Date(j.plannedStart) : null)).filter((x: number | null): x is number => x != null);
+    const jEnds = jobOrders.map((j: any) => (j.plannedEnd ? +new Date(j.plannedEnd) : null)).filter((x: number | null): x is number => x != null);
+    if (jStarts.length && jEnds.length) {
+      await this.prisma.workOrder.update({
+        where: { id: workOrderId },
+        data: { plannedStart: new Date(Math.min(...jStarts)), plannedEnd: new Date(Math.max(...jEnds)) },
+      }).catch(() => { /* non-fatal: keep the WO's original window if the sync fails */ });
+    }
+
     return {
       created: created.length,
       scheduled,
