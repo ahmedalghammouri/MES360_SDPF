@@ -72,3 +72,36 @@ export function plantWeekKey(date: Date, timeZone?: string): string {
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); // ISO week starts Monday
   return d.toISOString().slice(0, 10);
 }
+
+/**
+ * A plant-local wall clock → the absolute instant it denotes.
+ *
+ * `ShiftTemplate.startTime` is a bare `"07:30"` meaning 07:30 **at the plant**.
+ * Building it with `Date.UTC(y, m, d, 7, 30)` stores 07:30 UTC — which for a +03
+ * plant is 10:30 local, so every shift boundary, and every break/cleaning event
+ * generated from it, lands 3 hours late.
+ *
+ * The second pass re-resolves the offset at the candidate instant so the result
+ * stays correct across a DST transition (Riyadh has none; other plants may).
+ *
+ * @param day       calendar day — its plant-local Y/M/D are used
+ * @param hhmm      `"HH:mm"` in plant-local time
+ * @param dayOffset days to add (for shifts that cross midnight)
+ */
+export function plantWallClockToUtc(
+  day: Date,
+  hhmm: string,
+  dayOffset = 0,
+  timeZone: string = DEFAULT_PLANT_TZ,
+): Date {
+  const [h, m] = hhmm.split(':').map(Number);
+  const p = plantParts(day, timeZone);
+  const wall = Date.UTC(p.year, p.month - 1, p.day + dayOffset, h || 0, m || 0, 0, 0);
+  const offsetAt = (t: number) => {
+    const q = plantParts(new Date(t), timeZone);
+    return Date.UTC(q.year, q.month - 1, q.day, q.hour, q.minute, 0) - Math.floor(t / 60_000) * 60_000;
+  };
+  let ts = wall - offsetAt(wall);
+  ts = wall - offsetAt(ts);
+  return new Date(ts);
+}

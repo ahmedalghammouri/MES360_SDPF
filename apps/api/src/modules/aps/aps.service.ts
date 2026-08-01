@@ -135,21 +135,24 @@ export class ApsService {
       }
     }
 
-    // Planned downtime (breaks/cleaning/PM logged as planned events) makes a
-    // machine unavailable until the stop ends — pre-occupy it so operations are
-    // pushed past the planned stoppage that intersects the horizon.
-    const plannedDowns = await this.prisma.downtimeEvent.findMany({
-      where: {
-        factoryId: fid, isPlanned: true,
-        OR: [{ endTime: null }, { endTime: { gt: new Date(horizon) } }],
-      },
-      select: { machineId: true, endTime: true },
-    });
-    for (const d of plannedDowns) {
-      if (!d.machineId || !d.endTime) continue;
-      const e = +d.endTime;
-      if (e > horizon) machineFree.set(d.machineId, Math.max(machineFree.get(d.machineId) ?? horizon, e));
-    }
+    // Planned downtime deliberately does NOT pre-occupy a machine.
+    //
+    // A break, a cleaning slot or a PM window does not move the moment a work
+    // order can BEGIN — it interrupts the run once it is under way. So planned
+    // stoppage belongs to the order's DURATION (pushing its finish out), never to
+    // its start. It is already accounted for that way, as planned-stoppage
+    // minutes added to the finish-time estimate.
+    //
+    // Seeding it into `machineFree` counted it twice AND applied it to the wrong
+    // end of the window. Worse, `machineFree` keeps a single "next free instant"
+    // per machine, so taking MAX(endTime) over every future stop turned a series
+    // of short recurring breaks into one continuous outage: on the production
+    // data, 22 planned stops per machine collapsed into "free from 07 Aug" and
+    // pushed a work order requested for 02 Aug out to 08 Aug — six days, from
+    // stoppages totalling a few hours.
+    //
+    // `machineFree` now reflects real occupancy only: other work orders' job
+    // orders (seeded above).
     // Working-time calendar from the factory's shift templates — the scheduler
     // skips the weekly rest day(s) / holidays instead of planning work on them.
     const shifts = await this.prisma.shiftTemplate.findMany({

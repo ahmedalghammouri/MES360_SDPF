@@ -5,6 +5,7 @@ import { Prisma, DowntimeCategory, DowntimeReasonCode } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
 import { toBaseUnits, convertUnits } from '../../common/units.util';
+import { plantWallClockToUtc } from '../../common/plant-time.util';
 import { KpiService } from '../production/kpi.service';
 import {
   CreateShiftTemplateDto, UpdateShiftTemplateDto, GenerateInstancesDto,
@@ -40,10 +41,13 @@ export class ShiftService {
   }
 
   /** Combine a calendar date with an HH:mm time, optionally shifting by whole days (UTC-stable). */
+  /**
+   * Shift template times ("07:30") are PLANT-local. This used to build them with
+   * Date.UTC(...), storing 07:30 UTC — 10:30 at a +03 plant — so every shift
+   * instance, and every break/cleaning event derived from it, sat 3 hours late.
+   */
   private combine(date: Date, hhmm: string, dayOffset = 0): Date {
-    const [h, m] = hhmm.split(':').map(Number);
-    const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + dayOffset, h, m, 0, 0));
-    return d;
+    return plantWallClockToUtc(date, hhmm, dayOffset);
   }
 
   // ────────────────────────────────────────────────────────────
