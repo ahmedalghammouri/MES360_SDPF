@@ -116,6 +116,8 @@ const ROW_H = 44;
 const BAR_H = 24;
 const LANE_H = 40;
 const LABEL_W = 230;
+/** Width reserved for the pinned day/month label in the axis header. */
+const DAY_LABEL_W = 118;
 const HEADER_H = 64;
 
 const DEP_COLOR: Record<DepType, string> = { FS: '#94a3b8', SS: '#0ea5e9', FF: '#a855f7', SF: '#f59e0b' };
@@ -357,6 +359,13 @@ export function FactoryGantt({
 
   // ── Drag move / resize ──
   const scrollRef = useRef<HTMLDivElement>(null);
+  /**
+   * Horizontal scroll offset, tracked so the day label can stay pinned inside its
+   * own column. Without it the axis shows bare hours once you scroll into the
+   * middle of a day — you can read "15:30" but not WHICH day, which is exactly
+   * how a correct plant-local timeline still gets misread as UTC.
+   */
+  const [scrollX, setScrollX] = useState(0);
   const [drag, setDrag] = useState<{ id: string; mode: 'move' | 'resize'; dx: number } | null>(null);
 
   const onBarDown = (e: React.MouseEvent, t: FactoryTask, mode: 'move' | 'resize') => {
@@ -617,7 +626,7 @@ export function FactoryGantt({
         </div>
 
         {/* Timeline */}
-        <div ref={scrollRef} className="flex-1 overflow-x-auto">
+        <div ref={scrollRef} className="flex-1 overflow-x-auto" onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
           <div className="relative" style={{ width: timelineW }}>
             {/* Scale header */}
             <div className="sticky top-0 z-20 bg-card border-b border-border/60" style={{ height: HEADER_H }}>
@@ -625,13 +634,28 @@ export function FactoryGantt({
                 <>
                   {/* day band */}
                   <div className="relative border-b border-border/40" style={{ height: 26 }}>
-                    {days.map((d, i) => (
-                      <div key={i} className={cn('absolute top-0 h-full flex items-center px-2 text-[11px] font-semibold border-r border-border/40',
-                        nonWorkingDays.includes(d.getUTCDay()) ? 'text-amber-500/90' : 'text-foreground/80')}
-                        style={{ left: i * pxPerDay, width: pxPerDay }}>
-                        {DOW_FULL[d.getUTCDay()]} {String(d.getUTCDate()).padStart(2, '0')} {MONTHS[d.getUTCMonth()]}
-                      </div>
+                    {/* column separators */}
+                    {days.map((_, i) => (
+                      <div key={`dc${i}`} className="absolute top-0 h-full border-r border-border/40"
+                        style={{ left: i * pxPerDay, width: pxPerDay }} />
                     ))}
+                    {/* labels, pinned within their own column so the day in view is always named */}
+                    {days.map((d, i) => {
+                      const colLeft = i * pxPerDay;
+                      const colRight = colLeft + pxPerDay;
+                      if (colRight < scrollX) return null; // scrolled past
+                      const pinned = Math.min(Math.max(scrollX, colLeft), Math.max(colLeft, colRight - DAY_LABEL_W));
+                      const inView = scrollX >= colLeft && scrollX < colRight;
+                      return (
+                        <div key={`dl${i}`}
+                          className={cn('absolute top-0 h-full flex items-center px-2 text-[11px] font-semibold whitespace-nowrap',
+                            nonWorkingDays.includes(d.getUTCDay()) ? 'text-amber-500/90' : 'text-foreground/80',
+                            inView && 'bg-card/95 rounded-e-md shadow-sm')}
+                          style={{ left: pinned, width: DAY_LABEL_W, zIndex: inView ? 2 : 1 }}>
+                          {DOW_FULL[d.getUTCDay()]} {String(d.getUTCDate()).padStart(2, '0')} {MONTHS[d.getUTCMonth()]}
+                        </div>
+                      );
+                    })}
                   </div>
                   {/* hour / half-hour cells */}
                   <div className="relative" style={{ height: 38 }}>
@@ -645,9 +669,20 @@ export function FactoryGantt({
                 <>
                   <div className="relative border-b border-border/40" style={{ height: 22 }}>
                     {monthBands.map((b, i) => (
-                      <div key={i} className="absolute top-0 h-full flex items-center px-2 text-[11px] font-semibold text-foreground/80 border-r border-border/40"
-                        style={{ left: b.left, width: b.width }}>{b.label}</div>
+                      <div key={`mc${i}`} className="absolute top-0 h-full border-r border-border/40"
+                        style={{ left: b.left, width: b.width }} />
                     ))}
+                    {monthBands.map((b, i) => {
+                      if (b.left + b.width < scrollX) return null;
+                      const pinned = Math.min(Math.max(scrollX, b.left), Math.max(b.left, b.left + b.width - DAY_LABEL_W));
+                      const inView = scrollX >= b.left && scrollX < b.left + b.width;
+                      return (
+                        <div key={`ml${i}`}
+                          className={cn('absolute top-0 h-full flex items-center px-2 text-[11px] font-semibold text-foreground/80 whitespace-nowrap',
+                            inView && 'bg-card/95 rounded-e-md shadow-sm')}
+                          style={{ left: pinned, width: DAY_LABEL_W, zIndex: inView ? 2 : 1 }}>{b.label}</div>
+                      );
+                    })}
                   </div>
                   <div className="relative" style={{ height: 21 }}>
                     {days.map((d, i) => (
