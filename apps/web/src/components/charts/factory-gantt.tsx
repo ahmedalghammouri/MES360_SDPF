@@ -16,6 +16,7 @@
  */
 
 import React, { useMemo, useRef, useState, useLayoutEffect, useCallback } from 'react';
+import { getFactoryTimeZone } from '@/lib/datetime';
 import { useTranslation } from 'react-i18next';
 import {
   Truck, PackageCheck, Cpu, CalendarDays, ChevronDown, ChevronRight,
@@ -119,7 +120,32 @@ const HEADER_H = 64;
 
 const DEP_COLOR: Record<DepType, string> = { FS: '#94a3b8', SS: '#0ea5e9', FF: '#a855f7', SF: '#f59e0b' };
 
-const startOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+/**
+ * The axis works in a "plant frame": every instant is offset by the factory's UTC
+ * offset before it is positioned, so the existing getUTC* label readers below
+ * yield PLANT-local wall-clock values. Without this the whole timeline rendered
+ * in UTC — a work order planned 01 Aug 00:00 Riyadh drew at 31 Jul 21:00.
+ *
+ * `x()` positions values already in the plant frame (axis ticks, day columns);
+ * `xt()` positions REAL instants (task start/end, now, supply/demand dates) and
+ * applies the offset itself. Durations are frame-independent, so drag deltas and
+ * end-vs-end comparisons need no conversion.
+ */
+const plantOffsetMs = (at: Date, timeZone: string): number => {
+  const f = new Intl.DateTimeFormat('en-US', {
+    timeZone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(at);
+  const g = (t: string) => Number(f.find((x) => x.type === t)?.value ?? 0);
+  return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute'), g('second'))
+    - Math.floor(at.getTime() / 1000) * 1000;
+};
+/** Plant-local midnight of `d`, as a pseudo-UTC instant. */
+const startOfDayIn = (d: Date, shift: number) => {
+  const p = new Date(+d + shift);
+  return new Date(Date.UTC(p.getUTCFullYear(), p.getUTCMonth(), p.getUTCDate()));
+};
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DOW_FULL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -168,18 +194,26 @@ export function FactoryGantt({
   const stepMs = zoom === '30min' ? HOUR_MS / 2 : HOUR_MS;
 
   // Window
-  const from = useMemo(() => startOfDay(new Date(rangeFrom)), [rangeFrom]);
+  const tz = getFactoryTimeZone();
+  const shift = useMemo(() => plantOffsetMs(new Date(rangeFrom), tz), [rangeFrom, tz]);
+  const from = useMemo(() => startOfDayIn(new Date(rangeFrom), shift), [rangeFrom, shift]);
   const to = useMemo(() => {
-    const t = startOfDay(new Date(rangeTo));
+    const t = startOfDayIn(new Date(rangeTo), shift);
     return +t <= +from ? new Date(+from + (subDay ? 2 : 7) * DAY) : t;
-  }, [rangeTo, from, subDay]);
+  }, [rangeTo, from, subDay, shift]);
   const days = useMemo(() => {
     const out: Date[] = [];
     for (let t = +from; t <= +to + DAY; t += DAY) out.push(new Date(t));
     return out;
   }, [from, to]);
   const timelineW = days.length * pxPerDay;
+  /** Position a value ALREADY in the plant frame (axis ticks, day columns). */
   const x = useCallback((d: string | number | Date) => ((+new Date(d) - +from) / DAY) * pxPerDay, [from, pxPerDay]);
+  /** Position a REAL instant — shifts it into the plant frame first. */
+  const xt = useCallback(
+    (d: string | number | Date) => ((+new Date(d) + shift - +from) / DAY) * pxPerDay,
+    [from, pxPerDay, shift],
+  );
 
   // Sub-day tick columns (hours / half-hours)
   const ticks = useMemo(() => {
@@ -272,7 +306,7 @@ export function FactoryGantt({
       const rk = taskRowKey.get(t.id);
       if (!rk) continue;
       const y = (rowY.get(rk) ?? 0) + ROW_H / 2;
-      p.set(t.id, { x1: x(t.start), x2: x(t.end), y });
+      p.set(t.id, { x1: xt(t.start), x2: xt(t.end), y });
     }
     return p;
   }, [visibleTasks, taskRowKey, rowY, x]);
@@ -316,10 +350,10 @@ export function FactoryGantt({
       if (hiddenOrders.has(dm.orderKey)) continue;
       const lp = lastByOrder.get(dm.orderKey);
       if (!lp) continue;
-      out.push({ id: dm.id, d: `M ${lp.x2} ${lp.y} H ${lp.x2 + 10} V ${dy} H ${x(dm.finish) - 4}`, color: dm.color });
+      out.push({ id: dm.id, d: `M ${lp.x2} ${lp.y} H ${lp.x2 + 10} V ${dy} H ${xt(dm.finish) - 4}`, color: dm.color });
     }
     return out;
-  }, [demand, visibleTasks, pos, hasDemand, demandY, hiddenOrders, x]);
+  }, [demand, visibleTasks, pos, hasDemand, demandY, hiddenOrders, xt]);
 
   // ── Drag move / resize ──
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -347,7 +381,7 @@ export function FactoryGantt({
   };
 
   const scrollToNow = useCallback(() => {
-    if (scrollRef.current) scrollRef.current.scrollLeft = Math.max(0, x(Date.now()) - 260);
+    if (scrollRef.current) scrollRef.current.scrollLeft = Math.max(0, xt(Date.now()) - 260);
   }, [x]);
   useLayoutEffect(() => { scrollToNow(); }, [scrollToNow, zoom]);
 
@@ -356,8 +390,8 @@ export function FactoryGantt({
     setZoom(ZOOM_ORDER[Math.min(ZOOM_ORDER.length - 1, Math.max(0, i + dir))]);
   };
 
-  const nowX = x(Date.now());
-  const showNow = +new Date() >= +from && +new Date() <= +to + DAY;
+  const nowX = xt(Date.now());
+  const showNow = +new Date() + shift >= +from && +new Date() + shift <= +to + DAY;
 
   const monthBands = useMemo(() => {
     const bands: { label: string; left: number; width: number }[] = [];
@@ -411,7 +445,7 @@ export function FactoryGantt({
       color = t.color;
     }
     if (!isFinite(min)) return null;
-    return { x1: x(min), x2: x(max), color };
+    return { x1: xt(min), x2: xt(max), color };
   };
 
   return (
@@ -691,7 +725,7 @@ export function FactoryGantt({
 
               {/* Supply markers */}
               {hasSupply && supply.map((s) => {
-                const sx = x(s.date);
+                const sx = xt(s.date);
                 if (sx < 0 || sx > timelineW) return null;
                 return (
                   <div key={s.id} className="absolute z-20" title={s.label} style={{ left: sx - 6, top: LANE_H / 2 - 6 }}>
@@ -719,8 +753,8 @@ export function FactoryGantt({
                 const rk = taskRowKey.get(t.id);
                 if (!rk) return null;
                 const top = (rowY.get(rk) ?? 0) + (ROW_H - BAR_H) / 2;
-                const left = x(t.start);
-                const w = Math.max(x(t.end) - left, 8);
+                const left = xt(t.start);
+                const w = Math.max(xt(t.end) - left, 8);
                 const isDrag = drag?.id === t.id;
                 const dx = isDrag && drag!.mode === 'move' ? drag!.dx : 0;
                 const dw = isDrag && drag!.mode === 'resize' ? drag!.dx : 0;
