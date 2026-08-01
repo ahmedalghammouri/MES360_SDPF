@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useRef, useState } from 'react';
+import { getFactoryTimeZone } from '@/lib/datetime';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
@@ -94,9 +95,15 @@ export function GanttChart({
     return ((n - +from) / totalMs) * timelineW;
   })();
 
-  const fmtDay = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
-  const fmtDow = (d: Date) => d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
-  const isWeekend = (d: Date) => [5, 6].includes(d.getUTCDay()); // Fri/Sat (KSA)
+  // Axis labels follow PLANT time, not UTC. Formatting these in UTC shifted every
+  // bar by the factory offset — a work order planned 01 Aug 00:00 Riyadh rendered
+  // at 31 Jul 21:00, which is what made the APS Gantt look three hours out.
+  const tz = getFactoryTimeZone();
+  const fmtDay = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: tz });
+  const fmtDow = (d: Date) => d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: tz });
+  /** Fri/Sat is the KSA weekend — evaluated in plant time for the same reason. */
+  const isWeekend = (d: Date) =>
+    ['Fri', 'Sat'].includes(d.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz }));
 
   if (items.length === 0) {
     return (

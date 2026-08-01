@@ -1,5 +1,6 @@
 'use client';
 import { useTranslation } from 'react-i18next';
+import { dateTimeLocalToIso, toDateTimeLocal, formatDateTime } from '@/lib/datetime';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -133,14 +134,22 @@ const JO_STATUS: Record<JOStatus, { labelKey: string; color: string; bg: string;
 // Helpers
 // ─────────────────────────────────────────────────────────────
 
+/** Planned/actual timestamps carry a clock time that matters — show it, in plant time. */
 function fmt(iso?: string | null) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return formatDateTime(iso);
 }
 
+/**
+ * Prefill a `datetime-local` input from a stored instant, in PLANT time.
+ *
+ * This used to be `new Date(iso).toISOString().slice(0, 16)`, which yields the
+ * UTC wall clock. That was doubly wrong: the form opened showing 21:00 for an
+ * order planned at 00:00, and because the submit path re-interprets the field as
+ * plant-local, merely opening an order and saving it shifted the times by the
+ * factory offset AGAIN — compounding on every edit.
+ */
 function toLocalInput(iso?: string | null) {
-  if (!iso) return '';
-  return new Date(iso).toISOString().slice(0, 16);
+  return toDateTimeLocal(iso);
 }
 
 function poProgress(po: ProductionOrder) {
@@ -226,8 +235,8 @@ function POFormDialog({ open, onClose, initial }: POFormDialogProps) {
     const dto: any = {
       targetQty: parseInt(form.targetQty, 10),
       unit: form.unit, priority: form.priority,
-      plannedStart: new Date(form.plannedStart).toISOString(),
-      plannedEnd:   new Date(form.plannedEnd).toISOString(),
+      plannedStart: dateTimeLocalToIso(form.plannedStart)!,
+      plannedEnd:   dateTimeLocalToIso(form.plannedEnd)!,
       customer:     form.customer || undefined,
       notes:        form.notes || undefined,
     };
@@ -442,8 +451,8 @@ function CreateWODialog({ po, open, onClose }: CreateWODialogProps) {
     mut.mutate({
       plannedQty: parseInt(form.plannedQty, 10),
       priority: form.priority,
-      plannedStart: new Date(form.plannedStart).toISOString(),
-      plannedEnd:   new Date(form.plannedEnd).toISOString(),
+      plannedStart: dateTimeLocalToIso(form.plannedStart)!,
+      plannedEnd:   dateTimeLocalToIso(form.plannedEnd)!,
       notes: form.notes || undefined,
     });
   }
@@ -841,8 +850,8 @@ function DispatchListPanel({ woId, woStatus, plannedStart, plannedEnd }: Dispatc
 
   const genMut = useMutation({
     mutationFn: () => api.post(`/production/work-orders/${woId}/job-orders/generate`, {
-      plannedStart: plannedStart ? new Date(plannedStart).toISOString() : undefined,
-      plannedEnd:   plannedEnd   ? new Date(plannedEnd).toISOString()   : undefined,
+      plannedStart: dateTimeLocalToIso(plannedStart),
+      plannedEnd:   dateTimeLocalToIso(plannedEnd),
       clearExisting: jobs.length > 0,
     }),
     onSuccess: (res: any) => {

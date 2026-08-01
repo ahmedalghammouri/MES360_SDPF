@@ -4,6 +4,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { EnergyService } from './energy.service';
+import { EnergyWoMachineService } from './energy-wo-machine.service';
+import { EnergyAnalyticsService, EnergyGroupBy } from './energy-analytics.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 interface RequestUser {
@@ -11,11 +13,146 @@ interface RequestUser {
   factoryId: string | null;
 }
 
+const ANALYTICS_GROUP_BY = [
+  'sku', 'workOrder', 'productionOrder', 'machine', 'line', 'area', 'shift', 'hour', 'day', 'week',
+] as const;
+
+/** `dateFrom`/`dateTo` are plain dates; default to the trailing 30 days. */
+function resolveRange(dateFrom?: string, dateTo?: string): { from: Date; to: Date } {
+  const to = dateTo ? new Date(`${dateTo}T23:59:59.999Z`) : new Date();
+  const from = dateFrom
+    ? new Date(`${dateFrom}T00:00:00.000Z`)
+    : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  return { from, to };
+}
+
 @ApiTags('Energy')
 @ApiBearerAuth('JWT-auth')
 @Controller('energy')
 export class EnergyController {
-  constructor(private readonly energyService: EnergyService) {}
+  constructor(
+    private readonly energyService: EnergyService,
+    private readonly energyWoMachine: EnergyWoMachineService,
+    private readonly energyAnalytics: EnergyAnalyticsService,
+  ) {}
+
+  // ────────────────────────────────────────────────────────────
+  // ANALYTICS — kWh per product / WO / shift / machine / time
+  // ────────────────────────────────────────────────────────────
+
+  @Get('analytics')
+  @ApiOperation({
+    summary: 'Multi-dimensional energy analysis (kWh and kWh per unit by any dimension)',
+    description:
+      'Groups consumption by product, work order, production order, machine, line, ' +
+      'area, shift or time bucket, with the per-unit ratio, idle/downtime waste share ' +
+      'and cost. Honours the same area/line/machine scope as the rest of the platform.',
+  })
+  @ApiQuery({ name: 'groupBy', required: false, enum: ANALYTICS_GROUP_BY })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'skuId', required: false })
+  @ApiQuery({ name: 'workOrderId', required: false })
+  async getAnalytics(
+    @CurrentUser() user: RequestUser,
+    @Query('groupBy') groupBy?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+    @Query('skuId') skuId?: string,
+    @Query('workOrderId') workOrderId?: string,
+  ) {
+    const g = (ANALYTICS_GROUP_BY as readonly string[]).includes(groupBy ?? '')
+      ? (groupBy as EnergyGroupBy)
+      : 'machine';
+    const { from, to } = resolveRange(dateFrom, dateTo);
+    return this.energyAnalytics.analyse(user.factoryId, g, {
+      from,
+      to,
+      areaId,
+      lineId,
+      machineId,
+      skuId,
+      workOrderId,
+    });
+  }
+
+  @Get('analytics/filter-options')
+  @ApiOperation({ summary: 'Products and work orders that have energy data in the window' })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  async getAnalyticsFilterOptions(
+    @CurrentUser() user: RequestUser,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const { from, to } = resolveRange(dateFrom, dateTo);
+    return this.energyAnalytics.getFilterOptions(user.factoryId, from, to);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // ENERGY RATIO — per work order × machine
+  // ────────────────────────────────────────────────────────────
+
+  // `workOrderId` accepts the UUID *or* the order number ("WO-2026-0007") — no
+  // ParseUUIDPipe, because the order number is what operators actually read and type.
+  @Get('work-orders/:workOrderId/machine-kpis')
+  @ApiOperation({
+    summary: 'Energy ratio (kWh per unit) per machine for a work order',
+    description:
+      'Specific energy consumption resolved to each machine that ran the order, ' +
+      'with the idle/downtime share and the variance against the best previously ' +
+      'demonstrated ratio for that machine and product. Computes on first request ' +
+      'if it has not been persisted yet. Accepts a work order UUID or order number.',
+  })
+  async getWorkOrderMachineKpis(@Param('workOrderId') workOrderId: string) {
+    return this.energyWoMachine.getForWorkOrder(workOrderId);
+  }
+
+  @Post('work-orders/:workOrderId/machine-kpis/recompute')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Force a recompute of a work order’s per-machine energy ratios',
+    description: 'Accepts a work order UUID or order number.',
+  })
+  async recomputeWorkOrderMachineKpis(@Param('workOrderId') workOrderId: string) {
+    const machines = await this.energyWoMachine.recomputeForWorkOrder(workOrderId);
+    return { workOrderId, machines, recomputed: machines.length };
+  }
+
+  @Get('machines/:machineId/energy-ratio-trend')
+  @ApiOperation({ summary: 'Energy-ratio trend for one machine across its recent work orders' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max work orders to return (default 20, max 100)' })
+  async getMachineEnergyTrend(
+    @CurrentUser() user: RequestUser,
+    @Param('machineId', ParseUUIDPipe) machineId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.energyWoMachine.getMachineTrend(machineId, user.factoryId, limit ? Number(limit) : 20);
+  }
+
+  @Get('energy-ratio-leaderboard')
+  @ApiOperation({ summary: 'Machines ranked by specific energy consumption in a window' })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async getEnergyRatioLeaderboard(
+    @CurrentUser() user: RequestUser,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const to = dateTo ? new Date(dateTo) : new Date();
+    const from = dateFrom
+      ? new Date(dateFrom)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000); // default: trailing 30 days
+    return this.energyWoMachine.getLeaderboard(user.factoryId, from, to, limit ? Number(limit) : 10);
+  }
 
   @Get('overview')
   @ApiOperation({ summary: 'Energy management overview KPIs' })

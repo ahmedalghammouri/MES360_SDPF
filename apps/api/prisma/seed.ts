@@ -87,8 +87,8 @@ async function main() {
       city: 'Dammam',
       country: 'SA',
       address: '3rd Industrial City, Dammam, Eastern Province',
-      lat: 26.25839228,
-      lng: 49.99227038,
+      lat: 25.9267784, // maps.app.goo.gl/PYQT8hM7hsVLnuV18
+      lng: 49.9469883,
       color: '#00C8FF',
       glowColor: 'rgba(0,200,255,0.3)',
       timezone: 'Asia/Riyadh',
@@ -97,7 +97,7 @@ async function main() {
 
   // ============================================================
   // FACTORY 2 — SAF (Saudi Aerosol Factory)
-  // 2nd Industrial City, Dammam
+  // 3rd Industrial City, Dammam
   // ============================================================
   const saf = await prisma.factory.upsert({
     where: { code: 'SAF' },
@@ -109,9 +109,9 @@ async function main() {
       nameAr: 'مصنع المنظفات الجوية',
       city: 'Dammam',
       country: 'SA',
-      address: '2nd Industrial City, Dammam, Eastern Province',
-      lat: 26.25466432,
-      lng: 49.93058171,
+      address: '3rd Industrial City, Dammam, Eastern Province',
+      lat: 25.9265816, // maps.app.goo.gl/m8po6Ysbv1AoAiqS7 — 'SIDCO Aerosol Factory'
+      lng: 49.9448726,
       color: '#FF6B35',
       glowColor: 'rgba(255,107,53,0.3)',
       timezone: 'Asia/Riyadh',
@@ -120,7 +120,7 @@ async function main() {
 
   // ============================================================
   // FACTORY 3 — NDPF (National Detergent Powder Factory)
-  // 2nd Industrial City, Dammam
+  // Jeddah, Makkah Province (client-supplied location, 30-07-2026)
   // ============================================================
   const ndpf = await prisma.factory.upsert({
     where: { code: 'NDPF' },
@@ -130,11 +130,11 @@ async function main() {
       code: 'NDPF',
       name: 'National Detergent Powder Factory',
       nameAr: 'المصنع الوطني للمنظفات',
-      city: 'Dammam',
+      city: 'Jeddah',
       country: 'SA',
-      address: '2nd Industrial City, Dammam, Eastern Province',
-      lat: 26.25411750,
-      lng: 49.98692510,
+      address: 'Jeddah, Makkah Province',
+      lat: 21.4112773, // maps.app.goo.gl/bSRxZDGSTE29uzND9 — was Dammam, please confirm
+      lng: 39.2425602,
       color: '#9B59B6',
       glowColor: 'rgba(155,89,182,0.3)',
       timezone: 'Asia/Riyadh',
@@ -155,9 +155,9 @@ async function main() {
       nameAr: 'الشركة السعودية الصناعية للمنظفات',
       city: 'Dammam',
       country: 'SA',
-      address: '27th St, 2nd Industrial City, Dammam, Eastern Province',
-      lat: 26.27130673,
-      lng: 49.96291053,
+      address: '2nd Industrial City, Dammam 34326, Eastern Province',
+      lat: 26.2539087, // maps.app.goo.gl/eQPmPB48CgjsSj34A
+      lng: 49.9876848,
       color: '#2ECC71',
       glowColor: 'rgba(46,204,113,0.3)',
       timezone: 'Asia/Riyadh',
@@ -166,7 +166,7 @@ async function main() {
 
   // ============================================================
   // FACTORY 5 — RNTIC (Plastic Blow Molding)
-  // 1st Industrial City, Jeddah
+  // 2nd Industrial City, Dammam (client-supplied location, 30-07-2026)
   // ============================================================
   const rntic = await prisma.factory.upsert({
     where: { code: 'RNTIC' },
@@ -176,11 +176,11 @@ async function main() {
       code: 'RNTIC',
       name: 'Plastic Blow Molding Manufacturing',
       nameAr: 'مصنع تشكيل البلاستيك بالنفخ',
-      city: 'Jeddah',
+      city: 'Dammam',
       country: 'SA',
-      address: '1st Industrial City, Jeddah, Western Province',
-      lat: 21.43113428,
-      lng: 39.20376108,
+      address: '2nd Industrial City, Dammam 34326, Eastern Province',
+      lat: 26.2524912, // maps.app.goo.gl/N9GvhpLf3tyyhM4JA — was Jeddah, please confirm
+      lng: 49.9857344,
       color: '#E74C3C',
       glowColor: 'rgba(231,76,60,0.3)',
       timezone: 'Asia/Riyadh',

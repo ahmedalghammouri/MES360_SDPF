@@ -1,5 +1,6 @@
 'use client';
 import { useTranslation } from 'react-i18next';
+import { toFactoryDayKey } from '@/lib/datetime';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -151,7 +152,7 @@ function buildUrl(endpoint: string, from: string, to: string): string {
 // ---------------------------------------------------------------------------
 
 function isoDay(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return toFactoryDayKey(d);
 }
 
 function presetRange(preset: string): { from: string; to: string } {
@@ -532,13 +533,13 @@ export default function ReportsBuilderView() {
 
   function handleExportCSV() {
     if (!model || !filteredRows.length) return;
-    const filename = `${selectedType}-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    const filename = `${selectedType}-report-${toFactoryDayKey(new Date())}.csv`;
     exportCSV(filteredRows, model.columns, filename);
   }
   function handleExportExcel() {
     if (!model || !filteredRows.length) return;
     exportReportExcel({
-      filename: `${selectedType}-report-${new Date().toISOString().slice(0, 10)}`,
+      filename: `${selectedType}-report-${toFactoryDayKey(new Date())}`,
       model,
       rows: filteredRows,
       labels: {

@@ -1,5 +1,6 @@
 'use client';
 import { useTranslation } from 'react-i18next';
+import { dateTimeLocalToIso, toDateTimeLocal, formatDateTimeWithZone } from '@/lib/datetime';
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -410,7 +411,7 @@ export function ProductionWorkOrdersView() {
 
   // ── Smart preview for the Create form (same intelligence as Auto-Generate):
   // resolves the routing, computes the realistic finish + material shortages. ──
-  const previewFrom = form.plannedStart ? new Date(form.plannedStart).toISOString() : undefined;
+  const previewFrom = dateTimeLocalToIso(form.plannedStart);
   const { data: woPreview, isFetching: previewLoading } = useQuery({
     queryKey: ['wo-create-preview', form.skuId, form.plannedQty, previewFrom],
     queryFn: () => api.get('/production/work-orders/preview', { params: { skuId: form.skuId, qty: form.plannedQty, from: previewFrom } }),
@@ -533,8 +534,8 @@ export function ProductionWorkOrdersView() {
       skuId: form.skuId,
       operatorId: form.operatorId !== '__none__' ? form.operatorId : undefined,
       plannedQty: parseInt(form.plannedQty, 10), priority: form.priority,
-      plannedStart: form.plannedStart ? new Date(form.plannedStart).toISOString() : new Date().toISOString(),
-      plannedEnd: form.plannedEnd ? new Date(form.plannedEnd).toISOString() : new Date(Date.now() + 86400000).toISOString(),
+      plannedStart: dateTimeLocalToIso(form.plannedStart) ?? new Date().toISOString(),
+      plannedEnd: dateTimeLocalToIso(form.plannedEnd) ?? new Date(Date.now() + 86400000).toISOString(),
       notes: form.notes || undefined,
       autoStart: form.autoStart,
       ...(assignmentList.length > 0 && { assignments: assignmentList }),
@@ -990,10 +991,10 @@ export function ProductionWorkOrdersView() {
                 <div>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('wo.timeline')}</p>
                   <div className="industrial-card rounded-lg px-3">
-                    <DetailRow label={t('podetail.plannedStart')} value={(detail as any).plannedStart ? formatDate((detail as any).plannedStart) : undefined} />
-                    <DetailRow label={t('podetail.plannedEnd')} value={(detail as any).plannedEnd ? formatDate((detail as any).plannedEnd) : undefined} />
-                    <DetailRow label={t('podetail.actualStart')} value={(detail as any).actualStart ? formatDate((detail as any).actualStart) : undefined} />
-                    <DetailRow label={t('podetail.actualEnd')} value={(detail as any).actualEnd ? formatDate((detail as any).actualEnd) : undefined} />
+                    <DetailRow label={t('podetail.plannedStart')} value={(detail as any).plannedStart ? formatDateTimeWithZone((detail as any).plannedStart) : undefined} />
+                    <DetailRow label={t('podetail.plannedEnd')} value={(detail as any).plannedEnd ? formatDateTimeWithZone((detail as any).plannedEnd) : undefined} />
+                    <DetailRow label={t('podetail.actualStart')} value={(detail as any).actualStart ? formatDateTimeWithZone((detail as any).actualStart) : undefined} />
+                    <DetailRow label={t('podetail.actualEnd')} value={(detail as any).actualEnd ? formatDateTimeWithZone((detail as any).actualEnd) : undefined} />
                     <DetailRow label={t('wo.downtime')} value={(detail as any).downtimeMinutes != null ? t('wo.minutesValue', { count: (detail as any).downtimeMinutes }) : undefined} />
                   </div>
                 </div>

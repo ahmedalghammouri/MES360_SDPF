@@ -25,6 +25,10 @@
     "prisma:seed:bb": "ts-node prisma/seed-bb-master.ts",
     "prisma:seed:bb:prod": "ts-node --transpile-only prisma/seed-bb-master.ts",
     "prisma:seed:downtime": "ts-node prisma/seed-ncc-downtime.ts",
+    "prisma:seed:coords": "ts-node prisma/seed-factory-coordinates.ts",
+    "prisma:seed:rates": "ts-node prisma/seed-bb-cycle-times.ts",
+    "prisma:seed:wo7": "ts-node prisma/seed-wo-2026-0007.ts",
+    "prisma:verify:wo7": "ts-node prisma/verify-wo-2026-0007.ts",
     "prisma:seed:dashboards": "ts-node prisma/seed-dashboard-center.ts",
     "prisma:studio": "prisma studio",
     "clean": "rimraf dist"

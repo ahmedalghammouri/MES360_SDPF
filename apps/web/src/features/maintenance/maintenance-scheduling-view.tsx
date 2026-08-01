@@ -1,5 +1,6 @@
 'use client';
 import { useTranslation } from 'react-i18next';
+import { toFactoryDayKey } from '@/lib/datetime';
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -108,7 +109,7 @@ function toDateStr(iso: string | null | undefined): string {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toFactoryDayKey(new Date());
 }
 
 function isOverdue(wo: WorkOrder): boolean {
@@ -139,7 +140,7 @@ function isNext7DaysWO(wo: WorkOrder): boolean {
   const t = todayStr();
   const end = new Date();
   end.setDate(end.getDate() + 7);
-  const endStr = end.toISOString().slice(0, 10);
+  const endStr = toFactoryDayKey(end);
   return scheduled >= t && scheduled <= endStr && !DONE_STATUSES.includes(wo.status);
 }
 

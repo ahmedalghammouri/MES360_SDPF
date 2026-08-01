@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { format, formatDistance, formatRelative, parseISO } from 'date-fns';
+import { formatDate as fmtDateTz, formatDateTime as fmtDateTimeTz } from './datetime';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -57,18 +58,17 @@ export function formatDuration(minutes: number): string {
 }
 
 // Date helpers
-export function formatDate(date: Date | string | null | undefined, fmt = 'MMM dd, yyyy'): string {
-  if (!date) return '—';
-  const d = typeof date === 'string' ? parseISO(date) : date;
-  if (isNaN(d.getTime())) return '—';
-  return format(d, fmt);
+/**
+ * Both formatters render in the FACTORY's timezone, not the browser's — see
+ * `lib/datetime.ts` for why. They are re-exported here so the ~50 existing
+ * call sites become timezone-correct without touching each one.
+ */
+export function formatDate(date: Date | string | null | undefined): string {
+  return fmtDateTz(date);
 }
 
 export function formatDateTime(date: Date | string | null | undefined): string {
-  if (!date) return '—';
-  const d = typeof date === 'string' ? parseISO(date) : date;
-  if (isNaN(d.getTime())) return '—';
-  return format(d, 'MMM dd, yyyy HH:mm');
+  return fmtDateTimeTz(date);
 }
 
 export function timeAgo(date: Date | string | null | undefined): string {

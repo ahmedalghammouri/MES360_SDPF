@@ -117,6 +117,7 @@ model Factory {
   workCenters            WorkCenter[]
   recipes                Recipe[]
   energyWOSummaries      EnergyWOSummary[]
+  energyWOMachineKpis    EnergyWOMachineKpi[]
   traceabilityLinks      TraceabilityLink[]
   jobOrders              JobOrder[]
   scrapLogs              ScrapLog[]
@@ -260,6 +261,7 @@ model Machine {
   alarmEvents         AlarmEvent[]
   energyMeters        EnergyMeter[]
   energyTariffs       EnergyTariff[]
+  energyWOMachineKpis EnergyWOMachineKpi[]
   routingSteps        RoutingStep[]
   jobOrders           JobOrder[]
   stepOptions         RoutingStepMachineOption[]
@@ -368,7 +370,11 @@ model MachineCycleTime {
   id               String   @id @default(uuid())
   machineId        String
   skuId            String
-  cycleTimeSeconds Int
+  // Float, not Int: fast machines run well under a second per unit (Big Betti
+  // measures 1.2 s/inner pack), and rounding that to a whole second is a 20%
+  // error straight into the OEE Performance denominator. Matches the Float on
+  // JobOrder.idealCycleTimeSec.
+  cycleTimeSeconds Float
   unitType         String   @default("UNIT") // UNIT, INNER, CARTON, PALLET
   maxSpeed         Float? // units per hour (theoretical max)
   source           String   @default("NCC_DATA") // NCC_DATA, MEASURED, CALCULATED
@@ -822,6 +828,7 @@ model WorkOrder {
   productionSnapshots  ProductionSnapshot[]
   inspectionResults    InspectionResult[]
   energyWOSummary      EnergyWOSummary?
+  energyWOMachineKpis  EnergyWOMachineKpi[]
   maintenanceOrders    MaintenanceWO[]       @relation("MaintLinkedProdWO")
   jobOrders            JobOrder[]
   scrapLogs            ScrapLog[]
@@ -1941,6 +1948,66 @@ model EnergyWOSummary {
   workOrder WorkOrder @relation(fields: [workOrderId], references: [id])
 
   @@map("energy_wo_summaries")
+}
+
+// Energy ratio per WORK ORDER × MACHINE — the operational-level energy KPI.
+//
+// EnergyWOSummary above answers "what did this work order cost in kWh"; it cannot
+// answer "which machine spent it", because it is keyed on the work order alone.
+// This table adds the machine dimension, so specific energy consumption can be
+// compared machine-to-machine on the same order and order-to-order on the same
+// machine — the basis for any energy-efficiency work.
+//
+// Computed from EnergyReading, which already carries both workOrderId and
+// machineId (stamped by EnergyContextService.enrichEnergyReading). Recomputed on
+// WO completion and on demand; never hand-written.
+model EnergyWOMachineKpi {
+  id          String @id @default(uuid())
+  factoryId   String
+  workOrderId String
+  machineId   String
+  meterCount  Int    @default(0) // how many meters fed this row
+
+  // Consumption, split by the machine state at the time of each reading.
+  totalKwh    Float @default(0)
+  runningKwh  Float @default(0)
+  idleKwh     Float @default(0) // energy burned while idle — recoverable waste
+  downtimeKwh Float @default(0) // energy burned while stopped — recoverable waste
+
+  // ── The energy ratios ────────────────────────────────────────────────
+  kwhPerUnit           Float? // totalKwh / good output, in the WO's base unit (kWh/carton)
+  kwhPerKg             Float? // totalKwh / kg of product — comparable across pack sizes
+  kwhPerRunHour        Float? // totalKwh / running hours — a load figure, not an efficiency one
+  // Same ratio counting only the energy spent while actually producing. The gap
+  // between this and kwhPerUnit is the idle/downtime penalty per unit.
+  productiveKwhPerUnit Float?
+  // Share of total energy that produced nothing: (idle + downtime) / total × 100.
+  wastePct             Float?
+
+  // Benchmark — the best kwhPerUnit previously recorded for this machine+SKU, so
+  // the UI can show drift against demonstrated best rather than an arbitrary target.
+  baselineKwhPerUnit Float?
+  variancePct        Float? // (kwhPerUnit − baseline) / baseline × 100; + is worse
+
+  peakPowerKw Float?
+  avgPowerKw  Float?
+
+  goodQty    Float? // output this ratio is divided by (base unit)
+  outputUnit String? // CARTON | INNER | PALLET — what goodQty counts
+  runMinutes Float   @default(0)
+
+  computedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  factory   Factory   @relation(fields: [factoryId], references: [id])
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  machine   Machine   @relation(fields: [machineId], references: [id])
+
+  @@unique([workOrderId, machineId])
+  @@index([factoryId, computedAt])
+  @@index([machineId, computedAt])
+  @@map("energy_wo_machine_kpis")
 }
 
 model EnergySummary {

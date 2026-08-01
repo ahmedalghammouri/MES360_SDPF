@@ -1,5 +1,6 @@
 'use client';
 import { DashboardInfo } from '@/components/ui/dashboard-info';
+import { toFactoryDayKey } from '@/lib/datetime';
 import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { useTranslation } from 'react-i18next';
 
@@ -485,7 +486,7 @@ export default function ProductionKpiView() {
               const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
               const a = document.createElement('a');
               a.href = URL.createObjectURL(blob);
-              a.download = `production-kpi-${timeKey}-${new Date().toISOString().slice(0, 10)}.csv`;
+              a.download = `production-kpi-${timeKey}-${toFactoryDayKey(new Date())}.csv`;
               a.click();
               URL.revokeObjectURL(a.href);
             }}

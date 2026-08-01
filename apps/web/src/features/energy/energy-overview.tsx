@@ -86,9 +86,191 @@ interface WorkCenterEnergy {
   readingCount: number;
 }
 
+/** Energy ratio resolved to one machine on one work order. */
+interface MachineEnergyRatio {
+  machineId: string;
+  machineCode: string;
+  machineName: string;
+  totalKwh: number;
+  runningKwh: number;
+  idleKwh: number;
+  downtimeKwh: number;
+  kwhPerUnit: number | null;
+  kwhPerKg: number | null;
+  kwhPerRunHour: number | null;
+  productiveKwhPerUnit: number | null;
+  wastePct: number | null;
+  baselineKwhPerUnit: number | null;
+  variancePct: number | null;
+  peakPowerKw: number | null;
+  avgPowerKw: number | null;
+  goodQty: number | null;
+  outputUnit: string | null;
+  runMinutes: number;
+}
+
+interface WorkOrderMachineEnergy {
+  workOrderId: string | null;
+  orderNumber: string | null;
+  machines: MachineEnergyRatio[];
+  lineTotalKwh: number;
+  lineKwhPerUnit: number | null;
+  status: 'OK' | 'WORK_ORDER_NOT_FOUND' | 'NO_METER_DATA';
+}
+
+/**
+ * Energy ratio per machine for one work order — the operational-level view the
+ * per-WO summary above cannot give, because that one is keyed on the work order
+ * alone and cannot say which machine spent the energy.
+ */
+function MachineEnergyRatioPanel({ workOrderId }: { workOrderId: string }) {
+  const { t } = useTranslation('modules');
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['energy', 'wo-machine-kpis', workOrderId],
+    queryFn: () => api.get<WorkOrderMachineEnergy>(`/energy/work-orders/${workOrderId}/machine-kpis`),
+    enabled: !!workOrderId,
+  });
+
+  if (isLoading) return <div className="shimmer h-28 rounded" />;
+
+  const machines = data?.machines ?? [];
+
+  // Say why there is nothing rather than rendering an empty space — a blank panel
+  // is indistinguishable from a broken one.
+  if (machines.length === 0) {
+    const reason =
+      data?.status === 'WORK_ORDER_NOT_FOUND'
+        ? t('energy.ratioWoNotFound')
+        : t('energy.ratioNoMeterData');
+    return (
+      <div className="glass-card rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Gauge size={16} className="text-primary" />
+          <h2 className="font-semibold text-sm">{t('energy.ratioByMachine')}</h2>
+        </div>
+        <p className="text-xs text-muted-foreground mt-3">{reason}</p>
+      </div>
+    );
+  }
+
+  const unit = machines[0]?.outputUnit?.toLowerCase() ?? 'unit';
+  const worstRatio = Math.max(...machines.map((m) => m.kwhPerUnit ?? 0), 0);
+
+  return (
+    <div className="glass-card rounded-xl p-5">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <Gauge size={16} className="text-primary" />
+          <h2 className="font-semibold text-sm">{t('energy.ratioByMachine')}</h2>
+        </div>
+        {data?.lineKwhPerUnit != null && (
+          <Badge variant="outline" className="text-xs font-mono">
+            {t('energy.ratioLineTotal', {
+              value: data.lineKwhPerUnit.toFixed(3),
+              unit,
+            })}
+          </Badge>
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground mb-4">{t('energy.ratioHint')}</p>
+
+      <div className="space-y-3">
+        {machines.map((m) => {
+          const ratio = m.kwhPerUnit;
+          const barPct = worstRatio > 0 && ratio != null ? (ratio / worstRatio) * 100 : 0;
+          // Positive variance = consuming more than the best previously demonstrated.
+          const drifting = m.variancePct != null && m.variancePct > 5;
+          const improving = m.variancePct != null && m.variancePct < -5;
+
+          return (
+            <div key={m.machineId} className="bg-background/40 rounded-lg border border-border/30 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-mono text-[10px] text-muted-foreground shrink-0">{m.machineCode}</span>
+                  <span className="text-xs font-medium truncate">{m.machineName}</span>
+                </div>
+                <div className="flex items-baseline gap-1 shrink-0">
+                  <span className="text-lg font-bold text-blue-400">
+                    {ratio != null ? ratio.toFixed(3) : '—'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">kWh/{unit}</span>
+                </div>
+              </div>
+
+              <div className="h-1.5 rounded-full bg-muted/30 mb-2">
+                <div className="h-full rounded-full bg-blue-500/70" style={{ width: `${barPct}%` }} />
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                <div>
+                  <span className="text-muted-foreground block">{t('energy.mTotalKwh')}</span>
+                  <span className="font-semibold">{m.totalKwh.toFixed(1)}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">{t('energy.ratioProductive')}</span>
+                  <span className="font-semibold">
+                    {m.productiveKwhPerUnit != null ? m.productiveKwhPerUnit.toFixed(3) : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">{t('energy.mIdleWastePct')}</span>
+                  <span className={cn('font-semibold', (m.wastePct ?? 0) > 15 ? 'text-red-400' : 'text-green-400')}>
+                    {m.wastePct != null ? `${m.wastePct.toFixed(1)}%` : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">{t('energy.ratioVsBest')}</span>
+                  {m.variancePct != null ? (
+                    <span
+                      className={cn(
+                        'font-semibold',
+                        drifting ? 'text-red-400' : improving ? 'text-green-400' : 'text-muted-foreground',
+                      )}
+                    >
+                      {m.variancePct > 0 ? '+' : ''}
+                      {m.variancePct.toFixed(1)}%
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">{t('energy.ratioNoBaseline')}</span>
+                  )}
+                </div>
+              </div>
+
+              {drifting && (
+                <div className="mt-2 flex items-center gap-1.5 text-[10px] text-red-400">
+                  <TrendingDown size={11} />
+                  <span>
+                    {t('energy.ratioDrift', {
+                      pct: m.variancePct!.toFixed(1),
+                      baseline: m.baselineKwhPerUnit?.toFixed(3) ?? '—',
+                    })}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A window ending "now", quantised to the minute.
+ *
+ * The quantisation is load-bearing: these strings go into react-query `queryKey`s,
+ * and an unrounded `new Date()` yields a different key on every single render —
+ * which makes every render a cache miss, refetch, re-render, refetch… The loop
+ * hammers the API until nginx's rate limiter starts returning 503.
+ *
+ * Truncating to the minute keeps the key stable between renders and lines up with
+ * the 60s `staleTime`, so the data still refreshes once a minute.
+ */
 function dateRange(days: number) {
   const to = new Date();
-  const from = new Date();
+  to.setSeconds(0, 0);
+  const from = new Date(to);
   from.setDate(from.getDate() - days);
   return { from: from.toISOString(), to: to.toISOString() };
 }
@@ -215,6 +397,9 @@ function EnergyContextPanel() {
           <div className="text-center text-muted-foreground text-sm py-4">{t('energy.noWoData')}</div>
         )}
       </div>
+
+      {/* Energy ratio per machine for the selected WO */}
+      {effectiveWoId && <MachineEnergyRatioPanel workOrderId={effectiveWoId} />}
 
       {/* Plant energy map by WorkCenter */}
       {wcEnergy.length > 0 && (

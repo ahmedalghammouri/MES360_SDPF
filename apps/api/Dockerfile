@@ -40,7 +40,11 @@ RUN pnpm build
 # Production
 FROM node:20-alpine AS production
 # dumb-init: PID-1 signal handling | openssl: required by the Prisma query engine
-RUN apk add --no-cache dumb-init openssl
+# tzdata: WITHOUT this the alpine image has no zoneinfo database, so a TZ env var
+#   (e.g. TZ=Asia/Riyadh) is silently ignored and Node falls back to UTC — every
+#   server-side shift boundary, getHours() and working-day calculation then runs
+#   3 hours out. Setting TZ in compose only works if this package is present.
+RUN apk add --no-cache dumb-init openssl tzdata
 WORKDIR /app
 
 ENV NODE_ENV=production

@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react';
+import { toFactoryDayKey } from '@/lib/datetime';
 import { useTranslation } from 'react-i18next';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { CalendarRange } from 'lucide-react';
@@ -25,8 +26,8 @@ export function TimeRangeFilter({ className }: { className?: string }) {
   const { t } = useTranslation('common');
   const { preset, from, to, setPreset, setCustom } = useTimeRangeStore();
   const [open, setOpen] = useState(false);
-  const [draftFrom, setDraftFrom] = useState(from ?? new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10));
-  const [draftTo, setDraftTo] = useState(to ?? new Date().toISOString().slice(0, 10));
+  const [draftFrom, setDraftFrom] = useState(from ?? toFactoryDayKey(Date.now() - 7 * 86_400_000));
+  const [draftTo, setDraftTo] = useState(to ?? toFactoryDayKey(new Date()));
 
   return (
     <div className={cn('inline-flex items-center rounded-lg border border-border overflow-hidden', className)}>
@@ -68,7 +69,7 @@ export function TimeRangeFilter({ className }: { className?: string }) {
               </div>
               <div>
                 <label className="text-[10px] uppercase text-muted-foreground">{t('timeRange.to')}</label>
-                <input type="date" value={draftTo} min={draftFrom} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDraftTo(e.target.value)}
+                <input type="date" value={draftTo} min={draftFrom} max={toFactoryDayKey(new Date())} onChange={(e) => setDraftTo(e.target.value)}
                   className="w-full h-8 px-2 text-sm rounded-md border border-input bg-background outline-none focus:ring-1 focus:ring-ring" />
               </div>
               <Button size="sm" className="w-full h-8" onClick={() => { setCustom(draftFrom, draftTo); setOpen(false); }}>

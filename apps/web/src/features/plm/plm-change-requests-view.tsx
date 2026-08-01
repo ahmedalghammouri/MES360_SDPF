@@ -161,7 +161,8 @@ export default function PlmChangeRequestsView() {
   // ── Live data ───────────────────────────────────────────────────
   const { data: crData } = useQuery({
     queryKey: ['plm', 'change-requests'],
-    queryFn: () => api.get<{ data: ApiChangeRequest[] }>('/plm/change-requests', { params: { limit: 200 } }),
+    // 100 is the API's documented maximum — 200 is rejected with a 400.
+    queryFn: () => api.get<{ data: ApiChangeRequest[] }>('/plm/change-requests', { params: { limit: 100 } }),
     staleTime: 15_000,
   });
   const crs: ChangeRequest[] = ((crData as any)?.data ?? []).map(apiToCr);

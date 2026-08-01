@@ -1,5 +1,6 @@
 'use client';
 import { useTranslation } from 'react-i18next';
+import { toFactoryDayKey } from '@/lib/datetime';
 
 import React, { useState } from 'react';
 import { Download, FileText, TrendingUp } from 'lucide-react';
@@ -23,8 +24,8 @@ function downloadCsv(filename: string, rows: (string | number)[][]): void {
 export function MaintenanceReportView() {
   const { t } = useTranslation('modules');
   const [days, setDays] = useState<(typeof PERIODS)[number]>(30);
-  const to = new Date().toISOString().slice(0, 10);
-  const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const to = toFactoryDayKey(new Date());
+  const from = toFactoryDayKey(Date.now() - days * 86_400_000);
   const { data: reportData, isLoading } = useQuery({
     queryKey: ['reports', 'maintenance', from, to],
     queryFn: () => api.get<{

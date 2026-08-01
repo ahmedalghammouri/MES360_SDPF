@@ -10,9 +10,13 @@ import { FactoryGantt, type FactoryTask, type GanttResource, type FactoryZoom } 
 import { ScheduleCalendar } from './schedule-calendar';
 import { useUnifiedSchedule } from './use-schedule';
 import { useScope } from '@/hooks/use-scope';
+import { toFactoryDayKey, getFactoryTimeZone } from '@/lib/datetime';
 
 const WINDOW_DAYS: Record<FactoryZoom, number> = { '30min': 1, hour: 2, day: 4, week: 14, month: 35 };
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+/** Calendar day in PLANT time. `toISOString().slice(0,10)` returned the UTC day,
+ *  so anything after 21:00 Riyadh was bucketed into tomorrow and a 00:00 shift
+ *  into yesterday — shifting the whole APS window. */
+const iso = (d: Date) => toFactoryDayKey(d);
 
 interface ScheduleViewProps {
   title?: string;
@@ -106,7 +110,7 @@ export function ScheduleView({
     setAnchor(d);
   };
 
-  const rangeLabel = `${new Date(dateFrom).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' })} – ${new Date(dateTo).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
+  const rangeLabel = `${new Date(dateFrom).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: getFactoryTimeZone() })} – ${new Date(dateTo).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: getFactoryTimeZone() })}`;
 
   return (
     <div className="p-6 space-y-4">

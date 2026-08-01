@@ -260,11 +260,12 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Energy Dashboard',      href: '/energy',                icon: Zap   },
       { label: 'Energy Command Center', href: '/energy/command-center', icon: Gauge, badge: 'New', badgeVariant: 'default' },
+      { label: 'Energy Analytics',      href: '/energy/analytics',      icon: BarChart3, badge: 'New', badgeVariant: 'default' },
       {
         label: 'Monitoring',
         icon: Activity,
         children: [
-          { label: 'Energy Analytics', href: '/energy/reports', icon: BarChart3 },
+          { label: 'Consumption Reports', href: '/energy/reports', icon: BarChart3 },
           { label: 'Energy Meters',    href: '/energy/meters',  icon: Zap       },
           { label: 'Energy Live',      href: '/energy/live',    icon: Activity  },
         ],

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { toFactoryDayKey } from '@/lib/datetime';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
@@ -213,7 +214,7 @@ export function ShiftConfigView() {
 
   const weekRange = () => {
     const today = new Date();
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const iso = (d: Date) => toFactoryDayKey(d);
     return { dateFrom: iso(today), dateTo: iso(new Date(today.getTime() + 6 * 86_400_000)) };
   };
   const generateWeek = () => generateMut.mutate({ ...weekRange(), withPlannedDowntime: true });

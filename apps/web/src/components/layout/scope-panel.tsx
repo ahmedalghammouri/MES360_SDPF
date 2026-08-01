@@ -13,6 +13,7 @@
  */
 
 import React, { useState } from 'react';
+import { toFactoryDayKey } from '@/lib/datetime';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePathname } from 'next/navigation';
@@ -103,8 +104,8 @@ function PeriodSection() {
   const { t } = useTranslation('common');
   const { preset, from, to, setPreset, setCustom } = useTimeRangeStore();
   const [open, setOpen] = useState(false);
-  const [draftFrom, setDraftFrom] = useState(from ?? new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10));
-  const [draftTo, setDraftTo] = useState(to ?? new Date().toISOString().slice(0, 10));
+  const [draftFrom, setDraftFrom] = useState(from ?? toFactoryDayKey(Date.now() - 7 * 86_400_000));
+  const [draftTo, setDraftTo] = useState(to ?? toFactoryDayKey(new Date()));
 
   const presets: { value: Exclude<TimePreset, 'custom'>; key: string }[] = [
     { value: 'today', key: 'timeRange.today' },
@@ -152,7 +153,7 @@ function PeriodSection() {
               </div>
               <div>
                 <label className="text-[10px] uppercase text-muted-foreground">{t('timeRange.to')}</label>
-                <input type="date" value={draftTo} min={draftFrom} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDraftTo(e.target.value)}
+                <input type="date" value={draftTo} min={draftFrom} max={toFactoryDayKey(new Date())} onChange={(e) => setDraftTo(e.target.value)}
                   className="w-full h-8 px-2 text-sm rounded-md border border-input bg-background outline-none focus:ring-1 focus:ring-ring" />
               </div>
               <button className="w-full h-8 rounded-md bg-primary text-primary-foreground text-sm font-medium"
@@ -175,7 +176,8 @@ function OrdersSection() {
 
   const { data: poResp } = useQuery({
     queryKey: ['production', 'production-orders', 'panel-filter'],
-    queryFn: () => api.get<any>('/production/production-orders', { params: { limit: 200 } }),
+    // 100 is the API's documented maximum — 200 is rejected with a 400.
+    queryFn: () => api.get<any>('/production/production-orders', { params: { limit: 100 } }),
     staleTime: 60_000,
   });
   const productionOrders: any[] = Array.isArray(poResp) ? poResp : (poResp?.data ?? []);

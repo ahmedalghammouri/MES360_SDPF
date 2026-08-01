@@ -1,5 +1,6 @@
 'use client';
 import { DashboardInfo } from '@/components/ui/dashboard-info';
+import { toFactoryDayKey } from '@/lib/datetime';
 import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { useTranslation } from 'react-i18next';
 
@@ -1642,7 +1643,7 @@ function HistoryTab({ machines }: { machines: Machine[] }) {
 function AnalyticsTab() {
   const { t } = useTranslation(['production', 'common']);
   const { filter, key } = useScope();
-  const [range, setRange] = useState({ from: new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10), to: new Date().toISOString().slice(0, 10) });
+  const [range, setRange] = useState({ from: toFactoryDayKey(Date.now() - 7 * 86400_000), to: toFactoryDayKey(new Date()) });
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ['downtime-summary', range, key],

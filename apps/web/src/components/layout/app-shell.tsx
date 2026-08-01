@@ -25,7 +25,7 @@ const SCOPE_EXACT = new Set([
   '/production/reports', '/quality/reports',
   '/maintenance/reliability', '/quality/intelligence',
   '/downtime', // Downtime Command Center
-  '/energy', '/energy/command-center',
+  '/energy', '/energy/command-center', '/energy/analytics',
   '/ai', // AI Intelligence — all panels re-scope by area/line/machine
 ]);
 const SCOPE_PREFIX = ['/scheduling', '/quality']; // ScheduleView + all Quality module pages

@@ -19,11 +19,13 @@ import { toast } from '@/components/ui/use-toast';
 
 interface SystemStatus {
   production: Record<string, number>;
+  energy: Record<string, number>;
+  energyTotal: number;
   productionTotal: number;
   preserved: { inspections: number; maintenanceOrders: number; downtimeEvents: number; spcMeasurements: number };
   timeseries: { enabled: boolean; bucket: string; points: number | null; paused: boolean };
 }
-type ResetTarget = { scope: 'production' | 'timeseries'; title: string; danger: string } | null;
+type ResetTarget = { scope: 'production' | 'timeseries' | 'energy'; title: string; danger: string } | null;
 
 /** Same-origin API base (behind nginx) with an SSR fallback. */
 function apiBase() {
@@ -203,10 +205,25 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
             <Stat key={k} label={t(`dz.prod.${k}`, { defaultValue: k })} value={v} highlight={v > 0} />
           ))}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-2.5">
+        {status && Object.keys(status.energy ?? {}).length > 0 && (
+          <>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-4 mb-1.5">
+              {t('dz.energyGroup')}
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              {Object.entries(status.energy).map(([k, v]) => (
+                <Stat key={k} label={t(`dz.prod.${k}`, { defaultValue: k })} value={v} highlight={v > 0} />
+              ))}
+            </div>
+          </>
+        )}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mt-2.5">
           <Stat label={t('dz.historianPoints')} value={status?.timeseries.points ?? '—'} icon={<Activity className="w-3 h-3" />} />
           <Stat label={t('dz.inspectionsKept')} value={status?.preserved.inspections ?? 0} muted />
           <Stat label={t('dz.maintenanceKept')} value={status?.preserved.maintenanceOrders ?? 0} muted />
+          {/* Downtime events are preserved too — the API always returned this, but
+              it was never rendered, so records that survive a reset were invisible. */}
+          <Stat label={t('dz.downtimeKept')} value={status?.preserved.downtimeEvents ?? 0} muted />
           <Stat label={t('dz.spcKept')} value={status?.preserved.spcMeasurements ?? 0} muted />
         </div>
       </div>
@@ -245,6 +262,16 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
         affectedLabel={t('dz.affectedRecords')}
         resetLabel={t('dz.reset')}
         onClick={() => setTarget({ scope: 'production', title: t('dz.resetProdTitle'), danger: t('dz.resetProdDanger') })}
+      />
+
+      {/* Reset energy meter data */}
+      <ResetCard
+        title={t('dz.resetEnergyTitle')}
+        description={t('dz.resetEnergyDesc')}
+        count={status?.energyTotal}
+        affectedLabel={t('dz.affectedRecords')}
+        resetLabel={t('dz.reset')}
+        onClick={() => setTarget({ scope: 'energy', title: t('dz.resetEnergyTitle'), danger: t('dz.resetEnergyDanger') })}
       />
 
       {/* Wipe historian */}

@@ -9,6 +9,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { toFactoryDayKey } from '@/lib/datetime';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { CalendarPlus, Plus, Trash2, ShieldOff, Coffee, Sparkles, Timer } from 'lucide-react';
@@ -33,7 +34,7 @@ const causeIcon = (category?: string) =>
 
 const weekRange = () => {
   const today = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const iso = (d: Date) => toFactoryDayKey(d);
   return { dateFrom: iso(today), dateTo: iso(new Date(today.getTime() + 6 * 86_400_000)) };
 };
 
@@ -62,7 +63,7 @@ export function PlannedDowntimeManager() {
   const addPlannedMut = useAddPlannedDowntime();
   const deletePlannedMut = useDeletePlannedDowntime();
 
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = toFactoryDayKey(new Date());
   const [addPdOpen, setAddPdOpen] = useState(false);
   const [pd, setPd] = useState<{ causeId: string; scope: ScopeSelection | null; date: string; time: string; durationMinutes: string; notes: string }>({
     causeId: '', scope: null, date: todayIso, time: '13:00', durationMinutes: '30', notes: '',

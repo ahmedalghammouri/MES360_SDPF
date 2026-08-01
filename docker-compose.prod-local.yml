@@ -45,6 +45,12 @@ services:
     container_name: mes-postgres-plocal
     restart: unless-stopped
     environment:
+      # Plant timezone. Every service that evaluates a wall-clock (shift windows,
+      # getHours(), working-day calendars, cron, log timestamps) must agree, or the
+      # same instant lands in different days/shifts depending on which container
+      # computed it. Instants are still STORED in UTC — this only fixes local-time
+      # arithmetic. See apps/web/src/lib/datetime.ts for the display half.
+      TZ: Asia/Riyadh
       POSTGRES_DB: mes360
       POSTGRES_USER: mes_user
       POSTGRES_PASSWORD: mes_password
@@ -160,6 +166,12 @@ services:
     container_name: mes-migrate-seed-plocal
     restart: "no"
     environment:
+      # Plant timezone. Every service that evaluates a wall-clock (shift windows,
+      # getHours(), working-day calendars, cron, log timestamps) must agree, or the
+      # same instant lands in different days/shifts depending on which container
+      # computed it. Instants are still STORED in UTC — this only fixes local-time
+      # arithmetic. See apps/web/src/lib/datetime.ts for the display half.
+      TZ: Asia/Riyadh
       NODE_ENV: production
       DATABASE_URL: postgresql://mes_user:mes_password@postgres:5432/mes360?schema=public
     networks:
@@ -184,6 +196,12 @@ services:
     container_name: mes-api-plocal
     restart: unless-stopped
     environment:
+      # Plant timezone. Every service that evaluates a wall-clock (shift windows,
+      # getHours(), working-day calendars, cron, log timestamps) must agree, or the
+      # same instant lands in different days/shifts depending on which container
+      # computed it. Instants are still STORED in UTC — this only fixes local-time
+      # arithmetic. See apps/web/src/lib/datetime.ts for the display half.
+      TZ: Asia/Riyadh
       NODE_ENV: production
       API_PORT: "3001"
       API_PREFIX: /api/v1
@@ -244,6 +262,12 @@ services:
     container_name: mes-web-plocal
     restart: unless-stopped
     environment:
+      # Plant timezone. Every service that evaluates a wall-clock (shift windows,
+      # getHours(), working-day calendars, cron, log timestamps) must agree, or the
+      # same instant lands in different days/shifts depending on which container
+      # computed it. Instants are still STORED in UTC — this only fixes local-time
+      # arithmetic. See apps/web/src/lib/datetime.ts for the display half.
+      TZ: Asia/Riyadh
       NODE_ENV: production
       # Next standalone server.js honours PORT/HOSTNAME; nginx upstream is web:4000.
       PORT: "4000"
@@ -285,6 +309,13 @@ services:
   # ============================================================
 
   prometheus:
+    environment:
+      # Plant timezone. Every service that evaluates a wall-clock (shift windows,
+      # getHours(), working-day calendars, cron, log timestamps) must agree, or the
+      # same instant lands in different days/shifts depending on which container
+      # computed it. Instants are still STORED in UTC — this only fixes local-time
+      # arithmetic. See apps/web/src/lib/datetime.ts for the display half.
+      TZ: Asia/Riyadh
     image: prom/prometheus:latest
     container_name: mes-prometheus-plocal
     restart: unless-stopped
@@ -300,6 +331,12 @@ services:
     container_name: mes-grafana-plocal
     restart: unless-stopped
     environment:
+      # Plant timezone. Every service that evaluates a wall-clock (shift windows,
+      # getHours(), working-day calendars, cron, log timestamps) must agree, or the
+      # same instant lands in different days/shifts depending on which container
+      # computed it. Instants are still STORED in UTC — this only fixes local-time
+      # arithmetic. See apps/web/src/lib/datetime.ts for the display half.
+      TZ: Asia/Riyadh
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: mes360
       GF_SECURITY_ALLOW_EMBEDDING: "true"

@@ -1,5 +1,6 @@
 'use client';
 import { useTranslation } from 'react-i18next';
+import { toFactoryDayKey } from '@/lib/datetime';
 
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
@@ -83,8 +84,8 @@ const DISPOSITION_LABELS: Record<string, string> = {
 const EMPTY_NCR_FORM = {
   title: '', severity: 'MINOR', defectCategory: '', defectCode: '', quantity: '',
   machineId: '__none__', skuId: '__none__', batchRecordId: '__none__', disposition: '__none__',
-  description: '', detectedAt: new Date().toISOString().slice(0, 10),
-  dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  description: '', detectedAt: toFactoryDayKey(new Date()),
+  dueDate: toFactoryDayKey(Date.now() + 7 * 24 * 60 * 60 * 1000),
   rootCause: '', correctiveAction: '', preventiveAction: '',
 };
 
@@ -198,7 +199,7 @@ export function QualityNcrView() {
 
   const handleOpenCreate = () => {
     setEditNCR(null)
-    setForm({ ...EMPTY_NCR_FORM, detectedAt: new Date().toISOString().slice(0, 10) })
+    setForm({ ...EMPTY_NCR_FORM, detectedAt: toFactoryDayKey(new Date()) })
     setFormOpen(true)
   };
 
@@ -211,7 +212,7 @@ export function QualityNcrView() {
       title: ncr.title,
       severity: ncr.severity,
       defectCategory: ncr.defectCategory ?? '',
-      detectedAt: ncr.reportedAt?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+      detectedAt: ncr.reportedAt?.slice(0, 10) ?? toFactoryDayKey(new Date()),
       dueDate: ncr.dueDate?.slice(0, 10) ?? EMPTY_NCR_FORM.dueDate,
     })
     try {
@@ -227,7 +228,7 @@ export function QualityNcrView() {
         batchRecordId: full.batchRecordId ?? '__none__',
         disposition: full.disposition ?? '__none__',
         description: full.description ?? '',
-        detectedAt: (full.detectedAt ?? ncr.reportedAt)?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+        detectedAt: (full.detectedAt ?? ncr.reportedAt)?.slice(0, 10) ?? toFactoryDayKey(new Date()),
         dueDate: (full.dueDate ?? ncr.dueDate)?.slice(0, 10) ?? EMPTY_NCR_FORM.dueDate,
         rootCause: full.rootCause ?? '',
         correctiveAction: full.correctiveAction ?? '',

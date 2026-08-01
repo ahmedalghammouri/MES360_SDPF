@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { EnergyPeriod } from '@prisma/client';
 import { instantiateMeterTags } from './meter-templates';
+import { plantDayKey } from '../../common/plant-time.util';
 
 @Injectable()
 export class EnergyService {
@@ -195,7 +196,8 @@ export class EnergyService {
     const now = new Date();
     const to = range?.dateTo ? new Date(`${range.dateTo}T23:59:59.999`) : now;
     const from = range?.dateFrom ? new Date(`${range.dateFrom}T00:00:00`) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13);
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    // Plant-local day, so a window labelled "today" matches the plant's day.
+    const iso = (d: Date) => plantDayKey(d);
 
     const [overview, live, consumption, woSummaries] = await Promise.all([
       this.getOverview(factoryId, scope),
@@ -378,7 +380,7 @@ export class EnergyService {
     // Aggregate by date for chart
     const byDate: Record<string, Record<string, number>> = {};
     for (const s of summaries) {
-      const date = s.periodStart.toISOString().slice(0, 10);
+      const date = plantDayKey(s.periodStart);
       if (!byDate[date]) byDate[date] = {};
       const key = s.meter.type;
       byDate[date][key] = parseFloat(((byDate[date][key] ?? 0) + s.totalConsumption).toFixed(2));
@@ -394,7 +396,7 @@ export class EnergyService {
         const dStart = new Date(d); dStart.setHours(0, 0, 0, 0);
         const dEnd = new Date(d); dEnd.setHours(23, 59, 59, 999);
         const { byType } = await this.consumptionFromReadings(factoryId, meterWhere, dStart, dEnd);
-        const dateKey = dStart.toISOString().slice(0, 10);
+        const dateKey = plantDayKey(dStart);
         for (const [type, val] of Object.entries(byType)) {
           if (val <= 0) continue;
           if (!byDate[dateKey]) byDate[dateKey] = {};

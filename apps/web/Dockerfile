@@ -35,7 +35,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
 FROM node:20-alpine AS production
-RUN apk add --no-cache dumb-init
+# tzdata: required for the TZ env var to resolve — see apps/api/Dockerfile.
+RUN apk add --no-cache dumb-init tzdata
 WORKDIR /app
 
 ENV NODE_ENV=production

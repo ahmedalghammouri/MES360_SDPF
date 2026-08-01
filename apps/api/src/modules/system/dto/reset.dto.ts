@@ -1,6 +1,6 @@
 import { IsBoolean, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 
-export type ResetScope = 'production' | 'timeseries';
+export type ResetScope = 'production' | 'timeseries' | 'energy';
 
 export class ResetSystemDto {
   /**
@@ -8,8 +8,11 @@ export class ResetSystemDto {
    *  - 'production'  → deletes all production orders / work orders / job orders
    *                    and their dependent records from PostgreSQL.
    *  - 'timeseries'  → wipes the InfluxDB historian bucket only.
+   *  - 'energy'      → deletes energy meter readings, period summaries and the
+   *                    derived per-WO / per-machine ratios from PostgreSQL.
+   *                    Meters, tariffs and device bindings are preserved.
    */
-  @IsIn(['production', 'timeseries'])
+  @IsIn(['production', 'timeseries', 'energy'])
   scope!: ResetScope;
 
   /** When scope='production', also wipe the InfluxDB historian in the same run. */

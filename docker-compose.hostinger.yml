@@ -27,6 +27,12 @@ services:
     container_name: mes-postgres-prod
     restart: always
     environment:
+      # Plant timezone. Every service that evaluates a wall-clock (shift windows,
+      # getHours(), working-day calendars, cron, log timestamps) must agree, or the
+      # same instant lands in different days/shifts depending on which container
+      # computed it. Instants are still STORED in UTC — this only fixes local-time
+      # arithmetic. See apps/web/src/lib/datetime.ts for the display half.
+      TZ: Asia/Riyadh
       POSTGRES_DB: ${POSTGRES_DB:-mes360}
       POSTGRES_USER: ${POSTGRES_USER:-mes_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -132,6 +138,12 @@ services:
     container_name: mes-migrate-seed-prod
     restart: "no"
     environment:
+      # Plant timezone. Every service that evaluates a wall-clock (shift windows,
+      # getHours(), working-day calendars, cron, log timestamps) must agree, or the
+      # same instant lands in different days/shifts depending on which container
+      # computed it. Instants are still STORED in UTC — this only fixes local-time
+      # arithmetic. See apps/web/src/lib/datetime.ts for the display half.
+      TZ: Asia/Riyadh
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-mes_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mes360}?schema=public
     networks:
@@ -241,6 +253,12 @@ services:
     container_name: mes-web-prod
     restart: always
     environment:
+      # Plant timezone. Every service that evaluates a wall-clock (shift windows,
+      # getHours(), working-day calendars, cron, log timestamps) must agree, or the
+      # same instant lands in different days/shifts depending on which container
+      # computed it. Instants are still STORED in UTC — this only fixes local-time
+      # arithmetic. See apps/web/src/lib/datetime.ts for the display half.
+      TZ: Asia/Riyadh
       NODE_ENV: production
       # Next standalone server.js honours PORT; Traefik routes to this port.
       PORT: "4000"
@@ -278,6 +296,12 @@ services:
     container_name: mes-grafana-prod
     restart: always
     environment:
+      # Plant timezone. Every service that evaluates a wall-clock (shift windows,
+      # getHours(), working-day calendars, cron, log timestamps) must agree, or the
+      # same instant lands in different days/shifts depending on which container
+      # computed it. Instants are still STORED in UTC — this only fixes local-time
+      # arithmetic. See apps/web/src/lib/datetime.ts for the display half.
+      TZ: Asia/Riyadh
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       # Served under a sub-path behind Traefik.
