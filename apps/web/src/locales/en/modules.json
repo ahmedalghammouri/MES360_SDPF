@@ -1449,7 +1449,9 @@
     "srcWorkOrder": "Per-unit ratios use each work order's total good quantity, because no production snapshots exist for this window. A work order's output cannot be split across time buckets or machines, so those groupings show no ratio.",
     "srcNone": "No production quantities are available for this window, so only absolute kWh is shown — per-unit ratios need recorded output.",
     "unattributedTitle": "Energy recorded, but not attributable to this breakdown",
-    "unattributedBody": "{{kwh}} kWh were measured in this window, but none of it carries a {{group}} it can be assigned to — so there is nothing to group. Try breaking down by machine, line or day, which are derived from the meter itself."
+    "unattributedBody": "{{kwh}} kWh were measured in this window, but none of it carries a {{group}} it can be assigned to — so there is nothing to group. Try breaking down by machine, line or day, which are derived from the meter itself.",
+    "loading": "Loading energy analytics…",
+    "chartHint": "Top 12 groups by consumption. Hover a bar for the exact value."
   },
   "archive": {
     "title": "Archive",

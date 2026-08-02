@@ -143,6 +143,12 @@
 
     --radius: 0.625rem;
 
+    /* Analytics series hue — one hue for a single-measure chart, stepped per
+       surface and validated with the dataviz six-checks (lightness band, chroma
+       floor, contrast). The older --chart-* steps fail the band on the dark
+       surface, so this pair is separate rather than a redefinition of them. */
+    --chart-series-1: 159 73% 40%;   /* #1baf7a on the light card */
+
     /* Chart colors — brand green, gold, third-green, teal, red */
     --chart-1: 174 100% 15%;
     --chart-2: 42 57% 55%;
@@ -191,6 +197,8 @@
     --border: 174 18% 18%;
     --input: 174 18% 18%;
     --ring: 168 42% 48%;
+
+    --chart-series-1: 159 73% 36%;   /* #199e70 on the dark card */
 
     /* Chart colors (vivid for dark) */
     --chart-1: 168 45% 52%;

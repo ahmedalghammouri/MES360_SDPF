@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Gauge, Zap, TrendingDown, Factory, Download, Info } from 'lucide-react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -97,6 +97,53 @@ function range(days: number) {
 const num = (n: number | null | undefined, dp = 1) =>
   n == null ? '—' : n.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });
 
+/**
+ * Mirrors the loaded layout — KPI strip, chart, table — so the page does not
+ * reflow when data lands. A single generic block was worse than nothing here:
+ * this view can take several seconds on a 90-day window, and a shape-matched
+ * placeholder tells the user what is coming and roughly how much of it.
+ */
+function AnalyticsSkeleton() {
+  const { t } = useTranslation('modules');
+  return (
+    <div className="space-y-5" role="status" aria-busy="true" aria-live="polite">
+      <span className="sr-only">{t('analytics.loading')}</span>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="glass-card rounded-xl p-3">
+            <div className="shimmer h-2.5 w-20 rounded mb-3" />
+            <div className="shimmer h-6 w-24 rounded" />
+          </div>
+        ))}
+      </div>
+
+      <div className="glass-card rounded-xl p-5">
+        <div className="shimmer h-3.5 w-48 rounded mb-5" />
+        {/* bars of varied height read as a chart rather than a grey box */}
+        <div className="flex items-end gap-3 h-[240px]">
+          {[68, 52, 84, 40, 61, 33, 74, 46, 57, 29, 65, 38].map((h, i) => (
+            <div key={i} className="shimmer flex-1 rounded-t-md" style={{ height: `${h}%` }} />
+          ))}
+        </div>
+      </div>
+
+      <div className="glass-card rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="shimmer h-3.5 w-28 rounded" />
+          <div className="shimmer h-4 w-16 rounded-full" />
+        </div>
+        <div className="space-y-2.5">
+          <div className="shimmer h-3 w-full rounded opacity-60" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="shimmer h-7 w-full rounded" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EnergyAnalyticsView() {
   const { t } = useTranslation('modules');
   const { filter, key: scopeKey } = useScope();
@@ -108,7 +155,7 @@ export function EnergyAnalyticsView() {
 
   const { dateFrom, dateTo } = useMemo(() => range(Number(days)), [days]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['energy', 'analytics', groupBy, dateFrom, dateTo, scopeKey],
     queryFn: () =>
       api.get<AnalyticsResp>('/energy/analytics', {
@@ -116,6 +163,11 @@ export function EnergyAnalyticsView() {
       }),
     staleTime: 60_000,
   });
+
+  // isFetching (not just isLoading) so switching dimension or period shows the
+  // skeleton too — those refetches are the slow ones, and previously the page
+  // sat on stale numbers with no indication anything was happening.
+  const busy = isLoading || isFetching;
 
   const rows = data?.rows ?? [];
   const totals = data?.totals;
@@ -206,9 +258,9 @@ export function EnergyAnalyticsView() {
         </p>
       </div>
 
-      {isLoading && <div className="shimmer h-64 rounded-xl" />}
+      {busy && <AnalyticsSkeleton />}
 
-      {!isLoading && rows.length === 0 && (
+      {!busy && rows.length === 0 && (
         <div className="glass-card rounded-xl p-8 text-center">
           <Zap size={22} className="mx-auto text-muted-foreground mb-3" />
           {/* Energy present but unplaceable is a different problem from no energy
@@ -232,7 +284,7 @@ export function EnergyAnalyticsView() {
         </div>
       )}
 
-      {!isLoading && rows.length > 0 && totals && (
+      {!busy && rows.length > 0 && totals && (
         <>
           {/* ── KPI strip ────────────────────────────────────────── */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -284,24 +336,43 @@ export function EnergyAnalyticsView() {
 
           {/* ── chart ────────────────────────────────────────────── */}
           <div className="glass-card rounded-xl p-5">
-            <h2 className="text-sm font-semibold mb-4">{t('analytics.chartTitle')}</h2>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 44, left: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.25} />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-35} textAnchor="end" interval={0} />
-                <YAxis tick={{ fontSize: 10 }} />
+            <h2 className="text-sm font-semibold">{t('analytics.chartTitle')}</h2>
+            <p className="text-[10px] text-muted-foreground mb-4">{t('analytics.chartHint')}</p>
+            <ResponsiveContainer width="100%" height={300}>
+              {/* One measure across categories → ONE hue. The bar length already
+                  encodes magnitude, so colour carries no extra information; the
+                  previous "first bar yellow" coloured by RANK, which repaints the
+                  survivors whenever a filter changes the ordering. */}
+              <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 56, left: 4 }} barCategoryGap="22%">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.35} />
+                <XAxis
+                  dataKey="name"
+                  // Ticks must wear text tokens — with no `fill` Recharts defaults
+                  // to #666, which is unreadable on the dark card.
+                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tickLine={false}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                  angle={-32}
+                  textAnchor="end"
+                  interval={0}
+                  height={56}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={48}
+                />
                 <Tooltip
+                  cursor={{ fill: 'hsl(var(--muted-foreground))', opacity: 0.08 }}
                   contentStyle={{
                     background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))',
                     color: 'hsl(var(--popover-foreground))', borderRadius: 8, fontSize: 11,
                   }}
-                  formatter={(v: number) => [`${num(v, 2)} kWh`, 'kWh']}
+                  labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 600 }}
+                  formatter={(v: number) => [`${num(v, 2)} kWh`, t('analytics.kTotal')]}
                 />
-                <Bar dataKey="kwh" radius={[3, 3, 0, 0]}>
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={i === 0 ? '#facc15' : '#4c7571'} />
-                  ))}
-                </Bar>
+                <Bar dataKey="kwh" radius={[4, 4, 0, 0]} fill="hsl(var(--chart-series-1))" maxBarSize={72} />
               </BarChart>
             </ResponsiveContainer>
           </div>
