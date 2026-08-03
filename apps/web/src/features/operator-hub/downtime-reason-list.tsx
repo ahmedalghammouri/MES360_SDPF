@@ -14,16 +14,20 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Clock, CheckCircle2, ChevronDown, Loader2, Tag, Square } from 'lucide-react';
+import { AlertTriangle, Clock, CheckCircle2, ChevronDown, Loader2, Tag, Square, History, Radio } from 'lucide-react';
 
 import { api } from '@/services/api.client';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { formatDateTimeShort, toDateTimeLocal, dateTimeLocalToIso } from '@/lib/datetime';
 import {
   CauseTreeSelect,
   type ReasonNode, type CauseSelection,
 } from '@/features/production/production-downtime-view';
+
+/** How many history rows reveal per tap. */
+const HISTORY_PAGE = 8;
 
 type DowntimeEvent = {
   id: string;
@@ -41,9 +45,10 @@ type DowntimeEvent = {
   isPlanned: boolean;
 };
 
+/** Plant time, not the tablet's. A device with a wrong timezone must not shift
+ *  the clock an operator reads off a downtime record. */
 function fmtWhen(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return formatDateTimeShort(iso);
 }
 function fmtDur(mins: number | null, isOpen: boolean) {
   if (isOpen) return 'ongoing';
@@ -57,21 +62,27 @@ function causePath(c: DowntimeEvent['cause']): string | null {
   const parts = [c.parent?.parent?.name, c.parent?.name, c.name].filter(Boolean);
   return parts.join(' › ');
 }
-// datetime-local value (local time, no seconds) from an ISO string / now.
+/**
+ * datetime-local value in PLANT time.
+ *
+ * This used to read the browser's clock (getFullYear/getHours…). On a tablet set
+ * to any other timezone the prefilled "now" was wrong, and because the submit
+ * path re-read the field as plant time, closing a stoppage recorded the wrong
+ * instant — and could even produce a negative duration.
+ */
 function toLocalInput(iso?: string) {
-  const d = iso ? new Date(iso) : new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return toDateTimeLocal(iso ?? new Date());
 }
 
 // Close an open downtime with an operator-adjustable end time (defaults to now,
 // floored to the event's start so a negative duration is impossible).
 function CloseRow({ start, onClose, pending }: { start: string; onClose: (endTime: string) => void; pending: boolean }) {
+  const { t } = useTranslation('production');
   const [end, setEnd] = useState(() => toLocalInput());
   const minEnd = toLocalInput(start);
   return (
     <div className="mt-2 rounded-lg bg-muted/30 p-2.5">
-      <div className="text-[11px] font-medium text-red-400 mb-1.5 flex items-center gap-1.5"><Square size={11} /> Close this downtime</div>
+      <div className="text-[11px] font-medium text-red-400 mb-1.5 flex items-center gap-1.5"><Square size={11} /> {t('opHub.dt.closeTitle', { defaultValue: 'Close this downtime' })}</div>
       <div className="flex items-center gap-2">
         <input
           type="datetime-local"
@@ -85,7 +96,7 @@ function CloseRow({ start, onClose, pending }: { start: string; onClose: (endTim
           onClick={() => onClose(end)}
           className="h-9 px-3 rounded-lg bg-red-500 text-white text-sm font-semibold active:scale-95 disabled:opacity-50"
         >
-          {pending ? '…' : 'Close'}
+          {pending ? '…' : t('opHub.dt.close', { defaultValue: 'Close' })}
         </button>
       </div>
     </div>
@@ -108,16 +119,40 @@ export function DowntimeReasonList({
   const { toast } = useToast();
   const qc = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // History starts collapsed: a busy shift can rack up dozens of stoppages and
+  // an endlessly tall page is unusable on a tablet held in one hand.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyShown, setHistoryShown] = useState(HISTORY_PAGE);
 
-  // Last 7 days of events, newest first. Factory-scoped; filtered to machineIds below.
-  const dateFrom = useMemo(() => new Date(Date.now() - 7 * 86_400_000).toISOString(), []);
-  const { data, isLoading } = useQuery({
-    queryKey: ['downtime-events', workOrderId ?? 'all', dateFrom, limit],
+  // ── Two queries on purpose ──────────────────────────────────────────
+  // The API orders by startTime DESC with a default page size. Planned cleaning
+  // slots are generated days AHEAD, so their startTime outranks a stoppage that
+  // is happening right now — the whole page filled with future planned stops and
+  // the live breakdown never appeared on the operator's screen.
+  //
+  // So OPEN events are fetched on their own, unbounded by date, and always shown
+  // first. History is a separate, capped list bounded to the PAST.
+  const now = useMemo(() => new Date(), []);
+  const dateFrom = useMemo(() => new Date(+now - 7 * 86_400_000).toISOString(), [now]);
+
+  const { data: openData, isLoading: openLoading } = useQuery({
+    queryKey: ['downtime-events', 'open', workOrderId ?? 'all'],
     queryFn: () => api.get('/production/downtime/events', {
-      params: { ...(workOrderId ? { workOrderId } : {}), dateFrom, limit },
+      params: { ...(workOrderId ? { workOrderId } : {}), isOpen: 'true', limit: 50 },
     }),
-    refetchInterval: 20_000,
+    refetchInterval: 15_000,
   });
+
+  const { data, isLoading: histLoading } = useQuery({
+    queryKey: ['downtime-events', 'history', workOrderId ?? 'all', dateFrom, limit],
+    queryFn: () => api.get('/production/downtime/events', {
+      // dateTo = now excludes planned stops scheduled for later this week — an
+      // operator cannot act on a cleaning slot five days out.
+      params: { ...(workOrderId ? { workOrderId } : {}), dateFrom, dateTo: new Date().toISOString(), limit },
+    }),
+    refetchInterval: 30_000,
+  });
+  const isLoading = openLoading || histLoading;
 
   const { data: reasonTree = [] } = useQuery<ReasonNode[]>({
     queryKey: ['downtime-reason-tree'],
@@ -125,10 +160,21 @@ export function DowntimeReasonList({
     staleTime: 300_000,
   });
 
-  const events: DowntimeEvent[] = useMemo(() => {
-    const all: DowntimeEvent[] = ((data as any)?.data ?? []);
-    return machineIds?.length ? all.filter((e) => machineIds.includes(e.machineId)) : all;
-  }, [data, machineIds]);
+  const scope = (list: DowntimeEvent[]) =>
+    machineIds?.length ? list.filter((e) => machineIds.includes(e.machineId)) : list;
+
+  /** Live stoppages — always visible, never truncated. */
+  const openEvents: DowntimeEvent[] = useMemo(
+    () => scope((openData as any)?.data ?? []),
+    [openData, machineIds],
+  );
+
+  /** Closed history, newest first, with the open ones removed so nothing repeats. */
+  const historyEvents: DowntimeEvent[] = useMemo(() => {
+    const openIds = new Set(openEvents.map((e) => e.id));
+    return scope((data as any)?.data ?? []).filter((e) => !openIds.has(e.id) && !e.isOpen);
+  }, [data, machineIds, openEvents]);
+
 
   const setReason = useMutation({
     mutationFn: ({ id, causeId, category }: { id: string; causeId: string; category: string }) =>
@@ -145,7 +191,9 @@ export function DowntimeReasonList({
 
   const closeEvent = useMutation({
     mutationFn: ({ id, endTime }: { id: string; endTime: string }) =>
-      api.patch(`/production/downtime/events/${id}/end`, { endTime: new Date(endTime).toISOString() }),
+      // The field holds PLANT-local time; convert with the factory zone, not the
+      // tablet's, or the recorded end instant is off by the device's offset.
+      api.patch(`/production/downtime/events/${id}/end`, { endTime: dateTimeLocalToIso(endTime) }),
     onSuccess: () => {
       toast({ title: 'Downtime closed' });
       qc.invalidateQueries({ queryKey: ['downtime-events'] });
@@ -161,92 +209,193 @@ export function DowntimeReasonList({
     if (sel) setReason.mutate({ id: eventId, causeId: _id, category: sel.category });
   };
 
+  /** Count of closed events still missing a reason — the operator's to-do. */
+  const needReason = useMemo(
+    () => historyEvents.filter((e) => !e.cause && !e.reason).length,
+    [historyEvents],
+  );
+
+  /** One event card. Touch targets are >= 44px; the whole header is the hit area. */
+  const renderEvent = (e: DowntimeEvent) => {
+    const hasReason = !!e.cause || !!e.reason;
+    const expanded = expandedId === e.id;
+    const busy = setReason.isPending && expandedId === e.id;
+    return (
+      <li
+        key={e.id}
+        className={cn(
+          'rounded-2xl border bg-card overflow-hidden transition-shadow',
+          e.isOpen ? 'border-red-500/45 shadow-[0_0_0_1px_rgba(239,68,68,0.18)]' : 'border-border/60',
+        )}
+      >
+        <button
+          onClick={() => setExpandedId(expanded ? null : e.id)}
+          className="w-full flex items-center gap-3 p-3.5 min-h-[68px] text-start active:bg-accent/40 transition"
+        >
+          <div className={cn(
+            'flex items-center justify-center w-11 h-11 rounded-xl shrink-0',
+            e.isOpen ? 'bg-red-500/15 text-red-400'
+              : e.isPlanned ? 'bg-sky-500/15 text-sky-400'
+              : 'bg-amber-500/15 text-amber-400',
+          )}>
+            {e.isOpen ? <Radio size={19} className="animate-pulse" /> : <AlertTriangle size={19} />}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-[15px] text-foreground truncate">
+                {e.machine?.code ?? e.machine?.name ?? 'Machine'}
+              </span>
+              {e.isOpen && (
+                <Badge variant="destructive" className="h-[18px] text-[10px] font-bold tracking-wide">
+                  {t('opHub.dt.live', { defaultValue: 'LIVE' })}
+                </Badge>
+              )}
+              {e.isPlanned && !e.isOpen && (
+                <Badge variant="outline" className="h-[18px] text-[10px] text-sky-400 border-sky-500/40">
+                  {t('opHub.dt.planned', { defaultValue: 'PLANNED' })}
+                </Badge>
+              )}
+              {e.workOrder && (
+                <span className="text-[11px] font-mono text-brand-400/70">{e.workOrder.orderNumber}</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+              <Clock size={12} />
+              <span>{fmtWhen(e.startTime)}</span>
+              <span className="opacity-40">/</span>
+              <span className={cn('font-semibold tabular-nums', e.isOpen && 'text-red-400')}>
+                {fmtDur(e.durationMinutes, e.isOpen)}
+              </span>
+            </div>
+
+            <div className="mt-1.5">
+              {hasReason ? (
+                <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400">
+                  <CheckCircle2 size={13} /> <span className="truncate">{causePath(e.cause) ?? e.reason}</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs text-amber-400 font-semibold">
+                  <Tag size={13} /> {t('opHub.dt.noReason', { defaultValue: 'No reason set - tap to add' })}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <ChevronDown
+            size={18}
+            className={cn('text-muted-foreground shrink-0 transition-transform', expanded && 'rotate-180')}
+          />
+        </button>
+
+        {expanded && (
+          <div className="p-3.5 pt-0 border-t border-border/50">
+            {e.isOpen && (
+              <CloseRow
+                start={e.startTime}
+                pending={closeEvent.isPending}
+                onClose={(endTime) => closeEvent.mutate({ id: e.id, endTime })}
+              />
+            )}
+            <div className="text-xs font-semibold text-muted-foreground mb-2 mt-3">
+              {hasReason
+                ? t('opHub.dt.changeReason', { defaultValue: 'Change reason / sub-reason' })
+                : t('opHub.dt.selectReason', { defaultValue: 'Select reason / sub-reason' })}
+            </div>
+            {busy ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <Loader2 className="animate-spin" size={15} /> {t('opHub.dt.saving', { defaultValue: 'Saving...' })}
+              </div>
+            ) : (
+              <CauseTreeSelect
+                reasonTree={reasonTree}
+                value={e.cause?.id ?? ''}
+                machineId={e.machineId || undefined}
+                onChange={onCause(e.id)}
+              />
+            )}
+          </div>
+        )}
+      </li>
+    );
+  };
+
+  const visibleHistory = historyOpen ? historyEvents.slice(0, historyShown) : [];
+
   return (
-    <div className={cn('flex flex-col', className)}>
-      {isLoading ? (
+    <div className={cn('flex flex-col gap-4', className)}>
+      {isLoading && openEvents.length === 0 && historyEvents.length === 0 ? (
         <div className="flex items-center gap-2 text-muted-foreground p-4 text-sm">
-          <Loader2 className="animate-spin" size={15} /> Loading downtime events…
-        </div>
-      ) : events.length === 0 ? (
-        <div className="text-center text-muted-foreground/70 py-8 text-sm">
-          No downtime events recorded in the last 7 days.
+          <Loader2 className="animate-spin" size={16} />
+          {t('opHub.dt.loading', { defaultValue: 'Loading downtime events...' })}
         </div>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {events.map((e) => {
-            const hasReason = !!e.cause || !!e.reason;
-            const expanded = expandedId === e.id;
-            const busy = setReason.isPending && expandedId === e.id;
-            return (
-              <li key={e.id} className="rounded-xl border border-border/60 bg-card overflow-hidden">
-                <button
-                  onClick={() => setExpandedId(expanded ? null : e.id)}
-                  className="w-full flex items-center gap-3 p-3 text-start active:bg-accent/40 transition"
-                >
-                  <div className={cn(
-                    'flex items-center justify-center w-10 h-10 rounded-xl shrink-0',
-                    e.isOpen ? 'bg-red-500/15 text-red-400' : e.isPlanned ? 'bg-blue-500/15 text-blue-400' : 'bg-amber-500/15 text-amber-400',
-                  )}>
-                    <AlertTriangle size={18} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm text-foreground truncate">
-                        {e.machine?.code ?? e.machine?.name ?? 'Machine'}
-                      </span>
-                      {e.isOpen && <Badge variant="destructive" className="h-4 text-[10px]">OPEN</Badge>}
-                      {e.workOrder && <span className="text-[11px] font-mono text-brand-400/70">{e.workOrder.orderNumber}</span>}
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
-                      <Clock size={11} /> {fmtWhen(e.startTime)} · {fmtDur(e.durationMinutes, e.isOpen)}
-                    </div>
-                    <div className="mt-1">
-                      {hasReason ? (
-                        <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400">
-                          <CheckCircle2 size={12} /> {causePath(e.cause) ?? e.reason}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-400 font-medium">
-                          <Tag size={12} /> No reason set — tap to add
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <ChevronDown size={16} className={cn('text-muted-foreground shrink-0 transition-transform', expanded && 'rotate-180')} />
-                </button>
+        <>
+          {/* LIVE - always visible, never collapsed, never truncated */}
+          <section>
+            <h3 className="flex items-center gap-2 text-sm font-bold text-foreground mb-2">
+              <span className={cn(
+                'inline-block w-2 h-2 rounded-full',
+                openEvents.length ? 'bg-red-500 animate-pulse' : 'bg-emerald-500',
+              )} />
+              {t('opHub.dt.liveTitle', { defaultValue: 'Active stoppages' })}
+              {openEvents.length > 0 && (
+                <span className="text-red-400 tabular-nums">({openEvents.length})</span>
+              )}
+            </h3>
 
-                {expanded && (
-                  <div className="p-3 pt-0 border-t border-border/50">
-                    {/* Close an OPEN downtime with an adjustable end time */}
-                    {e.isOpen && (
-                      <CloseRow
-                        start={e.startTime}
-                        pending={closeEvent.isPending}
-                        onClose={(endTime) => closeEvent.mutate({ id: e.id, endTime })}
-                      />
-                    )}
+            {openEvents.length === 0 ? (
+              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-5 text-center">
+                <CheckCircle2 size={22} className="mx-auto text-emerald-400 mb-1.5" />
+                <p className="text-sm font-semibold text-emerald-400">
+                  {t('opHub.dt.allRunning', { defaultValue: 'No active stoppages - all machines running' })}
+                </p>
+              </div>
+            ) : (
+              <ul className="flex flex-col gap-2.5">{openEvents.map(renderEvent)}</ul>
+            )}
+          </section>
 
-                    <div className="text-[11px] font-medium text-muted-foreground mb-1.5 mt-3">
-                      {hasReason ? 'Change reason / sub-reason' : 'Select reason / sub-reason'}
-                    </div>
-                    {busy ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                        <Loader2 className="animate-spin" size={14} /> Saving…
-                      </div>
-                    ) : (
-                      <CauseTreeSelect
-                        reasonTree={reasonTree}
-                        value={e.cause?.id ?? ''}
-                        machineId={e.machineId || undefined}
-                        onChange={onCause(e.id)}
-                      />
-                    )}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+          {/* HISTORY - collapsed so the page cannot grow unbounded */}
+          {historyEvents.length > 0 && (
+            <section>
+              <button
+                onClick={() => setHistoryOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3 min-h-[56px] active:bg-accent/40 transition"
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <History size={16} className="text-muted-foreground" />
+                  {t('opHub.dt.historyTitle', { defaultValue: 'Recent stoppages' })}
+                  <span className="text-muted-foreground tabular-nums">({historyEvents.length})</span>
+                </span>
+                <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {needReason > 0 && (
+                    <Badge variant="outline" className="h-[18px] text-[10px] text-amber-400 border-amber-500/40">
+                      {needReason} {t('opHub.dt.needReason', { defaultValue: 'need a reason' })}
+                    </Badge>
+                  )}
+                  <ChevronDown size={17} className={cn('transition-transform', historyOpen && 'rotate-180')} />
+                </span>
+              </button>
+
+              {historyOpen && (
+                <>
+                  <ul className="flex flex-col gap-2.5 mt-2.5">{visibleHistory.map(renderEvent)}</ul>
+                  {historyShown < historyEvents.length && (
+                    <button
+                      onClick={() => setHistoryShown((n) => n + HISTORY_PAGE)}
+                      className="w-full mt-2.5 h-11 rounded-xl border border-border/60 text-sm font-semibold text-muted-foreground active:bg-accent/40"
+                    >
+                      {t('opHub.dt.showMore', { defaultValue: 'Show more' })}
+                      {' '}({historyEvents.length - historyShown})
+                    </button>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+        </>
       )}
     </div>
   );

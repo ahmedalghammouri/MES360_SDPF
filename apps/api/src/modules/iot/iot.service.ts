@@ -762,6 +762,10 @@ export class IotService {
     return this.energyContext.getWOEnergySummary(workOrderId);
   }
 
+  async backfillEnergyWOSummaries(factoryId: string | null, force = false) {
+    return this.energyContext.backfillWOEnergySummaries(factoryId, force);
+  }
+
   async getEnergyByWorkCenter(factoryId: string, from: string, to: string) {
     return this.energyContext.getEnergyByWorkCenter(factoryId, new Date(from), new Date(to));
   }

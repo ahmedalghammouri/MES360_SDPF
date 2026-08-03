@@ -124,9 +124,42 @@ export class EnergyContextService {
 
   /**
    * Computes and persists the energy summary for a completed Work Order.
-   * Called by production.service when WO transitions to COMPLETED.
+   *
+   * The event name MUST match what `production.service.completeWorkOrder()`
+   * emits: `production.work-order.completed`, carrying `{ workOrder, factoryId }`.
+   *
+   * This listener was previously bound to `workorder.completed` — a name nothing
+   * in the codebase emits — so it never once fired. `energy_wo_summaries` stayed
+   * empty, and every card that reads it (Running / Idle / Downtime / Power
+   * anomalies / Avg kWh-per-unit / Production Energy Split) showed 0, as did the
+   * "Work Order Energy Analysis" panel.
+   *
+   * The payload shape differs too: the emitter sends the whole work order, not a
+   * bare id, so both forms are accepted to stay robust if the emitter changes.
    */
-  @OnEvent('workorder.completed')
+  @OnEvent('production.work-order.completed')
+  async onWorkOrderCompleted(payload: {
+    workOrder?: { id?: string; factoryId?: string; actualQty?: number; goodQty?: number };
+    factoryId?: string;
+    workOrderId?: string;
+    qtyProduced?: number;
+    batchSizeKg?: number;
+  }) {
+    const workOrderId = payload?.workOrder?.id ?? payload?.workOrderId;
+    const factoryId = payload?.factoryId ?? payload?.workOrder?.factoryId;
+    if (!workOrderId || !factoryId) {
+      this.logger.warn('production.work-order.completed without a usable work order id — energy summary skipped');
+      return;
+    }
+    await this.computeWOEnergySummary({
+      workOrderId,
+      factoryId,
+      qtyProduced: payload.qtyProduced ?? payload.workOrder?.goodQty ?? payload.workOrder?.actualQty,
+      batchSizeKg: payload.batchSizeKg,
+    });
+  }
+
+  /** Recompute + persist the per-WO energy summary. Safe to call directly (backfill). */
   async computeWOEnergySummary(payload: { workOrderId: string; factoryId: string; qtyProduced?: number; batchSizeKg?: number }) {
     const { workOrderId, factoryId, qtyProduced, batchSizeKg } = payload;
 
@@ -226,12 +259,81 @@ export class EnergyContextService {
   // ── Query methods ─────────────────────────────────────────────
 
   /**
+   * Recompute per-WO energy summaries for every work order that HAS energy
+   * readings — used to repair history after the listener above was found bound
+   * to an event nothing emitted, which left `energy_wo_summaries` empty since
+   * the feature shipped.
+   *
+   * Idempotent: `computeWOEnergySummary` upserts, so re-running only refreshes.
+   */
+  async backfillWOEnergySummaries(factoryId: string | null, force = false): Promise<{
+    candidates: number; computed: number; skipped: number; details: string[];
+  }> {
+    // Work orders that actually have contextualised readings — nothing else can
+    // produce a summary.
+    const tagged = await this.prisma.energyReading.findMany({
+      where: { ...(factoryId ? { factoryId } : {}), workOrderId: { not: null } },
+      select: { workOrderId: true },
+      distinct: ['workOrderId'],
+    });
+    const woIds = tagged.map((r) => r.workOrderId!).filter(Boolean);
+    if (woIds.length === 0) return { candidates: 0, computed: 0, skipped: 0, details: [] };
+
+    const workOrders = await this.prisma.workOrder.findMany({
+      where: { id: { in: woIds } },
+      select: { id: true, orderNumber: true, factoryId: true, goodQty: true, actualQty: true },
+    });
+
+    const existing = force
+      ? new Set<string>()
+      : new Set(
+          (
+            await this.prisma.energyWOSummary.findMany({
+              where: { workOrderId: { in: woIds } },
+              select: { workOrderId: true },
+            })
+          ).map((x) => x.workOrderId),
+        );
+
+    let computed = 0;
+    let skipped = 0;
+    const details: string[] = [];
+
+    for (const wo of workOrders) {
+      if (existing.has(wo.id)) { skipped++; continue; }
+      await this.computeWOEnergySummary({
+        workOrderId: wo.id,
+        factoryId: wo.factoryId,
+        qtyProduced: wo.goodQty || wo.actualQty || undefined,
+      });
+      const row = await this.prisma.energyWOSummary.findUnique({ where: { workOrderId: wo.id } });
+      if (row) {
+        computed++;
+        details.push(`${wo.orderNumber}: ${row.totalKwh.toFixed(2)} kWh (idle ${row.idleKwh.toFixed(2)})`);
+      } else {
+        skipped++;
+        details.push(`${wo.orderNumber}: skipped — fewer than 2 readings`);
+      }
+    }
+    this.logger.log(`Energy WO summary backfill: ${computed} computed, ${skipped} skipped of ${workOrders.length}`);
+    return { candidates: workOrders.length, computed, skipped, details };
+  }
+
+  /**
    * Energy consumption breakdown for a Work Order.
    * Returns structured summary with waste analysis.
    */
-  async getWOEnergySummary(workOrderId: string) {
+  async getWOEnergySummary(idOrOrderNumber: string) {
+    // Operators read and type the order number ("WO-2026-0007"), not the UUID —
+    // accept either, or the panel reports "no energy data" for an order that has
+    // plenty of it.
+    const wo = await this.prisma.workOrder.findFirst({
+      where: { OR: [{ id: idOrOrderNumber }, { orderNumber: idOrOrderNumber }] },
+      select: { id: true },
+    });
+    if (!wo) return null;
     const summary = await (this.prisma as any).energyWOSummary.findUnique({
-      where: { workOrderId },
+      where: { workOrderId: wo.id },
     });
     if (!summary) return null;
 

@@ -42,6 +42,13 @@ export function formatNumber(value: number | string | null | undefined, decimals
   if (!isFinite(n)) return '—';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  // A non-zero value must never render as "0". At decimals=0 a live load of
+  // 0.4 kW printed as "0", which reads as "nothing is running" — the opposite
+  // of the truth. Borrow just enough precision to show a significant digit.
+  if (n !== 0 && Math.abs(Number(n.toFixed(decimals))) === 0) {
+    const needed = Math.min(4, Math.ceil(-Math.log10(Math.abs(n))) + 1);
+    return n.toFixed(Math.max(decimals, needed));
+  }
   return n.toFixed(decimals);
 }
 

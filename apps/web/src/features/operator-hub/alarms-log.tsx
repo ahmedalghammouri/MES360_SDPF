@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { formatDateTimeShort } from '@/lib/datetime';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bell, Check, CheckCheck, Loader2 } from 'lucide-react';
 
@@ -31,7 +32,8 @@ const SEV: Record<string, string> = {
   LOW: 'text-sky-400 bg-sky-500/10 border-sky-500/30',
   INFO: 'text-slate-400 bg-slate-500/10 border-slate-500/30',
 };
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+/** Plant time — a tablet with a wrong timezone must not shift alarm times. */
+const when = (iso: string) => formatDateTimeShort(iso);
 
 export function AlarmsLog({ limit = 30 }: { limit?: number }) {
   const { toast } = useToast();

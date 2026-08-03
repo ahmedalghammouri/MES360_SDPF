@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, HttpStatus, ParseUUIDPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { IsString, IsOptional, IsNumber, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IotService, TelemetryDto } from './iot.service';
@@ -303,6 +303,23 @@ export class IotController {
   @ApiOperation({ summary: 'Energy summary for a Work Order' })
   async getEnergyWOSummary(@Param('workOrderId') workOrderId: string) {
     return this.iotService.getEnergyWOSummary(workOrderId);
+  }
+
+  @Post('energy/wo-summaries/backfill')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Recompute per-WO energy summaries for every order that has readings',
+    description:
+      'Repairs history: the completion listener was bound to an event nothing ' +
+      'emitted, so energy_wo_summaries was never populated. Idempotent — pass ' +
+      'force=true to recompute rows that already exist.',
+  })
+  @ApiQuery({ name: 'force', required: false })
+  async backfillEnergyWOSummaries(
+    @CurrentUser() user: RequestUser,
+    @Query('force') force?: string,
+  ) {
+    return this.iotService.backfillEnergyWOSummaries(user.factoryId, force === 'true');
   }
 
   @Get('energy/by-workcenter')

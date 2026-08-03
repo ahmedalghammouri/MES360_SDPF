@@ -9,6 +9,7 @@
  */
 
 import React, { useState } from 'react';
+import { dateTimeLocalToIso } from '@/lib/datetime';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Tag, AlignLeft } from 'lucide-react';
@@ -71,7 +72,9 @@ export function LogDowntimeDialog({
         ...(causeId ? { causeId } : {}),
         reasonCode,
         ...(cause ? { category: cause.category } : {}),
-        ...(startTime ? { startTime: new Date(startTime).toISOString() } : {}),
+        // The field is PLANT-local; converting with the browser's zone recorded the
+        // stoppage at the wrong instant on any tablet not set to plant time.
+        ...(startTime ? { startTime: dateTimeLocalToIso(startTime) } : {}),
         ...(notes.trim() ? { description: notes.trim() } : {}),
       }),
     onSuccess: () => {
