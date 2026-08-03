@@ -7,8 +7,12 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Activity, AlertTriangle, Wrench, X } from 'lucide-react';
+import {
+  Activity, AlertTriangle, Wrench, X, Play, Pause, CalendarClock, Settings2,
+  Repeat, ArrowDownToLine, ArrowUpFromLine, PowerOff, Check,
+} from 'lucide-react';
 
 import { api } from '@/services/api.client';
 import { useToast } from '@/components/ui/use-toast';
@@ -16,14 +20,56 @@ import { cn } from '@/lib/utils';
 
 export type MachineLite = { id: string; name: string; code: string };
 
-const MACHINE_STATES = ['RUNNING', 'IDLE', 'PLANNED_STOP', 'BREAKDOWN', 'SETUP', 'CHANGEOVER', 'STARVED', 'BLOCKED', 'MAINTENANCE', 'OFFLINE'];
-const STATE_COLOR: Record<string, string> = {
-  RUNNING: 'text-green-400 border-green-500/40', IDLE: 'text-slate-400 border-slate-500/40',
-  PLANNED_STOP: 'text-blue-400 border-blue-500/40', BREAKDOWN: 'text-red-400 border-red-500/40',
-  SETUP: 'text-amber-400 border-amber-500/40', CHANGEOVER: 'text-amber-400 border-amber-500/40',
-  STARVED: 'text-orange-400 border-orange-500/40', BLOCKED: 'text-orange-400 border-orange-500/40',
-  MAINTENANCE: 'text-purple-400 border-purple-500/40', OFFLINE: 'text-slate-500 border-slate-600/40',
-};
+/**
+ * Machine states grouped by what they mean for OEE, not listed flat.
+ *
+ * A flat 10-button grid gave every state the same weight, so an operator had to
+ * read all ten to find one. Grouping by OEE impact makes the choice a two-step
+ * scan (which kind of stop? then which one) and quietly teaches why the
+ * distinction matters: only UNPLANNED states cost availability.
+ */
+type StateDef = { id: string; icon: React.ReactNode; tone: string; ring: string; fill: string };
+
+const STATE_GROUPS: Array<{ key: string; labelKey: string; hintKey: string; states: StateDef[] }> = [
+  {
+    key: 'productive',
+    labelKey: 'opHub.st.grpProductive',
+    hintKey: 'opHub.st.grpProductiveHint',
+    states: [
+      { id: 'RUNNING', icon: <Play size={17} />, tone: 'text-emerald-400', ring: 'border-emerald-500/40', fill: 'bg-emerald-500 border-emerald-500 text-white' },
+    ],
+  },
+  {
+    key: 'unplanned',
+    labelKey: 'opHub.st.grpUnplanned',
+    hintKey: 'opHub.st.grpUnplannedHint',
+    states: [
+      { id: 'BREAKDOWN', icon: <AlertTriangle size={17} />, tone: 'text-red-400', ring: 'border-red-500/40', fill: 'bg-red-500 border-red-500 text-white' },
+      { id: 'IDLE', icon: <Pause size={17} />, tone: 'text-slate-300', ring: 'border-slate-500/40', fill: 'bg-slate-500 border-slate-500 text-white' },
+      { id: 'STARVED', icon: <ArrowDownToLine size={17} />, tone: 'text-orange-400', ring: 'border-orange-500/40', fill: 'bg-orange-500 border-orange-500 text-white' },
+      { id: 'BLOCKED', icon: <ArrowUpFromLine size={17} />, tone: 'text-orange-400', ring: 'border-orange-500/40', fill: 'bg-orange-500 border-orange-500 text-white' },
+    ],
+  },
+  {
+    key: 'planned',
+    labelKey: 'opHub.st.grpPlanned',
+    hintKey: 'opHub.st.grpPlannedHint',
+    states: [
+      { id: 'PLANNED_STOP', icon: <CalendarClock size={17} />, tone: 'text-sky-400', ring: 'border-sky-500/40', fill: 'bg-sky-500 border-sky-500 text-white' },
+      { id: 'SETUP', icon: <Settings2 size={17} />, tone: 'text-amber-400', ring: 'border-amber-500/40', fill: 'bg-amber-500 border-amber-500 text-white' },
+      { id: 'CHANGEOVER', icon: <Repeat size={17} />, tone: 'text-amber-400', ring: 'border-amber-500/40', fill: 'bg-amber-500 border-amber-500 text-white' },
+      { id: 'MAINTENANCE', icon: <Wrench size={17} />, tone: 'text-violet-400', ring: 'border-violet-500/40', fill: 'bg-violet-500 border-violet-500 text-white' },
+    ],
+  },
+  {
+    key: 'offline',
+    labelKey: 'opHub.st.grpOffline',
+    hintKey: 'opHub.st.grpOfflineHint',
+    states: [
+      { id: 'OFFLINE', icon: <PowerOff size={17} />, tone: 'text-slate-400', ring: 'border-slate-600/40', fill: 'bg-slate-600 border-slate-600 text-white' },
+    ],
+  },
+];
 
 function Modal({ title, icon, onClose, children }: { title: string; icon: React.ReactNode; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -54,6 +100,7 @@ const btnPrimary = 'flex-1 h-11 rounded-xl text-white font-semibold text-sm acti
 
 // ── Change machine status ───────────────────────────────────────────────────
 export function MachineStatusDialog({ machines, defaultMachineId, onClose }: { machines: MachineLite[]; defaultMachineId?: string; onClose: () => void }) {
+  const { t } = useTranslation('production');
   const { toast } = useToast();
   const qc = useQueryClient();
   const [machineId, setMachineId] = useState(defaultMachineId ?? machines[0]?.id ?? '');
@@ -72,24 +119,78 @@ export function MachineStatusDialog({ machines, defaultMachineId, onClose }: { m
     onError: (e: any) => toast({ variant: 'destructive', title: 'Update failed', description: e?.response?.data?.message }),
   });
 
+  const selected = STATE_GROUPS.flatMap((g) => g.states).find((x) => x.id === state);
+
   return (
-    <Modal title="Change machine status" icon={<Activity size={18} className="text-brand-400" />} onClose={onClose}>
-      <div className="flex flex-col gap-3">
+    <Modal
+      title={t('opHub.st.title', { defaultValue: 'Change machine status' })}
+      icon={<Activity size={18} className="text-brand-400" />}
+      onClose={onClose}
+    >
+      <div className="flex flex-col gap-3.5">
         <MachinePicker machines={machines} value={machineId} onChange={setMachineId} />
-        <div className="grid grid-cols-2 gap-2">
-          {MACHINE_STATES.map((s) => (
-            <button key={s} onClick={() => setState(s)}
-              className={cn('h-10 rounded-xl border text-xs font-semibold transition', STATE_COLOR[s],
-                state === s ? 'bg-accent ring-1 ring-brand-400' : 'bg-transparent')}>
-              {s.replace('_', ' ')}
-            </button>
+
+        {/* Grouped state picker — each group carries its OEE consequence */}
+        <div className="flex flex-col gap-3 max-h-[52vh] overflow-y-auto -mx-1 px-1">
+          {STATE_GROUPS.map((g) => (
+            <div key={g.key}>
+              <div className="flex items-baseline justify-between mb-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-foreground/70">
+                  {t(g.labelKey)}
+                </span>
+                <span className="text-[10px] text-muted-foreground">{t(g.hintKey)}</span>
+              </div>
+              <div className={cn('grid gap-2', g.states.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+                {g.states.map((sd) => {
+                  const active = state === sd.id;
+                  return (
+                    <button
+                      key={sd.id}
+                      onClick={() => setState(sd.id)}
+                      aria-pressed={active}
+                      className={cn(
+                        // 56px target: this is used with gloves on a tablet.
+                        'h-14 rounded-xl border flex items-center gap-2.5 px-3 text-[13px] font-bold',
+                        'transition active:scale-[0.97]',
+                        active ? cn(sd.fill, 'shadow-sm') : cn('bg-transparent', sd.tone, sd.ring),
+                      )}
+                    >
+                      <span className="shrink-0">{sd.icon}</span>
+                      <span className="truncate text-start leading-tight">
+                        {t(`opHub.st.s.${sd.id}`, { defaultValue: sd.id.replace('_', ' ') })}
+                      </span>
+                      {active && <Check size={16} className="ms-auto shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           ))}
         </div>
-        <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (optional)" className={inputCls} />
-        <div className="flex gap-2 mt-1">
-          <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border font-semibold text-sm active:scale-95">Cancel</button>
-          <button disabled={mut.isPending || !machineId} onClick={() => mut.mutate()} className={cn(btnPrimary, 'bg-brand-500')}>
-            {mut.isPending ? 'Saving…' : 'Update status'}
+
+        <input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder={t('opHub.st.note', { defaultValue: 'Note (optional)' })}
+          className={inputCls}
+        />
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 h-12 rounded-xl border border-border font-semibold text-sm active:scale-95"
+          >
+            {t('opHub.st.cancel', { defaultValue: 'Cancel' })}
+          </button>
+          <button
+            disabled={mut.isPending || !machineId}
+            onClick={() => mut.mutate()}
+            className={cn(btnPrimary, 'h-12 flex items-center justify-center gap-2', selected?.fill ?? 'bg-brand-500')}
+          >
+            {mut.isPending
+              ? t('opHub.st.saving', { defaultValue: 'Saving…' })
+              : <>{selected?.icon}{t('opHub.st.setTo', { defaultValue: 'Set to' })}{' '}
+                  {t(`opHub.st.s.${state}`, { defaultValue: state.replace('_', ' ') })}</>}
           </button>
         </div>
       </div>

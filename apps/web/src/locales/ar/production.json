@@ -1833,6 +1833,33 @@
       "showMore": "عرض المزيد",
       "closeTitle": "إغلاق هذا التوقف",
       "close": "إغلاق"
+    },
+    "st": {
+      "title": "تغيير حالة الماكينة",
+      "grpProductive": "تنتج",
+      "grpProductiveHint": "تُحتسب زمن تشغيل",
+      "grpUnplanned": "توقف غير مخطط",
+      "grpUnplannedHint": "يخصم من الإتاحة",
+      "grpPlanned": "توقف مخطط",
+      "grpPlannedHint": "مستبعد من الإتاحة",
+      "grpOffline": "خارج الخدمة",
+      "grpOfflineHint": "خارج الجدول",
+      "note": "ملاحظة (اختياري)",
+      "cancel": "إلغاء",
+      "saving": "جارٍ الحفظ…",
+      "setTo": "تعيين إلى",
+      "s": {
+        "RUNNING": "تعمل",
+        "BREAKDOWN": "عطل",
+        "IDLE": "خاملة",
+        "STARVED": "نقص تغذية",
+        "BLOCKED": "انسداد المخرج",
+        "PLANNED_STOP": "توقف مخطط",
+        "SETUP": "إعداد",
+        "CHANGEOVER": "تحويل منتج",
+        "MAINTENANCE": "صيانة",
+        "OFFLINE": "متوقفة"
+      }
     }
   }
 }

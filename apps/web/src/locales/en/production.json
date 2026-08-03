@@ -1833,6 +1833,33 @@
       "showMore": "Show more",
       "closeTitle": "Close this downtime",
       "close": "Close"
+    },
+    "st": {
+      "title": "Change machine status",
+      "grpProductive": "Producing",
+      "grpProductiveHint": "counts as run time",
+      "grpUnplanned": "Unplanned stop",
+      "grpUnplannedHint": "costs availability",
+      "grpPlanned": "Planned stop",
+      "grpPlannedHint": "excluded from availability",
+      "grpOffline": "Not in service",
+      "grpOfflineHint": "outside the schedule",
+      "note": "Note (optional)",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "setTo": "Set to",
+      "s": {
+        "RUNNING": "Running",
+        "BREAKDOWN": "Breakdown",
+        "IDLE": "Idle",
+        "STARVED": "Starved",
+        "BLOCKED": "Blocked",
+        "PLANNED_STOP": "Planned stop",
+        "SETUP": "Setup",
+        "CHANGEOVER": "Changeover",
+        "MAINTENANCE": "Maintenance",
+        "OFFLINE": "Offline"
+      }
     }
   }
 }
