@@ -173,10 +173,16 @@ export const EXPLAINERS: Record<string, Explainer> = {
         benchmark: { en: 'The top 20% of causes usually drive ~80% of downtime — fix those first.', ar: 'عادةً 20% من الأسباب تسبب ~80% من التوقف — عالجها أولاً.' },
       },
       {
-        name: { en: 'MTTR (Mean Time To Repair)', ar: 'متوسط زمن الإصلاح' },
-        formula: 'MTTR = Total Repair Time ÷ Number of Repairs',
-        desc: { en: 'How long, on average, a stop lasts. Reflects response + repair speed.', ar: 'متوسط مدة التوقف الواحد. يعكس سرعة الاستجابة والإصلاح.' },
+        name: { en: 'MTTR (Mean Time To Repair) — equipment lens', ar: 'متوسط زمن الإصلاح — منظور المعدات' },
+        formula: 'MTTR = Σ breakdown stop hours ÷ breakdown stop count',
+        desc: { en: 'Average production time lost per equipment breakdown. Counts breakdown, mechanical, electrical and utility stops only — micro-stops, starved/blocked, material, operator and quality stops are excluded.', ar: 'متوسط زمن الإنتاج المفقود لكل عطل. يشمل توقفات الأعطال والتوقفات الميكانيكية والكهربائية وتوقفات المرافق فقط — وتُستبعد التوقفات القصيرة ونقص التغذية والانسداد وتوقفات المواد والمشغل والجودة.' },
         benchmark: { en: 'Lower is better; trend it downward over time.', ar: 'الأقل أفضل؛ اجعل اتجاهه نحو الانخفاض.' },
+      },
+      {
+        name: { en: 'MTBF (Mean Time Between Failures) — equipment lens', ar: 'متوسط الزمن بين الأعطال — منظور المعدات' },
+        formula: 'MTBF = (Capacity Hours − All Downtime Hours) ÷ breakdown stop count',
+        desc: { en: 'Average running time between breakdowns. Capacity hours = window hours × active machines in scope.', ar: 'متوسط زمن التشغيل بين الأعطال. ساعات الطاقة = ساعات الفترة × عدد المكائن الفعالة في النطاق.' },
+        benchmark: { en: 'Higher is better; trend upward.', ar: 'الأعلى أفضل؛ اجعل اتجاهه صاعدًا.' },
       },
     ],
     dataSources: [
@@ -184,6 +190,9 @@ export const EXPLAINERS: Record<string, Explainer> = {
     ],
     howToUse: [
       { en: 'Start a Kaizen on the #1 Pareto cause; re-check the chart after the fix to confirm it dropped.', ar: 'ابدأ تحسينًا (كايزن) على السبب الأول في باريتو؛ وأعد فحص المخطط بعد المعالجة للتأكد من انخفاضه.' },
+    ],
+    notes: [
+      { en: 'This is the equipment lens (machine stops). The Maintenance Reports headline the maintenance lens (corrective/emergency work orders) — both are computed by one engine over the same window, and the Maintenance Reports page shows them side by side with the variance.', ar: 'هذا منظور المعدات (توقفات المكائن). أما تقارير الصيانة فتعرض منظور الصيانة (أوامر العمل التصحيحية والطارئة) — ويُحتسب المنظوران بمحرك واحد وعلى الفترة نفسها، وتعرضهما صفحة تقارير الصيانة جنباً إلى جنب مع الفرق بينهما.' },
     ],
   },
 
@@ -196,15 +205,15 @@ export const EXPLAINERS: Record<string, Explainer> = {
     },
     metrics: [
       {
-        name: { en: 'MTBF (Mean Time Between Failures)', ar: 'متوسط الزمن بين الأعطال' },
-        formula: 'MTBF = Operating Time ÷ Number of Failures',
-        desc: { en: 'Average uptime between breakdowns — the core reliability measure. Higher = more reliable.', ar: 'متوسط زمن التشغيل بين الأعطال — مقياس الموثوقية الأساسي. الأعلى = أكثر موثوقية.' },
+        name: { en: 'MTBF (Mean Time Between Failures) — maintenance lens', ar: 'متوسط الزمن بين الأعطال — منظور الصيانة' },
+        formula: 'MTBF = Operating Hours ÷ corrective + emergency WOs raised in window',
+        desc: { en: 'Average uptime between breakdowns — the core reliability measure. Operating hours are the summed RUNNING machine-state hours, falling back to active machines × window hours when no state history exists.', ar: 'متوسط زمن التشغيل بين الأعطال — مقياس الموثوقية الأساسي. وساعات التشغيل هي مجموع ساعات حالة التشغيل الفعلية، وتُستبدل بعدد المكائن × ساعات الفترة عند غياب سجل الحالات.' },
         benchmark: { en: 'Higher is better; trend upward.', ar: 'الأعلى أفضل؛ اجعل اتجاهه صاعدًا.' },
       },
       {
-        name: { en: 'MTTR (Mean Time To Repair)', ar: 'متوسط زمن الإصلاح' },
-        formula: 'MTTR = Total Repair Time ÷ Number of Repairs',
-        desc: { en: 'Average time to restore a failed asset. Lower = faster recovery.', ar: 'متوسط زمن إعادة الأصل للعمل. الأقل = تعافٍ أسرع.' },
+        name: { en: 'MTTR (Mean Time To Repair) — maintenance lens', ar: 'متوسط زمن الإصلاح — منظور الصيانة' },
+        formula: 'MTTR = Σ repair hours ÷ corrective + emergency WOs completed in window',
+        desc: { en: 'Average technician time to restore a failed asset. Repair hours use the WO actual hours, falling back to started → completed elapsed time. Preventive, inspection and lubrication WOs are excluded.', ar: 'متوسط زمن الفني لإعادة الأصل للعمل. تُستخدم الساعات الفعلية لأمر العمل، أو الفارق بين البدء والإكمال عند غيابها. وتُستبعد أوامر الصيانة الوقائية والفحص والتزييت.' },
         benchmark: { en: 'Lower is better.', ar: 'الأقل أفضل.' },
       },
       {
@@ -234,7 +243,9 @@ export const EXPLAINERS: Record<string, Explainer> = {
       { en: 'Falling MTBF + rising MTTR = a deteriorating asset; schedule a deeper PM or overhaul.', ar: 'انخفاض MTBF مع ارتفاع MTTR = أصل يتدهور؛ جدوِل صيانة وقائية أعمق أو عُمرة.' },
     ],
     notes: [
-      { en: 'MTTR/MTBF here use the same definitions as the reliability trend chart, so the two are reconcilable.', ar: 'تستخدم MTTR/MTBF هنا نفس تعريفات مخطط اتجاه الموثوقية، فهما متطابقان.' },
+      { en: 'MTTR/MTBF here use the same definitions as the reliability trend chart and the Analytics → Maintenance Reports page, so all three are reconcilable.', ar: 'تستخدم MTTR/MTBF هنا نفس تعريفات مخطط اتجاه الموثوقية وصفحة التحليلات ← تقارير الصيانة، فالثلاثة متطابقة.' },
+      { en: 'These cards use a month-to-date window by design; the Maintenance Reports page uses the period you select there, so pick the same period to compare like for like.', ar: 'تستخدم هذه البطاقات فترة من بداية الشهر حتى اليوم؛ أما صفحة تقارير الصيانة فتستخدم الفترة التي تختارها فيها، لذا اختر الفترة نفسها للمقارنة العادلة.' },
+      { en: 'The Downtime Command Center shows the equipment lens (machine stops) rather than the maintenance lens (work orders) — the Maintenance Reports page shows both side by side with the variance.', ar: 'يعرض مركز قيادة التوقفات منظور المعدات (توقفات المكائن) لا منظور الصيانة (أوامر العمل) — وتعرض صفحة تقارير الصيانة المنظورين جنباً إلى جنب مع الفرق بينهما.' },
     ],
   },
 

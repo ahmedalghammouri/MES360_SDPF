@@ -15,6 +15,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ProductionModule } from './modules/production/production.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { ReliabilityModule } from './modules/reliability/reliability.module';
 import { IotModule } from './modules/iot/iot.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -99,6 +100,7 @@ import { configuration } from './config/configuration';
     UsersModule,
     RbacModule,
     DashboardModule,
+    ReliabilityModule, // canonical MTBF/MTTR engine — global, consumed by production/maintenance/reports
     ProductionModule,
     QualityModule,
     MaintenanceModule,

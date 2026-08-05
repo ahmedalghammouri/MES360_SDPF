@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MaintenanceService } from './maintenance.service';
 import { TraceabilityService } from '../traceability/traceability.service';
+import { ReliabilityService } from '../reliability/reliability.service';
 import { PrismaService } from '../../database/prisma.service';
 
 const mockPrisma = {
@@ -37,6 +38,15 @@ const mockPrisma = {
 const mockEventEmitter = { emit: jest.fn() };
 // MaintenanceService logs lifecycle events to the traceability ledger (fire-and-forget).
 const mockTraceability = { logEvent: jest.fn().mockResolvedValue(undefined) };
+// Reliability (MTTR/MTBF) lives in the shared ReliabilityService — stubbed here.
+const mockReliability = {
+  scopeMachineIds: jest.fn().mockResolvedValue(undefined),
+  maintenanceReliability: jest.fn().mockResolvedValue({
+    failures: 0, repairs: 0, repairHours: 0, operatingHours: 0,
+    operatingHoursSource: 'CALENDAR', mttrHours: 0, mtbfHours: 0,
+    machineCount: 0, windowHours: 0,
+  }),
+};
 
 describe('MaintenanceService', () => {
   let service: MaintenanceService;
@@ -49,6 +59,8 @@ describe('MaintenanceService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: TraceabilityService, useValue: mockTraceability },
+        // MTTR/MTBF are delegated to the canonical reliability engine.
+        { provide: ReliabilityService, useValue: mockReliability },
       ],
     }).compile();
     service = module.get<MaintenanceService>(MaintenanceService);

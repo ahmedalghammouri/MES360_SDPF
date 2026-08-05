@@ -8,6 +8,7 @@ import { DowntimeCategory } from '@prisma/client';
 import type {
   CreateDowntimeEventDto, UpdateDowntimeEventDto, EndDowntimeEventDto,
 } from './dto/downtime.dto';
+import { ReliabilityService } from '../reliability/reliability.service';
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ export class DowntimeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly reliability: ReliabilityService,
   ) {}
 
   // ── Create ───────────────────────────────────────────────────
@@ -658,8 +660,9 @@ export class DowntimeService {
       orderBy: { startTime: 'desc' },
     });
 
-    const PLANNED_CATS = new Set(['PLANNED_BREAK', 'PLANNED_MAINTENANCE', 'CHANGEOVER', 'CLEANING']);
-    const planned = (e: any) => e.isPlanned === true || PLANNED_CATS.has(e.category);
+    // Planned/failure classification comes from the canonical reliability engine so this
+    // cockpit, the Maintenance cockpit and the Analytics reports share one rule set.
+    const planned = (e: any) => this.reliability.isPlannedStop(e);
     const clampMin = (e: any) => {
       const s = Math.max(new Date(e.startTime).getTime(), dateFrom.getTime());
       const en = Math.min((e.endTime ? new Date(e.endTime) : now).getTime(), dateTo.getTime());
@@ -667,7 +670,7 @@ export class DowntimeService {
     };
     const r1 = (n: number) => Math.round(n * 10) / 10;
 
-    let totalMin = 0, plannedMin = 0, unplannedMin = 0, oeeImpactMin = 0, failures = 0;
+    let totalMin = 0, plannedMin = 0, unplannedMin = 0, oeeImpactMin = 0, unplannedStops = 0;
     const byMachine = new Map<string, number>();
     const byCategory = new Map<string, number>();
     const byCause = new Map<string, { minutes: number; count: number }>();
@@ -684,7 +687,7 @@ export class DowntimeService {
       const isP = planned(e);
       totalMin += min;
       if (isP) plannedMin += min;
-      else { unplannedMin += min; failures += 1; }
+      else { unplannedMin += min; unplannedStops += 1; }
       if (e.affectsOEE !== false && !isP) oeeImpactMin += min;
       byMachine.set(e.machine.name, (byMachine.get(e.machine.name) ?? 0) + min);
       byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + min);
@@ -697,12 +700,12 @@ export class DowntimeService {
       trendMap.set(k, tb);
     }
 
-    const machineCount = new Set((events as any[]).map((e) => e.machineId)).size || 1;
-    const windowHours = Math.max(0.001, (Math.min(dateTo.getTime(), now.getTime()) - dateFrom.getTime()) / 3_600_000);
-    const capacityHours = windowHours * machineCount;
-    const mttrHours = failures > 0 ? r1((unplannedMin / 60) / failures) : 0;
-    const uptimeHours = Math.max(0, capacityHours - totalMin / 60);
-    const mtbfHours = failures > 0 ? r1(uptimeHours / failures) : r1(uptimeHours);
+    // MTTR/MTBF come from the canonical engine (equipment lens): breakdown stops only —
+    // micro-stops, starved/blocked, material, operator and quality stops are unplanned
+    // losses but not asset failures, and counting them here is what previously drove the
+    // Downtime Command Center apart from the Maintenance Reports.
+    const rel = await this.reliability.equipmentReliability(factoryId, scope, dateFrom, dateTo);
+    const { mttrHours, mtbfHours, capacityHours, machineCount } = rel;
 
     const liveOpen = (events as any[]).filter((e) => !e.endTime).map((e) => ({
       machine: e.machine.name, code: e.machine.code,
@@ -737,8 +740,16 @@ export class DowntimeService {
         oeeImpactMin: r1(oeeImpactMin),
         openEvents: liveOpen.length,
         mttrHours, mtbfHours,
+        // Reliability basis, exposed so the cockpit figure can be reconciled against the
+        // Maintenance Reports without guessing what went into it.
+        breakdownStops: rel.failures,
+        unplannedStops,
+        machineCount,
+        capacityHours,
+        uptimeHours: rel.uptimeHours,
         availabilityLossPct: capacityHours > 0 ? r1((oeeImpactMin / 60 / capacityHours) * 100) : 0,
       },
+      reliabilityBasis: { lens: 'equipment', ...rel },
       trend: [...trendMap.entries()].sort((a, b) => a[0].localeCompare(b[0]))
         .map(([date, v]) => ({ date, planned: r1(v.planned), unplanned: r1(v.unplanned) })),
       byMachine: [...byMachine.entries()].map(([name, minutes]) => ({ name, minutes: r1(minutes) }))

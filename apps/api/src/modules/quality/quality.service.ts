@@ -94,6 +94,14 @@ export class QualityService {
     return {
       fpy: parseFloat(fpy.toFixed(1)),
       passRate: parseFloat(fpy.toFixed(1)),
+      // Defect Rate is the exact complement of FPY over the same inspected quantity —
+      // exposed explicitly so every quality surface binds to one field instead of
+      // re-deriving it (or falling back to the OEE quality factor, which is not the same).
+      defectRate: totalInspected > 0 ? parseFloat((100 - fpy).toFixed(1)) : 0,
+      defectPpm: totalInspected > 0 ? Math.round((reworkQty / totalInspected) * 1_000_000) : 0,
+      totalInspected,
+      totalPassed,
+      totalFailed: reworkQty,
       reworkRate: totalInspected > 0 ? parseFloat(((reworkQty / totalInspected) * 100).toFixed(1)) : 0,
       scrapRate: producedTotal > 0 ? parseFloat(((rejected / producedTotal) * 100).toFixed(1)) : 0,
       openNCRs,

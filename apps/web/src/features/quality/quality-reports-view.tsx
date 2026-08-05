@@ -18,7 +18,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { api } from '@/services/api.client';
 import { cn, formatPercent } from '@/lib/utils';
-import type { DashboardKPIs } from '@/features/dashboard/use-dashboard-data';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,6 +26,21 @@ import type { DashboardKPIs } from '@/features/dashboard/use-dashboard-data';
 interface NCRListResponse {
   data: unknown[];
   total: number;
+}
+
+/** Canonical quality KPIs — GET /quality/kpis. FPY and Defect Rate come from here. */
+interface QualityKPIs {
+  fpy: number;
+  defectRate: number;
+  defectPpm: number;
+  passRate: number;
+  reworkRate: number;
+  scrapRate: number;
+  totalInspected: number;
+  totalPassed: number;
+  totalFailed: number;
+  openNCRs: number;
+  inspectionsToday: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,11 +166,14 @@ function KPIPill({ label, value, variant = 'default', isLoading }: KPIPillProps)
 
 export default function QualityReportsView() {
   const { t } = useTranslation(['quality', 'common']);
-  // Fetch dashboard KPIs for quality metrics
+  // Canonical quality KPIs — FPY / Defect Rate are inspection-based and come from
+  // /quality/kpis, the same source as the Quality cockpit and the Analytics quality
+  // report. (The OEE quality factor on /dashboard/kpis is a different measure and was
+  // previously mislabelled as First Pass Yield here.)
   const { filter: scopeFilter, key: scopeKey } = useScope();
   const { data: kpis, isLoading: kpisLoading } = useQuery({
-    queryKey: ['dashboard', 'kpis', scopeKey],
-    queryFn: () => api.get<DashboardKPIs>('/dashboard/kpis', { params: scopeFilter }),
+    queryKey: ['quality', 'kpis', scopeKey],
+    queryFn: () => api.get<QualityKPIs>('/quality/kpis', { params: scopeFilter }),
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -172,17 +189,18 @@ export default function QualityReportsView() {
     refetchInterval: 60_000,
   });
 
-  const qualityRate = kpis?.quality ?? 0;
+  const firstPassYield = kpis?.fpy ?? 0;
+  const defectRate = kpis?.defectRate ?? 0;
   const openNCRs = (ncrData as any)?.total ?? 0;
-  const firstPassYield = kpis?.quality ?? 0;
 
   // Derived stats for quick-stats section
-  const passRate = qualityRate;
+  const passRate = firstPassYield;
   const passRateBar = Math.min(Math.max(passRate, 0), 100);
   // Treat open NCRs > 5 as trending up (worse), otherwise stable
   const ncrTrend = openNCRs > 5 ? 'high' : openNCRs > 0 ? 'moderate' : 'clear';
-  // Inspection completion rate: proxy from quality rate (≥95 → high, else moderate)
-  const inspectionCompletion = passRate >= 95 ? 98.2 : passRate >= 85 ? 91.4 : 77.6;
+  const defectBar = Math.min(Math.max(defectRate, 0), 100);
+  const inspectedUnits = kpis?.totalInspected ?? 0;
+  const failedUnits = kpis?.totalFailed ?? 0;
 
   const isLoading = kpisLoading || ncrLoading;
 
@@ -207,21 +225,21 @@ export default function QualityReportsView() {
         {/* KPI pills */}
         <div className="flex flex-wrap items-center gap-2">
           <KPIPill
-            label="Quality Rate"
-            value={isLoading ? '—' : `${qualityRate.toFixed(1)}%`}
-            variant={qualityRate >= 95 ? 'success' : qualityRate >= 85 ? 'default' : 'danger'}
+            label="First Pass Yield"
+            value={isLoading ? '—' : `${firstPassYield.toFixed(1)}%`}
+            variant={firstPassYield >= 95 ? 'success' : firstPassYield >= 85 ? 'default' : 'danger'}
+            isLoading={isLoading}
+          />
+          <KPIPill
+            label="Defect Rate"
+            value={isLoading ? '—' : `${defectRate.toFixed(1)}%`}
+            variant={defectRate <= 1 ? 'success' : defectRate <= 5 ? 'default' : 'danger'}
             isLoading={isLoading}
           />
           <KPIPill
             label="Open NCRs"
             value={isLoading ? '—' : String(openNCRs)}
             variant={openNCRs > 0 ? 'danger' : 'success'}
-            isLoading={isLoading}
-          />
-          <KPIPill
-            label="First Pass Yield"
-            value={isLoading ? '—' : `${firstPassYield.toFixed(1)}%`}
-            variant={firstPassYield >= 95 ? 'success' : firstPassYield >= 85 ? 'default' : 'danger'}
             isLoading={isLoading}
           />
         </div>
@@ -376,7 +394,7 @@ export default function QualityReportsView() {
           </p>
         </motion.div>
 
-        {/* Inspection completion rate */}
+        {/* Defect rate — failed ÷ inspected, the complement of FPY */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -385,13 +403,13 @@ export default function QualityReportsView() {
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Inspection Completion
+              Defect Rate
             </span>
             <Badge
-              variant={inspectionCompletion >= 95 ? 'default' : 'outline'}
+              variant={defectRate <= 1 ? 'default' : 'outline'}
               className="text-[10px] h-5"
             >
-              {isLoading ? '—' : formatPercent(inspectionCompletion)}
+              {isLoading ? '—' : formatPercent(defectRate)}
             </Badge>
           </div>
           <div className="space-y-1.5">
@@ -401,13 +419,13 @@ export default function QualityReportsView() {
               ) : (
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${inspectionCompletion}%` }}
+                  animate={{ width: `${defectBar}%` }}
                   transition={{ duration: 0.9, ease: 'easeOut', delay: 0.65 }}
                   className={cn(
                     'h-full rounded-full',
-                    inspectionCompletion >= 95
+                    defectRate <= 1
                       ? 'bg-success-500'
-                      : inspectionCompletion >= 80
+                      : defectRate <= 5
                         ? 'bg-warning-500'
                         : 'bg-danger-500',
                   )}
@@ -416,16 +434,16 @@ export default function QualityReportsView() {
             </div>
             <div className="flex justify-between text-[10px] text-muted-foreground">
               <span>0%</span>
-              <span>Target 100%</span>
+              <span>Target ≤ 1%</span>
               <span>100%</span>
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            {inspectionCompletion >= 95
-              ? 'Inspection schedule is on track.'
-              : inspectionCompletion >= 80
-                ? 'Some inspections are pending — follow up required.'
-                : 'Significant inspection backlog detected.'}
+            {isLoading
+              ? 'Loading inspection data…'
+              : inspectedUnits === 0
+                ? 'No units inspected in the current period.'
+                : `${failedUnits.toLocaleString()} of ${inspectedUnits.toLocaleString()} inspected units failed first inspection (${kpis?.defectPpm ?? 0} PPM).`}
           </p>
         </motion.div>
       </div>
