@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MES360 PoC Proposal — Updated As-Built Version (v2) | NCC / SDPF</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     Print-ready proposal. Open in a browser → Ctrl+P → Save as PDF
+     (A4, margins: none, "Background graphics" ON).
+     ───────────────────────────────────────────────────────────── */
+  :root{
+    --brand:#2F3DAE;          /* headings + solid boxes */
+    --brand-deep:#242E8F;
+    --ink:#1b1b28;
+    --muted:#5a5a6e;
+    --green-bg:#D9F5DC;       /* pale green fact boxes */
+    --green-br:#E0A23C;       /* amber border on green boxes */
+    --pale:#EAF4F1;           /* pale mint boxes */
+    --amber-bg:#FDF3D7;
+    --amber-br:#E0A23C;
+    --red-bg:#FCE3E3;
+    --red-br:#D64545;
+    --rule:#c9cde8;
+    --footer:#7C8AC4;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Segoe UI","Calibri",Arial,sans-serif;
+    color:var(--ink); font-size:9.8pt; line-height:1.36;
+    background:#e9e9ef;
+  }
+  .page{
+    width:210mm; min-height:297mm; margin:0 auto 8mm; background:#fff;
+    position:relative; padding:14mm 13mm 17mm; page-break-after:always;
+    display:flex; flex-direction:column;
+  }
+  .page:last-child{page-break-after:auto;}
+
+  /* header / footer chrome */
+  .topbar{
+    position:absolute; top:0; left:0; right:0; height:7mm;
+    background:linear-gradient(90deg,#6FB49B 0%,#7FBBA6 45%,#8FC3B1 100%);
+  }
+  .brandmark{
+    position:absolute; top:8mm; right:14mm; text-align:center;
+    font-size:6.5pt; color:var(--muted); letter-spacing:.4px;
+  }
+  .brandmark b{display:block; font-size:8pt; color:#3a3a4a;}
+  .pagenum{
+    position:absolute; bottom:0; left:0; right:0; height:11mm;
+    background:var(--footer); color:#fff; font-weight:700; font-size:11pt;
+    display:flex; align-items:center; justify-content:center; letter-spacing:1px;
+  }
+
+  .eyebrow{
+    color:var(--brand); font-size:9pt; letter-spacing:.6px;
+    text-transform:uppercase; margin:4mm 0 1.5mm;
+  }
+  h1.section{
+    color:var(--brand); font-size:18pt; font-weight:800;
+    margin:0 0 1.6mm; line-height:1.12;
+  }
+  h1.section + .underline{
+    width:32mm; height:1.5mm; background:var(--brand); margin-bottom:3.6mm;
+  }
+  p.lead{margin:0 0 3.6mm; font-size:9.8pt;}
+
+  .kicker{
+    color:var(--brand); font-size:7.8pt; font-weight:800;
+    letter-spacing:.8px; text-transform:uppercase; margin:3.6mm 0 2mm;
+  }
+
+  /* boxes */
+  .box{padding:2.6mm 3.2mm; margin-bottom:2.6mm;}
+  .box .t{font-weight:800; display:block; margin-bottom:.8mm;}
+  .box.green{background:var(--green-bg); border:1px solid var(--green-br);}
+  .box.pale{background:var(--pale); border:1.2px solid var(--brand);}
+  .box.solid{background:var(--brand); color:#fff; border:1px solid var(--brand-deep);}
+  .box.amber{background:var(--amber-bg); border:1px solid var(--amber-br);}
+  .box.red{background:var(--red-bg); border:1.2px solid var(--red-br);}
+  .box.plain{background:#fff; border:1.2px solid var(--brand);}
+  .box ul{margin:.8mm 0 0; padding-left:4.2mm;}
+  .box li{margin:.4mm 0;}
+
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:2.6mm;}
+  .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:2.6mm;}
+  .grid2 .box,.grid3 .box{margin-bottom:0;}
+
+  /* flow diagram */
+  .flow{display:flex; align-items:stretch; gap:2mm; margin:3mm 0 4mm;}
+  .flow .node{
+    flex:1; background:var(--green-bg); border:1.2px solid var(--brand);
+    padding:2.6mm; font-size:8.4pt;
+  }
+  .flow .node b{display:block; font-size:9.2pt; margin-bottom:.8mm;}
+  .flow .arr{display:flex; align-items:center; color:var(--brand); font-weight:900; font-size:13pt;}
+
+  .steps .step{
+    border:1.2px solid var(--brand); padding:2.4mm 3.2mm; margin-bottom:0;
+    background:var(--pale);
+  }
+  .steps .step:nth-child(odd){background:var(--green-bg);}
+  .steps .arrowdown{
+    text-align:center; color:var(--brand); font-weight:900;
+    font-size:11pt; line-height:1; margin:1mm 0;
+  }
+  .steps .step b{display:block; font-size:10pt; margin-bottom:.6mm;}
+
+  /* tables */
+  table{width:100%; border-collapse:collapse; font-size:8.6pt; margin-bottom:2.6mm;}
+  thead th{
+    background:var(--brand); color:#fff; text-align:left;
+    padding:1.9mm 2.6mm; font-size:8.6pt; font-weight:800;
+  }
+  tbody td{padding:1.7mm 2.6mm; border-bottom:1px solid #fff; vertical-align:top;}
+  tbody tr{background:var(--green-bg);}
+  tbody tr:nth-child(even){background:#EDFAEE;}
+  tbody td:first-child{font-weight:700; width:34%;}
+  table.cmp tbody td:first-child{width:26%;}
+  table.mods tbody td:first-child{width:30%;}
+  code{font-family:"Consolas","Courier New",monospace; font-size:8.6pt; background:#eef0fa; padding:.3mm 1mm;}
+
+  .tag{
+    display:inline-block; background:#D64545; color:#fff; font-weight:800;
+    font-size:8.5pt; letter-spacing:.5px; padding:1.6mm 3.5mm; margin-bottom:3mm;
+  }
+  .tag.ok{background:#2E8B57;}
+  .note{font-size:8.6pt; color:var(--muted); margin-top:1.5mm;}
+  .spacer{flex:1;}
+
+  /* cover */
+  .cover-hero{
+    height:92mm; margin:-16mm -14mm 0; position:relative; overflow:hidden;
+    background:
+      radial-gradient(120% 120% at 70% 40%, rgba(255,255,255,.10) 0%, rgba(255,255,255,0) 55%),
+      linear-gradient(135deg,#1d2b56 0%, #24427a 45%, #2b5f86 100%);
+  }
+  .cover-hero .logo{
+    position:absolute; top:0; left:0; width:64mm; height:34mm; background:#fff;
+    clip-path:polygon(0 0, 100% 0, 72% 100%, 0 100%);
+    display:flex; align-items:center; padding-left:12mm;
+  }
+  .cover-hero .logo span{font-size:11pt; color:#3a3a4a; letter-spacing:1px;}
+  .cover-hero .logo span b{display:block; font-size:15pt; color:#1b1b28;}
+  .cover-hero .chev{
+    position:absolute; right:8mm; top:50%; transform:translateY(-50%);
+    width:0;height:0; border-top:9mm solid transparent; border-bottom:9mm solid transparent;
+    border-right:10mm solid #2F3DAE;
+  }
+  .cover-body{padding-top:8mm;}
+  h1.cover{
+    color:var(--brand); font-size:30pt; font-weight:800; line-height:1.12; margin:0 0 2mm;
+  }
+  .cover-sub{color:var(--muted); font-size:11pt; margin:4mm 0 6mm;}
+  .v2chip{
+    display:inline-block; background:#2E8B57; color:#fff; font-size:8.5pt;
+    font-weight:800; letter-spacing:.6px; padding:1.4mm 3.5mm; margin-bottom:3mm;
+  }
+
+  @page{size:A4; margin:0;}
+  @media print{
+    body{background:#fff;}
+    .page{margin:0; box-shadow:none;}
+  }
+  @media screen{
+    .page{box-shadow:0 2px 14px rgba(0,0,0,.13);}
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════ 01 — COVER ══════════════════════════ -->
+<section class="page">
+  <div class="cover-hero">
+    <div class="logo"><span>أيبك<b>ipic</b></span></div>
+    <div class="chev"></div>
+  </div>
+  <div class="cover-body">
+    <div class="eyebrow" style="margin-top:4mm">Industrial Transformation</div>
+    <h1 class="cover">MES360 PoC Proposal<br>Updated As-Built Version</h1>
+    <div class="underline" style="width:44mm"></div>
+    <div class="cover-sub">NCC / SDPF — Detergent Powder Packaging — Betti Line</div>
+    <div class="v2chip">REVISION 2 — ALIGNED TO DELIVERED PLATFORM CAPABILITY</div>
+
+    <div class="box solid">
+      <span class="t">Executive Lens</span>
+      A practical, non-intrusive PoC built on carton sensors, Remote I/O, IoT gateways, an
+      Edge Node Gateway and operator tablets — with <b>no PLC logic changes</b> — running on
+      the full MES360 platform rather than a PoC-only dashboard.
+    </div>
+
+    <div class="grid2">
+      <div class="box green">
+        <span class="t">Final Operating Model</span>
+        Sensor-based carton counting through a packaged on-prem Edge Gateway, plus an
+        operator tablet workflow for machine status, stoppages and downtime reasons.
+      </div>
+      <div class="box green">
+        <span class="t">Primary Outcome</span>
+        Live production visibility, a real OEE engine, downtime intelligence, quality and
+        reliability KPIs, and an exportable report pack — from day one of evaluation.
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:3.2mm">
+      <div class="box solid"><span class="t">Client</span>NCC Company</div>
+      <div class="box solid"><span class="t">Scope</span>MES360 PoC — Packaging Line (Betti)</div>
+    </div>
+
+    <div class="box amber" style="margin-top:3.2mm">
+      <span class="t">What changed in this revision</span>
+      The hardware and edge architecture are unchanged. What is corrected is the description
+      of the <b>software side</b>: the earlier version understated the delivered platform,
+      describing KPIs as "proxies" and listing capabilities as out-of-scope that are in fact
+      already built and shipping. This revision separates <b>what the PoC activates</b> from
+      <b>what the platform already contains</b> and <b>what is genuinely out of scope</b>.
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="pagenum">01</div>
+</section>
+
+<!-- ══════════════════════════ 02 — EXEC SUMMARY ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Executive Narrative</div>
+  <h1 class="section">1. Executive Summary — What Changed in the Final PoC</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    The original PoC concept assumed broader PLC/SCADA data availability. During execution,
+    direct PLC access became impractical due to client-side constraints and the requirement
+    to avoid any operational risk. The final PoC therefore uses a controlled
+    <b>IoT overlay architecture</b> — unchanged from the previous revision.
+  </p>
+
+  <div class="box green">
+    <span class="t">Final Implementation Direction</span>
+    MES360 receives validated production events from external carton sensors through
+    Remote I/O, IoT gateways and a packaged on-prem Edge Node Gateway. Machine status,
+    stoppages and downtime reasons are captured by line operators through a tablet interface.
+  </div>
+
+  <div class="box pale">
+    <span class="t">The important correction: MES360 is a full MES, not a PoC dashboard</span>
+    The platform delivered for this engagement contains <b>29 backend modules</b> and
+    <b>over 100 operational screens</b> covering production, quality, maintenance, inventory,
+    traceability, energy, IoT/historian, scheduling, alarms, analytics and administration.
+    The PoC does not build a limited subset — it <b>activates</b> a subset of an existing
+    platform. Everything not activated on the Betti line is a configuration and
+    master-data exercise, not new development.
+  </div>
+
+  <div class="kicker">Why this is the right PoC approach</div>
+  <div class="grid3">
+    <div class="box solid">
+      <span class="t">Zero PLC Risk</span>
+      No PLC program changes, no direct machine control, no production interruption.
+    </div>
+    <div class="box solid">
+      <span class="t">Fast Visibility</span>
+      Counts and downtime classification become visible immediately using existing
+      line-side signals and the tablet workflow.
+    </div>
+    <div class="box solid">
+      <span class="t">Proven Scale Path</span>
+      The same dashboards already consume Modbus TCP/RTU, OPC UA and MQTT sources — so
+      adding approved PLC tags later is configuration, not a rebuild.
+    </div>
+  </div>
+
+  <div class="kicker">Final PoC focus</div>
+  <div class="grid2">
+    <div class="box plain">
+      <span class="t">What the PoC Measures Automatically</span>
+      <ul>
+        <li>Good carton count (rising-edge counter at the gateway)</li>
+        <li>Rejected carton count</li>
+        <li>Production rate and line output</li>
+        <li>Event timestamping, buffering and traceability</li>
+        <li>Gateway and device health telemetry</li>
+      </ul>
+    </div>
+    <div class="box plain">
+      <span class="t">What Operators Manage on Tablet</span>
+      <ul>
+        <li>Machine operational state</li>
+        <li>Stop start/end and downtime reason codes</li>
+        <li>Shift and product/job-order context</li>
+        <li>Scrap logging and remarks</li>
+        <li>Supervisor validation of exceptions</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">02</div>
+</section>
+
+<!-- ══════════════════════════ 03 — CONSTRAINTS ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Constraint Landscape</div>
+  <h1 class="section">2. Current State Constraints &amp; Final Design Decision</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    The final design intentionally separates production visibility from PLC dependency.
+    This protects the PoC schedule, avoids changes to legacy controls, and keeps the
+    evaluation focused on measurable operational value.
+  </p>
+
+  <div class="box green">
+    <span class="t">PLC Data Constraint</span>
+    Client-side PLC tags, communication ports and approved access were not sufficiently
+    available for a direct PLC-based PoC.
+  </div>
+  <div class="box green">
+    <span class="t">Operational Constraint</span>
+    The PoC must not modify PLC logic, interrupt machine cycles, or introduce risk to
+    production continuity.
+  </div>
+  <div class="box green">
+    <span class="t">Business Decision</span>
+    Use non-intrusive sensors for counting and tablet-driven workflows for machine state
+    and downtime classification.
+  </div>
+
+  <div class="kicker">Resulting architecture principle</div>
+  <div class="grid3">
+    <div class="box solid">
+      <span class="t">Sense</span>
+      Capture physical carton events externally using carton sensors wired to Remote I/O.
+    </div>
+    <div class="box solid">
+      <span class="t">Normalize</span>
+      Debounce, filter duplicates, timestamp and buffer at the Edge Node Gateway.
+    </div>
+    <div class="box solid">
+      <span class="t">Operate</span>
+      Use tablets to manage status, stops, reasons, scrap and remarks.
+    </div>
+  </div>
+
+  <div class="box pale" style="margin-top:4mm">
+    <span class="t">MES360 Value</span>
+    Convert simple edge events and operator context into a live plant model: real OEE,
+    downtime Pareto and root-cause analysis, quality yield and non-conformance tracking,
+    asset reliability, material traceability, and an exportable KPI report pack —
+    all from one calculation engine so every screen reconciles.
+  </div>
+
+  <div class="box amber">
+    <span class="t">Constraint is on the data source, not on the platform</span>
+    It is important that the evaluation team reads the PLC constraint correctly: it limits
+    <b>which signals are available today</b>. It does not limit what MES360 can compute or
+    display. The platform's acquisition layer already supports Modbus TCP, Modbus RTU
+    (serial and RTU-over-TCP), OPC UA and MQTT, with a time-series historian behind it.
+    The moment approved tags exist, they flow into the same dashboards without redevelopment.
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">03</div>
+</section>
+
+<!-- ══════════════════════════ 04 — ARCHITECTURE ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Infographic Architecture</div>
+  <h1 class="section">3. Final As-Built System Architecture</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    No direct PLC integration is required for the PoC. Production counters are acquired from
+    carton sensors, converted through Remote I/O and gateways, then enriched by operator
+    tablet input inside MES360.
+  </p>
+
+  <div class="tag">NO PLC LOGIC MODIFICATION</div>
+
+  <div class="flow">
+    <div class="node"><b>Carton Sensors</b>Good / reject detection</div>
+    <div class="arr">➜</div>
+    <div class="node"><b>Remote I/O</b>Digital signal capture</div>
+    <div class="arr">➜</div>
+    <div class="node"><b>IoT Gateway</b>Transport &amp; connectivity</div>
+    <div class="arr">➜</div>
+    <div class="node"><b>Edge Node Gateway</b>Debounce + buffer + timestamp</div>
+    <div class="arr">➜</div>
+    <div class="node"><b>MES360 Server</b>Dashboards, OEE, reports</div>
+  </div>
+
+  <div class="grid2">
+    <div class="box plain">
+      <span class="t">Edge Node Gateway — delivered as a packaged on-prem service</span>
+      <ul>
+        <li>Modbus polling scheduler with block planning</li>
+        <li>Rising-edge counter service (carton pulse → count)</li>
+        <li>Signal debouncing and duplicate-pulse filtering</li>
+        <li>Event timestamping at source</li>
+        <li>Local store-and-forward buffering during network loss</li>
+        <li>MQTT publishing + historian write-through</li>
+        <li>Local configuration API with its own authentication</li>
+        <li>Gateway health/status telemetry back to MES360</li>
+      </ul>
+    </div>
+    <div class="box solid">
+      <span class="t">Operator Tablet</span>
+      <ul>
+        <li>Machine state updates</li>
+        <li>Stop start / end with live elapsed timer</li>
+        <li>Downtime reason classification</li>
+        <li>Scrap / reject logging with reason</li>
+        <li>Job-order start, progress and completion</li>
+        <li>Shift context and supervisor remarks</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="kicker">Platform layer behind the gateway</div>
+  <table class="cmp">
+    <thead><tr><th>Layer</th><th>Delivered capability</th></tr></thead>
+    <tbody>
+      <tr><td>Acquisition drivers</td><td>Modbus TCP · Modbus RTU (serial) · Modbus RTU-over-TCP · OPC UA · MQTT — selectable per device, with register-map templates for common meters</td></tr>
+      <tr><td>Time-series historian</td><td>InfluxDB-backed historian with per-tag historization modes (on-change / rate), scheduled roll-ups and production snapshots</td></tr>
+      <tr><td>Operational database</td><td>PostgreSQL — ISA-95 plant model (site → area → line → work centre → machine), orders, events, quality, maintenance, inventory</td></tr>
+      <tr><td>Application layer</td><td>29 backend modules exposed as a documented REST API (OpenAPI/Swagger), role-secured</td></tr>
+      <tr><td>Presentation</td><td>Web dashboards, tablet-optimised floor screens, configurable dashboard builder, plant live view, executive cockpits</td></tr>
+    </tbody>
+  </table>
+
+  <div class="grid2">
+    <div class="box solid">
+      <span class="t">Management Dashboard</span>
+      Live output, good/reject counters, OEE, downtime distribution, KPI trend and daily reports.
+    </div>
+    <div class="box solid">
+      <span class="t">Line-Side Execution</span>
+      Tablet workflow for operators and supervisors to keep the MES360 context accurate.
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">04</div>
+</section>
+
+<!-- ══════════════════════════ 05 — DATA POINTS ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Data Acquisition Scope</div>
+  <h1 class="section">4. Final Data Points Captured During the PoC</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    The PoC focuses on what can be captured reliably without PLC access. Sensor signals
+    provide the production counters, while the tablet provides operating context and
+    downtime classification.
+  </p>
+
+  <div class="grid2">
+    <div class="box green">
+      <span class="t">Automatic — Sensor / Edge</span>
+      <ul>
+        <li>Good carton pulse</li>
+        <li>Rejected carton pulse</li>
+        <li>Event timestamp at source</li>
+        <li>Counter reset by shift / job order</li>
+        <li>Gateway and device health status</li>
+      </ul>
+    </div>
+    <div class="box green">
+      <span class="t">Operator Tablet — MES360</span>
+      <ul>
+        <li>Machine status</li>
+        <li>Downtime start / end</li>
+        <li>Reason code classification</li>
+        <li>Product / shift / job-order context</li>
+        <li>Scrap quantity and reason</li>
+        <li>Supervisor remarks and validation</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="kicker">PoC data model</div>
+  <table>
+    <thead><tr><th>Category</th><th>Captured / calculated parameters</th></tr></thead>
+    <tbody>
+      <tr><td>Production Metrics</td><td>Good count, reject count, total count, production rate, output normalised to product base units (no mixed inners/cartons/pallets)</td></tr>
+      <tr><td>Machine Status</td><td>Running, stopped, idle, cleaning, changeover, maintenance, waiting material — with full state history</td></tr>
+      <tr><td>Downtime</td><td>Event duration, ISA-95 reason code, category, planned/unplanned flag, OEE-impact flag, operator remark, supervisor validation</td></tr>
+      <tr><td>Quality</td><td>Reject rate, First Pass Yield, defect rate and defect PPM, scrap by reason, non-conformance records</td></tr>
+      <tr><td>Availability</td><td>Run time vs planned production time from status and downtime events, including a time-based (AT-OEE) variant</td></tr>
+      <tr><td>Reliability</td><td>MTBF / MTTR from a single calculation engine, breakdown classification, asset ranking</td></tr>
+      <tr><td>Reporting</td><td>Shift summary, daily production, downtime Pareto, KPI trend, report builder with PDF / Excel / CSV export</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box amber">
+    <span class="t">Corrected boundary statement</span>
+    Motor speed, temperature, weight, machine alarms and detailed OEM reject codes are
+    <b>not available during this PoC because the tags are not released</b> — not because the
+    platform cannot handle them. MES360 already ships the drivers, tag model, scaling,
+    historian and alarm engine required to consume them. When NCC approves tag access,
+    these become a configuration task inside the existing IoT module.
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">05</div>
+</section>
+
+<!-- ══════════════════════════ 06 — TABLET WORKFLOW ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Line-Side Execution</div>
+  <h1 class="section">5. Operator Tablet Workflow for Machine Status &amp; Downtime</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    Because machine states and downtime reasons are not available from PLC tags during the
+    PoC, the tablet becomes the controlled operational interface for capturing context in
+    real time. The screens below are delivered product, not PoC mock-ups.
+  </p>
+
+  <div class="steps">
+    <div class="step"><b>1. Select Shift / Product / Job Order</b>
+      Operator opens the current shift and the job order to run; the line, machine and
+      product context is bound automatically from the plant hierarchy.</div>
+    <div class="arrowdown">▼</div>
+    <div class="step"><b>2. Set Machine Status</b>
+      Running, stopped, idle, cleaning, changeover, maintenance or waiting material —
+      every transition is written to the machine state history that feeds availability.</div>
+    <div class="arrowdown">▼</div>
+    <div class="step"><b>3. Classify Stop Reason</b>
+      When a stop occurs the operator selects a reason code from the configured ISA-95
+      reason set, adds remarks, and the stop is timed live until it is closed.</div>
+    <div class="arrowdown">▼</div>
+    <div class="step"><b>4. Log Scrap / Rejects</b>
+      Reject quantities are logged against the job order with a reason, feeding scrap rate,
+      defect Pareto and, where required, a non-conformance record.</div>
+    <div class="arrowdown">▼</div>
+    <div class="step"><b>5. Validate &amp; Report</b>
+      Supervisor reviews open stops and exceptions, acknowledges events, and exports the
+      shift / daily KPI report pack.</div>
+  </div>
+
+  <div class="kicker">Tablet controls included in PoC</div>
+  <div class="grid3">
+    <div class="box solid">
+      <span class="t">Status Buttons</span>
+      Running, Stop, Idle, Changeover, Cleaning, Maintenance, Waiting Material
+    </div>
+    <div class="box solid">
+      <span class="t">Reason Codes</span>
+      Material, mechanical, electrical, quality, manpower, micro-stop, starved/blocked,
+      planned stop — configurable per line
+    </div>
+    <div class="box solid">
+      <span class="t">Audit Trail</span>
+      Operator, timestamp, duration, remarks, acknowledgement and supervisor validation
+    </div>
+  </div>
+
+  <div class="box pale" style="margin-top:4mm">
+    <span class="t">Also available line-side (activated on request)</span>
+    Dedicated Quality Floor and Maintenance Floor tablet screens exist in the platform:
+    inspection recording against a quality plan, NCR raising, and maintenance work-order
+    execution with spare-part issue. These can be switched on for the Betti line during the
+    PoC at no development cost if NCC wants to evaluate them.
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">06</div>
+</section>
+
+<!-- ══════════════════════════ 07 — MODULES ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">MES360 Activation Scope</div>
+  <h1 class="section">6. MES360 Modules — Activated vs Available</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    The previous version listed several delivered capabilities as "locked until next phase".
+    They exist in the product today — the PoC simply chooses a focused activation set for
+    the Betti line.
+  </p>
+
+  <div class="tag ok">ACTIVATED FOR THE POC</div>
+  <div class="grid2">
+    <div class="box green">
+      <span class="t">Live Production Dashboard</span>
+      Good / reject counters, production rate, shift progress, live line and machine status,
+      job-order live view.
+    </div>
+    <div class="box green">
+      <span class="t">Operator Tablet Interface</span>
+      Line-side status, stop reason selection, scrap logging, remarks and event validation.
+    </div>
+    <div class="box green">
+      <span class="t">Downtime Command Center</span>
+      Duration, reason categories, Pareto with cumulative %, top causes, open stops, machine
+      ranking, planned vs unplanned trend, availability loss.
+    </div>
+    <div class="box green">
+      <span class="t">OEE &amp; KPI Analytics</span>
+      Availability, performance, quality, OEE and time-based AT-OEE, by machine / shift /
+      SKU, with trend and drill-down.
+    </div>
+    <div class="box green">
+      <span class="t">Analytics &amp; Reports</span>
+      Production, quality and maintenance report packs, a self-service report builder, and
+      PDF / Excel / CSV export.
+    </div>
+    <div class="box green">
+      <span class="t">Admin &amp; Access Control</span>
+      ISA-95 plant hierarchy, machines, products, shifts, reason codes, users, roles and
+      permissions.
+    </div>
+  </div>
+
+  <div class="tag ok" style="margin-top:5mm">AVAILABLE IN THE PLATFORM — ACTIVATION BY CONFIGURATION</div>
+  <table class="mods">
+    <thead><tr><th>Module</th><th>Delivered capability</th></tr></thead>
+    <tbody>
+      <tr><td>Quality Management</td><td>Inspection plans and records, First Pass Yield, defect rate/PPM, NCR lifecycle, CAPA tracking, SPC charts with real Cpk from spec limits, quality intelligence cockpit</td></tr>
+      <tr><td>Maintenance &amp; Reliability</td><td>Work orders with state machine, preventive maintenance plans and tasks, asset register, spare parts and issue requests, MTBF/MTTR engine, failure modes with RPN, maintenance floor screen</td></tr>
+      <tr><td>Inventory &amp; Materials</td><td>Raw materials, products, BOM, storage locations, stock and location movements, material requests, spare-part stock</td></tr>
+      <tr><td>Traceability</td><td>Batch genealogy, material consumption tracking, immutable event ledger</td></tr>
+      <tr><td>Energy Monitoring</td><td>Meter registry with register-map templates, live consumption, analytics, energy command centre and reports</td></tr>
+      <tr><td>IoT &amp; Historian</td><td>Gateways, devices, drivers, tag model, live streams, MQTT client, time-series historian</td></tr>
+      <tr><td>Alarms &amp; Notifications</td><td>Alarm engine, notification rules and per-user delivery preferences</td></tr>
+      <tr><td>Scheduling / APS</td><td>Production scheduling, planned and unplanned downtime scheduling, reschedule requests</td></tr>
+      <tr><td>Analytics Insights</td><td>Rule-based anomaly, optimisation and equipment-health insights with recommended actions</td></tr>
+      <tr><td>PLM</td><td>Product design records and engineering change requests</td></tr>
+      <tr><td>Dashboards</td><td>Dashboard centre, per-entity dashboard builder, plant live view, executive cockpits</td></tr>
+    </tbody>
+  </table>
+
+  <div class="spacer"></div>
+  <div class="pagenum">07</div>
+</section>
+
+<!-- ══════════════════════════ 08 — KPI FRAMEWORK ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Decision Thresholds</div>
+  <h1 class="section">7. PoC KPI Framework &amp; Calculation Logic</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    The KPI model uses the available data sources: sensor counters for quantities, tablet
+    events for operating time and stoppages. All formulas below are the ones implemented in
+    the product — every screen reads one calculation engine, so figures reconcile.
+  </p>
+
+  <table>
+    <thead><tr><th>KPI</th><th>Formula as implemented</th></tr></thead>
+    <tbody>
+      <tr><td>Good / Reject Count</td><td>Sensor-validated accepted and rejected cartons, normalised to the product base unit</td></tr>
+      <tr><td>Quality %</td><td>Good ÷ (Good + Reject) × 100</td></tr>
+      <tr><td>First Pass Yield</td><td>Σ inspection pass qty ÷ Σ inspection total qty × 100 — units accepted at first inspection, before rework</td></tr>
+      <tr><td>Defect Rate / PPM</td><td>Σ inspection fail qty ÷ Σ inspection total qty × 100 (and × 1,000,000 for PPM). FPY + Defect Rate = 100</td></tr>
+      <tr><td>Availability</td><td>Run time ÷ planned production time, from machine state and downtime events. A time-based (AT-OEE) variant is reported alongside</td></tr>
+      <tr><td>Performance</td><td>Actual rate ÷ ideal rate, from the configured ideal cycle time per SKU</td></tr>
+      <tr><td>OEE</td><td>Availability × Performance × Quality, time-weighted across job orders — not a simple average of daily values</td></tr>
+      <tr><td>Downtime by Reason</td><td>Stop minutes grouped by reason code, ranked with cumulative % (Pareto), split planned vs unplanned</td></tr>
+      <tr><td>MTBF (equipment)</td><td>(Capacity hours − all downtime hours) ÷ breakdown stop count</td></tr>
+      <tr><td>MTTR (equipment)</td><td>Σ breakdown stop hours ÷ breakdown stop count</td></tr>
+      <tr><td>MTBF / MTTR (maintenance)</td><td>Operating hours ÷ corrective+emergency work orders raised; Σ repair hours ÷ repairs completed</td></tr>
+    </tbody>
+  </table>
+
+  <div class="kicker">KPI integrity — how the numbers are kept honest</div>
+  <div class="grid3">
+    <div class="box amber">
+      <span class="t">One Engine, Not Per-Screen Maths</span>
+      Reliability, OEE and quality KPIs are each computed by a single shared service, so the
+      command centre, the module cockpit and the analytics report cannot disagree.
+    </div>
+    <div class="box amber">
+      <span class="t">Definitions Travel With Numbers</span>
+      Each KPI screen carries an on-page methodology panel: formula, data source, and the
+      inclusion / exclusion rules applied.
+    </div>
+    <div class="box amber">
+      <span class="t">Reconciliation Built In</span>
+      Where two valid measurement bases exist (e.g. reliability from machine stops vs from
+      work orders), both are shown side by side with the variance explained.
+    </div>
+  </div>
+
+  <div class="box pale" style="margin-top:4mm">
+    <span class="t">Honest caveats that remain for this PoC</span>
+    <ul>
+      <li><b>Performance</b> requires the ideal cycle time per SKU to be confirmed by NCC. It is a
+          configuration input, captured during the alignment workshop; until it is set,
+          performance is reported against the agreed nameplate rate.</li>
+      <li><b>Machine state is operator-declared</b>, not PLC-derived. Availability accuracy therefore
+          depends on tablet discipline — which is why it is an explicit success criterion.</li>
+      <li><b>Reliability KPIs</b> are meaningful once a maintenance history exists on the line;
+          with a short evaluation window they should be read as a trend, not an absolute.</li>
+    </ul>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">08</div>
+</section>
+
+<!-- ══════════════════════════ 09 — SCOPE ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Bounded Scope</div>
+  <h1 class="section">8. Final Scope of the PoC</h1>
+  <div class="underline"></div>
+
+  <div class="grid2">
+    <div class="box plain"><span class="t">Facility</span>NCC / SDPF — Detergent Powder Packaging — Betti Line</div>
+    <div class="box green"><span class="t">Duration</span>Alignment workshop + implementation sprint + live evaluation and reporting cycle</div>
+  </div>
+
+  <p class="lead" style="margin-top:4mm">
+    The previous revision used a two-column In-Scope / Out-of-Scope split, which merged two
+    very different things: work not included in this PoC, and capability the product does not
+    have. They are separated below.
+  </p>
+
+  <div class="grid3">
+    <div class="box green">
+      <span class="t">A. In Scope — Delivered in This PoC</span>
+      <ul>
+        <li>Remote I/O and IoT gateway installation</li>
+        <li>Edge Node Gateway configuration</li>
+        <li>Carton sensors for good/reject counts</li>
+        <li>MES360 line and machine configuration</li>
+        <li>Operator tablet workflow</li>
+        <li>Downtime reason code setup</li>
+        <li>Live production dashboard</li>
+        <li>OEE and downtime analytics</li>
+        <li>PoC KPI report pack</li>
+        <li>User roles and access control</li>
+        <li>Training and handover</li>
+      </ul>
+    </div>
+    <div class="box amber">
+      <span class="t">B. Available — Not Activated in This PoC</span>
+      <ul>
+        <li>Quality: inspections, NCR, CAPA, SPC/Cpk</li>
+        <li>Maintenance: work orders, PM, spares, reliability</li>
+        <li>Inventory and material movements</li>
+        <li>Batch traceability and genealogy</li>
+        <li>Energy monitoring and analytics</li>
+        <li>Alarms and notification rules</li>
+        <li>Production scheduling / APS</li>
+        <li>Analytics insights and equipment health</li>
+        <li>PLM and change requests</li>
+        <li>Custom dashboard builder</li>
+      </ul>
+      <div class="note">No development required — activation is master data, configuration and training.</div>
+    </div>
+    <div class="box red">
+      <span class="t">C. Out of Scope — Genuinely Excluded</span>
+      <ul>
+        <li>PLC logic modifications</li>
+        <li>Direct machine control</li>
+        <li>Direct PLC/SCADA tag polling on this line <span class="note">(client access constraint)</span></li>
+        <li>ERP / Oracle two-way integration</li>
+        <li>Detailed alarm and motor data from OEM panels</li>
+        <li>Power-meter installation works</li>
+        <li>Hardware changes inside OEM panels</li>
+        <li>Predictive maintenance models</li>
+        <li>Digital twin simulation</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="box pale" style="margin-top:4mm">
+    <span class="t">Assumption for PoC evaluation</span>
+    NCC operators will use the tablet consistently during shifts so MES360 can correlate
+    sensor counts with machine status and downtime reason context. Availability, OEE and
+    downtime Pareto quality depend directly on this.
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">09</div>
+</section>
+
+<!-- ══════════════════════════ 10 — SUCCESS CRITERIA ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Success Criteria</div>
+  <h1 class="section">9. PoC Success Criteria &amp; Acceptance Measures</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    The PoC should be judged against measurable operational outcomes that fit the final
+    non-intrusive architecture. The criteria below define a clear basis for evaluation and
+    the scale-up decision.
+  </p>
+
+  <div class="grid2">
+    <div class="box plain">
+      <span class="t">Sensor Count Accuracy</span>
+      Good and rejected carton counts align with physical shift records after calibration.
+    </div>
+    <div class="box plain">
+      <span class="t">Data Collection Stability</span>
+      Remote I/O, IoT gateways and the Edge Node Gateway remain stable during live
+      evaluation, with buffered recovery after any network loss.
+    </div>
+    <div class="box plain">
+      <span class="t">Dashboard Usability</span>
+      Management can view output, reject count, status and downtime without manual
+      consolidation.
+    </div>
+    <div class="box plain">
+      <span class="t">Tablet Compliance</span>
+      Operators classify stops and maintain machine status updates during production.
+    </div>
+    <div class="box plain">
+      <span class="t">Downtime Visibility</span>
+      Top downtime reasons and durations are visible at shift and day level.
+    </div>
+    <div class="box plain">
+      <span class="t">KPI Integrity</span>
+      The same KPI reads identically across the command centre, module cockpit and analytics
+      report for the same period — verified during UAT.
+    </div>
+  </div>
+
+  <div class="kicker">Recommended numeric thresholds</div>
+  <div class="grid3">
+    <div class="box solid"><span class="t">Accuracy Target</span>Counter variance ≤ 2–3% vs manual count after calibration.</div>
+    <div class="box solid"><span class="t">Logging Target</span>≥ 90% of stops over 3 minutes carry a reason code.</div>
+    <div class="box solid"><span class="t">Availability Target</span>Data acquisition uptime ≥ 95% during evaluation.</div>
+  </div>
+  <div class="grid3" style="margin-top:3.2mm">
+    <div class="box solid"><span class="t">Reconciliation Target</span>Zero unexplained KPI variance between screens for the same window.</div>
+    <div class="box solid"><span class="t">Recovery Target</span>100% of buffered edge events recovered after a network interruption.</div>
+    <div class="box solid"><span class="t">Reporting Target</span>Shift and daily report pack produced without manual data handling.</div>
+  </div>
+
+  <div class="box green" style="margin-top:4mm">
+    <span class="t">Acceptance Output</span>
+    Signed PoC KPI report, live dashboard demonstration, KPI methodology sheet, issue log,
+    and a scale-up recommendation.
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">10</div>
+</section>
+
+<!-- ══════════════════════════ 11 — IMPLEMENTATION ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Execution Cadence</div>
+  <h1 class="section">10. Implementation Plan, Evaluation &amp; Handover</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    The implementation plan remains lightweight and agile, focused on calibrating sensor
+    events, validating operator tablet usage, and stabilising the edge-to-MES360 data flow.
+    Because the application layer is already built, effort concentrates on field work,
+    configuration and adoption.
+  </p>
+
+  <div class="steps">
+    <div class="step"><b>1. Alignment Workshop</b>
+      Confirm PoC KPIs, shift structure, reason codes, line scope, ideal cycle times per SKU,
+      tablet users and acceptance thresholds.</div>
+    <div class="arrowdown">▼</div>
+    <div class="step"><b>2. Hardware &amp; Network Setup</b>
+      Install carton sensors, Remote I/O, IoT gateways, Edge Node Gateway and the
+      connectivity path.</div>
+    <div class="arrowdown">▼</div>
+    <div class="step"><b>3. MES360 Configuration</b>
+      Configure the ISA-95 hierarchy, machines, products, shifts, counters, tag map, status
+      states, reason codes, roles and dashboards.</div>
+    <div class="arrowdown">▼</div>
+    <div class="step"><b>4. Calibration &amp; UAT</b>
+      Validate good/reject pulses, debounce rules, buffered recovery, tablet workflow, KPI
+      reconciliation and reports; train operators and supervisors.</div>
+    <div class="arrowdown">▼</div>
+    <div class="step"><b>5. Live Evaluation</b>
+      Monitor daily output, downtime reasons, rejection trends, gateway stability and the
+      KPI pack against the agreed thresholds.</div>
+  </div>
+
+  <div class="grid2" style="margin-top:4mm">
+    <div class="box solid">
+      <span class="t">Operational Handover</span>
+      Dashboard access, tablet user guide, reason code list, KPI methodology sheet and
+      training evidence.
+    </div>
+    <div class="box solid">
+      <span class="t">Technical Handover</span>
+      Architecture document, device and tag list, edge configuration, API documentation,
+      issue log and scale-up roadmap.
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">11</div>
+</section>
+
+<!-- ══════════════════════════ 12 — ROADMAP ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Scale-Up Path</div>
+  <h1 class="section">11. Roadmap Beyond the PoC</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    The roadmap is deliberately reframed in this revision. The phases below are
+    <b>activation and integration</b> milestones, not development milestones — the
+    functionality already exists in the delivered platform.
+  </p>
+
+  <div class="grid2">
+    <div class="box green">
+      <span class="t">Phase 1 — Stabilise the PoC</span>
+      Sensor count calibration, operator tablet discipline, dashboard adoption and the daily
+      KPI pack on the Betti line.
+    </div>
+    <div class="box green">
+      <span class="t">Phase 2 — Activate Adjacent Modules</span>
+      Switch on quality (inspections, NCR, SPC), maintenance (work orders, PM, spares) and
+      inventory for the same line. Configuration and master data only.
+    </div>
+    <div class="box green">
+      <span class="t">Phase 3 — Enrich Machine Signals</span>
+      Add stack-light, alarm-relay or other non-invasive signals to automate machine state
+      and reduce reliance on manual status entry.
+    </div>
+    <div class="box green">
+      <span class="t">Phase 4 — Direct PLC / SCADA Integration</span>
+      Map approved PLC tags over Modbus or OPC UA, validate security, and cut over from
+      operator-declared to machine-derived states.
+    </div>
+    <div class="box green">
+      <span class="t">Phase 5 — Line and Site Rollout</span>
+      Replicate the proven line template across remaining packaging lines and areas using
+      the same hierarchy, reason codes and KPI definitions.
+    </div>
+    <div class="box green">
+      <span class="t">Phase 6 — Enterprise Layer</span>
+      ERP / Oracle integration, energy monitoring from installed meters, advanced scheduling,
+      and predictive maintenance models.
+    </div>
+  </div>
+
+  <div class="box pale" style="margin-top:4mm">
+    <span class="t">Recommended scale-up decision</span>
+    Proceed with MES360 production rollout keeping the sensor/tablet architecture as the
+    baseline, activating adjacent modules first — because they deliver value without field
+    work — and adding approved PLC/SCADA tags progressively where the business value
+    justifies the integration effort.
+  </div>
+
+  <div class="grid2" style="margin-top:3.2mm">
+    <div class="box solid">
+      <span class="t">Immediate Next Inputs Needed</span>
+      <ul>
+        <li>Confirmed reason code list</li>
+        <li>Final shift and product master data</li>
+        <li>Ideal cycle time per SKU</li>
+        <li>Acceptance of KPI thresholds</li>
+      </ul>
+    </div>
+    <div class="box solid">
+      <span class="t">Next Technical Inputs Needed</span>
+      <ul>
+        <li>Network access path and firewall rules</li>
+        <li>Tablet users, roles and permissions</li>
+        <li>Gateway handover and device ownership</li>
+        <li>Server / hosting decision and backup policy</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">12</div>
+</section>
+
+<!-- ══════════════════════════ 13 — APPENDIX ══════════════════════════ -->
+<section class="page">
+  <div class="topbar"></div><div class="brandmark">أيبك<b>ipic</b></div>
+  <div class="eyebrow">Appendix</div>
+  <h1 class="section">A. Delivered Platform Capability Inventory</h1>
+  <div class="underline"></div>
+
+  <p class="lead">
+    Provided so the evaluation team can see the difference between PoC activation scope and
+    delivered product scope. Every item below is implemented and reachable through the
+    application and its documented REST API.
+  </p>
+
+  <table class="mods">
+    <thead><tr><th>Domain</th><th>Delivered functions</th></tr></thead>
+    <tbody>
+      <tr><td>Production Execution</td><td>Production orders, work orders, job orders, processes and routings, recipes, batches, scrap logging, shift management, live shop-floor and job-order screens</td></tr>
+      <tr><td>OEE &amp; Performance</td><td>Time-weighted OEE engine, availability / performance / quality, time-based AT-OEE variant, base-unit output normalisation, OEE records by machine / shift / SKU, KPI cockpits</td></tr>
+      <tr><td>Downtime</td><td>Event capture with ISA-95 reason codes, planned/unplanned and OEE-impact classification, Pareto and root cause, open-stop monitoring, downtime command centre, scheduling of planned stops</td></tr>
+      <tr><td>Quality</td><td>Inspection plans and results, First Pass Yield, defect rate and PPM, NCR lifecycle, CAPA tracking, SPC charts with Cpk from spec limits, defect Pareto, quality intelligence cockpit, quality floor screen</td></tr>
+      <tr><td>Maintenance</td><td>Work-order state machine, preventive plans and tasks, asset register, spare parts and issue requests, MTBF/MTTR reliability engine with dual measurement lenses, failure modes with RPN, asset reliability ranking, maintenance floor screen</td></tr>
+      <tr><td>Inventory</td><td>Raw materials, finished products, BOM, storage locations, stock and location movements, material requests, spare-part stock control</td></tr>
+      <tr><td>Traceability</td><td>Batch genealogy, material consumption records, immutable event ledger across order, quality and maintenance lifecycles</td></tr>
+      <tr><td>Energy</td><td>Meter registry with register-map templates, live consumption, analytics, energy command centre and reports</td></tr>
+      <tr><td>IoT &amp; Historian</td><td>Gateway and device registry, Modbus TCP/RTU, OPC UA and MQTT drivers, tag model with scaling and edge counters, live streams, MQTT client, InfluxDB historian with roll-ups</td></tr>
+      <tr><td>Alarms &amp; Notifications</td><td>Alarm engine, notification rules, per-user delivery preferences, acknowledgement workflow</td></tr>
+      <tr><td>Planning</td><td>Production scheduling, APS services, planned and unplanned downtime scheduling, reschedule request workflow</td></tr>
+      <tr><td>Analytics &amp; Reporting</td><td>Factory analytics, insights studio, rule-based anomaly / optimisation / equipment-health insights, report packs, self-service report builder, PDF / Excel / CSV export</td></tr>
+      <tr><td>Dashboards</td><td>Dashboard centre, per-entity dashboard builder, plant live view, executive cockpits, command centre</td></tr>
+      <tr><td>Platform &amp; Admin</td><td>ISA-95 plant hierarchy, users, role-based access control with editable permissions, settings, archive and soft-delete, health monitoring, attachments and document storage, Arabic / English bilingual UI</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box amber">
+    <span class="t">How to read this appendix</span>
+    Presence in this inventory means the function is built and demonstrable. It does not mean
+    it is configured for the Betti line. Activation for a given line requires master data,
+    reason-code and threshold configuration, user roles and operator training — the effort
+    estimated per module during the alignment workshop.
+  </div>
+
+  <div class="spacer"></div>
+  <div class="pagenum">13</div>
+</section>
+
+</body>
+</html>
