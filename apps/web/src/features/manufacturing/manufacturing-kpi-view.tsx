@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -39,7 +40,7 @@ interface DashboardKpis {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (Time Base-OEE) variant emitted by the backend alongside schedule-based OEE.
+  // Time-based (OEE-TB) variant emitted by the backend alongside schedule-based OEE.
   oeeTb?: number;
   availabilityTb?: number;
   totalOutput: number;
@@ -52,19 +53,31 @@ interface DashboardKpis {
   alarmTrend: number;
 }
 
-interface OeeRecord {
-  id: string;
+/** One machine row from /production/oee/calculate — already time-weighted. */
+interface MachineOeeRow {
+  machineId: string;
+  name: string;
+  code: string | null;
   oee: number;
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (Time Base-OEE) variant now emitted per record by the backend.
   oeeTb?: number;
   availabilityTb?: number;
-  totalOutput: number;
-  recordDate: string;
-  machineId: string;
-  machine: { name: string };
+  output: number;
+}
+
+/** The single OEE response that feeds the headline, the chart AND the leaderboard. */
+interface OeeCalcResponse {
+  byEquipment?: MachineOeeRow[];
+  trend?: Array<{
+    period: string;
+    oee?: number;
+    oeeTb?: number;
+    availability?: number;
+    availabilityTb?: number;
+    quality?: number;
+  }>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -191,75 +204,53 @@ export default function ManufacturingKpiView() {
     refetchInterval: 30_000,
   });
 
-  const { data: oeeRecords, isLoading: recordsLoading } = useQuery({
-    queryKey: ['production', 'oee-records', timeframe, key],
-    // Endpoint is paginated → unwrap the `data` array (guard non-array shapes)
-    queryFn: async () => {
-      const res = await api.get<{ data: OeeRecord[] } | OeeRecord[]>('/production/oee-records', { params: { limit: 30, ...filter, dateFrom: timeParams.dateFrom, dateTo: timeParams.dateTo } });
-      if (Array.isArray(res)) return res;
-      return Array.isArray(res?.data) ? res.data : [];
-    },
-    refetchInterval: 60_000,
+  /**
+   * The leaderboard reads the SAME engine as the KPI summary above it.
+   *
+   * It used to call /production/oee-records — the live job-order scan — while the
+   * summary called /dashboard/kpis, which reads the persisted fact store. Two
+   * engines, two answers, side by side on one page: 80.8% vs 79.4% OEE and 100.0%
+   * vs 98.7% Availability for the same machine in the same second. Neither was
+   * "wrong"; they were answering with different data.
+   *
+   * /production/oee/calculate returns per-machine rows in `byEquipment` from the
+   * identical aggregation that produces the headline, so the two now cannot drift.
+   * It is also already time-weighted — the old client-side code averaged the
+   * percentages of each record, which is not how OEE rolls up.
+   */
+  const { data: oeeCalc, isLoading: recordsLoading } = useQuery({
+    queryKey: ['production', 'oee', 'calculate', timeframe, key],
+    queryFn: () => api.get<OeeCalcResponse>('/production/oee/calculate', { params: { ...filter, ...timeParams } }),
+    refetchInterval: 30_000,
   });
 
-  // Always work with a guaranteed array — never trust the query result shape.
-  const records: OeeRecord[] = Array.isArray(oeeRecords) ? oeeRecords : [];
+  /**
+   * The trend chart is fed by the SAME response as the headline and the
+   * leaderboard. It used to plot /production/oee-records, so a third series on this
+   * page could disagree with the two above it.
+   */
+  const chartData = useMemo(
+    () => (oeeCalc?.trend ?? []).map((b) => ({
+      date: b.period,
+      oee: parseFloat((b.oee ?? 0).toFixed(1)),
+      oeeTb: b.oeeTb != null ? parseFloat(b.oeeTb.toFixed(1)) : null,
+      availability: parseFloat((b.availability ?? 0).toFixed(1)),
+      availabilityTb: b.availabilityTb != null ? parseFloat(b.availabilityTb.toFixed(1)) : null,
+      quality: parseFloat((b.quality ?? 0).toFixed(1)),
+    })),
+    [oeeCalc],
+  );
 
-  // ── Chart data: sort records by date ────────────────────────────────────────
-  const chartData = useMemo(() => {
-    return [...records]
-      .sort((a, b) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime())
-      .map((r) => ({
-        // Include time so multiple records on the same day are distinguishable on the axis.
-        date: new Date(r.recordDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-        oee: parseFloat(r.oee.toFixed(1)),
-        oeeTb: r.oeeTb != null ? parseFloat(r.oeeTb.toFixed(1)) : null,
-        availability: parseFloat(r.availability.toFixed(1)),
-        availabilityTb: r.availabilityTb != null ? parseFloat(r.availabilityTb.toFixed(1)) : null,
-        quality: parseFloat(r.quality.toFixed(1)),
-      }));
-  }, [records]);
+  /**
+   * No client-side aggregation any more. The API already returns one row per
+   * machine, time-weighted, from the same engine as the headline — re-averaging
+   * those percentages here is what let the two disagree.
+   */
+  const leaderboard = useMemo(
+    () => [...(oeeCalc?.byEquipment ?? [])].sort((a, b) => b.oee - a.oee),
+    [oeeCalc],
+  );
 
-  // ── Machine leaderboard: group & average by machineId ───────────────────────
-  const leaderboard = useMemo(() => {
-    const map = new Map<
-      string,
-      { name: string; oeeSum: number; oeeTbSum: number; availSum: number; perfSum: number; qualSum: number; count: number }
-    >();
-
-    for (const r of records) {
-      const existing = map.get(r.machineId);
-      if (existing) {
-        existing.oeeSum += r.oee;
-        existing.oeeTbSum += r.oeeTb ?? 0;
-        existing.availSum += r.availability;
-        existing.perfSum += r.performance;
-        existing.qualSum += r.quality;
-        existing.count += 1;
-      } else {
-        map.set(r.machineId, {
-          name: r.machine?.name ?? r.machineId,
-          oeeSum: r.oee,
-          oeeTbSum: r.oeeTb ?? 0,
-          availSum: r.availability,
-          perfSum: r.performance,
-          qualSum: r.quality,
-          count: 1,
-        });
-      }
-    }
-
-    return Array.from(map.values())
-      .map((m) => ({
-        name: m.name,
-        oee: m.oeeSum / m.count,
-        oeeTb: m.oeeTbSum / m.count,
-        availability: m.availSum / m.count,
-        performance: m.perfSum / m.count,
-        quality: m.qualSum / m.count,
-      }))
-      .sort((a, b) => b.oee - a.oee);
-  }, [records]);
 
   // ── Classification counts ────────────────────────────────────────────────────
   const classifications = useMemo(() => {
@@ -299,7 +290,9 @@ export default function ManufacturingKpiView() {
             <BarChart3 size={18} />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-foreground">{t('mfgKpi.title')}</h1>
+            <h1 className="text-lg font-bold text-foreground flex items-center gap-2">{t('mfgKpi.title')}
+            <DashboardInfo id="production-kpi" />
+          </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               {t('mfgKpi.subtitle')}
             </p>
@@ -322,7 +315,7 @@ export default function ManufacturingKpiView() {
             className="grid grid-cols-2 xl:grid-cols-4 gap-4"
           >
             <KpiCard
-              title={atOee ? `${t('mfgKpi.overallOee')} (AT)` : t('mfgKpi.overallOee')}
+              title={atOee ? `${t('mfgKpi.overallOee')} (OEE-TB)` : t('mfgKpi.overallOee')}
               value={(atOee ? kpis?.oeeTb : kpis?.oee) ?? 0}
               trend={kpis?.oeeTrend ?? 0}
               target={85}
@@ -330,7 +323,7 @@ export default function ManufacturingKpiView() {
               isLoading={kpisLoading}
             />
             <KpiCard
-              title={atOee ? `${t('mfgKpi.metric.availability')} (AT)` : t('mfgKpi.metric.availability')}
+              title={atOee ? `${t('mfgKpi.metric.availability')} (OEE-TB)` : t('mfgKpi.metric.availability')}
               value={(atOee ? kpis?.availabilityTb : kpis?.availability) ?? 0}
               trend={kpis?.availabilityTrend ?? 0}
               target={90}
@@ -355,7 +348,7 @@ export default function ManufacturingKpiView() {
             />
           </motion.div>
 
-          {/* Time-Based (Time Base-OEE) — shown beside the schedule-based KPIs above */}
+          {/* Time-Based (OEE-TB) — shown beside the schedule-based KPIs above */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground px-1">
             <span>{t('mfgKpi.atOee')}: <b className="text-foreground">{(kpis?.oeeTb ?? 0).toFixed(1)}%</b></span>
             <span>{t('mfgKpi.availabilityTb')}: <b className="text-foreground">{(kpis?.availabilityTb ?? 0).toFixed(1)}%</b></span>
@@ -539,9 +532,11 @@ export default function ManufacturingKpiView() {
                           </span>
                         </td>
 
-                        {/* Time-based OEE (Time Base-OEE) */}
+                        {/* Time-based OEE (OEE-TB) */}
                         <td className="py-2.5 px-2 text-center font-semibold tabular-nums text-cyan-400">
-                          {machine.oeeTb.toFixed(1)}%
+                          {/* An em dash when the API has no time-based figure — better
+                              than rendering the schedule number under a TB heading. */}
+                          {machine.oeeTb != null ? `${machine.oeeTb.toFixed(1)}%` : '—'}
                         </td>
 
                         {/* Availability */}

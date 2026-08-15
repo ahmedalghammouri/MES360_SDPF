@@ -30,6 +30,8 @@
     "prisma:seed:wo7": "ts-node prisma/seed-wo-2026-0007.ts",
     "prisma:verify:wo7": "ts-node prisma/verify-wo-2026-0007.ts",
     "prisma:seed:dashboards": "ts-node prisma/seed-dashboard-center.ts",
+    "prisma:seed:emission": "ts-node prisma/seed-emission-factors.ts",
+    "prisma:backfill:units": "ts-node prisma/backfill-quantity-units.ts",
     "prisma:studio": "prisma studio",
     "clean": "rimraf dist"
   },

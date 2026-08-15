@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
+import { sumInPieces } from '../../common/units.util';
 import { NCRStatus, Severity, type Prisma } from '@prisma/client';
 import { archivedWhere } from '../../common/archive.util';
 import {
@@ -58,6 +59,8 @@ export class QualityService {
     scope?: { areaId?: string; lineId?: string; machineId?: string },
   ) {
     const now = new Date();
+    // NOTE: setHours MUTATES `now`, so capture the instant first.
+    const dayEnd = new Date(now.getTime());
     const dayStart = new Date(now.setHours(0, 0, 0, 0));
     const factoryFilter = factoryId ? { factoryId } : {};
     // Scope (area/line/machine) → machine-id filter applied to every machine-bound metric.
@@ -75,9 +78,29 @@ export class QualityService {
       this.prisma.cAPA.count({ where: { ...factoryFilter } }),
       this.prisma.cAPA.count({ where: { ...factoryFilter, status: { in: ['OPEN', 'IN_PROGRESS'] } } }),
       // Real scrap rate from production (job orders started today), not a placeholder.
-      this.prisma.jobOrder.aggregate({
-        where: { ...factoryFilter, ...machineScope, actualStart: { gte: dayStart } },
-        _sum: { actualQtyGood: true, actualQtyRejected: true },
+      //
+      // A Prisma `_sum` CANNOT be used here: routing steps count in different units
+      // (inners at the filler, cartons at the cartoner, pallets at the palletiser)
+      // and the database cannot convert them — it would add unlike quantities and
+      // report a scrap rate that is simply wrong. Rows are fetched with their unit
+      // and summed in pieces instead.
+      this.prisma.jobOrder.findMany({
+        // Overlap, not "started today": a job order that began yesterday and is still
+        // running is today's production, and asking only for today's starts returned
+        // nothing on a line running a multi-day order.
+        where: {
+          ...factoryFilter, ...machineScope,
+          AND: [
+            { actualStart: { lte: dayEnd } },
+            { OR: [{ actualEnd: null }, { actualEnd: { gte: dayStart } }] },
+          ],
+        },
+        select: {
+          actualQtyGood: true, actualQtyRejected: true, outputUnit: true,
+          // Needed to pick the FINAL step per work order — see below.
+          workOrderId: true, sequenceOrder: true,
+          workOrder: { select: { sku: { select: { unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } } } },
+        },
       }),
       this.computeCpk(factoryId, dayStart, machineIds),
     ]);
@@ -87,8 +110,26 @@ export class QualityService {
     const fpy = totalInspected > 0 ? (totalPassed / totalInspected) * 100 : 0;
     const reworkQty = inspections.reduce((s, i) => s + i.failQty, 0);
 
-    const good = prodToday._sum.actualQtyGood ?? 0;
-    const rejected = prodToday._sum.actualQtyRejected ?? 0;
+    // GOOD is the FINAL routing step of each work order — what actually left the
+    // line. Summing good across every step counted the same physical bag once at the
+    // filler, again at the checkweigher, again at the cartoner, and so on: five steps
+    // turned 1,920 real units into 10,128, inflating the denominator and understating
+    // the scrap rate roughly fivefold.
+    //
+    // SCRAP is the opposite: a unit can be lost at ANY step, and a bag rejected at the
+    // filler never reaches the palletiser to be counted again. So scrap sums across
+    // all steps while good does not.
+    const finalSteps = [...prodToday
+      .reduce((m, j) => {
+        const k = j.workOrderId ?? '__standalone';
+        const cur = m.get(k);
+        if (!cur || j.sequenceOrder > cur.sequenceOrder) m.set(k, j);
+        return m;
+      }, new Map<string, (typeof prodToday)[number]>())
+      .values()];
+
+    const good = sumInPieces(finalSteps, (j) => j.actualQtyGood, (j) => j.outputUnit, (j) => j.workOrder?.sku ?? null).pieces;
+    const rejected = sumInPieces(prodToday, (j) => j.actualQtyRejected, (j) => j.outputUnit, (j) => j.workOrder?.sku ?? null).pieces;
     const producedTotal = good + rejected;
 
     return {

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>التوقّفات المخطّطة والشيفتات — دليل</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#14181d; --muted:#5b6672; --line:#dfe4ea; --soft:#f6f8fa;
+    --ok:#0f7b3e; --okbg:#e8f6ee; --warn:#8a5a00; --warnbg:#fdf3e0;
+    --stop:#a51c1c; --stopbg:#fdecec; --accent:#0b5fa5; --accentbg:#e9f2fb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12161a; --fg:#e7ecf1; --muted:#9aa7b4; --line:#2a323b; --soft:#181e24;
+      --ok:#5ad48c; --okbg:#12301f; --warn:#e3b256; --warnbg:#2e2413;
+      --stop:#f08a8a; --stopbg:#331717; --accent:#68b0ee; --accentbg:#122636;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12161a; --fg:#e7ecf1; --muted:#9aa7b4; --line:#2a323b; --soft:#181e24;
+    --ok:#5ad48c; --okbg:#12301f; --warn:#e3b256; --warnbg:#2e2413;
+    --stop:#f08a8a; --stopbg:#331717; --accent:#68b0ee; --accentbg:#122636;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);margin:0;
+       font:16px/1.9 "Segoe UI","Tahoma",system-ui,sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:27px;margin:0 0 6px}
+  h2{font-size:20px;margin:42px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  h3{font-size:17px;margin:26px 0 10px}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .note{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:18px 0}
+  .note.warn{background:var(--warnbg);border-color:transparent}
+  .note.stop{background:var(--stopbg);border-color:transparent}
+  .note.acc{background:var(--accentbg);border-color:transparent}
+  .note.ok{background:var(--okbg);border-color:transparent}
+  .note b{display:block;margin-bottom:5px}
+  code,pre{font-family:ui-monospace,Consolas,monospace;font-size:13.5px;direction:ltr;unicode-bidi:embed}
+  code{background:var(--soft);padding:1px 6px;border-radius:4px;border:1px solid var(--line)}
+  pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px 14px;
+      overflow-x:auto;text-align:left;direction:ltr}
+  pre code{background:none;border:0;padding:0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:start;vertical-align:top}
+  th{background:var(--soft);font-weight:600}
+  ol,ul{padding-inline-start:24px} li{margin:6px 0}
+  .scroll{overflow-x:auto}
+  svg{max-width:100%;height:auto}
+  .step{border:1px solid var(--line);border-radius:10px;margin:14px 0;overflow:hidden}
+  .step > header{background:var(--soft);padding:10px 16px;border-bottom:1px solid var(--line);font-weight:700}
+  .step .b{padding:14px 18px}
+  .bad{color:var(--stop);font-weight:600}
+  .good{color:var(--ok);font-weight:600}
+  footer{margin-top:46px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+  @media print{ .wrap{max-width:none;padding:0} h2{break-after:avoid} tr{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>التوقّفات المخطّطة والشيفتات</h1>
+<p class="sub">NCC · SDPF · لماذا تغيّر النظام، وكيف تستخدمه، وأثره على OEE</p>
+
+<div class="note stop">
+  <b>الجملة التي تلخّص كل شيء</b>
+  أي دقيقة تُخصَم من زمن الإنتاج المخطّط — وبالتالي تغيّر <b>الإتاحة و OEE</b> — يجب أن تكون
+  <b>صفّاً أنشأه شخص</b>: بمدة أدخلها، ووقت اختاره، وأيام حدّدها، ونطاق عيّنه.
+  النظام لم يعد يفترض شيئاً.
+</div>
+
+<h2>١ · ما كان خطأً</h2>
+
+<p>عند الفحص وجدت أن حساب التوقّف المخطّط لم يكن مبنياً على إدخال المستخدم، بل على قيم مدفونة في الكود.</p>
+
+<h3>أ. رقمان مخترعان داخل نموذج الشيفت</h3>
+<pre><code>breakMinutes    Int @default(30)
+cleaningMinutes Int @default(30)</code></pre>
+<p>كل نموذج شيفت يولد ومعه ٣٠ دقيقة استراحة و٣٠ دقيقة تنظيف. <b>ولم يُدخلهما أحد.</b></p>
+
+<h3>ب. ومقام الإتاحة كان مبنياً عليهما مباشرة</h3>
+<pre><code>زمن الإنتاج المخطّط = (مدة الشيفت × 60) − breakMinutes − cleaningMinutes</code></pre>
+
+<div class="note stop">
+  <b>ماذا يعني هذا عملياً لأرقام NCC</b>
+  فحصت الشيفتين في مصنع SDPF: <b>كلاهما ما زال على القيمة الافتراضية ٣٠ + ٣٠</b> ولم يُعدَّل أبداً.
+  أي أن OEE كان يُقاس مقابل <b>٦٠ دقيقة توقّف مخطّط لكل شيفت لم يقرّرها أحد</b> — وهذا يرفع الإتاحة
+  ويرفع OEE بمقدار لم يختره المصنع.
+</div>
+
+<h3>ج. والنظام كان يخترع <em>متى</em> يحدثان</h3>
+<pre><code>بداية الاستراحة = بداية الشيفت + (المدة ÷ 2)   ← منتصف الشيفت
+بداية التنظيف   = نهاية الشيفت − cleaningMinutes ← آخر الشيفت</code></pre>
+<p>لا أحد اختار هذين التوقيتين. مجرد افتراض في الكود.</p>
+
+<h3>د. ثم ينسخهما على <em>كل</em> ماكينة نشطة</h3>
+<p>فيُسجَّل توقّف على معدّات لم يقترب منها أحد. الاستراحة عادةً توقف خطاً، وتنظيف ماكينة يخصّ تلك الماكينة وحدها.</p>
+
+<h3>هـ. وينشئ أسباب توقّف نيابة عن المستخدم</h3>
+<p>دالّة <code>ensurePlannedCauses</code> كانت تُنشئ <code>PLN-BREAK</code> و<code>PLN-CLEAN</code> تلقائياً عند أول استدعاء.</p>
+
+<h3>و. وازدواج في الحساب</h3>
+<p>دالّة تقدير زمن التوقّف كانت تأخذ <b>متوسّط</b> التوقّفات عبر كل النماذج، تضربه في عدد شيفتات مقدَّر
+(مع احتياطي ١٢ ساعة)، <b>ثم تضيف فوقه أحداث التوقّف الحقيقية</b>. فإن كانت الأحداث مولَّدة فعلاً،
+تُحسب الدقائق مرّتين — والخطأ يكبر كلّما ضبط المصنع إعداده بشكل أصحّ.</p>
+
+<h3>ز. والجدولة كانت أسبوعية فقط</h3>
+<p>حقل <code>days</code> وحده: هذه الأيام، للأبد. بلا تاريخ بداية أو نهاية، وبلا شيفت لمرّة واحدة.</p>
+
+<h2>٢ · النموذج الجديد</h2>
+
+<p>هناك ثلاث طرق فقط يحدث بها توقّف مخطّط، ولكلٍّ منها مكانها:</p>
+
+<div class="scroll">
+<svg viewBox="0 0 900 250" role="img" aria-label="ثلاث طرق للتوقّف المخطّط">
+  <g font-size="13" fill="currentColor" font-family="Segoe UI, Tahoma, sans-serif">
+    <rect x="20" y="20" width="260" height="86" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="150" y="50" text-anchor="middle" font-weight="700">جدول (Schedule)</text>
+    <text x="150" y="74" text-anchor="middle" font-size="12">أيام الأسبوع + دائم / فترة / تاريخ واحد</text>
+    <text x="150" y="94" text-anchor="middle" font-size="11.5" opacity=".75">يُشارَك بين الشيفتات والتوقّفات</text>
+
+    <rect x="320" y="20" width="260" height="86" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="450" y="50" text-anchor="middle" font-weight="700">توقّف مخطّط</text>
+    <text x="450" y="74" text-anchor="middle" font-size="12">داخل شيفت، أو على جدول خاص</text>
+    <text x="450" y="94" text-anchor="middle" font-size="11.5" opacity=".75">اسم · مدة · وقت · نطاق</text>
+
+    <rect x="620" y="20" width="260" height="86" rx="10" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="750" y="50" text-anchor="middle" font-weight="700">توقّف أمر تشغيل</text>
+    <text x="750" y="74" text-anchor="middle" font-size="12">يُنفَّذ مع الأمر — كالتغيير</text>
+    <text x="750" y="94" text-anchor="middle" font-size="11.5" opacity=".75">بشرط: منتج / أمر / دائماً</text>
+
+    <rect x="320" y="160" width="260" height="62" rx="10" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="450" y="186" text-anchor="middle" font-weight="700">حدث توقّف (Downtime Event)</text>
+    <text x="450" y="208" text-anchor="middle" font-size="11.5" opacity=".75">هو ما تراه التقارير و OEE</text>
+
+    <line x1="150" y1="106" x2="380" y2="156" stroke="currentColor" stroke-width="1.2" opacity=".5"/>
+    <line x1="450" y1="106" x2="450" y2="156" stroke="currentColor" stroke-width="1.2" opacity=".5"/>
+    <line x1="750" y1="106" x2="520" y2="156" stroke="currentColor" stroke-width="1.2" opacity=".5"/>
+  </g>
+</svg>
+</div>
+
+<h2>٣ · الجدول — متى يتكرّر الشيء</h2>
+
+<table>
+  <thead><tr><th style="width:26%">الوضع</th><th>معناه</th><th style="width:26%">متى تستخدمه</th></tr></thead>
+  <tbody>
+    <tr><td><b>دائم</b></td><td>هذه الأيام، بلا نهاية</td><td>جدول العمل الأساسي</td></tr>
+    <tr><td><b>فترة محدّدة</b></td><td>هذه الأيام، من تاريخ إلى تاريخ</td><td>موسم، أو ترتيب مؤقّت</td></tr>
+    <tr><td><b>تاريخ واحد</b></td><td>يوم واحد فقط، ويتجاهل النمط الأسبوعي</td><td>وردية الجمعة الإضافية</td></tr>
+  </tbody>
+</table>
+
+<div class="note acc">
+  <b>الإجازة ليست قائمة منفصلة</b>
+  اليوم الذي <b>لا تختاره</b> هو يوم غير عمل. إن تركت الجمعة دون تحديد فقد قلت إن الجمعة إجازة.
+  تمثيل واحد فقط، فلا يمكن أن يتناقض مع نفسه — لا توجد «قائمة إجازات» قد تختلف عن «أيام العمل».
+</div>
+
+<div class="note warn">
+  <b>جدول بلا أيام مرفوض عند الحفظ</b>
+  قاعدة لا يمكن أن تعمل أبداً هي خطأ إعداد لا حالة صحيحة. يُرفَض الحفظ برسالة واضحة، بدل أن تكتشف
+  بعد أسبوع أن الشيفت لم يعمل ولا تعرف لماذا.
+</div>
+
+<h2>٤ · التوقّف المخطّط — ماذا وكم وأين</h2>
+
+<table>
+  <thead><tr><th style="width:24%">الحقل</th><th>معناه</th></tr></thead>
+  <tbody>
+    <tr><td><b>المدة</b></td><td>بالدقائق. لا قيمة افتراضية — المدة غير المذكورة هي بالضبط العلّة التي يعالجها هذا النموذج.</td></tr>
+    <tr><td><b>تابع لـ</b></td><td><b>داخل شيفت</b>: يرث تكرار الشيفت، ووقته محسوب من بداية الشيفت.<br><b>جدول خاص</b>: تكرار مستقلّ، ووقته محسوب من منتصف الليل.</td></tr>
+    <tr><td><b>وقت البداية</b></td><td>دقائق بعد بداية الشيفت (أو بعد منتصف الليل). <b>أنت تختاره</b> — النظام لم يعد يضع الاستراحة في المنتصف والتنظيف في النهاية.</td></tr>
+    <tr><td><b>النطاق</b></td><td>المصنع كله / خطوط محدّدة / ماكينات محدّدة.</td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <b>تابع لشيفت <em>و</em> جدول معاً؟ مرفوض</b>
+  لأنه سيُولَّد مرّتين ويُخصَم مرّتين من الإتاحة. واحد أو الآخر، لا الاثنان.
+</div>
+
+<h2>٥ · توقّف أمر التشغيل — التغيير</h2>
+
+<p>التغيير أكبر فقد يمكن التحكّم فيه على خط تعبئة، ولا يبقى قابلاً للتتبّع إلا إذا فرّق النظام بين ثلاث حالات:</p>
+
+<table>
+  <thead><tr><th style="width:24%">المُطلِق</th><th>متى يُطلَق</th></tr></thead>
+  <tbody>
+    <tr><td><code>PRODUCT_CHANGE</code><br>تغيّر المنتج</td><td>حين يختلف المنتج عن الأمر السابق على تلك الماكينة.</td></tr>
+    <tr><td><code>ORDER_CHANGE</code><br>أي أمر جديد</td><td>أي أمر مختلف، بما فيه أمر آخر لنفس المنتج.</td></tr>
+    <tr><td><code>ALWAYS</code><br>دائماً</td><td>مع كل أمر بلا شرط.</td></tr>
+  </tbody>
+</table>
+
+<div class="note stop">
+  <b>الحالة التي تُفسد الأرقام لو أُهملت: البدء البارد</b>
+  ماكينة تبدأ ولم يعمل عليها شيء قبلها <b>لا</b> تُطلق قاعدة «تغيّر المنتج» — لا يوجد ما نتغيّر عنه.
+  حجز تغيير كامل هناك يعني اختراع فقد <b>كل صباح، على كل ماكينة، إلى الأبد</b>.
+  هذه الحالة مغطّاة باختبار آلي.
+</div>
+
+<p>ويمكن قصر القاعدة على خط أو ماكينة أو صنف بعينه. والحدث المُنشأ يُربط بأمر التشغيل نفسه — فيمكن تتبّع
+كل تغيير إلى الأمر الذي سبّبه.</p>
+
+<h2>٦ · كيف تستخدمه — خطوة بخطوة</h2>
+
+<div class="step">
+  <header>١ — افتح <span dir="ltr">Planning → Planned Stops</span></header>
+  <div class="b">ثلاثة أقسام: الجداول، التوقّفات المخطّطة، توقّفات أمر التشغيل. تحتاج صلاحية <code>shifts:manage</code>.</div>
+</div>
+
+<div class="step">
+  <header>٢ — أنشئ جدولاً</header>
+  <div class="b">
+    <b>إضافة جدول</b> ← اختر الوضع (دائم / فترة / تاريخ واحد) ← حدّد أيام العمل بالأزرار.
+    <br>لخط NCC: الأحد إلى الخميس، دائم. الجمعة والسبت متروكان = إجازة.
+  </div>
+</div>
+
+<div class="step">
+  <header>٣ — أنشئ التوقّف</header>
+  <div class="b">
+    <b>إضافة توقّف</b> ← رمز واسم ومدة ← <b>تابع لـ</b>: داخل شيفت أم جدول خاص ← وقت البداية ←
+    <b>النطاق</b> واختر الخط أو الماكينات.
+    <br><span class="bad">توقّف بلا هدف لا يُنتج شيئاً</span> — والصفحة تُنبّهك بشريط كهرماني.
+  </div>
+</div>
+
+<div class="step">
+  <header>٤ — ولّد الأحداث</header>
+  <div class="b">
+    اختر مدى التاريخ واضغط <b>إنشاء الأحداث</b>. تُنشأ الأحداث لأيام العمل فقط.
+    <br><b>العملية آمنة عند التكرار</b>: إعادة التشغيل على نفس المدى تُنشئ صفراً وتتخطّى الموجود.
+  </div>
+</div>
+
+<div class="step">
+  <header>٥ — راجع الأثر</header>
+  <div class="b">
+    في شاشة إعداد الشيفت، <code>plannedProductionMinutes</code> صار <b>مشتقّاً</b>:
+    مدة الشيفت ناقص التوقّفات المجدولة بداخله. يمكنك التحقّق منه بالحساب اليدوي.
+  </div>
+</div>
+
+<h2>٧ · الأثر على OEE</h2>
+
+<table>
+  <thead><tr><th style="width:34%">قبل</th><th>بعد</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>المقام = المدة − ٣٠ − ٣٠ (قيم مخفيّة)</td>
+      <td class="good">المقام = المدة − مجموع التوقّفات المجدولة (صفوف ظاهرة)</td>
+    </tr>
+    <tr>
+      <td>التوقيت يختاره الكود</td>
+      <td class="good">التوقيت يختاره المستخدم</td>
+    </tr>
+    <tr>
+      <td>يُطبَّق على كل ماكينة</td>
+      <td class="good">نطاق صريح</td>
+    </tr>
+    <tr>
+      <td>سبب التوقّف يُنشئه النظام</td>
+      <td class="good">السبب من كتالوج المستخدم، أو بلا سبب</td>
+    </tr>
+    <tr>
+      <td>تقدير بالمتوسّطات + الأحداث (ازدواج)</td>
+      <td class="good">الأحداث الحقيقية فقط</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="note ok">
+  <b>تحقّق مرصود — ١٤ أغسطس ٢٠٢٦</b>
+  شيفت ١٢ ساعة بتوقّفين ٣٠ دقيقة ← <code>plannedProductionMinutes = 660</code>، أي
+  <code>720 − 30 − 30</code>. <b>نفس الرقم السابق، لكن مصدره صار مرئياً وقابلاً للتعديل.</b>
+  احذف توقّفاً فيصير ٦٩٠ — لا يوجد حدّ خفيّ.
+</div>
+
+<div class="note stop">
+  <b>ما يجب أن تعرفه قبل عرض الأرقام على NCC</b>
+  التوقّفات الأربعة المُرحَّلة من الإعداد القديم <b>ليس لها هدف بعد</b>، فلا تُخصَم دقائقها،
+  فمقام الإتاحة أكبر و<b>OEE يقرأ أقلّ مما اعتدت</b>.
+  <br><br>تركتها بلا أهداف عمداً: السلوك القديم كان يطبّق كل استراحة على كل ماكينة، ونقله للأمام
+  كان سينقل العيب معه. بمجرد اختيارك للخط أو الماكينات تعود الأرقام — لكن هذه المرّة لأن أحداً قرّرها.
+</div>
+
+<h2>٨ · ما أُزيل من الشاشات</h2>
+<ul>
+  <li><b>حقلا «استراحة» و«تنظيف»</b> في نموذج الشيفت — كانا يكتبان قيماً لا يقرؤها شيء.</li>
+  <li><b>زر «توليد الأسبوع»</b> — كان يولّد سبعة أيام سواء عمل المصنع فيها أم لا، ويُنشئ أحداثاً
+      من قيم افتراضية. الشيفت الآن يتكرّر لأن جدولاً يقول ذلك.</li>
+</ul>
+
+<h2>٩ · عيوب وجدها الاختبار الحيّ</h2>
+
+<p>شغّلت اختباراً طرفاً لطرف على النظام الحقيقي، فسقط من أول مرّة وكشف أربعة عيوب أُصلحت جميعاً:</p>
+
+<table>
+  <thead><tr><th style="width:32%">العيب</th><th>الأثر لو بقي</th></tr></thead>
+  <tbody>
+    <tr><td>معرّف باطل يُرجع 500</td><td>يبدو الخادم معطوباً بينما المستخدم أشار لشيء غير موجود. وكان أيضاً يقبل معرّفاً من مصنع آخر.</td></tr>
+    <tr><td><code>templateIds: [null]</code> يُسقط الخدمة</td><td>عميل بحثه أرجع فراغاً يُسقط الطلب بخطأ غامض.</td></tr>
+    <tr><td>التوقّف المستقلّ يفقد وقت بدايته</td><td>تنظيف مضبوط على ٢٢:٠٠ ينتقل صامتاً إلى منتصف الليل.</td></tr>
+    <tr><td><b>التوقيت يعمل بالمصادفة</b></td><td>كان يقرأ توقيت الخادم لا توقيت المصنع. لو نُشر على خادم UTC لانزاح كل توقّف <b>ثلاث ساعات</b>.</td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <b>العيب الرابع تحديداً كان قد أُصلح في هذا النظام من قبل</b>
+  تعليق في كود الشيفتات يشرح كيف كانت كل نسخة شيفت وكل استراحة مشتقّة منها تجلس متأخّرة ثلاث ساعات
+  حتى أُدخلت دالّة التحويل الصريح. أعدتُ إدخال العلّة نفسها وأنا أكتب الكود الجديد، وكشفها التحقّق الحيّ.
+  الآن التحويل صريح: توقّف على ٢٢:٠٠ محلي خُزِّن <code>19:00 UTC</code> — صحيح لمصنع بتوقيت +03.
+</div>
+
+<h2>١٠ · التحقّق</h2>
+
+<pre><code>-- التوقّفات المخطّطة وأهدافها
+SELECT t.code, t.name, t."durationMinutes", t."startOffsetMin", t.scope,
+       count(g.id) AS targets
+FROM planned_stop_templates t
+LEFT JOIN planned_stop_targets g ON g."templateId" = t.id
+GROUP BY t.id ORDER BY t.code;
+
+-- الأحداث المولَّدة، بالتوقيت المحلي
+SELECT m.code, d."startTime", d."durationMinutes", d."isPlanned",
+       d."affectsOEE", d.notes
+FROM downtime_events d JOIN machines m ON m.id = d."machineId"
+WHERE d."isPlanned" AND d."startTime" >= now() - interval '7 days'
+ORDER BY d."startTime" DESC;</code></pre>
+
+<p>إن ظهر توقّف لا تتوقّعه، تتبّعه من <code>notes</code> — كل حدث مولَّد يحمل اسم التوقّف ورمزه،
+وأحداث أمر التشغيل تحمل رقم الأمر ومُطلِق القاعدة.</p>
+
+<footer>
+  MES360° · NCC SDPF Proof of Concept · السلوك الموصوف هنا مُنفَّذ ومُتحقَّق منه حيّاً في ١٤ أغسطس ٢٠٢٦.
+  كل ما في هذا الدليل إعداد في قاعدة البيانات — لا شيء منه يحتاج إعادة نشر.
+  <br>يُقرأ مع: <code>NCC-Signal-Rules-Guide.html</code> لتفسير الإشارات وقواعد الحالات.
+</footer>
+
+</div>
+</body>
+</html>

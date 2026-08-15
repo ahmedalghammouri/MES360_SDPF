@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 import { useTranslation } from 'react-i18next';
 
 import { useState, useMemo } from 'react';
@@ -15,6 +16,7 @@ import {
   Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { api } from '@/services/api.client';
+import { useOeeMode } from '@/hooks/use-oee-mode';
 
 type Range = '7d' | '30d' | '90d';
 
@@ -46,7 +48,7 @@ interface ReportSummary {
   quality: number;
   totalDowntime: number;
   avgOEE: number;
-  // Time-based (Time Base-OEE) variant for report consistency with the dashboards.
+  // Time-based (OEE-TB) variant for report consistency with the dashboards.
   avgOeeTb?: number;
   availability?: number;
   availabilityTb?: number;
@@ -54,6 +56,7 @@ interface ReportSummary {
 
 export function ProductionReportView() {
   const { t } = useTranslation('modules');
+  const oeeMode = useOeeMode();
   const [range, setRange] = useState<Range>('7d');
 
   const { from, to } = dateRange(RANGE_DAYS[range]);
@@ -107,7 +110,10 @@ export function ProductionReportView() {
 
   const safeNum = (v: number | null | undefined) => Number(v ?? 0);
   const kpis = [
-    { label: t('reports.prod.kpiAvgOee'),     value: `${safeNum(summary.avgOEE).toFixed(1)}%`, icon: Activity,     color: 'text-brand-400',  bg: 'bg-brand-500/20',  up: true },
+    // The FIRST card follows the basis chosen in the filter panel; the second always
+    // shows the other one, so a report never hides a basis — it only decides which
+    // leads. A report read months later must still show both.
+    { label: oeeMode.label(t('reports.prod.kpiAvgOee')), value: `${safeNum(oeeMode.pick(summary.avgOEE, summary.avgOeeTb)).toFixed(1)}%`, icon: Activity,     color: 'text-brand-400',  bg: 'bg-brand-500/20',  up: true },
     { label: t('reports.prod.kpiAvgOeeTb'),   value: `${safeNum(summary.avgOeeTb).toFixed(1)}%`, icon: Activity, color: 'text-cyan-400',   bg: 'bg-cyan-500/20',   up: true },
     { label: t('reports.prod.kpiTotalOutput'), value: safeNum(summary.totalActual).toLocaleString(), icon: BarChart3, color: 'text-green-400',  bg: 'bg-green-500/20',  up: true },
     { label: t('reports.prod.kpiDowntime'),   value: safeNum(summary.totalDowntime).toLocaleString(), icon: Clock,   color: 'text-amber-400',  bg: 'bg-amber-500/20',  up: false },
@@ -118,7 +124,9 @@ export function ProductionReportView() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t('reports.production.title')}</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2">{t('reports.production.title')}
+            <DashboardInfo id="production-report" />
+          </h1>
           <p className="text-muted-foreground text-sm mt-1">{t('reports.production.subtitle')}</p>
         </div>
         <div className="flex gap-2">

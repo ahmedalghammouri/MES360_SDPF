@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { PrismaService } from '../../database/prisma.service';
-import { toBaseUnits, type SkuPackaging } from '../../common/units.util';
+import { toPieces, type SkuPackaging } from '../../common/units.util';
+import { resolveShiftAt, type ShiftTemplateWindow, type ResolvedShift } from '../../common/shift-window.util';
 
 const MIN = 60_000;
 
@@ -100,9 +101,28 @@ export class ProductionSnapshotService {
         })
       : [];
 
+    // 6) Which SHIFT this bucket belongs to — derived from the templates, not from a
+    //    ShiftInstance row. Nothing creates those rows, so shift grouping was
+    //    permanently "Unassigned" while the Command Center showed the shift NAME
+    //    (which it derives from the templates). Deriving it per bucket attributes one
+    //    production order across every shift it actually ran in, history included.
+    const factoryIds = [...new Set(jos.map((j: any) => j.factoryId).filter(Boolean))] as string[];
+    const shiftByFactory = new Map<string, ResolvedShift | null>();
+    for (const fid of factoryIds) {
+      const templates = (await this.prisma.shiftTemplate.findMany({
+        where: { factoryId: fid, isActive: true },
+        orderBy: { startTime: 'asc' },
+        select: { id: true, code: true, name: true, startTime: true, endTime: true, crossesMidnight: true },
+      })) as ShiftTemplateWindow[];
+      shiftByFactory.set(fid, resolveShiftAt(bucketStart, templates));
+    }
+
     let written = 0;
     for (const jo of jos) {
-      const row = this.buildRow(jo, maxSeq, prior, events, bucketStart, bucketEnd, at);
+      const row = this.buildRow(
+        jo, maxSeq, prior, events, bucketStart, bucketEnd, at,
+        shiftByFactory.get(jo.factoryId) ?? null,
+      );
       if (!row) continue;
       try {
         await this.prisma.productionSnapshot.upsert({
@@ -124,10 +144,16 @@ export class ProductionSnapshotService {
     prior: Map<string, { good: number; scrap: number }>,
     events: { machineId: string | null; startTime: Date; endTime: Date | null; isPlanned: boolean; affectsOEE: boolean }[],
     bucketStart: Date, bucketEnd: Date, at: Date,
+    shift: ResolvedShift | null = null,
   ) {
     const sku: SkuPackaging | null = jo.workOrder?.sku ?? null;
     const unit: string | undefined = jo.outputUnit ?? undefined;
-    const toBase = (q: number) => (sku && unit ? toBaseUnits(q, unit, sku) : q);
+    // The *Base columns hold PIECES — the smallest rung of the packaging ladder,
+    // where conversion is exact and steps counting in different units can be summed.
+    // This used toBaseUnits, which converts to the SKU INVENTORY base unit (CARTON
+    // here), so every fact-store quantity was a carton count that the dashboards then
+    // labelled "pcs". Inventory keeps its own base unit; analytics must not borrow it.
+    const toBase = (q: number) => (sku && unit ? toPieces(q, unit, sku) : q);
 
     // DELTA in this bucket = JO cumulative − what closed buckets already recorded.
     const p = prior.get(jo.id) ?? { good: 0, scrap: 0 };
@@ -195,9 +221,12 @@ export class ProductionSnapshotService {
       workOrderId: jo.workOrderId,
       productionOrderId: jo.workOrder?.productionOrderId ?? null,
       skuId: jo.workOrder?.skuId ?? null,
+      // A linked ShiftInstance still wins when one exists — an explicitly started
+      // shift is a deliberate record. Otherwise the shift is DERIVED from when this
+      // bucket happened, so attribution never depends on someone pressing Start.
       shiftInstanceId: jo.workOrder?.shiftInstanceId ?? null,
-      shiftTemplateId: jo.workOrder?.shiftInstance?.shiftTemplateId ?? null,
-      shiftCode: jo.workOrder?.shiftInstance?.shiftTemplate?.code ?? null,
+      shiftTemplateId: jo.workOrder?.shiftInstance?.shiftTemplateId ?? shift?.templateId ?? null,
+      shiftCode: jo.workOrder?.shiftInstance?.shiftTemplate?.code ?? shift?.code ?? null,
       operationName: jo.operationName ?? null,
       sequenceOrder: jo.sequenceOrder ?? 0,
       isFinalStep: (jo.sequenceOrder ?? 0) === (maxSeq.get(jo.workOrderId) ?? 0),

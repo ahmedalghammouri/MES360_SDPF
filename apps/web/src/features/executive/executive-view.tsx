@@ -10,6 +10,7 @@ import { ExecutiveComparison, SectionTitle } from '@/features/command-center/com
 import { getOEEColor, cn } from '@/lib/utils';
 
 import { useExecutive } from './use-executive';
+import { useOeeMode } from '@/hooks/use-oee-mode';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.04, delayChildren: 0.06 } } };
 const itemVariants = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
@@ -17,6 +18,7 @@ const itemVariants = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 
 export function ExecutiveView() {
   const { t, i18n } = useTranslation(['dashboard', 'common']);
   const { data, isLoading } = useExecutive();
+  const oeeMode = useOeeMode();
   const isAr = i18n.language === 'ar';
 
   const totals = data?.totals;
@@ -40,7 +42,7 @@ export function ExecutiveView() {
         <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
           {/* Enterprise totals */}
           <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-            <KPICard title={t('executiveCenter.totals.avgOee')} value={totals?.avgOee ?? 0} unit="%" target={85} colorMode="oee" isLoading={isLoading} icon={<Gauge size={16} />} />
+            <KPICard title={oeeMode.label(t('executiveCenter.totals.avgOee'))} value={oeeMode.pick(totals?.avgOee, totals?.avgOeeTb)} unit="%" target={85} colorMode="oee" isLoading={isLoading} icon={<Gauge size={16} />} />
             <KPICard title={t('executiveCenter.totals.output')} value={totals?.totalOutput ?? 0} unit={t('units')} isLoading={isLoading} icon={<Activity size={16} />} />
             <KPICard title={t('executiveCenter.totals.cost')} value={totals?.totalCostMtd ?? 0} unit="SAR" isLoading={isLoading} icon={<Flame size={16} />} />
             <KPICard title={t('executiveCenter.totals.alarms')} value={totals?.totalAlarms ?? 0} colorMode="alarm" isLoading={isLoading} icon={<AlertTriangle size={16} />} />
@@ -82,7 +84,7 @@ export function ExecutiveView() {
                           <div className="font-medium text-foreground">{isAr && r.nameAr ? r.nameAr : r.name}</div>
                           <div className="text-[10px] text-muted-foreground font-mono">{r.code}</div>
                         </td>
-                        <td className={cn('px-3 py-2.5 text-center font-bold tabular-nums', getOEEColor(r.oee))}>{r.oee.toFixed(1)}%</td>
+                        <td className={cn('px-3 py-2.5 text-center font-bold tabular-nums', getOEEColor(oeeMode.pick(r.oee, r.oeeTb)))}>{oeeMode.pick(r.oee, r.oeeTb).toFixed(1)}%</td>
                         <td className="px-3 py-2.5 text-center tabular-nums text-muted-foreground">{r.availability.toFixed(0)} / {r.performance.toFixed(0)} / {r.quality.toFixed(0)}</td>
                         <td className="px-3 py-2.5 text-end tabular-nums">{Math.round(r.output).toLocaleString()}</td>
                         <td className="px-3 py-2.5 text-end tabular-nums">{r.costMtd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>

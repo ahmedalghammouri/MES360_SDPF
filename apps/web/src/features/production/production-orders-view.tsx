@@ -62,6 +62,8 @@ interface ProductionOrder {
   id: string; orderNumber: string; sapOrderNumber?: string;
   status: POStatus; priority: Priority;
   targetQty: number; completedQty: number; unit: string;
+  /** The same target expressed in PIECES, so completion ratios compare like with like. */
+  targetQtyPieces?: number;
   customer?: string; plannedStart: string; plannedEnd: string;
   actualStart?: string; actualEnd?: string; notes?: string;
   sku?: { id: string; name: string; code: string; itemNumber: string };
@@ -155,16 +157,27 @@ function toLocalInput(iso?: string | null) {
 function poProgress(po: ProductionOrder) {
   if (po.status === 'COMPLETED') return 100;
   if (po.status === 'PLANNED' || po.status === 'CANCELLED') return 0;
+  // Work-order output is counted in PIECES; the PO target is stated in the ORDER
+  // unit (CARTON here). Dividing one by the other compared 36,160 pieces against
+  // 10,000 cartons — 361%, which a Math.min(99, …) cap then displayed as a
+  // plausible-looking 99%. The API now supplies the target in pieces so both sides
+  // of the ratio are the same unit; the cap is gone so a wrong ratio shows itself.
   const qty = po.workOrders.reduce((s, w) => s + (w.goodQty || w.actualQty || 0), 0);
-  if (po.targetQty > 0 && qty > 0) return Math.min(99, Math.round((qty / po.targetQty) * 100));
-  return po.status === 'IN_PROGRESS' ? 5 : 0;
+  const target = po.targetQtyPieces ?? po.targetQty;
+  // One decimal: a large order spends its opening hours below 1%, and whole-number
+  // rounding reports real production as no production.
+  if (target > 0 && qty > 0) return Math.min(100, Math.round((qty / target) * 1000) / 10);
+  return po.status === 'IN_PROGRESS' ? 0 : 0;
 }
 
 function woProgress(wo: WorkOrderRef) {
   if (wo.status === 'COMPLETED') return 100;
   const done = wo.goodQty || wo.actualQty || 0;
-  if (wo.plannedQty > 0 && done > 0) return Math.min(99, Math.round((done / wo.plannedQty) * 100));
-  return wo.status === 'IN_PROGRESS' ? 5 : 0;
+  // plannedQty and goodQty are BOTH in pieces here, so the ratio was already sound —
+  // but the 99% cap hid over-production and whole-number rounding reported the first
+  // hours of a long order as 0%. Neither should be smoothed over.
+  if (wo.plannedQty > 0 && done > 0) return Math.min(100, Math.round((done / wo.plannedQty) * 1000) / 10);
+  return 0;
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { toPieces } from '../../common/units.util';
 import { KpiService } from '../production/kpi.service';
 import { ShiftService } from '../shift/shift.service';
 import { currentShiftStart } from '../../common/shift-window.util';
@@ -179,6 +180,9 @@ export class DashboardService {
         return {
           id: f.id, code: f.code, name: f.name, nameAr: f.nameAr,
           oee: a.current.oee, availability: a.current.availability, performance: a.current.performance, quality: a.current.quality,
+          // Time-based twin, so the executive table honours the schedule-vs-time-based
+          // toggle instead of being the one screen frozen on the schedule basis.
+          oeeTb: a.current.oeeTb, availabilityTb: a.current.availabilityTb,
           output: a.totalOutput,
           costMtd: e?.totalCostMtd ?? 0,
           electricalMtd: e?.totalConsumptionMtd ?? 0,
@@ -191,12 +195,16 @@ export class DashboardService {
     const totalOutput = rows.reduce((s, r) => s + r.output, 0);
     const weight = rows.reduce((s, r) => s + (r.output || 1), 0);
     const avgOee = rows.length ? r1(rows.reduce((s, r) => s + r.oee * (r.output || 1), 0) / weight) : 0;
+    // Output-weighted on the same weights, so the headline honours the toggle without
+    // switching averaging method underneath it.
+    const avgOeeTb = rows.length ? r1(rows.reduce((s, r) => s + (r.oeeTb ?? r.oee) * (r.output || 1), 0) / weight) : 0;
 
     return {
       rows,
       totals: {
         factories: rows.length,
         avgOee,
+        avgOeeTb,
         totalOutput,
         totalCostMtd: r2(rows.reduce((s, r) => s + r.costMtd, 0)),
         totalElectricalMtd: r2(rows.reduce((s, r) => s + r.electricalMtd, 0)),
@@ -275,7 +283,12 @@ export class DashboardService {
 
     const jos = await this.prisma.jobOrder.findMany({
       where: { ...factoryFilter, ...machineScope, actualStart: { gte: from, lte: to } },
-      select: { actualStart: true, actualQtyGood: true, actualQtyRejected: true },
+      // outputUnit + SKU packaging are required: routing steps count in different
+      // units, so these quantities cannot be added before conversion to pieces.
+      select: {
+        actualStart: true, actualQtyGood: true, actualQtyRejected: true, outputUnit: true,
+        workOrder: { select: { sku: { select: { unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } } } },
+      },
     });
     const stepMs = multiDay ? 86_400_000 : 3_600_000;
     const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -286,8 +299,9 @@ export class DashboardService {
       for (const jo of jos) {
         const t = jo.actualStart ? jo.actualStart.getTime() : 0;
         if (t >= b.start.getTime() && t < next) {
-          good += jo.actualQtyGood ?? 0;
-          rejected += jo.actualQtyRejected ?? 0;
+          const pkg = jo.workOrder?.sku ?? null;
+          good += toPieces(jo.actualQtyGood ?? 0, jo.outputUnit, pkg);
+          rejected += toPieces(jo.actualQtyRejected ?? 0, jo.outputUnit, pkg);
         }
       }
       const total = good + rejected;
@@ -329,7 +343,7 @@ export class DashboardService {
       availability: today.current.availability,
       performance: today.current.performance,
       quality: today.current.quality,
-      // Time-based (AT-OEE) variant — exposed everywhere alongside schedule-based OEE.
+      // Time-based (OEE-TB) variant — exposed everywhere alongside schedule-based OEE.
       oeeTb: today.current.oeeTb,
       availabilityTb: today.current.availabilityTb,
       totalOutput: today.totalOutput,
@@ -544,7 +558,11 @@ export class DashboardService {
     // target = planned output, efficiency = actual / target. One query, bucketed in-memory.
     const jos = await this.prisma.jobOrder.findMany({
       where: { ...factoryFilter, ...machineScope, actualStart: { gte: from, lte: to } },
-      select: { actualStart: true, actualQtyGood: true, actualQtyRejected: true, plannedQtyOut: true },
+      select: {
+        actualStart: true, actualQtyGood: true, actualQtyRejected: true, plannedQtyOut: true,
+        outputUnit: true,
+        workOrder: { select: { sku: { select: { unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } } } },
+      },
     });
     const stepMs = multiDay ? 86_400_000 : 3_600_000;
     return buckets.map((b) => {
@@ -554,8 +572,11 @@ export class DashboardService {
       for (const jo of jos) {
         const t = jo.actualStart ? jo.actualStart.getTime() : 0;
         if (t >= b.start.getTime() && t < next) {
-          actual += (jo.actualQtyGood ?? 0) + (jo.actualQtyRejected ?? 0);
-          target += jo.plannedQtyOut ?? 0;
+          // Converted to pieces first — a filler counting inners and a palletiser
+          // counting pallets cannot be added raw.
+          const pkg = jo.workOrder?.sku ?? null;
+          actual += toPieces((jo.actualQtyGood ?? 0) + (jo.actualQtyRejected ?? 0), jo.outputUnit, pkg);
+          target += toPieces(jo.plannedQtyOut ?? 0, jo.outputUnit, pkg);
         }
       }
       const efficiency = target > 0 ? Math.round(Math.min(100, (actual / target) * 100)) : 0;

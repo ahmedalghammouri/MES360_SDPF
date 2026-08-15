@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Production Line Instrumentation Layout</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #14201f; --muted: #5d6f6d; --line: #d7e0de;
+    --accent: #0f766e; --accent-soft: #ecf7f5; --warn: #b45309; --warn-soft: #fef6e7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 14px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  .sheet { max-width: 1040px; margin: 0 auto; padding: 32px 36px 64px; }
+  header.doc { border-bottom: 3px solid var(--accent); padding-bottom: 14px; margin-bottom: 24px; }
+  header.doc h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -0.01em; }
+  header.doc .sub { color: var(--muted); font-size: 13px; }
+  header.doc .meta { margin-top: 10px; font-size: 12px; color: var(--muted); }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em;
+       color: var(--accent); margin: 32px 0 12px; }
+  h3 { font-size: 14px; margin: 22px 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 10px 0 18px; }
+  th, td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; }
+  code, .mono { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+  .note { border-left: 3px solid var(--accent); background: var(--accent-soft);
+          padding: 10px 14px; margin: 14px 0; font-size: 13px; }
+  .warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px;
+         background: var(--accent-soft); border: 1px solid var(--line); }
+  svg { max-width: 100%; height: auto; }
+  .scroll { overflow-x: auto; }
+  footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--line);
+           font-size: 11.5px; color: var(--muted); }
+  @media print {
+    .sheet { max-width: none; padding: 0; }
+    h2 { break-after: avoid; } table { break-inside: auto; } tr { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+<header class="doc">
+  <h1>Production Line Instrumentation Layout</h1>
+  <div class="sub">Tracker ID 25 · every instrument, its device, its address and what it means</div>
+  <div class="meta">NCC · SDPF · generated from the live configuration on
+    2026-08-14 14:08 UTC</div>
+</header>
+
+<h2>1 · Line</h2>
+<p>Packing → <b>Powder Packing Line 1</b> (PL-01) —
+5 machines in material-flow order.</p>
+<div class="scroll">
+<svg viewBox="0 0 996 144" width="996" role="img"
+     aria-label="Machines in material-flow order">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+    <path d="M0 0 L10 5 L0 10 z" fill="#0f766e"/></marker></defs>
+  <text x="10" y="22" font-size="12" fill="#5d6f6d">Material flow →</text>
+  
+      <g>
+        <rect x="10" y="46" width="168" height="74" rx="8"
+              fill="#ecf7f5" stroke="#0f766e" stroke-width="1.5"/>
+        <text x="94" y="68" text-anchor="middle" font-size="13" font-weight="700">M1</text>
+        <text x="94" y="86" text-anchor="middle" font-size="11.5">Big Betti</text>
+        <text x="94" y="106" text-anchor="middle" font-size="10.5" fill="#5d6f6d">2 counter · 1 status · 0 energy</text>
+      </g><line x1="178" y1="83" x2="206" y2="83"
+             stroke="#0f766e" stroke-width="2" marker-end="url(#a)"/>
+      <g>
+        <rect x="212" y="46" width="168" height="74" rx="8"
+              fill="#ecf7f5" stroke="#0f766e" stroke-width="1.5"/>
+        <text x="296" y="68" text-anchor="middle" font-size="13" font-weight="700">M2</text>
+        <text x="296" y="86" text-anchor="middle" font-size="11.5">Checkweigher</text>
+        <text x="296" y="106" text-anchor="middle" font-size="10.5" fill="#5d6f6d">2 counter · 0 status · 0 energy</text>
+      </g><line x1="380" y1="83" x2="408" y2="83"
+             stroke="#0f766e" stroke-width="2" marker-end="url(#a)"/>
+      <g>
+        <rect x="414" y="46" width="168" height="74" rx="8"
+              fill="#ecf7f5" stroke="#0f766e" stroke-width="1.5"/>
+        <text x="498" y="68" text-anchor="middle" font-size="13" font-weight="700">M3</text>
+        <text x="498" y="86" text-anchor="middle" font-size="11.5">Cartomac</text>
+        <text x="498" y="106" text-anchor="middle" font-size="10.5" fill="#5d6f6d">2 counter · 1 status · 0 energy</text>
+      </g><line x1="582" y1="83" x2="610" y2="83"
+             stroke="#0f766e" stroke-width="2" marker-end="url(#a)"/>
+      <g>
+        <rect x="616" y="46" width="168" height="74" rx="8"
+              fill="#ecf7f5" stroke="#0f766e" stroke-width="1.5"/>
+        <text x="700" y="68" text-anchor="middle" font-size="13" font-weight="700">M4</text>
+        <text x="700" y="86" text-anchor="middle" font-size="11.5">Euro-Pack Robot</text>
+        <text x="700" y="106" text-anchor="middle" font-size="10.5" fill="#5d6f6d">2 counter · 1 status · 0 energy</text>
+      </g><line x1="784" y1="83" x2="812" y2="83"
+             stroke="#0f766e" stroke-width="2" marker-end="url(#a)"/>
+      <g>
+        <rect x="818" y="46" width="168" height="74" rx="8"
+              fill="#ecf7f5" stroke="#0f766e" stroke-width="1.5"/>
+        <text x="902" y="68" text-anchor="middle" font-size="13" font-weight="700">M5</text>
+        <text x="902" y="86" text-anchor="middle" font-size="11.5">Uni-tech Wrapping</text>
+        <text x="902" y="106" text-anchor="middle" font-size="10.5" fill="#5d6f6d">2 counter · 2 status · 16 energy</text>
+      </g>
+</svg>
+</div>
+
+<h2>2 · Instrumentation per machine</h2>
+<table>
+  <thead><tr><th style="width:20%">Machine</th><th style="width:30%">Counting</th>
+    <th style="width:30%">Status signals</th><th style="width:20%">Energy</th></tr></thead>
+  <tbody><tr>
+      <td class="mono"><b>M1</b><br>Big Betti</td>
+      <td><code>EDGECOUNTER01_DI0</code> <span class="tag">TOTAL</span> <span class="mono">DI 0</span><br><code>EDGECOUNTER01_DI1</code> <span class="tag">GOOD</span> <span class="mono">DI 1</span></td>
+      <td><code>M1_RUN_MODE</code> <span class="tag">RUN_MODE</span> <span class="mono">DI 2</span></td>
+      <td>—</td>
+    </tr><tr>
+      <td class="mono"><b>M2</b><br>Checkweigher</td>
+      <td><code>EDGECOUNTER01_DI0_M02</code> <span class="tag">TOTAL</span> <span class="mono">DI 0</span><br><code>EDGECOUNTER01_DI1_M02</code> <span class="tag">GOOD</span> <span class="mono">DI 1</span></td>
+      <td>—</td>
+      <td>—</td>
+    </tr><tr>
+      <td class="mono"><b>M3</b><br>Cartomac</td>
+      <td><code>EDGECOUNTER02_DI0</code> <span class="tag">TOTAL</span> <span class="mono">DI 0</span><br><code>EDGECOUNTER02_DI1</code> <span class="tag">GOOD</span> <span class="mono">DI 1</span></td>
+      <td><code>M3_RUN_MODE</code> <span class="tag">RUN_MODE</span> <span class="mono">DI 3</span></td>
+      <td>—</td>
+    </tr><tr>
+      <td class="mono"><b>M4</b><br>Euro-Pack Robot</td>
+      <td><code>EDGECOUNTER02_DI2_M05</code> <span class="tag">TOTAL</span> <span class="mono">DI 2</span><br><code>EDGECOUNTER02_DI3_M05</code> <span class="tag">GOOD</span> <span class="mono">DI 3</span></td>
+      <td><code>M4_RUN_MODE</code> <span class="tag">RUN_MODE_PULSED</span> <span class="mono">DI 4</span></td>
+      <td>—</td>
+    </tr><tr>
+      <td class="mono"><b>M5</b><br>Uni-tech Wrapping</td>
+      <td><code>EDGECOUNTER02_DI2</code> <span class="tag">TOTAL</span> <span class="mono">DI 2</span><br><code>EDGECOUNTER02_DI3</code> <span class="tag">GOOD</span> <span class="mono">DI 3</span></td>
+      <td><code>M5_RUN_MODE</code> <span class="tag">RUN_MODE</span> <span class="mono">DI 5</span><br><code>M5_TABLE_ROTATION</code> <span class="tag">PROCESSING</span> <span class="mono">DI 4</span></td>
+      <td>16 register(s) · pm5110M05 (meter)</td>
+    </tr></tbody>
+</table>
+
+    <div class="note warn">
+      <b>Shared physical inputs — 4 point(s).</b> These contacts are read by more than one
+      machine. One pulse increments both counters, by design: the upstream machine's output is the
+      downstream machine's input, and there is no second sensor. An engineer tracing a fault must know
+      this, so it is stated here rather than hidden behind a tidier drawing.
+      <table>
+        <thead><tr><th>Device</th><th>Point</th><th>Machines</th><th>Bound tags</th></tr></thead>
+        <tbody><tr><td class="mono">EDGECOUNTER01</td><td class="mono">DI 0</td>
+            <td>M1 + M2</td>
+            <td class="mono">EDGECOUNTER01_DI0<br>EDGECOUNTER01_DI0_M02</td></tr><tr><td class="mono">EDGECOUNTER01</td><td class="mono">DI 1</td>
+            <td>M1 + M2</td>
+            <td class="mono">EDGECOUNTER01_DI1<br>EDGECOUNTER01_DI1_M02</td></tr><tr><td class="mono">EDGECOUNTER02</td><td class="mono">DI 2</td>
+            <td>M5 + M4</td>
+            <td class="mono">EDGECOUNTER02_DI2<br>EDGECOUNTER02_DI2_M05</td></tr><tr><td class="mono">EDGECOUNTER02</td><td class="mono">DI 3</td>
+            <td>M5 + M4</td>
+            <td class="mono">EDGECOUNTER02_DI3<br>EDGECOUNTER02_DI3_M05</td></tr></tbody>
+      </table>
+    </div>
+
+<h2>3 · Field devices</h2>
+<table>
+  <thead><tr><th>Code</th><th>Name</th><th>Protocol</th><th>Connection</th><th>Tags</th></tr></thead>
+  <tbody><tr><td class="mono">EDGECOUNTER01</td><td>EDGECOUNTER01</td>
+      <td><span class="tag">MODBUS</span></td><td class="mono">127.0.0.1:502, unit 1</td><td>7</td></tr><tr><td class="mono">EDGECOUNTER02</td><td>EDGECOUNTER02</td>
+      <td><span class="tag">MODBUS</span></td><td class="mono">127.0.0.1:503, unit 1</td><td>8</td></tr><tr><td class="mono">pm5110M05-DEV</td><td>pm5110M05 (meter)</td>
+      <td><span class="tag">MODBUS_RTU</span></td><td class="mono">COM2 @ 19200 baud, unit 1</td><td>16</td></tr></tbody>
+</table>
+
+<h2>4 · How a signal is read</h2>
+<p>Every status point is a <b>discrete input</b> — a boolean contact, not a status word. That follows
+NCC's I/O specification: the remote I/O modules provide 8 digital inputs each, and the meaning of each
+input is declared per tag rather than compiled in:</p>
+<table>
+  <thead><tr><th>Signal role</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">RUN_MODE</td><td>ON = running <i>or</i> ready with nothing to process. It does
+      not by itself distinguish working from waiting.</td></tr>
+    <tr><td class="mono">RUN_MODE_PULSED</td><td>Steady ON = running, <b>pulsing</b> = stopped, OFF = alarm.
+      Judged by how often the bit changes, not by its level.</td></tr>
+    <tr><td class="mono">PROCESSING</td><td>Product is actually being worked. This is what separates a
+      machine that is producing from one that is merely ready — see document 26.</td></tr>
+    <tr><td class="mono">INFEED_AVAILABLE / OUTFEED_BLOCKED</td><td>Material-flow signals. A measurement
+      here always outranks inference from neighbouring machines.</td></tr>
+  </tbody>
+</table>
+<div class="note">All of the above — the role, the pulse window, the idle threshold, and what each
+resulting state costs in downtime and OEE — is edited in the application (<b>IoT → Signal Rules</b>) or
+on the edge gateway's own dashboard. None of it requires a new build.</div>
+<footer>
+  Generated by <code>prisma/generate-engineering-drawings.ts</code> directly from
+  <code>machines</code>, <code>devices</code> and <code>tag_definitions</code>. It describes what the
+  system is actually bound to, not what was intended. Re-run it after any I/O change.
+</footer>
+</div>
+</body>
+</html>

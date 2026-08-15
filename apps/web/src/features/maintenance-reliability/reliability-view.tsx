@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -47,6 +48,7 @@ export function ReliabilityView() {
           <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
             <Wrench size={18} className="text-amber-500" />
             {t('cockpit.title')}
+            <DashboardInfo id="maintenance-reliability" />
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('cockpit.subtitle')}</p>
         </div>

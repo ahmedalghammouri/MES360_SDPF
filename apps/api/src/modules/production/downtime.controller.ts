@@ -8,6 +8,7 @@ import { DowntimeService } from './downtime.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuditLog } from '../../common/decorators/audit-log.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { resolveLocalRange } from '../../common/plant-time.util';
 import {
   CreateDowntimeEventDto,
   UpdateDowntimeEventDto,
@@ -198,9 +199,11 @@ export class DowntimeController {
     @Query('lineId') lineId?: string,
     @Query('machineId') machineId?: string,
   ) {
-    const now = new Date();
-    const from = dateFrom ? new Date(dateFrom) : new Date(now.setHours(0, 0, 0, 0));
-    const to = dateTo ? new Date(dateTo) : new Date();
+    // Local dates, clamped to now — the same window convention as every other KPI.
+    const sumNow = new Date();
+    const { from, to } = dateFrom || dateTo
+      ? resolveLocalRange(dateFrom, dateTo, 1, sumNow)
+      : { from: new Date(new Date().setHours(0, 0, 0, 0)), to: sumNow };
     return this.downtimeService.getDowntimeSummary(user.factoryId, from, to, { areaId, lineId, machineId });
   }
 
@@ -220,10 +223,10 @@ export class DowntimeController {
     @Query('lineId') lineId?: string,
     @Query('machineId') machineId?: string,
   ) {
-    const now = new Date();
-    // Bump a date-only `dateTo` to end-of-day so single-day ranges are inclusive.
-    const to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : now;
-    const from = dateFrom ? new Date(dateFrom) : new Date(new Date().setHours(0, 0, 0, 0));
+    const cockNow = new Date();
+    const { from, to } = dateFrom || dateTo
+      ? resolveLocalRange(dateFrom, dateTo, 1, cockNow)
+      : { from: new Date(new Date().setHours(0, 0, 0, 0)), to: cockNow };
     return this.downtimeService.getDowntimeCockpit(user.factoryId, { areaId, lineId, machineId }, from, to, timeframe);
   }
 

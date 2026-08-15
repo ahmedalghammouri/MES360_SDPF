@@ -42,6 +42,9 @@ interface HierarchyNode {
   designCapacity?: number | null;
   areaId?: string | null;
   lineId?: string | null;
+  oeeMethod?: 'ROLLUP' | 'BOTTLENECK';
+  bottleneckMachineId?: string | null;
+  outfeedMachineIds?: string[];
   children?: HierarchyNode[];
 }
 
@@ -78,6 +81,12 @@ const EMPTY_FORM = {
   machineType: 'MACHINE', criticality: 'MEDIUM',
   areaId: '__none__', lineId: '__none__',
   manufacturer: '', designCapacity: '',
+  // Line OEE basis. ROLLUP = historic quantity-weighted aggregation of every
+  // machine; BOTTLENECK = constraint A × constraint P × final-outfeed Q.
+  oeeMethod: 'ROLLUP' as 'ROLLUP' | 'BOTTLENECK',
+  bottleneckMachineId: '__none__',
+  // Multi-select: a line can finish through several outfeeds. Empty = all machines.
+  outfeedMachineIds: [] as string[],
 };
 
 function TreeNode({
@@ -197,8 +206,19 @@ export function HierarchyView() {
     enabled: formOpen && form.type === 'MACHINE',
   });
 
+  // Machines on the line being edited — the candidates for the bottleneck and the
+  // final outfeed point. Only meaningful once the line exists, so it is skipped
+  // while creating (a new line has no machines yet).
+  const { data: lineMachinesData } = useQuery({
+    queryKey: ['hierarchy', 'machines', editNode?.id],
+    queryFn: () => api.get('/hierarchy/machines', { params: { lineId: editNode?.id } }),
+    staleTime: 60_000,
+    enabled: formOpen && form.type === 'PRODUCTION_LINE' && !!editNode?.id,
+  });
+
   const areas: Area[] = (areasData as any) ?? [];
   const lines: Line[] = (linesData as any) ?? [];
+  const lineMachines: { id: string; name: string; code: string }[] = (lineMachinesData as any) ?? [];
 
   const createMutation = useMutation({
     mutationFn: (dto: any) => api.post('/hierarchy', dto),
@@ -256,6 +276,9 @@ export function HierarchyView() {
       lineId: node.lineId ?? '__none__',
       manufacturer: node.manufacturer ?? '',
       designCapacity: node.designCapacity != null ? String(node.designCapacity) : '',
+      oeeMethod: node.oeeMethod ?? 'ROLLUP',
+      bottleneckMachineId: node.bottleneckMachineId ?? '__none__',
+      outfeedMachineIds: node.outfeedMachineIds ?? [],
     });
     setFormOpen(true);
   };
@@ -272,6 +295,11 @@ export function HierarchyView() {
     } else if (form.type === 'PRODUCTION_LINE') {
       dto.lineType = form.lineType;
       dto.areaId = val(form.areaId);
+      dto.oeeMethod = form.oeeMethod;
+      // Always send both — '' / [] clear the nomination back to automatic, which is a
+      // meaningful choice and must not be collapsed into "leave unchanged".
+      dto.bottleneckMachineId = val(form.bottleneckMachineId) ?? '';
+      dto.outfeedMachineIds = form.outfeedMachineIds;
     } else if (form.type === 'MACHINE') {
       dto.machineType = form.machineType;
       dto.criticality = form.criticality;
@@ -468,6 +496,125 @@ export function HierarchyView() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            )}
+
+            {/* PRODUCTION_LINE — Overall Line OEE basis.
+                A packaging line runs at the speed of its constraint, so line OEE takes
+                Availability and Performance from the bottleneck and Quality from the
+                final outfeed. Only offered when editing: a new line has no machines yet. */}
+            {form.type === 'PRODUCTION_LINE' && editNode && (
+              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div>
+                  <p className="text-xs font-semibold">{t('hierarchy.hform.oeeBasisTitle')}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {t('hierarchy.hform.oeeBasisDesc')}
+                  </p>
+                </div>
+                {/* Method — both options are first-class; ROLLUP stays the default. */}
+                <div className="grid grid-cols-2 gap-2">
+                  {(['ROLLUP', 'BOTTLENECK'] as const).map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, oeeMethod: m }))}
+                      className={cn(
+                        'rounded-lg border p-2.5 text-left transition-all',
+                        form.oeeMethod === m
+                          ? 'border-brand-500 bg-brand-500/10'
+                          : 'border-border hover:border-border/70 hover:bg-muted/30',
+                      )}
+                    >
+                      <span className={cn('block text-xs font-semibold',
+                        form.oeeMethod === m ? 'text-brand-400' : 'text-foreground')}>
+                        {t(`hierarchy.hform.oeeMethod.${m}`)}
+                      </span>
+                      <span className="mt-0.5 block text-[10px] leading-snug text-muted-foreground">
+                        {t(`hierarchy.hform.oeeMethodDesc.${m}`)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {form.oeeMethod === 'BOTTLENECK' && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">{t('hierarchy.hform.bottleneckMachine')}</Label>
+                      <EntityPicker
+                        items={lineMachines}
+                        value={form.bottleneckMachineId === none ? null : form.bottleneckMachineId}
+                        onChange={id => setForm(f => ({ ...f, bottleneckMachineId: id ?? none }))}
+                        getId={m => m.id}
+                        getPrimary={m => m.name}
+                        getSecondary={m => m.code}
+                        placeholder={t('hierarchy.hform.autoLowestCapacity')}
+                        searchPlaceholder={t('hierarchy.hform.searchMachines')}
+                        emptyText={t('hierarchy.hform.noMachines')}
+                        clearable
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        {t('hierarchy.hform.bottleneckHint')}
+                      </p>
+                    </div>
+
+                    {/* Outfeed is multi-select: a line can finish through several
+                        points, and none selected means every machine counts. */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-medium">{t('hierarchy.hform.outfeedMachine')}</Label>
+                        {form.outfeedMachineIds.length > 0 && (
+                          <button
+                            type="button"
+                            className="text-[10px] text-brand-400 hover:underline"
+                            onClick={() => setForm(f => ({ ...f, outfeedMachineIds: [] }))}
+                          >
+                            {t('hierarchy.hform.selectAllMachines')}
+                          </button>
+                        )}
+                      </div>
+                      {lineMachines.length === 0 ? (
+                        <p className="text-[11px] text-muted-foreground">{t('hierarchy.hform.noMachines')}</p>
+                      ) : (
+                        <div className="max-h-40 space-y-1 overflow-auto rounded-md border border-border/60 p-2">
+                          {lineMachines.map(m => {
+                            const checked = form.outfeedMachineIds.includes(m.id);
+                            return (
+                              <label
+                                key={m.id}
+                                className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/40"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => setForm(f => ({
+                                    ...f,
+                                    outfeedMachineIds: checked
+                                      ? f.outfeedMachineIds.filter(x => x !== m.id)
+                                      : [...f.outfeedMachineIds, m.id],
+                                  }))}
+                                  className="h-3.5 w-3.5 accent-current text-brand-500"
+                                />
+                                <span className="text-xs">{m.name}</span>
+                                <span className="font-mono text-[10px] text-muted-foreground">{m.code}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground">
+                        {form.outfeedMachineIds.length === 0
+                          ? t('hierarchy.hform.outfeedAllHint')
+                          : t('hierarchy.hform.outfeedHint')}
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                <p className="text-[10px] text-muted-foreground border-t border-border/40 pt-2">
+                  {form.oeeMethod === 'BOTTLENECK'
+                    ? t('hierarchy.hform.oeeBasisFormula')
+                    : t('hierarchy.hform.oeeRollupFormula')}
+                </p>
               </div>
             )}
 

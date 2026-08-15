@@ -77,17 +77,35 @@ export class DashboardController {
   }
 
   @Get('kpis')
-  @ApiOperation({ summary: 'Get current shift KPIs' })
+  @ApiOperation({
+    summary: 'KPI strip for a scope and period',
+    description:
+      'Honours the same timeframe/dateFrom/dateTo as every other analysis endpoint.',
+  })
+  @ApiQuery({ name: 'timeframe', required: false, description: 'day | week | month | shift | custom' })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
   @ApiQuery({ name: 'areaId', required: false })
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'machineId', required: false })
   async getKPIs(
     @CurrentUser() user: RequestUser,
+    @Query('timeframe') timeframe?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
     @Query('areaId') areaId?: string,
     @Query('lineId') lineId?: string,
     @Query('machineId') machineId?: string,
   ) {
-    const data = await this.dashboardService.getOverview(user.factoryId, { areaId, lineId, machineId });
+    // The period was NOT forwarded here. The web sent timeframe/dateFrom/dateTo and
+    // this endpoint discarded them, so getOverview fell back to "today" — a KPI strip
+    // showing today's 8,017 units under a filter the user had set to 01–09 Aug
+    // (19,266). The numbers were right for a window nobody asked for.
+    const data = await this.dashboardService.getOverview(
+      user.factoryId,
+      { areaId, lineId, machineId },
+      { timeframe, dateFrom, dateTo },
+    );
     return data.kpis;
   }
 }

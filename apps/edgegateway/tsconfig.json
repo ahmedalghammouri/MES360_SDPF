@@ -5,10 +5,14 @@
     "rootDir": "./src",
     "module": "CommonJS",
     "target": "ES2022",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@mes360/industrial-drivers": ["../../packages/industrial-drivers/dist/index.d.ts"]
+      "@mes360/industrial-drivers": [
+        "../../packages/industrial-drivers/dist/index.d.ts"
+      ]
     },
     "noUnusedLocals": false,
     "noUnusedParameters": false,
@@ -17,8 +21,16 @@
     "sourceMap": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "isolatedModules": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "build"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "**/*.spec.ts"
+  ]
 }

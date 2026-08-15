@@ -38,7 +38,7 @@ interface EquipmentOee {
 }
 
 interface OeeCalcResponse {
-  // Schedule-based (classic) + time-based (Time Base-OEE) — both emitted by the backend.
+  // Schedule-based (classic) + time-based (OEE-TB) — both emitted by the backend.
   current: { oee: number; availability: number; performance: number; quality: number; oeeTb?: number; availabilityTb?: number };
   trend: { period: string; oee: number; oeeTb?: number }[];
   byEquipment: EquipmentOee[];
@@ -209,15 +209,15 @@ export function ProductionOEEView() {
       <div className="flex-1 overflow-auto p-6 space-y-5">
         {/* KPI strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KPICard title={atOee ? `${t('cards.oee')} (AT)` : t('cards.oee')} value={(atOee ? oeeData?.current.oeeTb : oeeData?.current.oee) ?? 0} unit="%" target={WORLD_CLASS} colorMode="oee" isLoading={isLoading} />
-          <KPICard title={atOee ? `${t('cards.availability')} (AT)` : t('cards.availability')} value={(atOee ? oeeData?.current.availabilityTb : oeeData?.current.availability) ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
+          <KPICard title={atOee ? `${t('cards.oee')} (OEE-TB)` : t('cards.oee')} value={(atOee ? oeeData?.current.oeeTb : oeeData?.current.oee) ?? 0} unit="%" target={WORLD_CLASS} colorMode="oee" isLoading={isLoading} />
+          <KPICard title={atOee ? `${t('cards.availability')} (OEE-TB)` : t('cards.availability')} value={(atOee ? oeeData?.current.availabilityTb : oeeData?.current.availability) ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
           <KPICard title={t('cards.performance')} value={oeeData?.current.performance ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
           <KPICard title={t('cards.quality')} value={oeeData?.current.quality ?? 0} unit="%" colorMode="default" isLoading={isLoading} />
         </div>
 
-        {/* Time-Based (Time Base-OEE) — shown beside the schedule-based numbers above */}
+        {/* Time-Based (OEE-TB) — shown beside the schedule-based numbers above */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground -mt-2 px-1">
-          <span>Time-Based OEE (Time Base-OEE): <b className="text-foreground">{(oeeData?.current.oeeTb ?? 0).toFixed(1)}%</b></span>
+          <span>OEE-TB (Time-Based OEE): <b className="text-foreground">{(oeeData?.current.oeeTb ?? 0).toFixed(1)}%</b></span>
           <span>Availability (Time-Based): <b className="text-foreground">{(oeeData?.current.availabilityTb ?? 0).toFixed(1)}%</b></span>
           <span className="opacity-70">Schedule-based above · time-based = uptime ÷ (uptime + downtime)</span>
         </div>
@@ -305,7 +305,7 @@ export function ProductionOEEView() {
                       ) : (
                         <Area type="monotone" dataKey="oee" name="oee" stroke="#4c7571" strokeWidth={2} fill="url(#oeeFill)" />
                       )}
-                      {/* Time-based OEE (Time Base-OEE) overlaid as a dashed line for comparison */}
+                      {/* Time-based OEE (OEE-TB) overlaid as a dashed line for comparison */}
                       <Line type="monotone" dataKey="oeeTb" name="oeeTb" stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 3" dot={false} />
                     </ComposedChart>
                   </ResponsiveContainer>

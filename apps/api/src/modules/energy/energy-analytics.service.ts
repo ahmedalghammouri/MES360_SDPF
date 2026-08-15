@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { plantDayKey, plantHourKey, plantWeekKey } from '../../common/plant-time.util';
+import { smallestLadderUnit } from '../../common/units.util';
 
 /**
  * EnergyAnalyticsService — multi-dimensional energy analysis.
@@ -324,8 +325,14 @@ export class EnergyAnalyticsService {
 
     // Unit metadata — taken from the SKUs actually seen, so labels stay honest.
     const anySku = workOrders.find((w) => w.sku)?.sku ?? null;
-    const outputUnit = anySku?.baseUnit ?? null;
-    const kgPerUnit = anySku?.weight && anySku?.innersPerCarton ? anySku.weight * anySku.innersPerCarton : null;
+    // The denominator is `goodBase`, which holds PIECES. Labelling it with the SKU
+    // INVENTORY base unit (CARTON) reported kWh-per-piece under a heading that said
+    // per-carton — wrong by the whole packaging ladder. The unit name is derived
+    // from the packaging, exactly like every other quantity label in the system.
+    const outputUnit = anySku ? smallestLadderUnit(anySku) : null;
+    // kg per PIECE. This used to multiply by innersPerCarton to get kg-per-CARTON,
+    // which only lined up while the denominator was itself a carton count.
+    const kgPerUnit = anySku?.weight ?? null;
 
     const grandTotal = [...buckets.values()].reduce((s, b) => s + b.total, 0);
 
@@ -491,6 +498,9 @@ export class EnergyAnalyticsService {
         workOrderId: true,
         productionOrderId: true,
         shiftInstanceId: true,
+        // Derived per bucket by the snapshot writer — the shift a minute of
+        // production actually happened in, independent of any ShiftInstance row.
+        shiftCode: true,
         bucketStart: true,
       },
     });
@@ -538,7 +548,9 @@ export class EnergyAnalyticsService {
       case 'sku': return s.skuId ?? null;
       case 'workOrder': return s.workOrderId ?? null;
       case 'productionOrder': return s.productionOrderId ?? null;
-      case 'shift': return s.shiftInstanceId ?? null;
+      // Derived shift code first — ShiftInstance rows are not created, so keying on
+      // them alone put every bucket into one nameless group.
+      case 'shift': return s.shiftCode ?? s.shiftInstanceId ?? null;
       case 'hour': return plantHourKey(s.bucketStart as Date);
       case 'day': return plantDayKey(s.bucketStart as Date);
       case 'week': return plantWeekKey(s.bucketStart as Date);

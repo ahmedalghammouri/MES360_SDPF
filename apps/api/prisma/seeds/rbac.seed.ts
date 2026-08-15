@@ -71,6 +71,12 @@ export const PERMISSION_CATALOG: PermDef[] = [
   { key: 'energy:manage', label: 'Manage energy meters', category: 'Energy & Assets' },
   { key: 'iot:read', label: 'View IoT / connectivity', category: 'Energy & Assets' },
   { key: 'iot:manage', label: 'Manage IoT gateways', category: 'Energy & Assets' },
+  // Separate from iot:manage on purpose. Managing a gateway is operational work;
+  // this is the page that decides what a signal MEANS and what a stop COSTS —
+  // switch "charged against OEE" off for changeover and every availability figure
+  // in the plant changes, retroactively and silently. It is an engineering
+  // decision with a paper trail, so it is granted rather than inherited.
+  { key: 'iot:signals', label: 'Configure signal interpretation, state rules & alarm limits', category: 'Energy & Assets' },
   { key: 'inventory:read', label: 'View inventory', category: 'Energy & Assets' },
   { key: 'inventory:write', label: 'Move / adjust stock', category: 'Energy & Assets' },
   { key: 'plm:read', label: 'View PLM', category: 'Energy & Assets' },
@@ -218,10 +224,36 @@ export async function seedRbac(prisma: PrismaClient, opts: { force?: boolean } =
     byKey.set(p.key, row.id);
   }
 
-  // 2) Default matrix — first boot only (never clobber admin edits).
+  // 2) Blanket-access roles get every permission, including ones added later.
+  //
+  // This runs even on a configured install, and it is not a contradiction of the
+  // rule below. SUPER_ADMIN and FACTORY_ADMIN are defined as "all permissions";
+  // a capability added in a later release that reached neither of them would
+  // lock the factory administrator out of a page they own — and because
+  // SUPER_ADMIN bypasses the guard entirely, nobody would notice until a real
+  // customer admin tried to use it. Granting a NEW key to a role that already
+  // holds every other key is maintaining the invariant, not overwriting a choice.
+  // No other role is touched here.
+  let backfilled = 0;
+  for (const role of ['SUPER_ADMIN', 'FACTORY_ADMIN'] as UserRole[]) {
+    for (const permissionId of byKey.values()) {
+      const had = await prisma.rolePermission.findUnique({
+        where: { role_permissionId: { role, permissionId } },
+        select: { role: true },
+      });
+      if (had) continue;
+      await prisma.rolePermission.create({ data: { role, permissionId } });
+      backfilled++;
+    }
+  }
+
+  // 3) Default matrix — first boot only (never clobber admin edits).
   const existing = await prisma.rolePermission.count();
-  if (existing > 0 && !opts.force) {
-    return { permissions: byKey.size, grants: 'skipped (already configured)' as const };
+  if (existing > backfilled && !opts.force) {
+    return {
+      permissions: byKey.size,
+      grants: `skipped (already configured); ${backfilled} admin backfill(s)` as const,
+    };
   }
   if (opts.force) await prisma.rolePermission.deleteMany({});
 

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { EnergyContextService } from './energy-context.service';
@@ -532,6 +532,9 @@ export class IotService {
     meterId?: string; energyRole?: string;
     lineId?: string; areaId?: string;
     historizationEnabled?: boolean; isMachineStatus?: boolean; statusMap?: Record<string, string> | null;
+    // How this signal is to be READ, and the timing that goes with it. On an
+    // eight-input module a bit's meaning cannot be inferred from its value.
+    signalRole?: string | null; pulseWindowMs?: number | null; pulseMinEdges?: number | null; idleThresholdMs?: number | null;
     mqttPublishMode?: string; mqttPublishRateSec?: number; historizationMode?: string; historizationRateSec?: number; deadband?: number | null;
   }) {
     const resolvedFactoryId = factoryId ?? await this.getDefaultFactoryId();
@@ -571,6 +574,10 @@ export class IotService {
         ...(dto.deadband !== undefined && { deadband: dto.deadband }),
         isMachineStatus: !!dto.isMachineStatus,
         statusMap: (dto.statusMap as any) ?? undefined,
+        signalRole: dto.signalRole ?? undefined,
+        pulseWindowMs: dto.pulseWindowMs ?? undefined,
+        pulseMinEdges: dto.pulseMinEdges ?? undefined,
+        idleThresholdMs: dto.idleThresholdMs ?? undefined,
         isActive: true,
       },
     });
@@ -586,6 +593,9 @@ export class IotService {
     meterId?: string | null; energyRole?: string;
     lineId?: string | null; areaId?: string | null;
     historizationEnabled?: boolean; isMachineStatus?: boolean; statusMap?: Record<string, string> | null;
+    // How this signal is to be READ, and the timing that goes with it. On an
+    // eight-input module a bit's meaning cannot be inferred from its value.
+    signalRole?: string | null; pulseWindowMs?: number | null; pulseMinEdges?: number | null; idleThresholdMs?: number | null;
     mqttPublishMode?: string; mqttPublishRateSec?: number; historizationMode?: string; historizationRateSec?: number; deadband?: number | null;
   }) {
     const factoryFilter = factoryId ? { factoryId } : {};
@@ -632,6 +642,10 @@ export class IotService {
         ...(dto.deadband !== undefined && { deadband: dto.deadband }),
         ...(dto.isMachineStatus !== undefined && { isMachineStatus: dto.isMachineStatus }),
         ...(dto.statusMap !== undefined && { statusMap: (dto.statusMap as any) }),
+        ...(dto.signalRole !== undefined && { signalRole: dto.signalRole }),
+        ...(dto.pulseWindowMs !== undefined && { pulseWindowMs: dto.pulseWindowMs }),
+        ...(dto.pulseMinEdges !== undefined && { pulseMinEdges: dto.pulseMinEdges }),
+        ...(dto.idleThresholdMs !== undefined && { idleThresholdMs: dto.idleThresholdMs }),
       },
     });
   }
@@ -774,5 +788,89 @@ export class IotService {
     const factory = await this.prisma.factory.findFirst({ where: { isActive: true } });
     if (!factory) throw new NotFoundException('No active factory found');
     return factory.id;
+  }
+  // ────────────────────────────────────────────────────────────
+  // MACHINE STATE RULES
+  // ────────────────────────────────────────────────────────────
+
+  /**
+   * Rules for this factory, factory-wide ones first then per-machine overrides.
+   *
+   * A machine-specific rule wins over the factory rule for the same state, so one
+   * awkward machine can be treated differently without forking the whole table.
+   */
+  async listStateRules(factoryId: string | null, machineId?: string) {
+    if (!factoryId) return [];
+    return this.prisma.machineStateRule.findMany({
+      where: {
+        factoryId,
+        ...(machineId ? { OR: [{ machineId }, { machineId: null }] } : {}),
+      },
+      include: { machine: { select: { id: true, code: true, name: true } } },
+      orderBy: [{ machineId: 'asc' }, { state: 'asc' }],
+    });
+  }
+
+  async upsertStateRule(factoryId: string | null, dto: any) {
+    if (!factoryId) throw new BadRequestException('A factory context is required');
+    if (!dto?.state) throw new BadRequestException('state is required');
+
+    const data = {
+      factoryId,
+      machineId: dto.machineId ?? null,
+      state: String(dto.state).toUpperCase(),
+      isDowntime: dto.isDowntime ?? true,
+      isPlanned: dto.isPlanned ?? false,
+      affectsOEE: dto.affectsOEE ?? true,
+      reasonCode: dto.reasonCode ?? null,
+      category: (dto.category ?? 'OTHER') as any,
+      debounceSeconds: dto.debounceSeconds ?? 0,
+      description: dto.description ?? null,
+      isActive: dto.isActive ?? true,
+    };
+
+    // One rule per (factory, machine, state) — editing the same state twice must
+    // replace it rather than silently create a second rule that never applies.
+    const existing = await this.prisma.machineStateRule.findFirst({
+      where: { factoryId, machineId: data.machineId, state: data.state },
+      select: { id: true },
+    });
+    return existing
+      ? this.prisma.machineStateRule.update({ where: { id: existing.id }, data })
+      : this.prisma.machineStateRule.create({ data });
+  }
+
+  async updateStateRule(factoryId: string | null, id: string, dto: any) {
+    const rule = await this.prisma.machineStateRule.findFirst({
+      where: { id, ...(factoryId ? { factoryId } : {}) },
+    });
+    if (!rule) throw new NotFoundException('State rule not found');
+    return this.prisma.machineStateRule.update({
+      where: { id },
+      data: {
+        ...(dto.isDowntime !== undefined && { isDowntime: dto.isDowntime }),
+        ...(dto.isPlanned !== undefined && { isPlanned: dto.isPlanned }),
+        ...(dto.affectsOEE !== undefined && { affectsOEE: dto.affectsOEE }),
+        ...(dto.reasonCode !== undefined && { reasonCode: dto.reasonCode }),
+        ...(dto.category !== undefined && { category: dto.category as any }),
+        ...(dto.debounceSeconds !== undefined && { debounceSeconds: dto.debounceSeconds }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  /**
+   * Delete a rule. A per-machine override disappearing is safe — that machine
+   * falls back to the factory rule. Deleting the factory rule falls back to the
+   * gateway's built-in default, so downtime is still recorded either way.
+   */
+  async deleteStateRule(factoryId: string | null, id: string) {
+    const rule = await this.prisma.machineStateRule.findFirst({
+      where: { id, ...(factoryId ? { factoryId } : {}) },
+      select: { id: true },
+    });
+    if (!rule) throw new NotFoundException('State rule not found');
+    await this.prisma.machineStateRule.delete({ where: { id } });
   }
 }

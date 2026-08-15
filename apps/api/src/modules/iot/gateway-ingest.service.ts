@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 
 import { PrismaService } from '../../database/prisma.service';
+import { toPieces } from '../../common/units.util';
 import { MqttDriverService } from './drivers/mqtt-driver.service';
 import { EnergyContextService } from './energy-context.service';
 import { KpiService } from '../production/kpi.service';
@@ -188,6 +189,9 @@ export class GatewayIngestService implements OnModuleInit, OnModuleDestroy {
    *  - goodQty  = good output of the LAST routing step (finished output)
    *  - scrapQty = sum of rejects across all steps
    *  - actualQty = good + scrap
+   *
+   * All three are written in PIECES (qtyUnit = 'PIECE'), because the steps being
+   * combined count in different packaging units and only pieces can add safely.
    */
   private async rollUpWorkOrder(jobOrderId: string): Promise<void> {
     const jo = await this.prisma.jobOrder.findUnique({
@@ -198,17 +202,30 @@ export class GatewayIngestService implements OnModuleInit, OnModuleDestroy {
 
     const steps = await this.prisma.jobOrder.findMany({
       where: { workOrderId: jo.workOrderId },
-      select: { sequenceOrder: true, actualQtyGood: true, actualQtyRejected: true },
+      // outputUnit is essential: each step counts in its own packaging level.
+      select: {
+        sequenceOrder: true, actualQtyGood: true, actualQtyRejected: true, outputUnit: true,
+        workOrder: { select: { sku: { select: { unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } } } },
+      },
     });
     if (!steps.length) return;
 
+    // Everything is normalised to PIECES before it is stored.
+    //
+    // This is the LIVE write path, so the raw cross-step sum that used to live here
+    // did not just produce one bad row — it rewrote goodQty/scrapQty on every counter
+    // tick, adding inners to cartons to pallets. Any repair of historical data would
+    // have been overwritten within seconds.
+    const pkg = steps[0]?.workOrder?.sku ?? null;
     const last = steps.reduce((a, b) => (b.sequenceOrder > a.sequenceOrder ? b : a));
-    const good = Math.round(last.actualQtyGood ?? 0);
-    const scrap = Math.round(steps.reduce((s, j) => s + (j.actualQtyRejected ?? 0), 0));
+    const good = Math.round(toPieces(last.actualQtyGood ?? 0, last.outputUnit, pkg));
+    const scrap = Math.round(
+      steps.reduce((s, j) => s + toPieces(j.actualQtyRejected ?? 0, j.outputUnit, pkg), 0),
+    );
 
     await this.prisma.workOrder.update({
       where: { id: jo.workOrderId },
-      data: { goodQty: good, scrapQty: scrap, actualQty: good + scrap },
+      data: { goodQty: good, scrapQty: scrap, actualQty: good + scrap, qtyUnit: 'PIECE' },
     });
   }
 }

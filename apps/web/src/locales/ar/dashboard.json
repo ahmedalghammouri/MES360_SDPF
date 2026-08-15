@@ -4,16 +4,16 @@
   "dashboardCenter": "مركز اللوحات",
   "kpi": {
     "oee": "الكفاءة الكلية OEE",
-    "atOee": "OEE (زمني)",
+    "atOee": "OEE-TB",
     "availability": "التوافر",
-    "atAvailability": "التوافر (زمني)",
+    "atAvailability": "التوافر · OEE-TB",
     "performance": "الأداء",
     "quality": "نسبة الجودة",
     "output": "إجمالي الإنتاج",
     "alarms": "الإنذارات النشطة"
   },
   "units": "وحدة",
-  "atOee": "الكفاءة الزمنية (Time Base-OEE)",
+  "atOee": "الكفاءة الزمنية (OEE-TB)",
   "availabilityTb": "التوافر (زمني)",
   "atNote": "البطاقات أعلاه مبنية على الجدول · الزمنية = زمن التشغيل ÷ (التشغيل + التوقف)",
   "commandCenter": {

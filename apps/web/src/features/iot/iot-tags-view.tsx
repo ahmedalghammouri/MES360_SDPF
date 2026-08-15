@@ -1,4 +1,5 @@
 'use client';
+import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { useTranslation } from 'react-i18next';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -46,6 +47,7 @@ export function IotTagsView() {
     address: '', registerType: 'HOLDING', wordCount: '1', wordOrder: 'BIG',
     scaleFactor: '', offset: '', counterRole: 'NONE', edgeType: 'RISING', pollIntervalMs: '',
     historizationEnabled: true, isMachineStatus: false, statusMap: '',
+    signalRole: 'NONE', pulseWindowMs: '', pulseMinEdges: '', idleThresholdMs: '',
     mqttPublishMode: 'CHANGE', mqttPublishRateSec: '', historizationMode: 'CHANGE', historizationRateSec: '', deadband: '',
   };
   const [form, setForm] = useState({ ...emptyForm })
@@ -190,6 +192,10 @@ export function IotTagsView() {
       historizationEnabled: tag.historizationEnabled !== false,
       isMachineStatus: !!tag.isMachineStatus,
       statusMap: tag.statusMap ? JSON.stringify(tag.statusMap) : '',
+      signalRole: tag.signalRole || 'NONE',
+      pulseWindowMs: tag.pulseWindowMs != null ? String(tag.pulseWindowMs) : '',
+      pulseMinEdges: tag.pulseMinEdges != null ? String(tag.pulseMinEdges) : '',
+      idleThresholdMs: tag.idleThresholdMs != null ? String(tag.idleThresholdMs) : '',
       mqttPublishMode: tag.mqttPublishMode || 'CHANGE',
       mqttPublishRateSec: tag.mqttPublishRateSec != null ? String(tag.mqttPublishRateSec) : '',
       historizationMode: tag.historizationMode || 'CHANGE',
@@ -237,6 +243,12 @@ export function IotTagsView() {
       statusMap: form.isMachineStatus && form.statusMap.trim()
         ? (() => { try { return JSON.parse(form.statusMap); } catch { return undefined; } })()
         : null,
+      // How the gateway is to READ this signal. NONE clears the role rather than
+      // sending the literal string, so a tag can be demoted back to a plain one.
+      signalRole: form.isMachineStatus && form.signalRole !== 'NONE' ? form.signalRole : null,
+      pulseWindowMs: num(form.pulseWindowMs),
+      pulseMinEdges: num(form.pulseMinEdges),
+      idleThresholdMs: num(form.idleThresholdMs),
     };
     if (editTag) updateMutation.mutate({ id: editTag.id, dto })
     else createMutation.mutate(dto)
@@ -249,7 +261,9 @@ export function IotTagsView() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
         <div>
-          <h1 className="text-lg font-bold">{t('headers.tags.title')}</h1>
+          <h1 className="text-lg font-bold flex items-center gap-2">{t('headers.tags.title')}
+            <DataModeBadge mode="live" />
+          </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('headers.tags.subtitle')}
           </p>
@@ -427,7 +441,18 @@ export function IotTagsView() {
           </div>
           <div>
             <Label>{t('tform.tagType')}</Label>
-            <Select value={form.tagType} onValueChange={v => setForm(f => ({ ...f, tagType: v }))}>
+            {/* Choosing STATUS is already the statement "this tag drives machine
+                state" — making the user then find a checkbox further down the
+                form to say it again is a trap, and a STATUS tag left unticked
+                is read by nothing. */}
+            <Select
+              value={form.tagType}
+              onValueChange={v => setForm(f => ({
+                ...f,
+                tagType: v,
+                isMachineStatus: v === 'STATUS' ? true : f.isMachineStatus,
+              }))}
+            >
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="MEASUREMENT">{t('tform.measurement')}</SelectItem>
@@ -646,8 +671,8 @@ export function IotTagsView() {
             </div>
           )}
 
-          {form.isMachineStatus && (
-            <div className="col-span-2 rounded-lg border border-border/40 bg-muted/20 p-3 text-xs text-muted-foreground space-y-2">
+          {(form.isMachineStatus || form.tagType === 'STATUS') && (
+            <div className="col-span-2 rounded-lg border border-border/40 bg-muted/20 p-3 text-xs text-muted-foreground space-y-3">
               <p>
                 {form.dataType === 'BOOL'
                   ? t('tform.boolHelp')
@@ -663,6 +688,68 @@ export function IotTagsView() {
                     placeholder='{"0":"IDLE","1":"RUNNING","2":"BREAKDOWN"}'
                     className="mt-1 font-mono text-[11px]"
                   />
+                </div>
+              )}
+
+              {/* ── Signal interpretation ──────────────────────────────────
+                  The same wire means different things on different machines.
+                  A run-mode contact that stays closed while the machine waits
+                  for product says something different from one that opens; a
+                  robot that signals "stopped" by pulsing says something
+                  different again. Which of those this tag is, is a plant fact,
+                  so it is chosen here rather than compiled in. */}
+              <div className="pt-2 border-t border-border/40">
+                <Label className="text-xs">{t('tform.signalRole')}</Label>
+                <Select value={form.signalRole} onValueChange={v => setForm(f => ({ ...f, signalRole: v }))}>
+                  <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">{t('tform.roleNone')}</SelectItem>
+                    <SelectItem value="RUN_MODE">{t('tform.roleRunMode')}</SelectItem>
+                    <SelectItem value="RUN_MODE_PULSED">{t('tform.roleRunModePulsed')}</SelectItem>
+                    <SelectItem value="PROCESSING">{t('tform.roleProcessing')}</SelectItem>
+                    <SelectItem value="INFEED_AVAILABLE">{t('tform.roleInfeed')}</SelectItem>
+                    <SelectItem value="OUTFEED_BLOCKED">{t('tform.roleOutfeed')}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] mt-1">
+                  {form.signalRole === 'RUN_MODE' && t('tform.roleRunModeHelp')}
+                  {form.signalRole === 'RUN_MODE_PULSED' && t('tform.roleRunModePulsedHelp')}
+                  {form.signalRole === 'PROCESSING' && t('tform.roleProcessingHelp')}
+                  {form.signalRole === 'INFEED_AVAILABLE' && t('tform.roleInfeedHelp')}
+                  {form.signalRole === 'OUTFEED_BLOCKED' && t('tform.roleOutfeedHelp')}
+                  {form.signalRole === 'NONE' && t('tform.roleNoneHelp')}
+                </p>
+              </div>
+
+              {/* Pulse detection only means anything for a pulsing signal. */}
+              {form.signalRole === 'RUN_MODE_PULSED' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">{t('tform.pulseWindowMs')}</Label>
+                    <Input type="number" min={0} className="mt-1 h-8 text-xs" placeholder="6000"
+                      value={form.pulseWindowMs}
+                      onChange={e => setForm(v => ({ ...v, pulseWindowMs: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">{t('tform.pulseMinEdges')}</Label>
+                    <Input type="number" min={2} className="mt-1 h-8 text-xs" placeholder="4"
+                      value={form.pulseMinEdges}
+                      onChange={e => setForm(v => ({ ...v, pulseMinEdges: e.target.value }))} />
+                  </div>
+                  <p className="col-span-2 text-[11px]">{t('tform.pulseHelp')}</p>
+                </div>
+              )}
+
+              {/* A processing signal is legitimately still between units. How
+                  long is the plant's own slowest normal cycle — a wrapper table
+                  rests minutes between pallets, a filler does not. */}
+              {form.signalRole === 'PROCESSING' && (
+                <div>
+                  <Label className="text-xs">{t('tform.idleThresholdMs')}</Label>
+                  <Input type="number" min={0} className="mt-1 h-8 text-xs" placeholder="300000"
+                    value={form.idleThresholdMs}
+                    onChange={e => setForm(v => ({ ...v, idleThresholdMs: e.target.value }))} />
+                  <p className="text-[11px] mt-1">{t('tform.idleThresholdHelp')}</p>
                 </div>
               )}
             </div>

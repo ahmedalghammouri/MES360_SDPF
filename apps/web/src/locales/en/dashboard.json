@@ -4,16 +4,16 @@
   "dashboardCenter": "Dashboard Center",
   "kpi": {
     "oee": "Overall OEE",
-    "atOee": "OEE (AT)",
+    "atOee": "OEE-TB",
     "availability": "Availability",
-    "atAvailability": "Availability (AT)",
+    "atAvailability": "Availability · OEE-TB",
     "performance": "Performance",
     "quality": "Quality Rate",
     "output": "Total Output",
     "alarms": "Active Alarms"
   },
   "units": "units",
-  "atOee": "Time-Based OEE (Time Base-OEE)",
+  "atOee": "OEE-TB (Time-Based OEE)",
   "availabilityTb": "Availability (Time-Based)",
   "atNote": "Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)",
   "commandCenter": {

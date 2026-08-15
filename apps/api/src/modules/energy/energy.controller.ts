@@ -6,7 +6,9 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { EnergyService } from './energy.service';
 import { EnergyWoMachineService } from './energy-wo-machine.service';
 import { EnergyAnalyticsService, EnergyGroupBy } from './energy-analytics.service';
+import { CarbonService } from './carbon.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { resolveLocalRange } from '../../common/plant-time.util';
 
 interface RequestUser {
   id: string;
@@ -19,11 +21,10 @@ const ANALYTICS_GROUP_BY = [
 
 /** `dateFrom`/`dateTo` are plain dates; default to the trailing 30 days. */
 function resolveRange(dateFrom?: string, dateTo?: string): { from: Date; to: Date } {
-  const to = dateTo ? new Date(`${dateTo}T23:59:59.999Z`) : new Date();
-  const from = dateFrom
-    ? new Date(`${dateFrom}T00:00:00.000Z`)
-    : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
-  return { from, to };
+  // Delegates to the ONE definition of a local analysis window. Parsing these as
+  // UTC put energy three hours out of step with every production KPI beside it,
+  // and made a "Today" window start in the future at a +03 plant.
+  return resolveLocalRange(dateFrom, dateTo, 30);
 }
 
 @ApiTags('Energy')
@@ -34,7 +35,73 @@ export class EnergyController {
     private readonly energyService: EnergyService,
     private readonly energyWoMachine: EnergyWoMachineService,
     private readonly energyAnalytics: EnergyAnalyticsService,
+    private readonly carbon: CarbonService,
   ) {}
+
+  // ────────────────────────────────────────────────────────────
+  // SCOPE 2 CARBON — purchased-electricity emissions
+  // ────────────────────────────────────────────────────────────
+
+  @Get('carbon/scope2')
+  @ApiOperation({
+    summary: 'Scope 2 carbon footprint (kg CO2e) for a scope and period',
+    description:
+      'kg CO2e = kWh purchased electricity × grid emission factor. kWh is read from the same ' +
+      'source as the Energy dashboard so the two always reconcile. The response carries the ' +
+      'factor actually applied, its unit, source and effective date, and flags when no factor ' +
+      'is configured and the KSA default was used.',
+  })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  async getScope2(
+    @CurrentUser() user: RequestUser,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+  ) {
+    const { from, to } = resolveRange(dateFrom, dateTo);
+    return this.carbon.scope2(user.factoryId, { areaId, lineId, machineId }, from, to);
+  }
+
+  @Get('carbon/work-orders/:workOrderId')
+  @ApiOperation({ summary: 'Scope 2 emissions and carbon intensity for one work order' })
+  async getScope2ByWorkOrder(
+    @CurrentUser() user: RequestUser,
+    @Param('workOrderId') workOrderId: string,
+  ) {
+    return this.carbon.scope2ByWorkOrder(user.factoryId, workOrderId);
+  }
+
+  @Get('carbon/emission-factors')
+  @ApiOperation({ summary: 'List configured grid emission factors (newest effective date first)' })
+  async listEmissionFactors(@CurrentUser() user: RequestUser) {
+    return this.carbon.listFactors(user.factoryId);
+  }
+
+  @Get('carbon/emission-factor')
+  @ApiOperation({ summary: 'The grid emission factor currently in force' })
+  async getActiveEmissionFactor(@CurrentUser() user: RequestUser) {
+    return this.carbon.resolveFactor(user.factoryId);
+  }
+
+  @Post('carbon/emission-factors')
+  @ApiOperation({
+    summary: 'Add a new grid emission factor version',
+    description:
+      'Closes the currently-open version at the new effective date instead of overwriting it, ' +
+      'so historical carbon reports stay reproducible.',
+  })
+  async createEmissionFactor(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: { factorKgPerKwh: number; source?: string; effectiveFrom?: string; notes?: string; unit?: string },
+  ) {
+    return this.carbon.createFactor(user.factoryId as string, dto);
+  }
 
   // ────────────────────────────────────────────────────────────
   // ANALYTICS — kWh per product / WO / shift / machine / time
@@ -147,10 +214,7 @@ export class EnergyController {
     @Query('dateTo') dateTo?: string,
     @Query('limit') limit?: string,
   ) {
-    const to = dateTo ? new Date(dateTo) : new Date();
-    const from = dateFrom
-      ? new Date(dateFrom)
-      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000); // default: trailing 30 days
+    const { from, to } = resolveLocalRange(dateFrom, dateTo, 30);
     return this.energyWoMachine.getLeaderboard(user.factoryId, from, to, limit ? Number(limit) : 10);
   }
 

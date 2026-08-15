@@ -4,9 +4,10 @@ import {
 import { Prisma, DowntimeCategory, DowntimeReasonCode } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
-import { toBaseUnits, convertUnits } from '../../common/units.util';
+import { toBaseUnits, convertUnits, toPieces, fromPieces } from '../../common/units.util';
 import { plantWallClockToUtc } from '../../common/plant-time.util';
 import { KpiService } from '../production/kpi.service';
+import { PlannedStopService } from './planned-stop.service';
 import {
   CreateShiftTemplateDto, UpdateShiftTemplateDto, GenerateInstancesDto,
   ListInstancesQueryDto, StartShiftDto, CompleteShiftDto,
@@ -19,6 +20,7 @@ export class ShiftService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly kpi: KpiService,
+    private readonly plannedStops: PlannedStopService,
   ) {}
 
   private requireFactory(factoryId: string | null): string {
@@ -33,11 +35,26 @@ export class ShiftService {
     return endTime <= startTime;
   }
 
-  /** Planned production minutes = duration − breaks − cleaning (OEE availability denominator). */
+  /**
+   * Planned production minutes — the OEE availability denominator.
+   *
+   * Was `duration − breakMinutes − cleaningMinutes`, where both of those were
+   * invented defaults of 30 that nobody had entered. It is now the shift
+   * duration minus the planned stops actually scheduled inside it, so every
+   * minute removed from the denominator traces back to a row a person created.
+   *
+   * A shift with no planned stops configured returns its full duration. That is
+   * the honest answer: if nobody has said there is a break, the system must not
+   * invent one.
+   */
   private plannedProductionMinutes(t: {
-    shiftDurationHours: number; breakMinutes: number; cleaningMinutes: number;
+    shiftDurationHours: number;
+    plannedStops?: Array<{ durationMinutes: number; isActive?: boolean }>;
   }): number {
-    return Math.max(0, t.shiftDurationHours * 60 - t.breakMinutes - t.cleaningMinutes);
+    const stops = (t.plannedStops ?? [])
+      .filter((s) => s.isActive !== false)
+      .reduce((sum, s) => sum + s.durationMinutes, 0);
+    return Math.max(0, t.shiftDurationHours * 60 - stops);
   }
 
   /** Combine a calendar date with an HH:mm time, optionally shifting by whole days (UTC-stable). */
@@ -59,7 +76,12 @@ export class ShiftService {
     const templates = await this.prisma.shiftTemplate.findMany({
       where: { factoryId: fid, ...(includeInactive ? {} : { isActive: true }) },
       orderBy: [{ isActive: 'desc' }, { startTime: 'asc' }],
-      include: { _count: { select: { instances: true } } },
+      include: {
+        _count: { select: { instances: true } },
+        // The availability denominator is derived from these, so a template that
+        // is listed without them would report a number the screen cannot explain.
+        plannedStops: { where: { isActive: true }, orderBy: { startOffsetMin: 'asc' } },
+      },
     });
     return templates.map((t) => this.decorateTemplate(t));
   }
@@ -68,15 +90,30 @@ export class ShiftService {
     const fid = this.requireFactory(factoryId);
     const t = await this.prisma.shiftTemplate.findFirst({
       where: { id, factoryId: fid },
-      include: { _count: { select: { instances: true } } },
+      include: {
+        _count: { select: { instances: true } },
+        // The availability denominator is derived from these, so a template that
+        // is listed without them would report a number the screen cannot explain.
+        plannedStops: { where: { isActive: true }, orderBy: { startOffsetMin: 'asc' } },
+      },
     });
     if (!t) throw new NotFoundException('Shift template not found');
     return this.decorateTemplate(t);
   }
 
-  private decorateTemplate(t: Prisma.ShiftTemplateGetPayload<{ include: { _count: { select: { instances: true } } } }>) {
+  private decorateTemplate(
+    t: Prisma.ShiftTemplateGetPayload<{ include: {
+        _count: { select: { instances: true } },
+        // The availability denominator is derived from these, so a template that
+        // is listed without them would report a number the screen cannot explain.
+        plannedStops: { where: { isActive: true }, orderBy: { startOffsetMin: 'asc' } },
+      } }>
+      & { plannedStops?: Array<{ durationMinutes: number; isActive: boolean }> },
+  ) {
     return {
       ...t,
+      // Derived, not stored: the denominator has to move when somebody adds or
+      // removes a planned stop, and a cached number would quietly disagree.
       plannedProductionMinutes: this.plannedProductionMinutes(t),
       instanceCount: t._count.instances,
     };
@@ -105,14 +142,20 @@ export class ShiftService {
         crossesMidnight: this.crossesMidnight(dto.startTime, dto.endTime),
         shiftDurationHours: dto.shiftDurationHours,
         plannedProductionHours: dto.plannedProductionHours,
-        breakMinutes: dto.breakMinutes ?? 0,
-        cleaningMinutes: dto.cleaningMinutes ?? 0,
+        // breakMinutes / cleaningMinutes are deliberately NOT written. Planned
+        // stops are their own rows now — see PlannedStopService — so that every
+        // minute taken out of availability is one somebody entered on purpose.
         days: dto.days,
         targetQtyPerShift: dto.targetQtyPerShift ?? null,
         targetUnit: dto.targetUnit ?? 'CARTON',
         isActive: dto.isActive ?? true,
       },
-      include: { _count: { select: { instances: true } } },
+      include: {
+        _count: { select: { instances: true } },
+        // The availability denominator is derived from these, so a template that
+        // is listed without them would report a number the screen cannot explain.
+        plannedStops: { where: { isActive: true }, orderBy: { startOffsetMin: 'asc' } },
+      },
     });
     return this.decorateTemplate(created);
   }
@@ -148,14 +191,18 @@ export class ShiftService {
         crossesMidnight: this.crossesMidnight(startTime, endTime),
         shiftDurationHours,
         plannedProductionHours,
-        ...(dto.breakMinutes !== undefined && { breakMinutes: dto.breakMinutes }),
-        ...(dto.cleaningMinutes !== undefined && { cleaningMinutes: dto.cleaningMinutes }),
+        // Deprecated fields intentionally ignored on update; see createTemplate.
         ...(dto.days !== undefined && { days: dto.days }),
         ...(dto.targetQtyPerShift !== undefined && { targetQtyPerShift: dto.targetQtyPerShift }),
         ...(dto.targetUnit !== undefined && { targetUnit: dto.targetUnit }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
-      include: { _count: { select: { instances: true } } },
+      include: {
+        _count: { select: { instances: true } },
+        // The availability denominator is derived from these, so a template that
+        // is listed without them would report a number the screen cannot explain.
+        plannedStops: { where: { isActive: true }, orderBy: { startOffsetMin: 'asc' } },
+      },
     });
     return this.decorateTemplate(updated);
   }
@@ -164,7 +211,12 @@ export class ShiftService {
     const fid = this.requireFactory(factoryId);
     const t = await this.prisma.shiftTemplate.findFirst({
       where: { id, factoryId: fid },
-      include: { _count: { select: { instances: true } } },
+      include: {
+        _count: { select: { instances: true } },
+        // The availability denominator is derived from these, so a template that
+        // is listed without them would report a number the screen cannot explain.
+        plannedStops: { where: { isActive: true }, orderBy: { startOffsetMin: 'asc' } },
+      },
     });
     if (!t) throw new NotFoundException('Shift template not found');
 
@@ -230,7 +282,9 @@ export class ShiftService {
             startTime: this.combine(day, t.startTime),
             endTime: this.combine(day, t.endTime, t.crossesMidnight ? 1 : 0),
             targetQty: t.targetQtyPerShift ?? null,
-            plannedDowntime: t.breakMinutes + t.cleaningMinutes,
+            // Filled in when planned stops are materialised for the day, so an
+            // instance never claims downtime that was never scheduled.
+            plannedDowntime: 0,
             status: 'PLANNED',
           },
         });
@@ -411,7 +465,9 @@ export class ShiftService {
         crossesMidnight: active.crossesMidnight,
         plannedProductionHours: active.plannedProductionHours,
         shiftDurationHours: active.shiftDurationHours,
-        breakMinutes: active.breakMinutes, cleaningMinutes: active.cleaningMinutes,
+        // breakMinutes / cleaningMinutes removed: they were defaults nobody set.
+        // Planned stops are read from their own endpoint, where each one has a
+        // name, a duration and a time somebody chose.
         targetQtyPerShift: active.targetQtyPerShift,
         targetUnit: active.targetUnit ?? 'CARTON',
       },
@@ -463,11 +519,24 @@ export class ShiftService {
         },
         orderBy: { sortOrder: 'asc' },
       }),
-      // Per-machine OEE fallback — from the fact store (final-step per machine) when
-      // enabled, else the legacy per-machine OEERecord rows.
+      // Per-machine OEE **and quantities** for THIS SHIFT, from the fact store —
+      // the same engine every OEE surface reads.
+      //
+      // Two things were wrong here. The window started at MIDNIGHT rather than at
+      // the shift start, so a night shift mixed in the previous day's output. And
+      // the quantities on this card came from a different place entirely: raw
+      // COUNT_UPDATE telemetry deltas, a third counting source that drifted from the
+      // job orders OEE is built on — which is how the card came to read
+      // "274,800 / 3,500 CARTON = 7851% of target".
       this.kpi.snapshotsEnabled()
-        ? this.kpi.snapshotAggregate(fid, new Date(from.getFullYear(), from.getMonth(), from.getDate()), to, undefined)
-            .then((a) => a.byEquipment.map((e) => ({ machineId: e.machineId, oee: e.oee, availability: e.availability, performance: e.performance, quality: e.quality })))
+        ? this.kpi.snapshotAggregate(fid, from, to, undefined)
+            .then((a) => a.byEquipment.map((e) => ({
+              machineId: e.machineId, oee: e.oee, availability: e.availability,
+              performance: e.performance, quality: e.quality,
+              // PIECES — the smallest rung, where conversion to the shift's target
+              // unit is exact.
+              goodPieces: e.good, scrapPieces: e.scrap,
+            })))
         : this.prisma.oEERecord.findMany({
             where: { factoryId: fid, recordDate: { gte: new Date(from.getFullYear(), from.getMonth(), from.getDate()) } },
             select: { machineId: true, oee: true, availability: true, performance: true, quality: true },
@@ -500,15 +569,36 @@ export class ShiftService {
       minSeqByWO.set(jo.workOrderId, Math.min(minSeqByWO.get(jo.workOrderId) ?? jo.sequenceOrder, jo.sequenceOrder));
     }
 
-    // Per-machine production from recorded count deltas (in the machine's own unit)
+    /**
+     * Per-machine production for this shift, in PIECES.
+     *
+     * Preferred source: the fact store, which is the same engine every OEE surface
+     * reads. Falling back to raw COUNT_UPDATE telemetry deltas only when snapshots
+     * are off — that fallback is a SEPARATE counting source and will not necessarily
+     * agree with OEE, which is precisely the problem this replaces.
+     *
+     * Snapshot quantities are already piece-denominated, so the per-step packaging
+     * unit no longer enters the sum at all — the old code summed each machine's
+     * own unit and only converted afterwards.
+     */
+    const snapQty = (oeeRecords as Array<{ machineId: string; goodPieces?: number; scrapPieces?: number }>)
+      .filter((r) => r.goodPieces != null || r.scrapPieces != null);
+    const prodPiecesByMachine = new Map<string, { good: number; scrap: number }>();
+    for (const r of snapQty) {
+      prodPiecesByMachine.set(r.machineId, { good: r.goodPieces ?? 0, scrap: r.scrapPieces ?? 0 });
+    }
+
+    // Legacy fallback (snapshots off): telemetry deltas, in the machine's own unit.
     const prodByMachine = new Map<string, { good: number; scrap: number }>();
-    for (const ev of events) {
-      const meta = (ev.metadata ?? {}) as any;
-      if (!ev.machineId) continue;
-      const cur = prodByMachine.get(ev.machineId) ?? { good: 0, scrap: 0 };
-      cur.good += meta.goodDelta ?? 0;
-      cur.scrap += meta.scrapDelta ?? 0;
-      prodByMachine.set(ev.machineId, cur);
+    if (prodPiecesByMachine.size === 0) {
+      for (const ev of events) {
+        const meta = (ev.metadata ?? {}) as any;
+        if (!ev.machineId) continue;
+        const cur = prodByMachine.get(ev.machineId) ?? { good: 0, scrap: 0 };
+        cur.good += meta.goodDelta ?? 0;
+        cur.scrap += meta.scrapDelta ?? 0;
+        prodByMachine.set(ev.machineId, cur);
+      }
     }
 
     // Resolve the shift's base unit from the products in play (single product → its
@@ -552,16 +642,29 @@ export class ShiftService {
     let totalScrapTarget = 0;   // all rejects across steps in target unit
 
     const machineRows = machines.map((m) => {
-      const p = prodByMachine.get(m.id) ?? { good: 0, scrap: 0 };
       const jo = joByMachine.get(m.id);
       const unit = jo?.outputUnit ?? null;
       const sku = jo?.workOrder?.sku ?? null;
+      // Quantities in PIECES. From the fact store when available (same engine as
+      // OEE); otherwise the machine's own counter converted from its packaging unit.
+      const snap = prodPiecesByMachine.get(m.id);
+      const raw = prodByMachine.get(m.id) ?? { good: 0, scrap: 0 };
+      const pieces = snap ?? {
+        good: sku && unit ? toPieces(raw.good, unit, sku) : raw.good,
+        scrap: sku && unit ? toPieces(raw.scrap, unit, sku) : raw.scrap,
+      };
+      // Kept for the per-machine display, which reads in the machine's own unit.
+      const p = snap && sku && unit
+        ? { good: fromPieces(snap.good, unit, sku), scrap: fromPieces(snap.scrap, unit, sku) }
+        : raw;
       const isTerminal = jo ? jo.sequenceOrder >= (maxSeqByWO.get(jo.workOrderId) ?? jo.sequenceOrder) : false;
       const isLead = jo ? jo.sequenceOrder <= (minSeqByWO.get(jo.workOrderId) ?? jo.sequenceOrder) : false;
       // Convert this step's output to the target unit (and to base, for reference)
-      const goodTarget = sku && unit ? convertUnits(p.good, unit, targetUnit, sku) : p.good;
-      const scrapTarget = sku && unit ? convertUnits(p.scrap, unit, targetUnit, sku) : p.scrap;
-      const goodBase = sku ? toBaseUnits(p.good, unit, sku) : p.good;
+      // Pieces → the shift's TARGET unit. One conversion from the exact rung,
+      // instead of converting each machine's own unit separately.
+      const goodTarget = sku ? fromPieces(pieces.good, targetUnit, sku) : pieces.good;
+      const scrapTarget = sku ? fromPieces(pieces.scrap, targetUnit, sku) : pieces.scrap;
+      const goodBase = sku ? toBaseUnits(pieces.good, 'PIECE', sku) : pieces.good;
       if (isTerminal) finishedGoodTarget += goodTarget;
       if (isLead) startedGoodTarget += goodTarget;
       totalScrapTarget += scrapTarget;
@@ -666,32 +769,26 @@ export class ShiftService {
   // ────────────────────────────────────────────────────────────
 
   /**
-   * Resolve the planned downtime reason codes for break & cleaning, reusing any
-   * existing factory-level planned cause of that category (so we don't duplicate
-   * the seeded catalogue) and creating one only if none exists.
+   * The planned downtime causes this factory has, WITHOUT creating any.
+   *
+   * This used to invent two — `PLN-BREAK` and `PLN-CLEAN` — on first call, so a
+   * factory that had never configured a break silently acquired one, complete
+   * with a reason code nobody had chosen. A cause is now something a person
+   * creates in the downtime catalogue, like every other cause.
+   *
+   * Returns whatever exists, which may be nothing. A planned stop with no cause
+   * is still perfectly valid — it simply carries its category and its name.
    */
-  async ensurePlannedCauses(factoryId: string) {
-    const resolve = async (
-      category: DowntimeCategory, code: string, name: string, nameAr: string, sortOrder: number,
-    ) => {
-      const existing = await this.prisma.downtimeCause.findFirst({
-        where: { factoryId, category, isPlanned: true, machineId: null, isActive: true },
-        orderBy: { sortOrder: 'asc' },
-      });
-      if (existing) return existing;
-      return this.prisma.downtimeCause.create({
-        data: { factoryId, machineId: null, code, name, nameAr, category, isPlanned: true, level: 1, sortOrder, isActive: true },
-      });
-    };
-    const breakCause = await resolve(DowntimeCategory.PLANNED_BREAK, 'PLN-BREAK', 'Scheduled Break', 'استراحة مجدولة', 90);
-    const cleaningCause = await resolve(DowntimeCategory.PLANNED_CLEANING, 'PLN-CLEAN', 'Line Cleaning', 'تنظيف الخط', 91);
-    return { breakCause, cleaningCause };
+  async listPlannedCausesRaw(factoryId: string) {
+    return this.prisma.downtimeCause.findMany({
+      where: { factoryId, isPlanned: true, isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
   }
 
   /** Planned downtime reason codes for this factory (powers the shift UI link). */
   async listPlannedCauses(factoryId: string | null) {
     const fid = this.requireFactory(factoryId);
-    await this.ensurePlannedCauses(fid);
     return this.prisma.downtimeCause.findMany({
       where: { factoryId: fid, isPlanned: true, isActive: true },
       orderBy: { sortOrder: 'asc' },
@@ -699,86 +796,24 @@ export class ShiftService {
   }
 
   /**
-   * Materialise planned downtime events (break + cleaning) from the shift model
-   * for every shift instance in a date range, per target machine. Each event is
-   * isPlanned + affectsOEE:false so it is excluded from OEE availability loss and
-   * the unplanned-downtime Pareto, but visible in the downtime module. Idempotent.
+   * Materialise planned stops for a date range.
+   *
+   * The old implementation read `breakMinutes` and `cleaningMinutes` off the
+   * shift template — two defaults of 30 that nobody had entered — and invented
+   * when they happened: the break at the midpoint of the shift, the cleaning at
+   * the end. It then attached both to EVERY active machine, inventing downtime
+   * for equipment nobody had touched.
+   *
+   * It now delegates to PlannedStopService, where each stop is a row with a
+   * name, a duration, a start time and a scope that a person chose. Kept as a
+   * thin wrapper so the existing endpoint and UI keep working while they move
+   * across.
    */
   async generatePlannedDowntime(factoryId: string | null, dto: GeneratePlannedDowntimeDto) {
-    const fid = this.requireFactory(factoryId);
-    const { breakCause, cleaningCause } = await this.ensurePlannedCauses(fid);
-
-    const from = new Date(`${dto.dateFrom}T00:00:00.000Z`);
-    const to = dto.dateTo ? new Date(`${dto.dateTo}T23:59:59.999Z`) : new Date(`${dto.dateFrom}T23:59:59.999Z`);
-
-    const instances = await this.prisma.shiftInstance.findMany({
-      where: {
-        factoryId: fid,
-        shiftDate: { gte: from, lte: to },
-        ...(dto.templateIds?.length ? { shiftTemplateId: { in: dto.templateIds } } : {}),
-      },
-      include: { shiftTemplate: true },
+    return this.plannedStops.materialise(factoryId, {
+      dateFrom: dto.dateFrom,
+      dateTo: dto.dateTo,
     });
-    if (instances.length === 0) {
-      throw new BadRequestException('No shift instances in range — generate shifts first');
-    }
-
-    const machines = await this.prisma.machine.findMany({
-      where: { factoryId: fid, isActive: true, ...(dto.machineIds?.length ? { id: { in: dto.machineIds } } : {}) },
-      select: { id: true },
-    });
-    if (machines.length === 0) {
-      throw new BadRequestException('No active machines to attach planned downtime to');
-    }
-
-    let created = 0;
-    let skipped = 0;
-    const HOUR = 3_600_000;
-    const MIN = 60_000;
-
-    for (const inst of instances) {
-      const t = inst.shiftTemplate;
-      const start = inst.startTime;
-      const end = inst.endTime ?? new Date(start.getTime() + t.shiftDurationHours * HOUR);
-      const breakStart = new Date(start.getTime() + Math.floor(t.shiftDurationHours / 2) * HOUR);
-      const cleanStart = new Date(end.getTime() - t.cleaningMinutes * MIN);
-
-      const slots = [
-        { cause: breakCause, category: DowntimeCategory.PLANNED_BREAK, dur: t.breakMinutes, s: breakStart, e: new Date(breakStart.getTime() + t.breakMinutes * MIN) },
-        { cause: cleaningCause, category: DowntimeCategory.PLANNED_CLEANING, dur: t.cleaningMinutes, s: cleanStart, e: end },
-      ];
-
-      for (const m of machines) {
-        for (const slot of slots) {
-          if (slot.dur <= 0 || !slot.cause) continue;
-          // Idempotent by (instance, machine, category) so re-runs never duplicate
-          const exists = await this.prisma.downtimeEvent.findFirst({
-            where: { shiftInstanceId: inst.id, machineId: m.id, category: slot.category, isPlanned: true },
-            select: { id: true },
-          });
-          if (exists) { skipped++; continue; }
-          await this.prisma.downtimeEvent.create({
-            data: {
-              factoryId: fid,
-              machineId: m.id,
-              shiftInstanceId: inst.id,
-              causeId: slot.cause.id,
-              category: slot.category,
-              reasonCode: DowntimeReasonCode.PLANNED_MAINTENANCE,
-              startTime: slot.s,
-              endTime: slot.e,
-              durationMinutes: slot.dur,
-              isPlanned: true,
-              affectsOEE: false,
-              notes: `Auto-generated planned downtime from shift ${t.code}`,
-            },
-          });
-          created++;
-        }
-      }
-    }
-
-    return { created, skipped, instances: instances.length, machines: machines.length };
   }
 
   /** List planned downtime events (isPlanned) for the shift UI. */

@@ -19,38 +19,81 @@
     "evidence": "الصور والملفات"
   },
   "picker": {
-    "searchMachines": "ابحث عن الماكينات...", "noMachines": "لا توجد ماكينات",
-    "searchWorkCenters": "ابحث عن مراكز العمل...", "noResults": "لا توجد نتائج",
-    "manage": "إدارة {{label}}", "noneDefined": "لا يوجد {{label}} معرّف بعد.",
-    "select": "اختر…", "search": "بحث…", "noMatches": "لا توجد تطابقات"
+    "searchMachines": "ابحث عن الماكينات...",
+    "noMachines": "لا توجد ماكينات",
+    "searchWorkCenters": "ابحث عن مراكز العمل...",
+    "noResults": "لا توجد نتائج",
+    "manage": "إدارة {{label}}",
+    "noneDefined": "لا يوجد {{label}} معرّف بعد.",
+    "select": "اختر…",
+    "search": "بحث…",
+    "noMatches": "لا توجد تطابقات"
   },
   "charts": {
-    "currentShift": "الوردية الحالية", "activeAlarms": "الإنذارات النشطة", "noActiveAlarms": "لا توجد إنذارات نشطة", "allNormal": "جميع الأنظمة تعمل بشكل طبيعي",
-    "oee": "الكفاءة الكلية", "live": "مباشر", "machineStatusGrid": "شبكة حالة الماكينات", "realtimeOverview": "نظرة عامة على المعدات لحظياً",
-    "qualityTrend": "اتجاه الجودة", "fpyDefects": "عائد أول تمرير ومعدلات العيوب",
-    "productionOutput": "إنتاج الإنتاج", "actualVsTarget": "الفعلي مقابل المستهدف مع الكفاءة",
-    "oeeAnalysis": "تحليل الكفاءة الكلية", "oeeFull": "الفعالية الكلية للمعدات",
-    "availability": "الجاهزية", "performance": "الأداء", "quality": "الجودة",
-    "mttrMtbf": "متوسط زمن الإصلاح مقابل متوسط الزمن بين الأعطال", "downtimePareto": "باريتو التوقفات", "downtimeParetoSub": "أهم أسباب التوقف (تحليل باريتو)", "mttrMtbfTitle": "اتجاهات MTTR و MTBF",
-    "gRows": "الصفوف", "gTimeScale": "المقياس الزمني", "gActions": "إجراءات", "gOrders": "الأوامر", "gResources": "الموارد", "gSupply": "العرض", "gDemand": "الطلب",
+    "currentShift": "الوردية الحالية",
+    "activeAlarms": "الإنذارات النشطة",
+    "noActiveAlarms": "لا توجد إنذارات نشطة",
+    "allNormal": "جميع الأنظمة تعمل بشكل طبيعي",
+    "oee": "الكفاءة الكلية",
+    "live": "مباشر",
+    "machineStatusGrid": "شبكة حالة الماكينات",
+    "realtimeOverview": "نظرة عامة على المعدات لحظياً",
+    "qualityTrend": "اتجاه الجودة",
+    "fpyDefects": "عائد أول تمرير ومعدلات العيوب",
+    "productionOutput": "إنتاج الإنتاج",
+    "actualVsTarget": "الفعلي مقابل المستهدف مع الكفاءة",
+    "oeeAnalysis": "تحليل الكفاءة الكلية",
+    "oeeFull": "الفعالية الكلية للمعدات",
+    "availability": "الجاهزية",
+    "performance": "الأداء",
+    "quality": "الجودة",
+    "mttrMtbf": "متوسط زمن الإصلاح مقابل متوسط الزمن بين الأعطال",
+    "downtimePareto": "باريتو التوقفات",
+    "downtimeParetoSub": "أهم أسباب التوقف (تحليل باريتو)",
+    "mttrMtbfTitle": "اتجاهات MTTR و MTBF",
+    "gRows": "الصفوف",
+    "gTimeScale": "المقياس الزمني",
+    "gActions": "إجراءات",
+    "gOrders": "الأوامر",
+    "gResources": "الموارد",
+    "gSupply": "العرض",
+    "gDemand": "الطلب",
     "worldClass": "عالمي المستوى",
     "production": {
-      "actualOutput": "الإنتاج الفعلي", "target": "المستهدف", "efficiencyPct": "الكفاءة ٪", "units": "وحدات"
+      "actualOutput": "الإنتاج الفعلي",
+      "target": "المستهدف",
+      "efficiencyPct": "الكفاءة ٪",
+      "units": "وحدات"
     },
     "qualityTrendSeries": {
-      "fpy": "عائد أول تمرير ٪", "rework": "إعادة العمل ٪", "scrap": "الهدر ٪"
+      "fpy": "عائد أول تمرير ٪",
+      "rework": "إعادة العمل ٪",
+      "scrap": "الهدر ٪"
     },
     "mttr": {
-      "mttrHours": "متوسط زمن الإصلاح (ساعات)", "mtbfHours": "متوسط الزمن بين الأعطال (ساعات)", "mttrAxis": "م.ز.إ (س)", "mtbfAxis": "م.ز.ب.أ (س)", "noData": "لا توجد بيانات موثوقية متاحة بعد"
+      "mttrHours": "متوسط زمن الإصلاح (ساعات)",
+      "mtbfHours": "متوسط الزمن بين الأعطال (ساعات)",
+      "mttrAxis": "م.ز.إ (س)",
+      "mtbfAxis": "م.ز.ب.أ (س)",
+      "noData": "لا توجد بيانات موثوقية متاحة بعد"
     },
     "pareto": {
-      "downtimeMin": "وقت التوقف (دقائق)", "cumulativePct": "النسبة التراكمية ٪", "min": "دقائق"
+      "downtimeMin": "وقت التوقف (دقائق)",
+      "cumulativePct": "النسبة التراكمية ٪",
+      "min": "دقائق"
     },
     "spc": {
-      "title": "التحكم الإحصائي في العملية (مخطط X-Bar)", "value": "القيمة", "mean": "المتوسط", "controlLimits": "حدود التحكم", "specLimits": "حدود المواصفات", "noData": "لا توجد قياسات تحكم إحصائي مسجلة لهذا البارامتر"
+      "title": "التحكم الإحصائي في العملية (مخطط X-Bar)",
+      "value": "القيمة",
+      "mean": "المتوسط",
+      "controlLimits": "حدود التحكم",
+      "specLimits": "حدود المواصفات",
+      "noData": "لا توجد قياسات تحكم إحصائي مسجلة لهذا البارامتر"
     },
     "gantt": {
-      "category": "الفئة", "resource": "المورد", "noItems": "لا توجد عناصر مجدولة في هذا النطاق. عدّل النطاق الزمني أو عوامل التصفية."
+      "category": "الفئة",
+      "resource": "المورد",
+      "noItems": "لا توجد عناصر مجدولة في هذا النطاق. عدّل النطاق الزمني أو عوامل التصفية."
     }
   },
   "gantt": {
@@ -119,8 +162,8 @@
   },
   "atOee": {
     "schedule": "OEE",
-    "tb": "Time Base-OEE",
-    "hint": "تبديل بين OEE المبني على الجدول والزمني (Time Base-OEE)"
+    "tb": "OEE-TB",
+    "hint": "تبديل بين OEE المبني على الجدول والزمني (OEE-TB)"
   },
   "filters": {
     "title": "عوامل التصفية",
@@ -206,5 +249,16 @@
     "selected": "{{count}} محدد",
     "clearSelection": "إلغاء التحديد",
     "confirmDelete": "لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد؟"
+  },
+  "units": {
+    "piece": "قطعة",
+    "inner": "عبوة",
+    "carton": "كرتونة",
+    "pallet": "بالتة"
+  },
+  "permission": {
+    "deniedTitle": "لا تملك صلاحية الوصول إلى هذه الصفحة",
+    "deniedBody": "هذه شاشة إدارة. اطلب من المسؤول منحك الصلاحية أدناه من صفحة إدارة الصلاحيات.",
+    "required": "الصلاحية المطلوبة:"
   }
 }

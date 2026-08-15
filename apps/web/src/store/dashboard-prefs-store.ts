@@ -7,7 +7,7 @@ interface DashboardPrefsState {
   /** Render style for every time-series chart across the app. */
   trendType: TrendType;
   setTrendType: (t: TrendType) => void;
-  /** Show time-based (Time Base-OEE) instead of schedule-based OEE everywhere. */
+  /** Show time-based (OEE-TB) instead of schedule-based OEE everywhere. */
   atOee: boolean;
   setAtOee: (v: boolean) => void;
 }

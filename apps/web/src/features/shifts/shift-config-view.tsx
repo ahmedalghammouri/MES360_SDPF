@@ -33,7 +33,7 @@ type FormState = {
   code: string; name: string; nameAr: string;
   startTime: string; endTime: string;
   shiftDurationHours: string; plannedProductionHours: string;
-  breakMinutes: string; cleaningMinutes: string;
+
   days: number[]; targetQtyPerShift: string; targetUnit: string; isActive: boolean;
 };
 
@@ -41,7 +41,7 @@ const EMPTY: FormState = {
   code: '', name: '', nameAr: '',
   startTime: '07:30', endTime: '19:30',
   shiftDurationHours: '12', plannedProductionHours: '11',
-  breakMinutes: '30', cleaningMinutes: '30',
+
   days: [6, 0, 1, 2, 3, 4], targetQtyPerShift: '3000', targetUnit: 'CARTON', isActive: true,
 };
 
@@ -51,7 +51,7 @@ function toForm(t: ShiftTemplate): FormState {
     startTime: t.startTime, endTime: t.endTime,
     shiftDurationHours: String(t.shiftDurationHours),
     plannedProductionHours: String(t.plannedProductionHours),
-    breakMinutes: String(t.breakMinutes), cleaningMinutes: String(t.cleaningMinutes),
+
     days: t.days ?? [], targetQtyPerShift: t.targetQtyPerShift != null ? String(t.targetQtyPerShift) : '',
     targetUnit: (t as any).targetUnit ?? 'CARTON',
     isActive: t.isActive,
@@ -65,8 +65,7 @@ function toPayload(f: FormState): ShiftTemplateInput {
     startTime: f.startTime, endTime: f.endTime,
     shiftDurationHours: Number(f.shiftDurationHours),
     plannedProductionHours: Number(f.plannedProductionHours),
-    breakMinutes: Number(f.breakMinutes) || 0,
-    cleaningMinutes: Number(f.cleaningMinutes) || 0,
+
     days: f.days,
     targetQtyPerShift: f.targetQtyPerShift ? Number(f.targetQtyPerShift) : undefined,
     targetUnit: f.targetUnit,
@@ -212,18 +211,21 @@ export function ShiftConfigView() {
     }
   };
 
-  const weekRange = () => {
-    const today = new Date();
-    const iso = (d: Date) => toFactoryDayKey(d);
-    return { dateFrom: iso(today), dateTo: iso(new Date(today.getTime() + 6 * 86_400_000)) };
-  };
-  const generateWeek = () => generateMut.mutate({ ...weekRange(), withPlannedDowntime: true });
+  // "Generate the week" is gone deliberately. It produced seven days of shifts
+  // whether or not the plant worked them, and materialised break and cleaning
+  // events from defaults nobody had set. A shift now recurs because a schedule
+  // says so — chosen weekdays, a date range or perpetual — so there is nothing
+  // to generate ad hoc.
 
   const crossesMidnight = useMemo(
     () => form.endTime <= form.startTime,
     [form.startTime, form.endTime],
   );
-  const plannedMinutes = Math.max(0, duration * 60 - (Number(form.breakMinutes) || 0) - (Number(form.cleaningMinutes) || 0));
+  // Planned production minutes are DERIVED on the server from the planned stops
+  // actually scheduled inside the shift. Recomputing them here from two form
+  // fields is what produced a number nobody had entered, so the form no longer
+  // has an opinion: it shows the shift duration and points at the real source.
+  const plannedMinutes = Math.max(0, duration * 60);
 
   const instances = instancesResp?.data ?? [];
 
@@ -238,10 +240,7 @@ export function ShiftConfigView() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={generateWeek} disabled={generateMut.isPending}>
-            <CalendarPlus size={16} className="mr-2" />
-            {t('shiftCfg.generateWeek')}
-          </Button>
+
           <Button onClick={openCreate}>
             <Plus size={16} className="mr-2" />
             {t('shiftCfg.newShift')}
@@ -305,7 +304,7 @@ export function ShiftConfigView() {
                   <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1 flex-wrap">
                     <span className="flex items-center gap-1"><Clock size={12} />{tpl.startTime}–{tpl.endTime}</span>
                     <span>{t('shiftCfg.plannedOfDuration', { planned: tpl.plannedProductionHours, duration: tpl.shiftDurationHours })}</span>
-                    <span>{t('shiftCfg.breakClean', { break: tpl.breakMinutes, clean: tpl.cleaningMinutes })}</span>
+                    <span>{t('shiftCfg.plannedStopsCount', { count: tpl.plannedStops?.length ?? 0 })}</span>
                     {tpl.targetQtyPerShift != null && <span className="flex items-center gap-1"><Target size={12} />{tpl.targetQtyPerShift}</span>}
                     <span>{t('shiftCfg.scheduledSuffix', { count: tpl.instanceCount })}</span>
                   </div>
@@ -434,13 +433,13 @@ export function ShiftConfigView() {
             <Input type="number" step="0.5" value={form.plannedProductionHours} onChange={(e) => patch({ plannedProductionHours: e.target.value })} />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>{t('shiftCfg.breakMin')}</Label>
-            <Input type="number" value={form.breakMinutes} onChange={(e) => patch({ breakMinutes: e.target.value })} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>{t('shiftCfg.cleaningMin')}</Label>
-            <Input type="number" value={form.cleaningMinutes} onChange={(e) => patch({ cleaningMinutes: e.target.value })} />
+          {/* Breaks and cleaning used to be two number fields here, defaulting to
+              30 each. Those minutes were subtracted from planned production time —
+              so they set the OEE availability denominator for the whole plant —
+              and nobody had entered them. They are now named rows with a start
+              time and a scope, managed below. */}
+          <div className="col-span-2 rounded-lg border border-border/40 bg-muted/20 p-3 text-xs text-muted-foreground">
+            {t('shiftCfg.stopsMovedHelp')}
           </div>
 
           <div className="space-y-1.5 col-span-2">

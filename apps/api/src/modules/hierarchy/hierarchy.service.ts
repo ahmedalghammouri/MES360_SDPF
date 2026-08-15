@@ -76,6 +76,10 @@ export class HierarchyService {
               ...area.productionLines.map((line) => ({
                 id: line.id, type: 'PRODUCTION_LINE', code: line.code, name: line.name,
                 lineType: line.type, areaId: line.areaId,
+                // Surfaced so the Edit dialog can show the current Line-OEE basis.
+                oeeMethod: line.oeeMethod,
+                bottleneckMachineId: line.bottleneckMachineId,
+                outfeedMachineIds: line.outfeedMachineIds,
                 children: line.machines.map(toMachineNode),
               })),
               ...(areaDirectMap.get(area.id) ?? []).map(toMachineNode),
@@ -138,7 +142,16 @@ export class HierarchyService {
       case 'PRODUCTION_LINE': {
         if (!data.areaId) throw new BadRequestException('areaId is required for Production Line');
         return this.prisma.productionLine.create({
-          data: { factoryId, areaId: data.areaId, code: data.code, name: data.name, type: data.lineType || 'PACKING' },
+          data: {
+            factoryId, areaId: data.areaId, code: data.code, name: data.name,
+            type: data.lineType || 'PACKING',
+            // Bottleneck-based line OEE: the constraint machine supplies Availability
+            // and Performance, the outfeed machine supplies Quality. Both optional —
+            // unset falls back to lowest design capacity / last machine in line order.
+            oeeMethod: data.oeeMethod || undefined,
+            bottleneckMachineId: data.bottleneckMachineId || null,
+            outfeedMachineIds: Array.isArray(data.outfeedMachineIds) ? data.outfeedMachineIds : [],
+          },
         });
       }
       case 'MACHINE': {
@@ -168,7 +181,25 @@ export class HierarchyService {
       case 'AREA':
         return this.prisma.area.update({ where: { id }, data: { name: data.name, nameAr: data.nameAr || undefined, type: data.areaType || undefined } });
       case 'PRODUCTION_LINE':
-        return this.prisma.productionLine.update({ where: { id }, data: { name: data.name, type: data.lineType || undefined } });
+        return this.prisma.productionLine.update({
+          where: { id },
+          data: {
+            name: data.name,
+            type: data.lineType || undefined,
+            // `undefined` leaves the value untouched; an explicit empty string clears
+            // it back to the automatic fallback. Both are meaningful here, so the
+            // nullish check must not collapse them.
+            ...(data.bottleneckMachineId !== undefined
+              ? { bottleneckMachineId: data.bottleneckMachineId || null }
+              : {}),
+            ...(data.oeeMethod !== undefined ? { oeeMethod: data.oeeMethod } : {}),
+            // An empty array is a real choice ("all machines are outfeeds"), so it must
+            // not be collapsed into "leave unchanged" the way a falsy string would be.
+            ...(Array.isArray(data.outfeedMachineIds)
+              ? { outfeedMachineIds: data.outfeedMachineIds }
+              : {}),
+          },
+        });
       case 'MACHINE':
         return this.prisma.machine.update({
           where: { id }, data: {

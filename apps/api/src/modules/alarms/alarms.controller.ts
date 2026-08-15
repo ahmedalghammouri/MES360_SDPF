@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Body, Param, Query,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query,
   HttpCode, HttpStatus, ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
@@ -8,6 +8,7 @@ import { AlarmsService } from './alarms.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuditLog } from '../../common/decorators/audit-log.decorator';
 import { CreateAlarmDto, ResolveAlarmDto } from './dto/alarms.dto';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 interface RequestUser {
   id: string;
@@ -85,5 +86,53 @@ export class AlarmsController {
     @Body() dto: ResolveAlarmDto,
   ) {
     return this.alarms.resolve(user.factoryId, id, user.id, dto);
+  }
+  // ────────────────────────────────────────────────────────────
+  // ALARM DEFINITIONS — the rules that RAISE the events above
+  //
+  // Bound to a tag with a condition and a threshold. The edge gateway evaluates
+  // them on every reading, so a threshold crossing between two API polls is not
+  // missed and alarms keep firing while the link to the API is down.
+  // ────────────────────────────────────────────────────────────
+
+  @Get('definitions')
+  @RequirePermissions('iot:signals')
+  @ApiOperation({ summary: 'List alarm definitions' })
+  @ApiQuery({ name: 'tagId', required: false })
+  async listDefinitions(@CurrentUser() user: RequestUser, @Query('tagId') tagId?: string) {
+    return this.alarms.listDefinitions(user.factoryId, tagId);
+  }
+
+  @Post('definitions')
+  @RequirePermissions('iot:signals')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create an alarm definition' })
+  @AuditLog('CREATE_ALARM_DEFINITION')
+  async createDefinition(@CurrentUser() user: RequestUser, @Body() dto: any) {
+    return this.alarms.createDefinition(user.factoryId, dto);
+  }
+
+  @Patch('definitions/:id')
+  @RequirePermissions('iot:signals')
+  @ApiOperation({ summary: 'Update an alarm definition' })
+  @AuditLog('UPDATE_ALARM_DEFINITION')
+  async updateDefinition(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: any,
+  ) {
+    return this.alarms.updateDefinition(user.factoryId, id, dto);
+  }
+
+  @Delete('definitions/:id')
+  @RequirePermissions('iot:signals')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete an alarm definition' })
+  @AuditLog('DELETE_ALARM_DEFINITION')
+  async deleteDefinition(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.alarms.deleteDefinition(user.factoryId, id);
   }
 }

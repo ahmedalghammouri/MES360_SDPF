@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -204,7 +205,9 @@ export function EnergyAnalyticsView() {
       {/* ── header ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t('analytics.title')}</h1>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">{t('analytics.title')}
+            <DashboardInfo id="energy-analytics" />
+          </h1>
           <p className="text-sm text-muted-foreground">{t('analytics.subtitle')}</p>
         </div>
         <Button size="sm" variant="outline" className="h-8 text-xs" onClick={exportCsv} disabled={!rows.length}>

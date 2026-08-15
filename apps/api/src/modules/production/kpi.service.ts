@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, MachineState } from '@prisma/client';
 import { OEEService, RollupChild, OEEBreakdown } from './oee.service';
-import { toBaseUnits } from '../../common/units.util';
+import { toPieces } from '../../common/units.util';
+import { ScheduleKpiService } from './schedule-kpi.service';
 
 /**
  * KpiService — OEE orchestration & roll-up (Phase 2 of the OEE/KPI engine).
@@ -33,6 +34,10 @@ type DtLite = {
   machineId: string; startTime: Date; endTime: Date | null;
   durationMinutes: number | null; isPlanned: boolean; affectsOEE: boolean;
 };
+/** MachineStateRecord slice — the source of STARVED/BLOCKED external-loss minutes. */
+type StateLite = {
+  machineId: string; state: string; startTime: Date; endTime: Date | null;
+};
 type WoLite = {
   status: string; plannedCycleTime: number | null;
   actualQty: number; goodQty: number; scrapQty: number;
@@ -47,6 +52,53 @@ const JO_SELECT = {
 const DT_SELECT = {
   machineId: true, startTime: true, endTime: true, durationMinutes: true, isPlanned: true, affectsOEE: true,
 } as const;
+const STATE_SELECT = {
+  machineId: true, state: true, startTime: true, endTime: true,
+} as const;
+/**
+ * Job orders that OVERLAP [from, to] — the only correct selection for a window.
+ *
+ * The previous form asked for job orders that STARTED or ENDED inside the window:
+ *
+ *   OR: [{ actualStart: { gte: from, lte: to } }, { actualEnd: { gte: from, lte: to } }]
+ *
+ * which silently drops the most important case there is: a job order that began
+ * before the window and is still running. On a line running a multi-day order,
+ * "today" matched nothing and every KPI built from it read 0 — Overall Line OEE,
+ * the machine OEE leaderboard, the reliability figures. It looked like missing
+ * data; it was a missing predicate.
+ *
+ * Overlap is: it started at or before the window ends, AND it had not already
+ * ended when the window began (an open job order has not ended at all).
+ *
+ * `actualStart: null` (never started) does not satisfy a comparison filter in
+ * Prisma, so unstarted job orders stay excluded, as they should.
+ *
+ * The duration each job order contributes is still clipped to the window by
+ * `overlapMin`; this decides membership only.
+ *
+ * ── Known limit, stated rather than hidden ──────────────────────────────────
+ * `actualQtyGood`/`actualQtyRejected` are CUMULATIVE counters on the job order,
+ * not per-window figures. So for a window shorter than a still-running job order,
+ * the TIME is clipped but the COUNTS are not, and output is overstated by the
+ * part produced before the window. That is a bounded error on a visible number;
+ * the previous behaviour was a zero, which is neither. The exact fix is to source
+ * these paths from `production_snapshots`, which stores per-minute deltas — the
+ * same store `/oee/calculate` already reads. Until the two engines are unified,
+ * prefer the snapshot-backed endpoints for windowed output figures.
+ */
+function joOverlapsWindow(from: Date, to: Date) {
+  return {
+    AND: [
+      { actualStart: { lte: to } },
+      { OR: [{ actualEnd: null }, { actualEnd: { gte: from } }] },
+    ],
+  };
+}
+
+/** States where the machine is healthy but the LINE cannot feed or drain it. */
+const EXTERNAL_STATES: MachineState[] = [MachineState.STARVED, MachineState.BLOCKED];
+const EXTERNAL_STATE_NAMES = new Set<string>(EXTERNAL_STATES);
 // Analytics select — adds the step output unit + product packaging so production
 // counts can be normalised to the SKU base unit before aggregating across steps.
 const JO_SELECT_ANALYTICS = {
@@ -65,6 +117,8 @@ export class KpiService {
     private readonly prisma: PrismaService,
     private readonly oee: OEEService,
     private readonly eventEmitter: EventEmitter2,
+    // Rated capacity comes from routing master data — see ratedCapacityByMachine.
+    private readonly scheduleKpi: ScheduleKpiService,
   ) {}
 
   // ── time helpers ───────────────────────────────────────────────────────────
@@ -85,11 +139,47 @@ export class KpiService {
     return 0;
   }
 
+  /**
+   * External-loss minutes attributed to a JO — STARVED/BLOCKED machine-state segments
+   * on this JO's machine overlapping its active window.
+   *
+   * These are removed from Planned Production Time before Availability and Performance
+   * are derived (see OEEService.EXTERNAL_LOSS_STATES): a palletizer waiting on the
+   * bottleneck is available and running at rate, and must not be charged for the wait.
+   */
+  private joExternalLoss(jo: JoLite, states: StateLite[], win?: { from: number; to: number }): number {
+    if (!jo.actualStart || states.length === 0) return 0;
+    // Clamp the JO's active period to the analysis window, so external-loss minutes
+    // cover the same period as the run time they are subtracted from.
+    const js = win ? new Date(Math.max(jo.actualStart.getTime(), win.from)) : jo.actualStart;
+    const jeRaw = jo.actualEnd ?? new Date();
+    const je = win ? new Date(Math.min(jeRaw.getTime(), win.to)) : jeRaw;
+    if (je <= js) return 0;
+    let mins = 0;
+    for (const s of states) {
+      if (!EXTERNAL_STATE_NAMES.has(s.state)) continue;
+      if (jo.machineId && s.machineId !== jo.machineId) continue;
+      mins += this.overlapMin(js, je, s.startTime, s.endTime ?? new Date());
+    }
+    return mins;
+  }
+
   /** Unplanned downtime minutes attributed to a JO (its machine, overlapping its active window). */
-  private joUnplanned(jo: JoLite, downtime: DtLite[]): number {
+  /**
+   * Unplanned, OEE-affecting downtime minutes on this JO's machine during the JO —
+   * clamped to the analysis window when one is given.
+   *
+   * The clamp matters now that a JO which began before the window is (correctly)
+   * included: without it, a job order running for three days would contribute all
+   * three days of downtime to a one-shift window, and OEE-TB would disagree with
+   * every other figure on the same screen.
+   */
+  private joUnplanned(jo: JoLite, downtime: DtLite[], win?: { from: number; to: number }): number {
     if (!jo.actualStart) return 0;
-    const js = jo.actualStart;
-    const je = jo.actualEnd ?? new Date();
+    const js = win ? new Date(Math.max(jo.actualStart.getTime(), win.from)) : jo.actualStart;
+    const jeRaw = jo.actualEnd ?? new Date();
+    const je = win ? new Date(Math.min(jeRaw.getTime(), win.to)) : jeRaw;
+    if (je <= js) return 0;
     let mins = 0;
     for (const d of downtime) {
       if (d.isPlanned || !d.affectsOEE) continue;
@@ -101,7 +191,7 @@ export class KpiService {
   }
 
   /** Summed RollupChild for a WO — from its JOs (routed) or the WO header (non-routed). */
-  private woChild(wo: WoLite, jos: JoLite[], downtime: DtLite[]): RollupChild {
+  private woChild(wo: WoLite, jos: JoLite[], downtime: DtLite[], states: StateLite[] = []): RollupChild {
     if (jos.length === 0) {
       const ppt = this.spanMin(wo.actualStart, wo.actualEnd);
       const unplanned = downtime
@@ -109,25 +199,52 @@ export class KpiService {
         .reduce((s, d) => s + (d.durationMinutes ?? this.spanMin(d.startTime, d.endTime)), 0);
       const total = wo.actualQty || (wo.goodQty + wo.scrapQty);
       const idealMin = wo.plannedCycleTime ? wo.plannedCycleTime / 60 : 0;
-      return { ppt, runTime: Math.max(0, ppt - unplanned), idealRunTime: idealMin * total, totalCount: total, goodCount: wo.goodQty };
+      return { ppt, runTime: Math.max(0, ppt - unplanned), idealRunTime: idealMin * total, externalLoss: 0, totalCount: total, goodCount: wo.goodQty };
     }
 
     const ordered = [...jos].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
-    let ppt = 0, runTime = 0, idealRunTime = 0;
+    let ppt = 0, runTime = 0, idealRunTime = 0, externalLoss = 0;
     for (const jo of ordered) {
       const p = this.joPpt(jo);
       const unplanned = this.joUnplanned(jo, downtime);
+      // Starved/blocked is an external constraint — capped at the step's PPT.
+      const ext = Math.min(p, this.joExternalLoss(jo, states));
       const joTotal = (jo.actualQtyGood ?? 0) + (jo.actualQtyRejected ?? 0);
       const idealMin = jo.idealCycleTimeSec ? jo.idealCycleTimeSec / 60 : 0;
       ppt += p;
-      runTime += Math.max(0, p - unplanned);
+      externalLoss += ext;
+      runTime += Math.max(0, p - ext - unplanned);
       idealRunTime += idealMin * joTotal; // earned minutes per step (unit-correct per step)
     }
     // Quality is unit-based → use the FINAL step's output (units are consistent there).
     const last = ordered[ordered.length - 1];
     const totalCount = (last.actualQtyGood ?? 0) + (last.actualQtyRejected ?? 0);
     const goodCount = last.actualQtyGood ?? 0;
-    return { ppt, runTime, idealRunTime, totalCount, goodCount };
+    return { ppt, runTime, idealRunTime, externalLoss, totalCount, goodCount };
+  }
+
+  /**
+   * Load STARVED/BLOCKED machine-state segments overlapping a window, for the given
+   * machines. Returns [] when nothing is in scope so callers stay allocation-free
+   * on lines that do not yet report external states.
+   */
+  private async loadExternalStates(
+    factoryId: string | null,
+    machineIds: string[],
+    from: Date,
+    to: Date,
+  ): Promise<StateLite[]> {
+    if (machineIds.length === 0) return [];
+    return (await this.prisma.machineStateRecord.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        machineId: { in: machineIds },
+        state: { in: EXTERNAL_STATES },
+        startTime: { lte: to },
+        OR: [{ endTime: null }, { endTime: { gte: from } }],
+      },
+      select: STATE_SELECT,
+    })) as unknown as StateLite[];
   }
 
   // ── status derivation (forward-only; never overrides hold/cancel) ───────────
@@ -155,7 +272,14 @@ export class KpiService {
       });
       if (!wo) return;
 
-      const child = this.woChild(wo as unknown as WoLite, wo.jobOrders as JoLite[], wo.downtimeEvents as DtLite[]);
+      const jos = wo.jobOrders as JoLite[];
+      const states = await this.loadExternalStates(
+        wo.factoryId,
+        [...new Set(jos.map((j) => j.machineId).filter(Boolean))] as string[],
+        wo.actualStart ?? wo.plannedStart ?? new Date(0),
+        wo.actualEnd ?? new Date(),
+      );
+      const child = this.woChild(wo as unknown as WoLite, jos, wo.downtimeEvents as DtLite[], states);
       const b = this.oee.rollup([child]);
       const woStatus = this.deriveWoStatus(wo.status, wo.jobOrders as JoLite[]);
 
@@ -197,8 +321,15 @@ export class KpiService {
     });
     if (!po) return null;
 
+    const poJos = po.workOrders.flatMap((wo) => wo.jobOrders as JoLite[]);
+    const poStates = await this.loadExternalStates(
+      po.factoryId,
+      [...new Set(poJos.map((j) => j.machineId).filter(Boolean))] as string[],
+      po.actualStart ?? po.plannedStart ?? new Date(0),
+      po.actualEnd ?? new Date(),
+    );
     const children = po.workOrders.map(wo =>
-      this.woChild(wo as unknown as WoLite, wo.jobOrders as JoLite[], wo.downtimeEvents as DtLite[]),
+      this.woChild(wo as unknown as WoLite, wo.jobOrders as JoLite[], wo.downtimeEvents as DtLite[], poStates),
     );
     const b = this.oee.rollup(children);
     const poStatus = this.derivePoStatus(po.status, po.workOrders.map(w => w.status));
@@ -244,15 +375,38 @@ export class KpiService {
    * availability (the classic "plant OEE 1.4% while every machine is 99%" bug).
    * PPT is floored at the in-window actual run so availability never exceeds 100%.
    */
-  private joRollupChild(jo: JoLite, win?: { from: number; to: number }): RollupChild {
+  private joRollupChild(jo: JoLite, win?: { from: number; to: number }, states: StateLite[] = []): RollupChild {
     const ps = jo.plannedStart ? new Date(jo.plannedStart).getTime() : null;
     const pe = jo.plannedEnd ? new Date(jo.plannedEnd).getTime() : null;
+    // The window's upper bound must never run past NOW. "Today" ends at 23:59, so an
+    // in-progress order was charged Planned Production Time for hours that have not
+    // happened yet: 205 elapsed minutes against a 1,440-minute day read as 14.2%
+    // Availability, while the fact store — which only accrues minutes as buckets
+    // close — reported 100% for the same machine on the same screen. Equipment is
+    // accountable for time that has passed, not for the rest of the calendar.
+    //
+    // For a window that already ended this is a no-op, so history is untouched.
+    const winTo = win ? Math.min(win.to, Date.now()) : undefined;
+
     let plannedSpan = ps != null && pe != null ? (pe - ps) / 60_000 : 0;
-    if (win && ps != null && pe != null) {
-      // Only the planned time that falls inside the analysis window counts.
-      plannedSpan = Math.max(0, Math.min(pe, win.to) - Math.max(ps, win.from)) / 60_000;
+    if (win && winTo != null && ps != null && pe != null) {
+      // Only the planned time that falls inside the analysis window — and has
+      // actually elapsed — counts.
+      plannedSpan = Math.max(0, Math.min(pe, winTo) - Math.max(ps, win.from)) / 60_000;
     }
-    const actualSpan = this.spanMin(jo.actualStart, jo.actualEnd);
+    // Run time MUST be clamped to the same window as PPT. Leaving it unclamped let a
+    // job order that ran for days drag its whole span into a one-day view: PPT was
+    // trimmed to the window, then the `actualSpan > ppt` guard below pushed PPT back
+    // out to the full span, so "Today" silently reported days of run time and a
+    // meaningless Performance. Both sides of the ratio now cover the same period.
+    const actualSpan = jo.actualStart
+      ? (win && winTo != null
+          ? this.overlapMin(
+              jo.actualStart, jo.actualEnd ?? new Date(),
+              new Date(win.from), new Date(winTo),
+            )
+          : this.spanMin(jo.actualStart, jo.actualEnd))
+      : 0;
     let ppt = plannedSpan > 0 ? plannedSpan : actualSpan;
     if (actualSpan > ppt) ppt = actualSpan; // ran longer than planned-in-window → PPT ≥ run
     const good = jo.actualQtyGood ?? 0;
@@ -261,17 +415,27 @@ export class KpiService {
     // so spanMin counts now−start as "run") has no production to measure OEE on.
     // Counting its open-ended run with zero earned time drags the aggregate
     // Performance down — so exclude no-output operations from the rollup entirely.
-    if (total <= 0) return { ppt: 0, runTime: 0, idealRunTime: 0, totalCount: 0, goodCount: 0 };
+    if (total <= 0) return { ppt: 0, runTime: 0, idealRunTime: 0, externalLoss: 0, totalCount: 0, goodCount: 0 };
     // idealRunTime (earned minutes) stays in the step's OWN unit → time is unit-safe,
     // and the rollup re-derives idealCycleTime = idealRunTime/totalCount so A/P are
     // unaffected by the unit of totalCount.
     const idealRunTime = (jo.idealCycleTimeSec ? jo.idealCycleTimeSec / 60 : 0) * total;
-    // Counts are normalised to the product BASE UNIT so summing/quality across steps
-    // (inners + cartons + pallets) is consistent — same principle as the live dashboard.
+    // Counts are normalised to PIECES — the SMALLEST rung of the packaging ladder,
+    // where every conversion is exact.  was used here and converts to the
+    // SKU inventory base unit (CARTON for this product), so a filler counting 1,005
+    // INNER was recorded as 251 and then rendered on the KPI cards labelled "pcs".
+    // Inventory keeps its own base unit; analytics must not borrow it.
     const sku = jo.workOrder?.sku ?? null;
-    const totalCount = sku && jo.outputUnit ? toBaseUnits(total, jo.outputUnit, sku) : total;
-    const goodCount = sku && jo.outputUnit ? toBaseUnits(good, jo.outputUnit, sku) : good;
-    return { ppt: Math.max(0, ppt), runTime: Math.max(0, actualSpan), idealRunTime, totalCount, goodCount };
+    const totalCount = sku && jo.outputUnit ? toPieces(total, jo.outputUnit, sku) : total;
+    const goodCount = sku && jo.outputUnit ? toPieces(good, jo.outputUnit, sku) : good;
+    // Starved/blocked minutes inside this step's window. Capped at the run span so a
+    // stale open state segment can never drive PPT negative.
+    const externalLoss = Math.min(actualSpan, this.joExternalLoss(jo, states, win));
+    return {
+      ppt: Math.max(0, ppt),
+      runTime: Math.max(0, actualSpan - externalLoss),
+      idealRunTime, externalLoss, totalCount, goodCount,
+    };
   }
 
   private nodeFromChildren(id: string, name: string, code: string | null, type: string, children: RollupChild[], childNodes?: unknown[]) {
@@ -310,7 +474,7 @@ export class KpiService {
       const ordered = [...arr].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
       const sku = ordered[0]?.workOrder?.sku ?? null;
       const toBase = (qty: number, unit?: string | null) =>
-        sku && unit ? toBaseUnits(qty, unit, sku) : qty;
+        sku && unit ? toPieces(qty, unit, sku) : qty;
       // Good = FINAL step's good output (what actually left the line).
       const final = ordered[ordered.length - 1];
       good += toBase(final.actualQtyGood ?? 0, final.outputUnit);
@@ -327,16 +491,20 @@ export class KpiService {
    * so a routed WO is never multi-counted. This is the single aggregation primitive
    * for any scope above a single step.
    */
-  private aggregateJos(jos: JoLite[], win?: { from: number; to: number }): OEEBreakdown {
-    let ppt = 0, runTime = 0, idealRunTime = 0;
+  private aggregateJos(jos: JoLite[], win?: { from: number; to: number }, states: StateLite[] = []): OEEBreakdown {
+    let ppt = 0, runTime = 0, idealRunTime = 0, externalLoss = 0;
     for (const jo of jos) {
-      const c = this.joRollupChild(jo, win);
+      const c = this.joRollupChild(jo, win, states);
       ppt += c.ppt; runTime += c.runTime; idealRunTime += c.idealRunTime;
+      externalLoss += c.externalLoss ?? 0;
     }
     const counts = this.finalStepCounts(jos);
+    const netPpt = Math.max(0, ppt - externalLoss);
     return this.oee.calculateDetailed({
       plannedProductionTime: ppt,
-      unplannedDowntime: Math.max(0, ppt - runTime),
+      // Starved/blocked time is carved out of PPT, not charged as downtime.
+      externalLoss,
+      unplannedDowntime: Math.max(0, netPpt - runTime),
       // Re-derive cycle so calculateDetailed reproduces the summed earned minutes
       // exactly → Performance is unchanged; only counts/Quality are corrected.
       idealCycleTime: counts.total > 0 ? idealRunTime / counts.total : 0,
@@ -351,7 +519,7 @@ export class KpiService {
     return process.env.SNAPSHOTS_READ === 'on';
   }
 
-  /** Build an OEEBreakdown-shaped result + AT-OEE from summed fact-store quantities. */
+  /** Build an OEEBreakdown-shaped result + OEE-TB from summed fact-store quantities. */
   private snapMetrics(good: number, scrap: number, ppt: number, run: number, down: number, earned: number) {
     const total = good + scrap;
     const b = this.oee.calculateDetailed({
@@ -434,7 +602,17 @@ export class KpiService {
       GROUP BY s."machineId", m.name, m.code`);
     const byEquipment = perM.map((r) => {
       const b = this.snapMetrics(r.good, r.scrap, r.ppt, r.run, r.down, r.earned);
-      return { machineId: r.id, name: r.name, code: r.code, oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality, availabilityTb: b.availabilityTb, oeeTb: b.oeeTb, output: b.totalCount };
+      return {
+        machineId: r.id, name: r.name, code: r.code,
+        oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+        availabilityTb: b.availabilityTb, oeeTb: b.oeeTb,
+        output: b.totalCount,
+        // good/scrap split out (PIECES) so any surface needing windowed quantities —
+        // the shift card especially — can take them from THIS engine instead of
+        // re-deriving its own from raw telemetry events.
+        good: b.goodCount,
+        scrap: Math.max(0, b.totalCount - b.goodCount),
+      };
     }).sort((a, b) => b.oee - a.oee);
 
     // Trend — final step per WO within each time bucket.
@@ -460,8 +638,11 @@ export class KpiService {
 
     return {
       current: { oee: current.oee, availability: current.availability, performance: current.performance, quality: current.quality, availabilityTb: current.availabilityTb, oeeTb: current.oeeTb },
-      totalOutput: current.totalCount,
-      goodOutput: current.goodCount,
+      // Rounded at the API boundary. Bags and cartons are discrete: a card reading
+      // "178,870.511 units" is a conversion artefact leaking into the UI, not a real
+      // measurement. The unrounded values stay inside the OEE ratios above.
+      totalOutput: Math.round(current.totalCount),
+      goodOutput: Math.round(current.goodCount),
       downtimeMin: current.downMin,
       byEquipment,
       trend,
@@ -495,12 +676,20 @@ export class KpiService {
   }
 
   /** Hierarchy node built from JOs (final-step counts) instead of pre-summed children. */
-  private nodeFromJos(id: string, name: string, code: string | null, type: string, jos: JoLite[], win: { from: number; to: number }, childNodes?: unknown[]) {
-    const b = this.aggregateJos(jos, win);
+  private nodeFromJos(id: string, name: string, code: string | null, type: string, jos: JoLite[], win: { from: number; to: number }, childNodes?: unknown[], states: StateLite[] = [], downtime: DtLite[] = []) {
+    const b = this.aggregateJos(jos, win, states);
+    // Time-based twin so the schedule-vs-time-based toggle reaches every node of the
+    // tree, not only the cards above it. With no downtime rows supplied this reduces
+    // to "all operating time was up", which is what an empty downtime log means.
+    const tb = this.timeBasedOee(jos, downtime, b.performance, b.quality, win);
     return {
       id, name, code, type,
       oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+      oeeTb: tb.oeeTb, availabilityTb: tb.availabilityTb,
       output: b.totalCount, good: b.goodCount,
+      // externalLossMin lets the UI show "waiting on the line" separately from
+      // "this machine was down" — the distinction NCC asked for.
+      externalLossMin: b.losses.externalLossMin,
       losses: b.losses,
       children: childNodes ?? [],
     };
@@ -552,13 +741,13 @@ export class KpiService {
         // PO / WO drill-down — so every OEE card & chart reacts to the PO/WO filter.
         ...(opts.workOrderId ? { workOrderId: opts.workOrderId } : {}),
         ...(opts.productionOrderId ? { workOrder: { productionOrderId: opts.productionOrderId } } : {}),
-        OR: [{ actualStart: { gte: from, lte: to } }, { actualEnd: { gte: from, lte: to } }],
+        ...joOverlapsWindow(from, to),
       },
       select: { ...JO_SELECT_ANALYTICS, machine: { select: { id: true, name: true, code: true } } },
     });
 
     // Unplanned downtime overlapping these machines/window — needed for the SECOND
-    // availability method (time-based / AT-OEE), exposed alongside schedule-based OEE
+    // availability method (time-based / OEE-TB), exposed alongside schedule-based OEE
     // so every KPI/OEE surface can show both (matches the JO-live dashboard + historian).
     const dtMachineIds = [...new Set(jos.map((j) => j.machineId).filter(Boolean))] as string[];
     const downtime = dtMachineIds.length
@@ -573,10 +762,14 @@ export class KpiService {
         })) as unknown as DtLite[]
       : [];
 
+    // STARVED/BLOCKED segments — carved out of PPT so a machine waiting on the line
+    // constraint is not charged Availability or Performance for the wait.
+    const states = await this.loadExternalStates(factoryId, dtMachineIds, from, to);
+
     const all = jos as unknown as JoLite[];
     const win = { from: from.getTime(), to: to.getTime() };
-    const current = this.aggregateJos(all, win);
-    const currentTb = this.timeBasedOee(all, downtime, current.performance, current.quality);
+    const current = this.aggregateJos(all, win, states);
+    const currentTb = this.timeBasedOee(all, downtime, current.performance, current.quality, win);
 
     const perMachine = new Map<string, { name: string; code: string | null; jos: JoLite[] }>();
     const buckets = new Map<string, JoLite[]>();
@@ -597,15 +790,15 @@ export class KpiService {
     }
 
     const byEquipment = [...perMachine.entries()].map(([id, { name, code, jos: mjos }]) => {
-      const b = this.aggregateJos(mjos, win);
-      const tb = this.timeBasedOee(mjos, downtime, b.performance, b.quality);
+      const b = this.aggregateJos(mjos, win, states);
+      const tb = this.timeBasedOee(mjos, downtime, b.performance, b.quality, win);
       return { machineId: id, name, code, oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality, availabilityTb: tb.availabilityTb, oeeTb: tb.oeeTb, output: b.totalCount };
     }).sort((a, b) => b.oee - a.oee);
 
     const trend = [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b))
       .map(([period, bjos]) => {
-        const b = this.aggregateJos(bjos, win);
-        const tb = this.timeBasedOee(bjos, downtime, b.performance, b.quality);
+        const b = this.aggregateJos(bjos, win, states);
+        const tb = this.timeBasedOee(bjos, downtime, b.performance, b.quality, win);
         // Carry every metric per bucket so trend charts can plot any KPI (not just OEE).
         return {
           period, oee: b.oee, oeeTb: tb.oeeTb,
@@ -616,16 +809,255 @@ export class KpiService {
       });
 
     return {
-      // Schedule-based (classic) OEE + the time-based (AT-OEE) variant, side by side.
+      // Schedule-based (classic) OEE + the time-based (OEE-TB) variant, side by side.
       current: {
         oee: current.oee, availability: current.availability, performance: current.performance, quality: current.quality,
         availabilityTb: currentTb.availabilityTb, oeeTb: currentTb.oeeTb,
       },
-      totalOutput: current.totalCount,
-      goodOutput: current.goodCount,
+      // Rounded at the API boundary. Bags and cartons are discrete: a card reading
+      // "178,870.511 units" is a conversion artefact leaking into the UI, not a real
+      // measurement. The unrounded values stay inside the OEE ratios above.
+      totalOutput: Math.round(current.totalCount),
+      goodOutput: Math.round(current.goodCount),
       downtimeMin: currentTb.downtimeMin,
+      // Time the scope was ready but the line could not feed or drain it. Reported
+      // separately so it is visibly excluded rather than silently absorbed.
+      externalLossMin: current.losses.externalLossMin,
       byEquipment,
       trend,
+    };
+  }
+
+  /**
+   * THE single place a production line's headline OEE is decided.
+   *
+   * Every surface that shows a line-level figure — the Factory→Area→Line→Machine
+   * tree, the OEE analytics cards, the line endpoint — must call this, otherwise
+   * the same line reads differently on different screens depending on which code
+   * path rendered it. That divergence is exactly what NCC reported twice.
+   *
+   * Returns the metrics plus a `basis` block naming the method and how each input
+   * was resolved, so a number is never shown without an explanation available.
+   *
+   * BOTTLENECK degrades to ROLLUP rather than failing: a tree node that cannot
+   * resolve a constraint must still show a real figure, labelled with the method
+   * that actually produced it.
+   */
+  private lineOeeFromJos(
+    cfg: {
+      oeeMethod?: string | null;
+      bottleneckMachineId?: string | null;
+      outfeedMachineIds?: string[] | null;
+    },
+    lineMachines: { id: string; name: string }[],
+    jos: JoLite[],
+    win: { from: number; to: number },
+    states: StateLite[],
+    rated?: Map<string, { machineId: string; unitsPerHour: number }>,
+  ) {
+    const rollup = () => {
+      const agg = this.aggregateJos(jos, win, states);
+      return {
+        oee: agg.oee,
+        availability: agg.availability,
+        performance: agg.performance,
+        quality: agg.quality,
+        output: agg.totalCount,
+        good: agg.goodCount,
+        losses: agg.losses,
+        method: 'ROLLUP' as const,
+        // Present on every branch so callers never need to narrow the union.
+        bottleneckId: null as string | null,
+        outfeedIds: new Set<string>(),
+        basis: {
+          method: 'ROLLUP' as const,
+          formula:
+            'Line OEE = A × P × Q, re-derived from the summed planned / run / earned minutes '
+            + 'and counts of every machine (NOT an average of machine percentages)',
+          machineCount: lineMachines.length,
+          externalLossMin: agg.losses.externalLossMin,
+        },
+      };
+    };
+
+    if (cfg.oeeMethod !== 'BOTTLENECK') return rollup();
+
+    // Constraint: explicit nomination, else the slowest ROUTING cycle time.
+    const slowest = rated
+      ? [...rated.values()].sort((a, b) => a.unitsPerHour - b.unitsPerHour)[0] ?? null
+      : null;
+    const bottleneck =
+      lineMachines.find((m) => m.id === cfg.bottleneckMachineId) ??
+      (slowest ? lineMachines.find((m) => m.id === slowest.machineId) ?? null : null);
+
+    // Nothing to measure the line by — fall back rather than hide the node.
+    if (!bottleneck) {
+      const r = rollup();
+      return {
+        ...r,
+        basis: {
+          ...r.basis,
+          fallbackFrom: 'BOTTLENECK' as const,
+          fallbackReason: 'No bottleneck configured and no routing cycle time to infer one.',
+        },
+      };
+    }
+
+    const configuredOutfeeds = lineMachines.filter((m) => (cfg.outfeedMachineIds ?? []).includes(m.id));
+    const outfeeds = configuredOutfeeds.length > 0 ? configuredOutfeeds : lineMachines;
+    const outfeedIds = new Set(outfeeds.map((m) => m.id));
+
+    const bn = this.aggregateJos(jos.filter((j) => j.machineId === bottleneck.id), win, states);
+    const outCounts = this.finalStepCounts(jos.filter((j) => j.machineId && outfeedIds.has(j.machineId)));
+
+    const result = this.oee.lineOee({
+      bottleneck: {
+        availability: bn.availability,
+        performance: bn.performance,
+        machineId: bottleneck.id,
+        machineName: bottleneck.name,
+      },
+      finalOutfeed: {
+        totalCount: outCounts.total,
+        goodCount: outCounts.good,
+        pointName: outfeeds.map((m) => m.name).join(' + '),
+      },
+    });
+
+    return {
+      oee: result.oee,
+      availability: result.availability,
+      performance: result.performance,
+      quality: result.quality,
+      output: outCounts.total,
+      good: outCounts.good,
+      losses: bn.losses,
+      method: 'BOTTLENECK' as const,
+      bottleneckId: bottleneck.id as string | null,
+      outfeedIds,
+      basis: {
+        ...result.basis,
+        bottleneckResolvedBy: (cfg.bottleneckMachineId
+          ? 'CONFIGURED'
+          : 'SLOWEST_ROUTING_CYCLE_TIME') as 'CONFIGURED' | 'SLOWEST_ROUTING_CYCLE_TIME',
+        outfeedResolvedBy: (configuredOutfeeds.length > 0
+          ? 'CONFIGURED'
+          : 'ALL_MACHINES_ON_LINE') as 'CONFIGURED' | 'ALL_MACHINES_ON_LINE',
+        outfeedMachineNames: outfeeds.map((m) => m.name),
+        bottleneckExternalLossMin: bn.losses.externalLossMin,
+        formula: 'Line OEE = Bottleneck Availability × Bottleneck Performance × Final Outfeed Quality',
+      },
+    };
+  }
+
+  /**
+   * Overall Line OEE by the bottleneck method (NCC PoC items 8 & 9).
+   *
+   *   Line OEE = Bottleneck Availability × Bottleneck Performance × Final Outfeed Quality
+   *
+   * The constraint and the outfeed point are nominated per line
+   * (`ProductionLine.bottleneckMachineId` / `outfeedMachineId`). When either is
+   * unset the method falls back to a defensible default — lowest design capacity
+   * for the constraint, last machine in line order for the outfeed — and reports
+   * which rule it used in `basis.resolvedBy`, so the number is never unexplained.
+   */
+  async lineOeeAnalytics(
+    factoryId: string | null,
+    lineId: string,
+    from: Date,
+    to: Date,
+  ) {
+    const line = await this.prisma.productionLine.findFirst({
+      where: { id: lineId, ...(factoryId ? { factoryId } : {}) },
+      select: {
+        id: true, name: true, code: true,
+        oeeMethod: true, bottleneckMachineId: true, outfeedMachineIds: true,
+        machines: {
+          where: { isActive: true, archivedAt: null },
+          select: { id: true, name: true, code: true, sortOrder: true },
+        },
+      },
+    });
+    if (!line || line.machines.length === 0) return null;
+
+    const machineIds = line.machines.map((m) => m.id);
+
+    const jos = (await this.prisma.jobOrder.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        machineId: { in: machineIds },
+        ...joOverlapsWindow(from, to),
+      },
+      select: JO_SELECT_ANALYTICS,
+    })) as unknown as JoLite[];
+
+    const states = await this.loadExternalStates(factoryId, machineIds, from, to);
+    const win = { from: from.getTime(), to: to.getTime() };
+
+    // Unplanned downtime overlapping the window — required for the TIME-BASED
+    // availability (OEE-TB). Without it this endpoint could not honour the
+    // schedule-vs-time-based toggle and the Overall Line OEE card silently stayed
+    // on the schedule basis while every card beside it switched.
+    const downtime = (await this.prisma.downtimeEvent.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        machineId: { in: machineIds },
+        startTime: { lte: to },
+        OR: [{ endTime: null }, { endTime: { gte: from } }],
+      },
+      select: DT_SELECT,
+    })) as unknown as DtLite[];
+
+    // Per-machine diagnostics are returned by BOTH methods — they are useful either
+    // way, and labelling them as machine-level stops them being read as the line KPI.
+    const machineRows = (bottleneckId: string | null, outfeedIds: Set<string>) =>
+      line.machines.map((m) => {
+        const mjos = jos.filter((j) => j.machineId === m.id);
+        const b = this.aggregateJos(mjos, win, states);
+        const tb = this.timeBasedOee(mjos, downtime, b.performance, b.quality, win);
+        return {
+          machineId: m.id, name: m.name, code: m.code,
+          isBottleneck: m.id === bottleneckId,
+          isOutfeed: outfeedIds.has(m.id),
+          oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+          availabilityTb: tb.availabilityTb, oeeTb: tb.oeeTb,
+          externalLossMin: b.losses.externalLossMin,
+          output: b.totalCount,
+        };
+      });
+
+    // The basis decision itself lives in ONE place (lineOeeFromJos) so this endpoint,
+    // the hierarchy tree and every KPI card resolve a line identically.
+    const rated = line.oeeMethod === 'BOTTLENECK'
+      ? await this.scheduleKpi.ratedCapacityByMachine(factoryId, machineIds)
+      : undefined;
+    const b = this.lineOeeFromJos(line, line.machines, jos, win, states, rated);
+
+    // Time-based twin of the line KPI, on the SAME basis as the schedule-based one:
+    // under BOTTLENECK the availability comes from the constraint machine alone, so
+    // its time-based availability must too — taking it from the whole line would
+    // quietly answer a different question than the number beside it.
+    const tbJos = b.method === 'BOTTLENECK' && b.bottleneckId
+      ? jos.filter((j) => j.machineId === b.bottleneckId)
+      : jos;
+    const lineTb = this.timeBasedOee(tbJos, downtime, b.performance, b.quality, win);
+
+    return {
+      lineId: line.id,
+      lineName: line.name,
+      lineCode: line.code,
+      // Top-level discriminant so callers can narrow without reaching into `basis` —
+      // TypeScript will not discriminate on a nested property.
+      method: b.method,
+      oee: b.oee,
+      availability: b.availability,
+      performance: b.performance,
+      quality: b.quality,
+      // OEE-TB: same P and Q, availability measured against uptime + downtime.
+      oeeTb: lineTb.oeeTb,
+      availabilityTb: lineTb.availabilityTb,
+      basis: { ...b.basis, window: { from: from.toISOString(), to: to.toISOString() } },
+      machines: machineRows(b.bottleneckId ?? null, b.outfeedIds ?? new Set<string>()),
     };
   }
 
@@ -645,7 +1077,10 @@ export class KpiService {
       machine: '"machineId"',
       workOrder: '"workOrderId"',
       productionOrder: `COALESCE("productionOrderId",'__direct')`,
-      shift: `COALESCE("shiftInstanceId",'__noshift')`,
+      // Group by the DERIVED shift (template + the day the occurrence started),
+      // not by shiftInstanceId. Nothing creates ShiftInstance rows, so grouping on
+      // that column put every bucket in one group called "Unassigned".
+      shift: `COALESCE("shiftCode", '__noshift')`,
     };
     const col = Prisma.raw(colSql[groupBy] ?? '"machineId"');
     const where = this.snapWhere(factoryId, from, to, machineIds);
@@ -669,8 +1104,13 @@ export class KpiService {
       (await this.prisma.productionOrder.findMany({ where: { id: { in: keys } }, select: { id: true, orderNumber: true } }))
         .forEach((p) => labels.set(p.id, p.orderNumber));
     } else if (groupBy === 'shift' && keys.length) {
-      (await this.prisma.shiftInstance.findMany({ where: { id: { in: keys } }, select: { id: true, shiftDate: true, shiftTemplate: { select: { name: true } } } }))
-        .forEach((s) => labels.set(s.id, `${s.shiftTemplate?.name ?? 'Shift'} · ${new Date(s.shiftDate).toISOString().slice(0, 10)}`));
+      // Keys are shift CODES now, resolved against the templates. Looking them up in
+      // shift_instances found nothing — the table holds one row in the whole system —
+      // which is why every group fell through to the "Unassigned" fallback.
+      (await this.prisma.shiftTemplate.findMany({
+        where: { code: { in: keys } },
+        select: { code: true, name: true, startTime: true, endTime: true },
+      })).forEach((t) => labels.set(t.code, `${t.name} · ${t.startTime}–${t.endTime}`));
     }
     const fallback = groupBy === 'productionOrder' ? 'Direct WOs' : groupBy === 'shift' ? 'Unassigned' : '—';
 
@@ -680,6 +1120,10 @@ export class KpiService {
         return {
           key: r.key, label: labels.get(r.key) ?? fallback,
           oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+          // Time-based twin so grouped views honour the schedule-vs-time-based
+          // toggle like every other OEE surface, instead of silently staying on
+          // the schedule basis when the user switches.
+          oeeTb: b.oeeTb, availabilityTb: b.availabilityTb,
           output: Math.round(b.totalCount), good: Math.round(b.goodCount),
         };
       })
@@ -705,7 +1149,7 @@ export class KpiService {
         ...(machineIds ? { machineId: { in: machineIds } } : {}),
         ...(opts.workOrderId ? { workOrderId: opts.workOrderId } : {}),
         ...(opts.productionOrderId ? { workOrder: { productionOrderId: opts.productionOrderId } } : {}),
-        OR: [{ actualStart: { gte: from, lte: to } }, { actualEnd: { gte: from, lte: to } }],
+        ...joOverlapsWindow(from, to),
       },
       select: {
         ...JO_SELECT,
@@ -747,9 +1191,13 @@ export class KpiService {
     return [...groups.entries()]
       .map(([key, g]) => {
         const b = this.aggregateJos(g.jos, win);
+        // Same shape as the fact-store twin above — a caller must never have to know
+        // which read path answered it.
+        const tb = this.timeBasedOee(g.jos, [], b.performance, b.quality, win);
         return {
           key, label: g.label,
           oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+          oeeTb: tb.oeeTb, availabilityTb: tb.availabilityTb,
           output: Math.round(b.totalCount), good: Math.round(b.goodCount),
         };
       })
@@ -758,16 +1206,32 @@ export class KpiService {
   }
 
   /**
-   * Time-based availability (AT-OEE): runMin / (runMin + downMin), where runMin is operating
+   * Time-based availability (OEE-TB): runMin / (runMin + downMin), where runMin is operating
    * time net of unplanned downtime. Reuses the schedule-based Performance & Quality — only
    * Availability differs — exactly as the JO-live dashboard and historian define it.
    */
-  private timeBasedOee(jos: JoLite[], downtime: DtLite[], performance: number, quality: number) {
+  /**
+   * Time-based OEE (OEE-TB): Availability measured against the clock the equipment
+   * actually faced (uptime + downtime) rather than the PLANNED production time.
+   *
+   * `win` clamps both the operating minutes and the downtime minutes to the analysis
+   * window. It is optional only for callers that genuinely mean the JO's whole life;
+   * every windowed KPI must pass it, or OEE-TB silently reports a different period
+   * than the schedule-based OEE sitting next to it.
+   */
+  private timeBasedOee(
+    jos: JoLite[], downtime: DtLite[], performance: number, quality: number,
+    win?: { from: number; to: number },
+  ) {
     let operating = 0;
     let down = 0;
     for (const jo of jos) {
-      operating += this.spanMin(jo.actualStart, jo.actualEnd);
-      down += this.joUnplanned(jo, downtime);
+      operating += jo.actualStart
+        ? (win
+            ? this.overlapMin(jo.actualStart, jo.actualEnd ?? new Date(), new Date(win.from), new Date(win.to))
+            : this.spanMin(jo.actualStart, jo.actualEnd))
+        : 0;
+      down += this.joUnplanned(jo, downtime, win);
     }
     const net = Math.max(0, operating - down);
     const availabilityTb = operating > 0 ? Math.min(100, (net / operating) * 100) : 0;
@@ -788,14 +1252,14 @@ export class KpiService {
       where: {
         ...(factoryId ? { factoryId } : {}),
         ...(machineIds ? { machineId: { in: machineIds } } : {}),
-        OR: [{ actualStart: { gte: from, lte: to } }, { actualEnd: { gte: from, lte: to } }],
+        ...joOverlapsWindow(from, to),
       },
       select: { ...JO_SELECT_ANALYTICS, machine: { select: { name: true, code: true } } },
       orderBy: { actualStart: 'desc' },
       take: limit,
     });
 
-    // Unplanned downtime for these machines/window → per-record time-based (AT-OEE) values.
+    // Unplanned downtime for these machines/window → per-record time-based (OEE-TB) values.
     const dtMachineIds = [...new Set(jos.map((j) => j.machineId).filter(Boolean))] as string[];
     const downtime = dtMachineIds.length
       ? (await this.prisma.downtimeEvent.findMany({
@@ -812,12 +1276,12 @@ export class KpiService {
     const recWin = { from: from.getTime(), to: to.getTime() };
     return jos.map((jo) => {
       const b = this.oee.rollup([this.joRollupChild(jo as unknown as JoLite, recWin)]);
-      const tb = this.timeBasedOee([jo as unknown as JoLite], downtime, b.performance, b.quality);
+      const tb = this.timeBasedOee([jo as unknown as JoLite], downtime, b.performance, b.quality, recWin);
       // Planned output (base-unit normalised, like total/good) so reports can show a real
       // Planned vs Actual instead of Planned == Actual.
       const sku = (jo as any).workOrder?.sku ?? null;
       const plannedRaw = (jo as any).plannedQtyOut ?? 0;
-      const plannedOutput = sku && jo.outputUnit ? toBaseUnits(plannedRaw, jo.outputUnit, sku) : plannedRaw;
+      const plannedOutput = sku && jo.outputUnit ? toPieces(plannedRaw, jo.outputUnit, sku) : plannedRaw;
       return {
         id: jo.id,
         machineId: jo.machineId,
@@ -842,8 +1306,14 @@ export class KpiService {
     dateTo?: string,
     scope?: { areaId?: string; lineId?: string; machineId?: string },
   ) {
-    const to = dateTo ? new Date(`${dateTo}T23:59:59.999Z`) : new Date();
-    const from = dateFrom ? new Date(`${dateFrom}T00:00:00.000Z`) : new Date(to.getTime() - 7 * 86_400_000);
+    // Local calendar dates (no `Z`) and an upper bound clamped to NOW — the same
+    // terms as every other endpoint. Parsing as UTC put a three-hour offset between
+    // this tree and the cards above it in Riyadh, and an end-of-day bound charged
+    // planned time for hours that had not happened.
+    const now = new Date();
+    const rawTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : now;
+    const to = rawTo > now ? now : rawTo;
+    const from = dateFrom ? new Date(`${dateFrom}T00:00:00.000`) : new Date(to.getTime() - 7 * 86_400_000);
     const factoryFilter = factoryId ? { factoryId } : {};
 
     // Resolve the scope (area/line/machine) to the set of machines it covers.
@@ -854,7 +1324,18 @@ export class KpiService {
         ...(scope?.lineId ? { lineId: scope.lineId } : {}),
         ...(scope?.areaId ? { line: { areaId: scope.areaId } } : {}),
       },
-      select: { id: true, name: true, code: true, lineId: true, line: { select: { id: true, name: true, code: true, areaId: true, area: { select: { id: true, name: true, code: true } } } } },
+      select: {
+        id: true, name: true, code: true, lineId: true,
+        line: {
+          select: {
+            id: true, name: true, code: true, areaId: true,
+            // The line's configured OEE basis travels with it, so the tree renders
+            // each line by the method that line is actually measured on.
+            oeeMethod: true, bottleneckMachineId: true, outfeedMachineIds: true,
+            area: { select: { id: true, name: true, code: true } },
+          },
+        },
+      },
     });
     const machineIds = machines.map((m) => m.id);
 
@@ -866,16 +1347,21 @@ export class KpiService {
         where: {
           ...factoryFilter,
           machineId: { in: machineIds },
-          OR: [
-            { actualStart: { gte: from, lte: to } },
-            { actualEnd: { gte: from, lte: to } },
-          ],
+          ...joOverlapsWindow(from, to),
         },
         select: JO_SELECT_ANALYTICS,
       }),
       this.prisma.downtimeEvent.findMany({
-        where: { ...factoryFilter, isPlanned: false, affectsOEE: true, startTime: { gte: from, lte: to }, machineId: { in: machineIds } },
-        select: { reasonCode: true, durationMinutes: true },
+        // Overlap, not containment — an outage that began before the window is still
+        // an outage during it. Selects the full shape because these rows now feed
+        // BOTH the reason-code Pareto and the time-based availability (OEE-TB).
+        where: {
+          ...factoryFilter, isPlanned: false, affectsOEE: true,
+          machineId: { in: machineIds },
+          startTime: { lte: to },
+          OR: [{ endTime: null }, { endTime: { gte: from } }],
+        },
+        select: { ...DT_SELECT, reasonCode: true },
       }),
     ]);
 
@@ -891,9 +1377,16 @@ export class KpiService {
       byMachine.set(jo.machineId, arr);
     }
     const allJos: JoLite[] = [...byMachine.values()].flat();
+    // STARVED/BLOCKED segments for every machine in the tree — so a downstream asset
+    // waiting on the bottleneck is not shown with a false low OEE.
+    const hierStates = await this.loadExternalStates(factoryId, [...byMachine.keys()], from, to);
 
     // Build Area → Line → Machine tree (only branches that have machines with data or exist)
-    type Bucket = { id: string; name: string; code: string | null; lines: Map<string, { id: string; name: string; code: string | null; machines: typeof machines }> };
+    type LineBucket = {
+      id: string; name: string; code: string | null; machines: typeof machines;
+      cfg: { oeeMethod: string; bottleneckMachineId: string | null; outfeedMachineIds: string[] };
+    };
+    type Bucket = { id: string; name: string; code: string | null; lines: Map<string, LineBucket> };
     const areas = new Map<string, Bucket>();
     const UNASSIGNED = { id: '__unassigned__', name: 'Unassigned', code: null as string | null };
 
@@ -904,9 +1397,28 @@ export class KpiService {
       const lineCode = m.line?.code ?? null;
       if (!areas.has(area.id)) areas.set(area.id, { id: area.id, name: area.name, code: (area as any).code ?? null, lines: new Map() });
       const ab = areas.get(area.id)!;
-      if (!ab.lines.has(lineId)) ab.lines.set(lineId, { id: lineId, name: lineName, code: lineCode, machines: [] });
+      if (!ab.lines.has(lineId)) {
+        ab.lines.set(lineId, {
+          id: lineId, name: lineName, code: lineCode, machines: [],
+          cfg: {
+            oeeMethod: m.line?.oeeMethod ?? 'ROLLUP',
+            bottleneckMachineId: m.line?.bottleneckMachineId ?? null,
+            outfeedMachineIds: m.line?.outfeedMachineIds ?? [],
+          },
+        });
+      }
       ab.lines.get(lineId)!.machines.push(m);
     }
+
+    // Routing rates for every machine in the tree — the fallback source for a line
+    // set to BOTTLENECK with no constraint nominated. Fetched once, not per line.
+    const anyBottleneck = [...areas.values()].some((a) =>
+      [...a.lines.values()].some((l) => l.cfg.oeeMethod === 'BOTTLENECK'));
+    // Needed by BOTH read paths (live JO rollup and fact store) to infer a constraint
+    // when none is nominated. Fetched once for the whole tree.
+    const hierRated = anyBottleneck
+      ? await this.scheduleKpi.ratedCapacityByMachine(factoryId, machineIds)
+      : undefined;
 
     const josOf = (ms: typeof machines): JoLite[] => ms.flatMap(m => byMachine.get(m.id) ?? []);
     const useSnap = this.snapshotsEnabled();
@@ -915,26 +1427,171 @@ export class KpiService {
     // when SNAPSHOTS_READ is on, else from the live JO rollup. Shape is identical.
     const snapNode = async (id: string, name: string, code: string | null, type: string, ms: typeof machines, childNodes?: unknown[]) => {
       const b = await this.snapshotScope(factoryId, from, to, ms.map(x => x.id));
-      return { id, name, code, type, oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality, output: b.totalCount, good: b.goodCount, losses: b.losses, children: childNodes ?? [] };
+      return { id, name, code, type, oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality, oeeTb: b.oeeTb, availabilityTb: b.availabilityTb, output: b.totalCount, good: b.goodCount, losses: b.losses, children: childNodes ?? [] };
+    };
+
+    /**
+     * A LINE node read from the fact store. The configured basis must apply here
+     * too — otherwise turning SNAPSHOTS_READ on would silently change every line's
+     * OEE, which is precisely the "same KPI, different value" failure this work
+     * exists to remove.
+     *
+     * For BOTTLENECK the fact store is queried twice with different scopes: A and P
+     * from the constraint machine alone, Q from the outfeed machines alone.
+     */
+    const snapLineNode = async (ln: LineBucket, machineNodes: unknown[]) => {
+      const all = ln.machines.map((m) => m.id);
+
+      if (ln.cfg.oeeMethod !== 'BOTTLENECK') {
+        const b = await this.snapshotScope(factoryId, from, to, all);
+        return {
+          id: ln.id, name: ln.name, code: ln.code, type: 'LINE',
+          oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+          // Time-based twin so the schedule-vs-time-based toggle reaches the tree.
+          oeeTb: b.oeeTb, availabilityTb: b.availabilityTb,
+          output: b.totalCount, good: b.goodCount,
+          externalLossMin: b.losses.externalLossMin, losses: b.losses,
+          oeeMethod: 'ROLLUP' as const,
+          oeeBasis: {
+            method: 'ROLLUP' as const,
+            formula: 'Line OEE = A × P × Q re-derived from the summed minutes and counts of every machine',
+            machineCount: ln.machines.length,
+            source: 'FACT_STORE' as const,
+          },
+          children: machineNodes,
+        };
+      }
+
+      const slowest = hierRated
+        ? [...hierRated.values()].filter((r) => all.includes(r.machineId))
+            .sort((a, b) => a.unitsPerHour - b.unitsPerHour)[0] ?? null
+        : null;
+      const bottleneck =
+        ln.machines.find((m) => m.id === ln.cfg.bottleneckMachineId) ??
+        (slowest ? ln.machines.find((m) => m.id === slowest.machineId) ?? null : null);
+
+      if (!bottleneck) {
+        const b = await this.snapshotScope(factoryId, from, to, all);
+        return {
+          id: ln.id, name: ln.name, code: ln.code, type: 'LINE',
+          oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+          // Time-based twin so the schedule-vs-time-based toggle reaches the tree.
+          oeeTb: b.oeeTb, availabilityTb: b.availabilityTb,
+          output: b.totalCount, good: b.goodCount,
+          externalLossMin: b.losses.externalLossMin, losses: b.losses,
+          oeeMethod: 'ROLLUP' as const,
+          oeeBasis: {
+            method: 'ROLLUP' as const,
+            formula: 'Line OEE = A × P × Q re-derived from the summed minutes and counts of every machine',
+            machineCount: ln.machines.length,
+            source: 'FACT_STORE' as const,
+            fallbackFrom: 'BOTTLENECK' as const,
+            fallbackReason: 'No bottleneck configured and no routing cycle time to infer one.',
+          },
+          children: machineNodes,
+        };
+      }
+
+      const configured = ln.machines.filter((m) => ln.cfg.outfeedMachineIds.includes(m.id));
+      const outfeeds = configured.length > 0 ? configured : ln.machines;
+
+      const [bn, out] = await Promise.all([
+        this.snapshotScope(factoryId, from, to, [bottleneck.id]),
+        this.snapshotScope(factoryId, from, to, outfeeds.map((m) => m.id)),
+      ]);
+
+      const r = this.oee.lineOee({
+        bottleneck: {
+          availability: bn.availability, performance: bn.performance,
+          machineId: bottleneck.id, machineName: bottleneck.name,
+        },
+        finalOutfeed: {
+          totalCount: out.totalCount, goodCount: out.goodCount,
+          pointName: outfeeds.map((m) => m.name).join(' + '),
+        },
+      });
+
+      // Time-based twin, composed on the SAME basis: availability from the
+      // constraint machine alone (its time-based figure), performance from the
+      // constraint, quality from the outfeed. Taking A-TB from the whole line
+      // would answer a different question than the number beside it.
+      const lineAvailabilityTb = bn.availabilityTb;
+      const lineOeeTb =
+        (lineAvailabilityTb / 100) * (r.performance / 100) * (r.quality / 100) * 100;
+
+      return {
+        id: ln.id, name: ln.name, code: ln.code, type: 'LINE',
+        oee: r.oee, availability: r.availability, performance: r.performance, quality: r.quality,
+        oeeTb: Math.round(lineOeeTb * 10) / 10, availabilityTb: lineAvailabilityTb,
+        output: out.totalCount, good: out.goodCount,
+        externalLossMin: bn.losses.externalLossMin, losses: bn.losses,
+        oeeMethod: 'BOTTLENECK' as const,
+        oeeBasis: {
+          ...r.basis,
+          bottleneckResolvedBy: ln.cfg.bottleneckMachineId
+            ? ('CONFIGURED' as const)
+            : ('SLOWEST_ROUTING_CYCLE_TIME' as const),
+          outfeedResolvedBy: configured.length > 0
+            ? ('CONFIGURED' as const)
+            : ('ALL_MACHINES_ON_LINE' as const),
+          outfeedMachineNames: outfeeds.map((m) => m.name),
+          source: 'FACT_STORE' as const,
+          formula: 'Line OEE = Bottleneck Availability × Bottleneck Performance × Final Outfeed Quality',
+        },
+        children: machineNodes,
+      };
     };
 
     const tree = await Promise.all([...areas.values()].map(async ab => {
       const lineNodes = await Promise.all([...ab.lines.values()].map(async ln => {
         const machineNodes = useSnap
           ? await Promise.all(ln.machines.map(m => snapNode(m.id, m.name, m.code, 'MACHINE', [m])))
-          : ln.machines.map(m => this.nodeFromJos(m.id, m.name, m.code, 'MACHINE', byMachine.get(m.id) ?? [], hierWin));
-        return useSnap
-          ? snapNode(ln.id, ln.name, ln.code, 'LINE', ln.machines, machineNodes)
-          : this.nodeFromJos(ln.id, ln.name, ln.code, 'LINE', josOf(ln.machines), hierWin, machineNodes);
+          : ln.machines.map(m => this.nodeFromJos(m.id, m.name, m.code, 'MACHINE', byMachine.get(m.id) ?? [], hierWin, undefined, hierStates, downtime as unknown as DtLite[]));
+        if (useSnap) return snapLineNode(ln, machineNodes);
+
+        // The LINE node is measured by the basis configured ON that line, so the
+        // tree, the OEE cards and the line endpoint can never disagree.
+        const b = this.lineOeeFromJos(
+          ln.cfg, ln.machines, josOf(ln.machines), hierWin, hierStates, hierRated,
+        );
+        // Same basis for the time-based twin: under BOTTLENECK the availability is
+        // the constraint machine's, so its time-based availability must be too.
+        const lineTbJos = b.method === 'BOTTLENECK' && b.bottleneckId
+          ? (byMachine.get(b.bottleneckId) ?? [])
+          : josOf(ln.machines);
+        const lineTb = this.timeBasedOee(
+          lineTbJos, downtime as unknown as DtLite[], b.performance, b.quality, hierWin,
+        );
+        return {
+          id: ln.id, name: ln.name, code: ln.code, type: 'LINE',
+          oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
+          oeeTb: lineTb.oeeTb, availabilityTb: lineTb.availabilityTb,
+          output: b.output, good: b.good,
+          externalLossMin: b.losses.externalLossMin,
+          losses: b.losses,
+          // Carried so the UI can label which basis produced this number.
+          oeeMethod: b.method,
+          oeeBasis: b.basis,
+          children: machineNodes,
+        };
       }));
       const areaMachines = [...ab.lines.values()].flatMap(l => l.machines);
       return useSnap
         ? snapNode(ab.id, ab.name, ab.code, 'AREA', areaMachines, lineNodes)
-        : this.nodeFromJos(ab.id, ab.name, ab.code, 'AREA', josOf(areaMachines), hierWin, lineNodes);
+        : this.nodeFromJos(ab.id, ab.name, ab.code, 'AREA', josOf(areaMachines), hierWin, lineNodes, hierStates, downtime as unknown as DtLite[]);
     }));
     tree.sort((a, b) => b.oee - a.oee);
 
-    const plant = useSnap ? await this.snapshotScope(factoryId, from, to, machineIds) : this.aggregateJos(allJos, hierWin);
+    // Kept as a separate binding so the fact-store branch stays TYPED as carrying the
+    // time-based pair. Collapsing both branches into one variable erases that and
+    // forces a cast, which is how a missing field becomes a silent zero.
+    const plantSnap = useSnap ? await this.snapshotScope(factoryId, from, to, machineIds) : null;
+    const plant = plantSnap ?? this.aggregateJos(allJos, hierWin, hierStates);
+    // The fact store already carries the time-based pair; the live rollup derives it.
+    // Either way the plant headline honours the toggle exactly like the tree does.
+    const plantTb = plantSnap
+      ? { oeeTb: plantSnap.oeeTb, availabilityTb: plantSnap.availabilityTb }
+      : this.timeBasedOee(allJos, downtime as unknown as DtLite[], plant.performance, plant.quality, hierWin);
 
     // Pareto by reason code
     const paretoMap = new Map<string, { reasonCode: string; minutes: number; events: number }>();
@@ -952,6 +1609,7 @@ export class KpiService {
       range: { from: from.toISOString(), to: to.toISOString() },
       plant: {
         oee: plant.oee, availability: plant.availability, performance: plant.performance, quality: plant.quality,
+        oeeTb: plantTb.oeeTb, availabilityTb: plantTb.availabilityTb,
         output: plant.totalCount, good: plant.goodCount, losses: plant.losses,
       },
       pareto,

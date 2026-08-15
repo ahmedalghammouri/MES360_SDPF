@@ -17,7 +17,12 @@ interface AppShellProps {
 }
 
 // Pages where selecting a hierarchy node actually re-scopes the data (backend filter wired).
-// Keep this list honest: only show the scope panel where it has a real effect.
+//
+// Keep this list honest — it is verified by the page audit (docs/MES360-Web-Page-Audit.xlsx).
+// A route listed here whose page does NOT read `useScope` is the worst failure mode: the
+// filter looks operative and silently does nothing. A route missing from here whose page
+// DOES filter is nearly as bad — the panel renders passive, so nobody uses a control that
+// works. Re-run the audit after touching this list.
 const SCOPE_EXACT = new Set([
   '/dashboard', '/command-center', '/production', '/manufacturing',
   '/production/kpi', '/production/oee', '/manufacturing/kpi', '/manufacturing/oee',
@@ -27,11 +32,29 @@ const SCOPE_EXACT = new Set([
   '/downtime', // Downtime Command Center
   '/energy', '/energy/command-center', '/energy/analytics',
   '/ai', // AI Intelligence — all panels re-scope by area/line/machine
+  // ── Added after the page audit: these pages already filtered by scope, but were
+  // rendering the panel as passive, so the working control looked disabled.
+  '/analytics', '/analytics/insights',
+  '/energy/live', '/energy/reports',
+  '/executive',
+  '/maintenance', // Maintenance overview — KPI cards are scope-aware
+  '/shop-floor',
+  // ── Quality: listed individually, NOT by prefix. A blanket '/quality' rule also
+  // caught /quality/capa and /quality/records, whose APIs take no scope parameter,
+  // so the panel advertised a filter those two pages could never honour.
+  '/quality', '/quality/inspections', '/quality/ncr', '/quality/plans', '/quality/spc',
+  // ── Scheduling: same reasoning. The three ScheduleView routes filter; the APS
+  // board and the reschedule-request queue do not.
+  '/scheduling', '/scheduling/planned-downtime', '/scheduling/unplanned-downtime',
 ]);
-const SCOPE_PREFIX = ['/scheduling', '/quality']; // ScheduleView + all Quality module pages
+
+// Single-record pages: a hierarchy filter cannot mean anything on one CAPA / NCR /
+// inspection / job order, so they are never marked active.
+const DETAIL_ROUTE = /\/[0-9a-f-]{8,}(?:\/|$)|\[/i;
 
 function isScopeRoute(pathname: string): boolean {
-  return SCOPE_EXACT.has(pathname) || SCOPE_PREFIX.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (DETAIL_ROUTE.test(pathname)) return false;
+  return SCOPE_EXACT.has(pathname);
 }
 
 export function AppShell({ children }: AppShellProps) {

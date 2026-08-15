@@ -40,6 +40,11 @@ const ROUTE_PERMISSIONS: Record<string, string> = {
   '/energy': 'energy:read',
   '/inventory': 'inventory:read',
   '/iot': 'iot:read',
+  // Deliberately NOT iot:read. This page decides what a signal means and what a
+  // stop costs — switching "charged against OEE" off for changeover rewrites
+  // every availability figure in the plant. iot:read is held by OPERATOR, who
+  // needs to see machine states on the HMI and must not be able to do that.
+  '/iot/signal-rules': 'iot:signals',
   '/plm': 'plm:read',
 
   // Alerts

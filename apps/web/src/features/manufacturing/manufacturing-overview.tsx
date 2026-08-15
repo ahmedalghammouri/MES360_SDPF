@@ -1,4 +1,5 @@
 'use client';
+import { DataModeBadge } from '@/components/ui/data-mode-badge';
 
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -38,7 +39,7 @@ interface KPIs {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (Time Base-OEE) variant emitted by the backend alongside schedule-based OEE.
+  // Time-based (OEE-TB) variant emitted by the backend alongside schedule-based OEE.
   oeeTb?: number;
   availabilityTb?: number;
   totalOutput: number;
@@ -330,7 +331,9 @@ export default function ManufacturingOverview() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Factory className="h-7 w-7 text-brand-400" />
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">{t('mfgOverview.title')}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">{t('mfgOverview.title')}
+            <DataModeBadge mode="live" />
+          </h1>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -422,7 +425,7 @@ export default function ManufacturingOverview() {
         ))}
       </div>
 
-      {/* Time-Based (Time Base-OEE) — shown beside the schedule-based KPIs above */}
+      {/* Time-Based (OEE-TB) — shown beside the schedule-based KPIs above */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground px-1">
         <span>{t('mfgOverview.atOee')}: <b className="text-foreground">{kpis ? formatPercent(kpis.oeeTb ?? 0) : '—'}</b></span>
         <span>{t('mfgOverview.availabilityTb')}: <b className="text-foreground">{kpis ? formatPercent(kpis.availabilityTb ?? 0) : '—'}</b></span>

@@ -31,8 +31,11 @@ export class ReportsService {
       }),
     ]);
 
-    const totalActual = Math.round(analytics.totalOutput);   // good + scrap, base units
-    const totalGood = Math.round(analytics.goodOutput);       // base units
+    // In PIECES — the smallest rung of the packaging ladder. These used to be the
+    // SKU inventory base unit (CARTON), which is why report totals read about a
+    // quarter of the real output.
+    const totalActual = Math.round(analytics.totalOutput);   // good + scrap, pieces
+    const totalGood = Math.round(analytics.goodOutput);       // pieces
     const performance = analytics.current.performance ?? 0;
     // Planned = the ideal output achievable in the run time at the ideal rate; this
     // makes efficiency == OEE Performance (a real, bounded production-efficiency %),
@@ -52,7 +55,7 @@ export class ReportsService {
         performance: parseFloat(performance.toFixed(1)),
         totalDowntime: downtimeMins,
         avgOEE: parseFloat((analytics.current.oee ?? 0).toFixed(1)),
-        // Time-based (AT-OEE) variant for report consistency with the dashboards.
+        // Time-based (OEE-TB) variant for report consistency with the dashboards.
         avgOeeTb: parseFloat((analytics.current.oeeTb ?? 0).toFixed(1)),
         availabilityTb: parseFloat((analytics.current.availabilityTb ?? 0).toFixed(1)),
       },

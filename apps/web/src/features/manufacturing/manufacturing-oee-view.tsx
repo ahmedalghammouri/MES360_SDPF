@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +20,7 @@ import { Gauge, TrendingUp, TrendingDown, Award, AlertTriangle, Download } from 
 import { useQuery } from '@tanstack/react-query';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
+import { useOeeMode } from '@/hooks/use-oee-mode';
 import { format, parseISO } from 'date-fns';
 
 import { api } from '@/services/api.client';
@@ -42,7 +44,7 @@ interface OeeCalculateResponse {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (Time Base-OEE) variant emitted by the backend alongside schedule-based OEE.
+  // Time-based (OEE-TB) variant emitted by the backend alongside schedule-based OEE.
   oeeTb?: number;
   availabilityTb?: number;
   totalCount: number;
@@ -58,7 +60,7 @@ interface OeeRecord {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (Time Base-OEE) variant now emitted per record by the backend.
+  // Time-based (OEE-TB) variant now emitted per record by the backend.
   oeeTb?: number;
   availabilityTb?: number;
   totalOutput: number;
@@ -209,6 +211,7 @@ export default function ManufacturingOeeView() {
   const { t } = useTranslation('modules');
   const { filter: scopeFilter, key: scopeKey } = useScope();
   const { params: timeParams, key: timeKey, dateFrom, dateTo } = useTimeRange();
+  const oeeMode = useOeeMode();
 
   // Query: OEE calculation
   const { data: oeeData, isLoading: oeeLoading } = useQuery<OeeCalculateResponse>({
@@ -311,7 +314,9 @@ export default function ManufacturingOeeView() {
         <div className="flex items-center gap-2">
           <Gauge size={20} className="text-primary" />
           <div>
-            <h1 className="text-lg font-bold leading-tight">{t('mfgOee.dashboardTitle')}</h1>
+            <h1 className="text-lg font-bold leading-tight flex items-center gap-2">{t('mfgOee.dashboardTitle')}
+            <DashboardInfo id="production-oee" />
+          </h1>
             <p className="text-xs text-muted-foreground">{t('mfgOee.oeeFull')}</p>
           </div>
         </div>
@@ -329,16 +334,30 @@ export default function ManufacturingOeeView() {
 
         {/* 1. Four metric boxes */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <MetricBox label={t('mfgOee.oee')} value={oeeData?.oee ?? 0} isLoading={isAnyLoading} />
-          <MetricBox label={t('mfgOee.availability')} value={oeeData?.availability ?? 0} isLoading={isAnyLoading} />
+          {/* The headline boxes follow the basis chosen in the filter panel.
+              Performance and Quality are identical under both bases — only
+              Availability (and therefore OEE) is measured differently — so they
+              take no suffix. */}
+          <MetricBox label={oeeMode.label(t('mfgOee.oee'))} value={oeeMode.pick(oeeData?.oee, oeeData?.oeeTb)} isLoading={isAnyLoading} />
+          <MetricBox label={oeeMode.label(t('mfgOee.availability'))} value={oeeMode.pick(oeeData?.availability, oeeData?.availabilityTb)} isLoading={isAnyLoading} />
           <MetricBox label={t('mfgOee.performance')} value={oeeData?.performance ?? 0} isLoading={isAnyLoading} />
           <MetricBox label={t('mfgOee.quality')} value={oeeData?.quality ?? 0} isLoading={isAnyLoading} />
         </div>
 
-        {/* Time-Based (Time Base-OEE) — shown beside the schedule-based numbers above */}
+        {/* The OTHER basis, always shown alongside — the toggle decides which one
+            is the headline, never which one exists. Comparing them is the point. */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground px-1">
-          <span>{t('mfgOee.atOee')}: <b className="text-foreground">{(oeeData?.oeeTb ?? 0).toFixed(1)}%</b></span>
-          <span>{t('mfgOee.availabilityTb')}: <b className="text-foreground">{(oeeData?.availabilityTb ?? 0).toFixed(1)}%</b></span>
+          {oeeMode.atOee ? (
+            <>
+              <span>{t('mfgOee.oee')} ({t('atOee.schedule', { ns: 'common' })}): <b className="text-foreground">{(oeeData?.oee ?? 0).toFixed(1)}%</b></span>
+              <span>{t('mfgOee.availability')}: <b className="text-foreground">{(oeeData?.availability ?? 0).toFixed(1)}%</b></span>
+            </>
+          ) : (
+            <>
+              <span>{t('mfgOee.atOee')}: <b className="text-foreground">{(oeeData?.oeeTb ?? 0).toFixed(1)}%</b></span>
+              <span>{t('mfgOee.availabilityTb')}: <b className="text-foreground">{(oeeData?.availabilityTb ?? 0).toFixed(1)}%</b></span>
+            </>
+          )}
           <span className="opacity-70">{t('mfgOee.scheduleNote')}</span>
         </div>
 
@@ -516,7 +535,7 @@ export default function ManufacturingOeeView() {
                   dot={false}
                   activeDot={{ r: 4, fill: '#60a5fa' }}
                 />
-                {/* Time-based OEE (Time Base-OEE) overlay — dashed, no fill */}
+                {/* Time-based OEE (OEE-TB) overlay — dashed, no fill */}
                 <Area
                   type="monotone"
                   dataKey="oeeTb"

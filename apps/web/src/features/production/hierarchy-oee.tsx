@@ -14,17 +14,32 @@ import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
+import { useOeeMode } from '@/hooks/use-oee-mode';
 
 interface OeeNode {
   id: string; name: string; code: string | null; type: 'AREA' | 'LINE' | 'MACHINE';
   oee: number; availability: number; performance: number; quality: number;
+  // Time-based twin, emitted per node so the toggle governs the tree too.
+  oeeTb?: number; availabilityTb?: number;
   output: number; good: number;
   losses: { availabilityLossMin: number; performanceLossMin: number; qualityLossMin: number };
+  /** LINE nodes only — which basis produced this figure. */
+  oeeMethod?: 'ROLLUP' | 'BOTTLENECK';
+  oeeBasis?: {
+    method: string;
+    formula: string;
+    bottleneckMachineName?: string;
+    outfeedMachineNames?: string[];
+    bottleneckResolvedBy?: string;
+    outfeedResolvedBy?: string;
+    fallbackFrom?: string;
+    fallbackReason?: string;
+  };
   children: OeeNode[];
 }
 interface HierResp {
   range: { from: string; to: string };
-  plant: { oee: number; availability: number; performance: number; quality: number; output: number; good: number; losses: OeeNode['losses'] };
+  plant: { oee: number; availability: number; performance: number; quality: number; oeeTb?: number; availabilityTb?: number; output: number; good: number; losses: OeeNode['losses'] };
   pareto: { reasonCode: string; minutes: number; events: number }[];
   tree: OeeNode[];
 }
@@ -45,6 +60,11 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function NodeRow({ node, depth }: { node: OeeNode; depth: number }) {
   const [open, setOpen] = useState(depth < 1);
+  // Every node follows the basis chosen in the filter panel. Performance and Quality
+  // are the same under both bases — only Availability, and therefore OEE, differ.
+  const oeeMode = useOeeMode();
+  const oee = oeeMode.pick(node.oee, node.oeeTb);
+  const availability = oeeMode.pick(node.availability, node.availabilityTb);
   const Icon = TYPE_ICON[node.type] ?? Cpu;
   const hasChildren = node.children?.length > 0;
   return (
@@ -59,18 +79,45 @@ function NodeRow({ node, depth }: { node: OeeNode; depth: number }) {
         </span>
         <Icon size={14} className={cn('shrink-0', node.type === 'AREA' ? 'text-violet-400' : node.type === 'LINE' ? 'text-orange-400' : 'text-green-400')} />
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium truncate">{node.name}</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium truncate">{node.name}</span>
+            {/* A line's OEE can come from two different bases, so the basis is named
+                next to the number rather than left to be guessed. */}
+            {node.type === 'LINE' && node.oeeMethod && (
+              <span
+                title={[
+                  node.oeeBasis?.formula,
+                  node.oeeBasis?.bottleneckMachineName && `Bottleneck: ${node.oeeBasis.bottleneckMachineName}`,
+                  node.oeeBasis?.outfeedMachineNames?.length
+                    && `Outfeed: ${node.oeeBasis.outfeedMachineNames.join(' + ')}`,
+                  node.oeeBasis?.fallbackReason,
+                ].filter(Boolean).join('\n')}
+                className={cn(
+                  'shrink-0 rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide',
+                  node.oeeBasis?.fallbackFrom
+                    ? 'bg-amber-500/15 text-amber-400'
+                    : node.oeeMethod === 'BOTTLENECK'
+                      ? 'bg-brand-500/15 text-brand-400'
+                      : 'bg-foreground/10 text-muted-foreground',
+                )}
+              >
+                {node.oeeBasis?.fallbackFrom
+                  ? 'roll-up*'
+                  : node.oeeMethod === 'BOTTLENECK' ? 'bottleneck' : 'roll-up'}
+              </span>
+            )}
+          </div>
           {node.code && <div className="text-[10px] text-muted-foreground font-mono">{node.code}</div>}
         </div>
         {/* OEE bar */}
         <div className="hidden sm:flex items-center gap-2 w-40 shrink-0">
           <div className="flex-1 h-1.5 rounded-full bg-foreground/10 overflow-hidden">
-            <div className={cn('h-full rounded-full', oeeBar(node.oee))} style={{ width: `${node.oee}%` }} />
+            <div className={cn('h-full rounded-full', oeeBar(oee))} style={{ width: `${oee}%` }} />
           </div>
-          <span className={cn('text-xs font-bold tabular-nums w-11 text-right', oeeText(node.oee))}>{node.oee}%</span>
+          <span className={cn('text-xs font-bold tabular-nums w-11 text-right', oeeText(oee))}>{oee}%</span>
         </div>
         <div className="hidden md:flex items-center gap-1">
-          <Metric label="A" value={node.availability} />
+          <Metric label="A" value={availability} />
           <Metric label="P" value={node.performance} />
           <Metric label="Q" value={node.quality} />
         </div>
@@ -84,6 +131,7 @@ export function HierarchyOEE() {
   const { t } = useTranslation('production');
   const { filter, key } = useScope();
   const { dateFrom, dateTo, key: timeKey } = useTimeRange();
+  const oeeMode = useOeeMode();
   const { data, isLoading } = useQuery({
     queryKey: ['production', 'oee-hierarchy', key, timeKey],
     queryFn: () => api.get<HierResp>('/production/oee/hierarchy', { params: { ...filter, dateFrom, dateTo } }),
@@ -96,6 +144,8 @@ export function HierarchyOEE() {
   if (!data) return null;
 
   const { plant, pareto, tree } = data;
+  // The plant headline follows the same basis as the nodes beneath it.
+  const plantOee = oeeMode.pick(plant.oee, plant.oeeTb);
   const losses = plant.losses;
   const lossMax = Math.max(losses.availabilityLossMin, losses.performanceLossMin, losses.qualityLossMin, 1);
   const paretoMax = pareto[0]?.minutes || 1;
@@ -108,7 +158,7 @@ export function HierarchyOEE() {
           <div className="flex items-center gap-2 mb-3">
             <Layers size={14} className="text-brand-400" />
             <span className="text-sm font-semibold">{t('hierOee.byHierarchy')}</span>
-            <span className="ml-auto text-[11px] text-muted-foreground">{t('hierOee.plant')} <span className={cn('font-bold', oeeText(plant.oee))}>{plant.oee}%</span></span>
+            <span className="ml-auto text-[11px] text-muted-foreground">{t('hierOee.plant')} <span className={cn('font-bold', oeeText(plantOee))}>{plantOee}%</span></span>
           </div>
           {tree.length === 0 ? (
             <div className="text-xs text-muted-foreground text-center py-8">{t('hierOee.noRecords')}</div>

@@ -432,6 +432,14 @@ export class LocalApiController {
         ...(b.historizationMode !== undefined && { historizationMode: b.historizationMode }),
         ...(b.historizationRateSec !== undefined && { historizationRateSec: b.historizationRateSec }),
         ...(b.deadband !== undefined && { deadband: b.deadband }),
+        // How this signal is to be READ. Configurable here as well as in the main
+        // app, because commissioning happens at the panel, often with no server.
+        ...(b.isMachineStatus !== undefined && { isMachineStatus: b.isMachineStatus }),
+        ...(b.statusMap !== undefined && { statusMap: b.statusMap }),
+        ...(b.signalRole !== undefined && { signalRole: b.signalRole }),
+        ...(b.pulseWindowMs !== undefined && { pulseWindowMs: b.pulseWindowMs }),
+        ...(b.pulseMinEdges !== undefined && { pulseMinEdges: b.pulseMinEdges }),
+        ...(b.idleThresholdMs !== undefined && { idleThresholdMs: b.idleThresholdMs }),
       },
     });
   }
@@ -450,6 +458,7 @@ export class LocalApiController {
       'name', 'unit', 'dataType', 'tagType', 'machineId', 'lineId', 'areaId', 'deviceId', 'address', 'registerType',
       'wordCount', 'wordOrder', 'scaleFactor', 'offset', 'counterRole', 'edgeType', 'pollIntervalMs', 'isActive',
       'mqttPublishMode', 'mqttPublishRateSec', 'historizationMode', 'historizationRateSec', 'deadband', 'historizationEnabled', 'isMachineStatus', 'statusMap',
+      'signalRole', 'pulseWindowMs', 'pulseMinEdges', 'idleThresholdMs',
     ];
     const data: Record<string, unknown> = {};
     for (const k of allowed) if (b[k] !== undefined) data[k] = b[k];
@@ -499,5 +508,126 @@ export class LocalApiController {
       orderBy: { actualStart: 'desc' },
       take: 100,
     });
+  }
+  // ── Signal interpretation: what a state MEANS, and what raises an alarm ──
+  //
+  // Both are editable at the panel as well as in the main app. A commissioning
+  // engineer standing at the cabinet with no route to the server still needs to
+  // be able to say that this machine's changeover is not charged to OEE.
+
+  @Get('state-rules')
+  stateRules(@Query('machineId') machineId?: string) {
+    const factoryId = this.ctx.getFactoryId();
+    return this.prisma.machineStateRule.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        ...(machineId ? { OR: [{ machineId }, { machineId: null }] } : {}),
+      },
+      include: { machine: { select: { id: true, code: true, name: true } } },
+      orderBy: [{ machineId: 'asc' }, { state: 'asc' }],
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('state-rules')
+  async upsertStateRule(@Body() b: any) {
+    const factoryId = this.ctx.getFactoryId();
+    if (!factoryId) throw new BadRequestException('Gateway not bound to a factory yet');
+    if (!b?.state) throw new BadRequestException('state required');
+
+    const data = {
+      factoryId,
+      machineId: b.machineId ?? null,
+      state: String(b.state).toUpperCase(),
+      isDowntime: b.isDowntime ?? true,
+      isPlanned: b.isPlanned ?? false,
+      affectsOEE: b.affectsOEE ?? true,
+      reasonCode: b.reasonCode ?? null,
+      category: (b.category ?? 'OTHER') as never,
+      debounceSeconds: b.debounceSeconds ?? 0,
+      description: b.description ?? null,
+      isActive: b.isActive ?? true,
+    };
+    // One rule per (factory, machine, state): editing the same state twice must
+    // replace it, not leave a second rule that never applies.
+    const existing = await this.prisma.machineStateRule.findFirst({
+      where: { factoryId, machineId: data.machineId, state: data.state },
+      select: { id: true },
+    });
+    return existing
+      ? this.prisma.machineStateRule.update({ where: { id: existing.id }, data })
+      : this.prisma.machineStateRule.create({ data });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('state-rules/:id')
+  async deleteStateRule(@Param('id') id: string) {
+    await this.prisma.machineStateRule.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  @Get('alarm-definitions')
+  alarmDefinitions(@Query('tagId') tagId?: string) {
+    const factoryId = this.ctx.getFactoryId();
+    return this.prisma.alarmDefinition.findMany({
+      where: { ...(factoryId ? { factoryId } : {}), ...(tagId ? { tagId } : {}) },
+      include: { tag: { select: { id: true, code: true, unit: true, machine: { select: { code: true } } } } },
+      orderBy: { code: 'asc' },
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('alarm-definitions')
+  async createAlarmDefinition(@Body() b: any) {
+    const factoryId = this.ctx.getFactoryId();
+    if (!factoryId) throw new BadRequestException('Gateway not bound to a factory yet');
+    if (!b?.code || !b?.name) throw new BadRequestException('code and name required');
+    if (!b?.tagId) throw new BadRequestException('An alarm must be bound to a tag');
+    // Without a threshold there is nothing to compare against, so the alarm
+    // could never fire. Better to refuse the save than to store a silent rule.
+    if (b.threshold === null || b.threshold === undefined || Number.isNaN(Number(b.threshold))) {
+      throw new BadRequestException('A numeric threshold is required');
+    }
+    return this.prisma.alarmDefinition.create({
+      data: {
+        factoryId,
+        tagId: b.tagId,
+        code: String(b.code).trim(),
+        name: String(b.name).trim(),
+        severity: (b.severity ?? 'HIGH') as never,
+        category: b.category ?? 'PROCESS',
+        condition: String(b.condition ?? 'GT').toUpperCase(),
+        threshold: Number(b.threshold),
+        deadband: b.deadband != null ? Number(b.deadband) : null,
+        delaySeconds: Number(b.delaySeconds ?? 0),
+        autoAck: !!b.autoAck,
+        isActive: b.isActive !== false,
+      },
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('alarm-definitions/:id')
+  async updateAlarmDefinition(@Param('id') id: string, @Body() b: any) {
+    const allowed = [
+      'code', 'name', 'tagId', 'severity', 'category', 'condition',
+      'threshold', 'deadband', 'delaySeconds', 'autoAck', 'isActive',
+    ];
+    const data: Record<string, unknown> = {};
+    for (const k of allowed) if (b[k] !== undefined) data[k] = b[k];
+    return this.prisma.alarmDefinition.update({ where: { id }, data });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('alarm-definitions/:id')
+  async deleteAlarmDefinition(@Param('id') id: string) {
+    // Past events outlive the rule — an alarm history that vanishes when
+    // somebody edits a rule is not a history.
+    await this.prisma.alarmEvent.updateMany({
+      where: { alarmDefinitionId: id },
+      data: { alarmDefinitionId: null },
+    });
+    await this.prisma.alarmDefinition.delete({ where: { id } });
+    return { ok: true };
   }
 }

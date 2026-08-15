@@ -154,4 +154,106 @@ export class AlarmsService {
       include: { machine: { select: { id: true, name: true, code: true } } },
     });
   }
+  // ────────────────────────────────────────────────────────────
+  // ALARM DEFINITIONS
+  // ────────────────────────────────────────────────────────────
+
+  async listDefinitions(factoryId: string | null, tagId?: string) {
+    return this.prisma.alarmDefinition.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        ...(tagId ? { tagId } : {}),
+      },
+      include: {
+        tag: {
+          select: {
+            id: true, code: true, name: true, unit: true,
+            machine: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+      orderBy: [{ severity: 'asc' }, { code: 'asc' }],
+    });
+  }
+
+  /**
+   * A definition with no threshold can never fire — the gateway refuses to
+   * compare against an unknown rather than inventing a fault. Rejecting it here
+   * means the customer finds out at save time instead of wondering later why a
+   * configured alarm is silent.
+   */
+  async createDefinition(factoryId: string | null, dto: any) {
+    if (!factoryId) throw new BadRequestException('A factory context is required');
+    if (!dto?.code || !dto?.name) throw new BadRequestException('code and name are required');
+    if (!dto?.tagId) throw new BadRequestException('An alarm must be bound to a tag');
+    if (dto.threshold === null || dto.threshold === undefined || Number.isNaN(Number(dto.threshold))) {
+      throw new BadRequestException('A numeric threshold is required, otherwise the alarm can never fire');
+    }
+
+    return this.prisma.alarmDefinition.create({
+      data: {
+        factoryId,
+        tagId: dto.tagId,
+        code: String(dto.code).trim(),
+        name: String(dto.name).trim(),
+        severity: (dto.severity ?? 'HIGH') as any,
+        category: dto.category ?? 'PROCESS',
+        condition: (dto.condition ?? 'GT').toUpperCase(),
+        threshold: Number(dto.threshold),
+        deadband: dto.deadband != null ? Number(dto.deadband) : null,
+        delaySeconds: Number(dto.delaySeconds ?? 0),
+        autoAck: !!dto.autoAck,
+        notifyRoles: dto.notifyRoles ?? [],
+        isActive: dto.isActive !== false,
+      },
+    });
+  }
+
+  async updateDefinition(factoryId: string | null, id: string, dto: any) {
+    const existing = await this.prisma.alarmDefinition.findFirst({
+      where: { id, ...(factoryId ? { factoryId } : {}) },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Alarm definition not found');
+
+    if (dto.threshold !== undefined && (dto.threshold === null || Number.isNaN(Number(dto.threshold)))) {
+      throw new BadRequestException('A numeric threshold is required, otherwise the alarm can never fire');
+    }
+
+    return this.prisma.alarmDefinition.update({
+      where: { id },
+      data: {
+        ...(dto.code !== undefined && { code: String(dto.code).trim() }),
+        ...(dto.name !== undefined && { name: String(dto.name).trim() }),
+        ...(dto.tagId !== undefined && { tagId: dto.tagId }),
+        ...(dto.severity !== undefined && { severity: dto.severity as any }),
+        ...(dto.category !== undefined && { category: dto.category }),
+        ...(dto.condition !== undefined && { condition: String(dto.condition).toUpperCase() }),
+        ...(dto.threshold !== undefined && { threshold: Number(dto.threshold) }),
+        ...(dto.deadband !== undefined && { deadband: dto.deadband != null ? Number(dto.deadband) : null }),
+        ...(dto.delaySeconds !== undefined && { delaySeconds: Number(dto.delaySeconds) }),
+        ...(dto.autoAck !== undefined && { autoAck: !!dto.autoAck }),
+        ...(dto.notifyRoles !== undefined && { notifyRoles: dto.notifyRoles }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  /**
+   * Deleting a definition keeps its past events — an alarm history that
+   * disappears when somebody edits a rule is not a history.
+   */
+  async deleteDefinition(factoryId: string | null, id: string) {
+    const existing = await this.prisma.alarmDefinition.findFirst({
+      where: { id, ...(factoryId ? { factoryId } : {}) },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Alarm definition not found');
+
+    await this.prisma.alarmEvent.updateMany({
+      where: { alarmDefinitionId: id },
+      data: { alarmDefinitionId: null },
+    });
+    await this.prisma.alarmDefinition.delete({ where: { id } });
+  }
 }

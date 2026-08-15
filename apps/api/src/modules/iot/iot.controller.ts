@@ -6,6 +6,7 @@ import { IotService, TelemetryDto } from './iot.service';
 import { IndustrialDriverFactory } from './drivers/driver-factory';
 import { MqttMonitorService } from './mqtt-monitor.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 interface RequestUser {
   id: string;
@@ -331,5 +332,53 @@ export class IotController {
   ) {
     if (!user.factoryId) return [];
     return this.iotService.getEnergyByWorkCenter(user.factoryId, from, to);
+  }
+  // ────────────────────────────────────────────────────────────
+  // MACHINE STATE RULES — what a state MEANS for downtime and OEE
+  //
+  // These were constants in the edge gateway. Which reason a stop is filed under,
+  // whether it counts as planned, and whether it is charged against OEE are plant
+  // decisions; a customer should not need a redeploy to change one.
+  // ────────────────────────────────────────────────────────────
+
+  @Get('state-rules')
+  @RequirePermissions('iot:signals')
+  @ApiOperation({ summary: 'Machine state rules for this factory' })
+  @ApiQuery({ name: 'machineId', required: false, description: 'Include per-machine overrides' })
+  async getStateRules(
+    @CurrentUser() user: RequestUser,
+    @Query('machineId') machineId?: string,
+  ) {
+    return this.iotService.listStateRules(user.factoryId, machineId);
+  }
+
+  @Post('state-rules')
+  @RequirePermissions('iot:signals')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create or replace a machine state rule' })
+  async upsertStateRule(@CurrentUser() user: RequestUser, @Body() dto: any) {
+    return this.iotService.upsertStateRule(user.factoryId, dto);
+  }
+
+  @Patch('state-rules/:id')
+  @RequirePermissions('iot:signals')
+  @ApiOperation({ summary: 'Update a machine state rule' })
+  async updateStateRule(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: any,
+  ) {
+    return this.iotService.updateStateRule(user.factoryId, id, dto);
+  }
+
+  @Delete('state-rules/:id')
+  @RequirePermissions('iot:signals')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a machine state rule (falls back to the factory rule)' })
+  async deleteStateRule(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.iotService.deleteStateRule(user.factoryId, id);
   }
 }

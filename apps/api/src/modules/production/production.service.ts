@@ -12,6 +12,11 @@ import { OEEService } from './oee.service';
 import { KpiService } from './kpi.service';
 import { ApsService } from '../aps/aps.service';
 import { HistorianService } from '../historian/historian.service';
+import {
+  convertUnits, isConvertibleUnit, normaliseUnit, piecesPer, smallestLadderUnit,
+  toPieces, sumInPieces, UNIT_LADDER,
+} from '../../common/units.util';
+import { resolveLocalRange } from '../../common/plant-time.util';
 import type { WorkOrderStatus, Prisma } from '@prisma/client';
 import type {
   CreateWorkOrderDto, UpdateWorkOrderDto, CompleteWorkOrderDto,
@@ -203,7 +208,7 @@ export class ProductionService implements OnApplicationBootstrap {
       this.prisma.workOrder.findMany({
         where,
         include: {
-          sku: { select: { name: true, code: true, itemNumber: true } },
+          sku: { select: { name: true, code: true, itemNumber: true, baseUnit: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true } },
           line: { select: { name: true, code: true } },
           operator: { select: { name: true } },
           supervisor: { select: { name: true } },
@@ -221,6 +226,7 @@ export class ProductionService implements OnApplicationBootstrap {
               actualStart: true,
               actualEnd: true,
               idealCycleTimeSec: true,
+              outputUnit: true,
               machine: { select: { name: true, code: true } },
               operator: { select: { name: true } },
             },
@@ -245,9 +251,24 @@ export class ProductionService implements OnApplicationBootstrap {
           totalSteps,
           // Step-based progress — unit-safe
           progress: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : mapped.progress,
-          // Final output qty from last JO
-          goodQty:  lastJO?.actualQtyGood     ?? mapped.goodQty,
-          scrapQty: wo.jobOrders.reduce((s, j) => s + j.actualQtyRejected, 0),
+          // Good = the FINAL step's output (what actually left the line). Scrap is
+          // lost at EVERY step, so it must be summed — but the steps count in
+          // different units (inners / cartons / pallets), so the raw sum that used
+          // to sit here added unlike quantities. Both are now converted to pieces
+          // and reported in one declared unit.
+          goodQty: lastJO
+            ? toPieces(lastJO.actualQtyGood ?? 0, (lastJO as any).outputUnit, wo.sku)
+            : mapped.goodQty,
+          scrapQty: sumInPieces(
+            wo.jobOrders,
+            (j) => j.actualQtyRejected,
+            (j) => (j as any).outputUnit,
+            () => wo.sku,
+          ).pieces,
+          // Self-derived from the SKU packaging: quantities are held in pieces, but
+          // when an inner IS one piece the shop floor calls it an inner, and a card
+          // reading "pcs" is read as a different number. Never hardcoded.
+          qtyUnit: smallestLadderUnit(wo.sku),
           jobOrders: wo.jobOrders.map((jo) => ({
             id: jo.id,
             operationName: jo.operationName,
@@ -301,10 +322,20 @@ export class ProductionService implements OnApplicationBootstrap {
     //   • liveScrapQty                 = total scrap events across ALL steps (quality KPI)
     //   • liveProgress (qty-based)     = last JO good qty vs WO plannedQty
     //   • liveStepProgress             = % of JO steps completed (always meaningful)
+    // All in PIECES: the steps count in different packaging units, so scrap can only
+    // be summed after conversion (the comment above says summing across JOs is
+    // meaningless — it was still being done here, just for the scrap line).
+    const woPkg = (wo as any).sku ?? null;
     const lastJO  = wo.jobOrders[wo.jobOrders.length - 1] ?? null;
-    const liveGood  = lastJO?.actualQtyGood     ?? 0;
-    const liveScrap = wo.jobOrders.reduce((s, j) => s + j.actualQtyRejected, 0);
-    const liveActual = liveGood + (lastJO?.actualQtyRejected ?? 0);
+    const liveGood  = toPieces(lastJO?.actualQtyGood ?? 0, (lastJO as any)?.outputUnit, woPkg);
+    const liveScrap = sumInPieces(
+      wo.jobOrders, (j) => j.actualQtyRejected, (j) => (j as any).outputUnit, () => woPkg,
+    ).pieces;
+    // Everything the order consumed = what left the line + everything lost getting
+    // there. Charging only the LAST step's rejects understated it by every unit
+    // scrapped upstream, which is most of them: a bag rejected at the filler never
+    // reaches the palletiser to be counted.
+    const liveActual = liveGood + liveScrap;
     const completedSteps = wo.jobOrders.filter(j => j.status === 'COMPLETE').length;
     const totalSteps     = wo.jobOrders.length;
 
@@ -315,6 +346,8 @@ export class ProductionService implements OnApplicationBootstrap {
     return {
       ...wo,
       machines,
+      // The unit those live quantities are denominated in, derived from the SKU.
+      qtyUnit: smallestLadderUnit(woPkg),
       liveGoodQty:    liveGood,
       liveScrapQty:   liveScrap,
       liveActualQty:  liveActual,
@@ -500,7 +533,11 @@ export class ProductionService implements OnApplicationBootstrap {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          sku: { select: { name: true, code: true, itemNumber: true, brand: true, weight: true, weightUnit: true } },
+          // Packaging is required to express the PO target in PIECES: the target is
+          // stated in the ORDER unit (CARTON) while work-order output is counted in
+          // pieces, and dividing one by the other produced a 361% completion that was
+          // then hidden by a Math.min(99, …) cap.
+          sku: { select: { name: true, code: true, itemNumber: true, brand: true, weight: true, weightUnit: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } },
           workOrders: {
             where: { deletedAt: null },
             select: {
@@ -513,7 +550,12 @@ export class ProductionService implements OnApplicationBootstrap {
       this.prisma.productionOrder.count({ where }),
     ]);
 
-    return { data, total, page, limit };
+    // targetQtyPieces puts the numerator and denominator of every completion figure
+    // in the SAME unit. / are kept untouched for display.
+    return {
+      data: data.map((po) => ({ ...po, targetQtyPieces: toPieces(po.targetQty, po.unit, po.sku) })),
+      total, page, limit,
+    };
   }
 
   async findOneProductionOrder(factoryId: string | null, id: string) {
@@ -521,7 +563,7 @@ export class ProductionService implements OnApplicationBootstrap {
     const po = await this.prisma.productionOrder.findFirst({
       where: { id, ...factoryFilter, deletedAt: null },
       include: {
-        sku: { select: { name: true, code: true, itemNumber: true, brand: true, weight: true, weightUnit: true, packagingType: true } },
+        sku: { select: { name: true, code: true, itemNumber: true, brand: true, weight: true, weightUnit: true, packagingType: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } },
         workOrders: {
           where: { deletedAt: null },
           orderBy: { createdAt: 'asc' },
@@ -538,7 +580,7 @@ export class ProductionService implements OnApplicationBootstrap {
       },
     });
     if (!po) throw new NotFoundException('Production order not found');
-    return po;
+    return { ...po, targetQtyPieces: toPieces(po.targetQty, po.unit, po.sku) };
   }
 
   async updateProductionOrder(factoryId: string | null, id: string, dto: UpdateProductionOrderDto) {
@@ -912,24 +954,15 @@ export class ProductionService implements OnApplicationBootstrap {
     toUnit: string,
     pkg: { unitsPerInner: number; innersPerCarton: number; cartonsPerPallet: number },
   ): number {
-    const norm = (u: string) => {
-      const x = (u || 'PIECE').toUpperCase();
-      if (x === 'PCS' || x === 'EA' || x === 'UNIT') return 'PIECE';
-      return x;
-    };
-    const LADDER = ['PIECE', 'INNER', 'CARTON', 'PALLET'];
-    const factor = [
-      Math.max(1, pkg.unitsPerInner),    // pieces per inner
-      Math.max(1, pkg.innersPerCarton),  // inners per carton
-      Math.max(1, pkg.cartonsPerPallet), // cartons per pallet
-    ];
-    const fi = LADDER.indexOf(norm(fromUnit));
-    const ti = LADDER.indexOf(norm(toUnit));
-    if (fi < 0 || ti < 0 || fi === ti) return qty;
-    let q = qty;
-    if (ti > fi) { for (let i = fi; i < ti; i++) q = q / factor[i]; return Math.ceil(q); }
-    for (let i = fi - 1; i >= ti; i--) q = q * factor[i];
-    return Math.round(q);
+    // The ladder arithmetic lives in ONE place (common/units.util.ts). This wrapper
+    // adds only the planning-specific rounding: a job order cannot be issued for
+    // 0.5 of a carton, and rounding UP when moving to a coarser unit guarantees the
+    // step still produces enough to satisfy the next one.
+    if (!isConvertibleUnit(fromUnit) || !isConvertibleUnit(toUnit)) return qty;
+    const converted = convertUnits(qty, fromUnit, toUnit, pkg);
+    if (converted === qty) return qty;
+    const coarser = piecesPer(pkg)[normaliseUnit(toUnit)!] > piecesPer(pkg)[normaliseUnit(fromUnit)!];
+    return coarser ? Math.ceil(converted) : Math.round(converted);
   }
 
   /** Calculate the expected output quantity when the unit changes between steps. */
@@ -989,11 +1022,22 @@ export class ProductionService implements OnApplicationBootstrap {
       innersPerCarton: (po.sku as any)?.innersPerCarton ?? 1,
       cartonsPerPallet: (po.sku as any)?.cartonsPerPallet ?? 1,
     };
-    const ppc = Math.max(1, skuPkg.unitsPerInner * skuPkg.innersPerCarton);
-    // Normalise PO qty to PIECE base for step-by-step calculations
-    let prevQty = (po as any).unit === 'CARTON' ? po.targetQty * ppc
-      : (po as any).unit === 'PALLET' ? po.targetQty * ppc * skuPkg.cartonsPerPallet
-      : po.targetQty;
+    // Normalise the order quantity to PIECES for the step-by-step flow.
+    //
+    // This used to be a hand-written if-chain that understood CARTON and PALLET and
+    // let EVERY other unit fall through as if it were already pieces — so ordering in
+    // INNER (which the routing steps actually use) silently produced the wrong
+    // quantity, and BOX/KG from the UI dropdown did too, with no error. The shared
+    // converter knows the whole ladder; anything off-ladder is rejected outright
+    // rather than mis-planned.
+    const poUnit = (po as any).unit ?? 'PIECE';
+    if (!isConvertibleUnit(poUnit)) {
+      throw new BadRequestException(
+        `Production order unit "${poUnit}" is not a packaging unit, so it cannot be converted into `
+        + `routing-step quantities. Use one of: ${UNIT_LADDER.join(', ')}.`,
+      );
+    }
+    let prevQty = toPieces(po.targetQty, poUnit, skuPkg);
     let prevUnit = 'PIECE';
 
     // Sequential loop — prevQty/prevUnit must flow step-to-step.
@@ -1343,20 +1387,16 @@ export class ProductionService implements OnApplicationBootstrap {
     factoryId: string | null, fromMs: number, toMs: number, machineIds?: string[],
   ): Promise<number> {
     if (toMs <= fromMs) return 0;
-    const windowHours = (toMs - fromMs) / 3_600_000;
-
-    let shiftMins = 0;
-    const shifts = await this.prisma.shiftTemplate.findMany({
-      where: { ...(factoryId ? { factoryId } : {}), isActive: true },
-      select: { shiftDurationHours: true, breakMinutes: true, cleaningMinutes: true },
-    });
-    if (shifts.length > 0) {
-      const avgDur = shifts.reduce((s, x) => s + (x.shiftDurationHours || 12), 0) / shifts.length || 12;
-      const avgStop = shifts.reduce((s, x) => s + (x.breakMinutes || 0) + (x.cleaningMinutes || 0), 0) / shifts.length;
-      const shiftsSpanned = Math.max(1, Math.ceil(windowHours / avgDur));
-      shiftMins = shiftsSpanned * avgStop;
-    }
-
+    // ── Removed: an estimate that was also a double count ───────────────────
+    // This used to average `breakMinutes + cleaningMinutes` across every shift
+    // template, multiply by an estimated number of shifts spanned, and add that
+    // to the real planned-downtime events below. Where those breaks had actually
+    // been materialised as events — which is the normal case — the same minutes
+    // were counted twice, and the finish time drifted later the more correctly
+    // the plant had configured itself.
+    //
+    // Planned stops are now rows with real start times, so the events loop below
+    // is the whole answer. Nothing is estimated, and nothing is counted twice.
     let eventMins = 0;
     const events = await this.prisma.downtimeEvent.findMany({
       where: {
@@ -1374,7 +1414,7 @@ export class ProductionService implements OnApplicationBootstrap {
       if (en > s) eventMins += (en - s) / 60_000;
     }
 
-    return Math.round(shiftMins + eventMins);
+    return Math.round(eventMins);
   }
 
   async autoGenerateWorkOrders(
@@ -1994,7 +2034,7 @@ export class ProductionService implements OnApplicationBootstrap {
       availability: oee.current.availability,
       performance: oee.current.performance,
       quality: oee.current.quality,
-      // Time-based (AT-OEE) variant — surfaced alongside schedule-based OEE.
+      // Time-based (OEE-TB) variant — surfaced alongside schedule-based OEE.
       oeeTb: oee.current.oeeTb,
       availabilityTb: oee.current.availabilityTb,
       totalOrders,
@@ -2027,10 +2067,19 @@ export class ProductionService implements OnApplicationBootstrap {
       to = now;
       from = (await currentShiftStart(this.prisma, factoryId)) ?? new Date(new Date().setHours(0, 0, 0, 0));
     } else {
-      // A date-only `dateTo` (YYYY-MM-DD) parses to midnight UTC; bump it to end-of-day
-      // so single-day / "today" ranges are inclusive instead of zero-width.
-      to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : now;
-      if (dateFrom) from = new Date(dateFrom);
+      // Parse date-only strings in SERVER-LOCAL time, not UTC.
+      //
+      // The web deliberately builds these from LOCAL calendar components — its own
+      // comment warns that toISOString shifts local midnight into the previous day.
+      // `new Date('2026-08-09')` parses as midnight UTC, which is 03:00 in Riyadh, so
+      // between local midnight and 03:00 the entire "Today" window sat in the FUTURE
+      // and every KPI on the page read 0.0% while "Shift" and "Week" were fine.
+      //
+      // The upper bound never runs past now, for the same reason planned production
+      // time does not accrue for hours that have not happened yet.
+      const rawTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : now;
+      to = rawTo > now ? now : rawTo;
+      if (dateFrom) from = new Date(`${dateFrom}T00:00:00.000`);
       else {
         from = new Date(to);
         if (tf === 'week') from.setDate(to.getDate() - 7);
@@ -2080,8 +2129,10 @@ export class ProductionService implements OnApplicationBootstrap {
       to = now;
       from = (await currentShiftStart(this.prisma, factoryId)) ?? new Date(new Date().setHours(0, 0, 0, 0));
     } else {
-      to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : now;
-      if (dateFrom) from = new Date(dateFrom);
+      // Local calendar dates, clamped to now — see resolveLocalRange.
+      const r = resolveLocalRange(dateFrom, dateTo, 7, now);
+      to = r.to;
+      if (dateFrom) from = r.from;
       else {
         from = new Date(to);
         if (tf === 'month') from.setDate(to.getDate() - 30);
@@ -2108,8 +2159,13 @@ export class ProductionService implements OnApplicationBootstrap {
     // every machine they ran a step on (not just the WO header machine).
     const machineIds = await this.kpiService.resolveScopeMachineIds(factoryId, { machineId, areaId, lineId });
     // Inclusive end-of-day for a date-only `dateTo` so today/single-day ranges aren't empty.
-    const to = dateTo ? new Date(new Date(dateTo).getTime() + (86_400_000 - 1)) : new Date();
-    const from = dateFrom ? new Date(dateFrom) : new Date(to.getTime() - 90 * 86_400_000);
+    // Local calendar dates, clamped to now — the same convention as every other
+    // window. Parsing these as UTC made "Today" start three hours in the future in
+    // Riyadh, so the list was empty until 03:00 every morning.
+    const recNow = new Date();
+    const recRawTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : recNow;
+    const to = recRawTo > recNow ? recNow : recRawTo;
+    const from = dateFrom ? new Date(`${dateFrom}T00:00:00.000`) : new Date(to.getTime() - 90 * 86_400_000);
 
     const data = await this.kpiService.oeeRecordsFromJobOrders(factoryId, from, to, machineIds, limit);
     return { data, total: data.length, page, limit, totalPages: 1 };
@@ -3953,6 +4009,24 @@ export class ProductionService implements OnApplicationBootstrap {
       await this.syncMachineStateWithJobOrder(jo.factoryId, jo.machineId, status, jo.workOrderId, jo.actualStart ?? updated.actualStart);
     }
 
+    // Work-order stop rules — changeover and the like. Fired on the transition
+    // INTO execution, not on every save, because that is the one moment the
+    // system can see both the incoming order and what ran on the machine before
+    // it. Failures are swallowed: a changeover rule that cannot be evaluated
+    // must never stop a production order from starting.
+    if (status === 'EXECUTING' && !jo.actualStart) {
+      // Emitted rather than called directly: ShiftModule already imports
+      // ProductionModule for the KPI engine, so injecting the other way would
+      // close a dependency cycle. An event keeps the direction one-way.
+      this.eventEmitter.emit('production.job-order.started', {
+        factoryId: jo.factoryId,
+        jobOrderId,
+        machineId: jo.machineId,
+        workOrderId: jo.workOrderId,
+        startedAt: updated.actualStart ?? new Date(),
+      });
+    }
+
     // Incremental ("أول بأول") material consumption when a routing step finishes:
     // deplete this step's materials/lots now, not in one lump at WO completion.
     if (status === 'COMPLETE') {
@@ -4057,10 +4131,19 @@ export class ProductionService implements OnApplicationBootstrap {
 
       // ISA-95 unit-safe output: the final step's good qty is the WO's product
       // output; scrap is the sum of rejects at every step (units lost anywhere).
+      // Persisted in PIECES so the header quantities, the PO roll-up that sums them
+      // and every report downstream all share one unit.
+      const finPkg = (wo as any).sku ?? null;
       const lastJo = wo.jobOrders[wo.jobOrders.length - 1];
-      const goodQty = lastJo?.actualQtyGood ?? wo.goodQty ?? 0;
-      const scrapQty = wo.jobOrders.reduce((s, j) => s + (j.actualQtyRejected ?? 0), 0);
-      const actualQty = goodQty + (lastJo?.actualQtyRejected ?? 0);
+      const goodQty = Math.round(
+        toPieces(lastJo?.actualQtyGood ?? wo.goodQty ?? 0, (lastJo as any)?.outputUnit, finPkg),
+      );
+      const scrapQty = Math.round(sumInPieces(
+        wo.jobOrders, (j) => j.actualQtyRejected, (j) => (j as any).outputUnit, () => finPkg,
+      ).pieces);
+      const actualQty = goodQty + Math.round(
+        toPieces(lastJo?.actualQtyRejected ?? 0, (lastJo as any)?.outputUnit, finPkg),
+      );
       const actualEnd = wo.actualEnd ?? new Date();
 
       // Persist real header quantities so PO completedQty (Σ wo.goodQty) + reports
@@ -4448,8 +4531,13 @@ export class ProductionService implements OnApplicationBootstrap {
     // Availability: only if plannedStart and plannedEnd exist
     let joAvailability: number | null = null;
     if (jo.plannedStart && jo.plannedEnd && operatingTimeSec != null) {
+      // Planned production time accrues as the clock passes: an order running today
+      // is not "unavailable" for the fortnight of plan still ahead of it. Without
+      // this clamp the per-step badges read A: 0.2% while the machine was running
+      // normally. Same rule as historian.computeSample and kpi.joRollupChild.
+      const plannedEndMs = Math.min(new Date(jo.plannedEnd).getTime(), Date.now());
       const plannedDurationSec =
-        (new Date(jo.plannedEnd).getTime() - new Date(jo.plannedStart).getTime()) / 1000;
+        Math.max(0, plannedEndMs - new Date(jo.plannedStart).getTime()) / 1000;
       if (plannedDurationSec > 0) {
         const raw = (operatingTimeSec / plannedDurationSec) * 100;
         joAvailability = parseFloat(Math.min(100, raw).toFixed(1));

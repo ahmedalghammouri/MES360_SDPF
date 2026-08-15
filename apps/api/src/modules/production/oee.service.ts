@@ -23,7 +23,13 @@ export interface OEEResult {
  */
 export interface OEEDetailedInput {
   plannedProductionTime: number; // PPT, minutes (already net of planned stops)
-  unplannedDowntime: number;     // minutes — availability loss (breakdown, setup, starved, blocked, external)
+  unplannedDowntime: number;     // minutes — availability loss owned by THIS machine (breakdown, setup)
+  /**
+   * External / process-constraint minutes (STARVED, BLOCKED). Removed from PPT before
+   * A and P are derived, so a machine idled by an upstream or downstream constraint is
+   * not penalised for it — see EXTERNAL_LOSS_STATES.
+   */
+  externalLoss?: number;
   microStopMinutes?: number;     // minutes — informational performance-loss bucket
   idealCycleTime: number;        // minutes per unit
   totalCount: number;
@@ -36,23 +42,27 @@ export interface OEEBreakdown {
   performance: number;
   quality: number;
   // raw minutes — carried so parents can roll up consistently
-  ppt: number;            // planned production time
+  ppt: number;            // planned production time, NET of external loss
   runTime: number;        // ppt − unplanned downtime
   idealRunTime: number;   // idealCycleTime × totalCount (the "earned" run minutes)
+  externalLoss: number;   // starved + blocked minutes removed from PPT
   totalCount: number;
   goodCount: number;
   losses: {
     availabilityLossMin: number;
     performanceLossMin: number;
     qualityLossMin: number;
+    /** Reported separately — it is a line-balance loss, not a machine loss. */
+    externalLossMin: number;
   };
 }
 
 /** A child contribution for a weighted roll-up (JO→WO→PO, Machine→Line→Area→Plant). */
 export interface RollupChild {
-  ppt: number;          // planned production minutes
+  ppt: number;          // planned production minutes (gross; external loss removed during rollup)
   runTime: number;      // running minutes
   idealRunTime: number; // idealCycleTime × totalCount minutes
+  externalLoss?: number; // starved / blocked minutes inside this child's window
   totalCount: number;
   goodCount: number;
 }
@@ -66,6 +76,18 @@ export interface StateSegment {
 
 const PLANNED_STATES = new Set(['PLANNED_STOP', 'MAINTENANCE']);
 const RUNNING_STATES = new Set(['RUNNING']);
+
+/**
+ * External / process-constraint states. A machine that is STARVED (no product from
+ * upstream) or BLOCKED (downstream cannot accept output) is healthy and available —
+ * the constraint belongs to the line, not to the asset. ISO 22400 treats these as
+ * external losses, so they are removed from Planned Production Time before
+ * Availability and Performance are derived; otherwise a downstream machine such as
+ * a palletizer shows a low OEE purely because it waits on the bottleneck.
+ *
+ * They remain visible as `losses.externalLossMin` — excluded, never hidden.
+ */
+export const EXTERNAL_LOSS_STATES = new Set(['STARVED', 'BLOCKED']);
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const clampPct = (n: number) => Math.min(100, Math.max(0, n));
@@ -107,7 +129,11 @@ export class OEEService {
    * minute quantities so the same result can be fed into `rollup`.
    */
   calculateDetailed(input: OEEDetailedInput): OEEBreakdown {
-    const ppt = Math.max(0, input.plannedProductionTime);
+    const grossPpt = Math.max(0, input.plannedProductionTime);
+    // External constraints (starved/blocked) are carved out of PPT first — the machine
+    // is not accountable for time it was ready but the line could not feed or drain it.
+    const externalLoss = Math.min(grossPpt, Math.max(0, input.externalLoss ?? 0));
+    const ppt = Math.max(0, grossPpt - externalLoss);
     const runTime = Math.max(0, ppt - Math.max(0, input.unplannedDowntime));
     const idealRunTime = Math.max(0, input.idealCycleTime * input.totalCount);
 
@@ -124,12 +150,14 @@ export class OEEService {
       ppt,
       runTime,
       idealRunTime,
+      externalLoss: round1(externalLoss),
       totalCount: input.totalCount,
       goodCount: input.goodCount,
       losses: {
         availabilityLossMin: round1(ppt - runTime),
         performanceLossMin: round1(Math.max(0, runTime - idealRunTime)),
         qualityLossMin: round1(input.totalCount > 0 ? (input.idealCycleTime * (input.totalCount - input.goodCount)) : 0),
+        externalLossMin: round1(externalLoss),
       },
     };
   }
@@ -140,24 +168,78 @@ export class OEEService {
    * running minutes / PPT.
    */
   availabilityFromSegments(segments: StateSegment[]): {
-    ppt: number; runTime: number; plannedDowntime: number; unplannedDowntime: number; availability: number;
+    ppt: number; runTime: number; plannedDowntime: number; unplannedDowntime: number;
+    externalLoss: number; availability: number;
   } {
-    let scheduled = 0, planned = 0, run = 0;
+    let scheduled = 0, planned = 0, run = 0, external = 0;
     for (const s of segments) {
       const d = s.durationMinutes ?? 0;
       scheduled += d;
       const isPlanned = s.isPlannedStop || PLANNED_STATES.has(s.state);
       if (isPlanned) planned += d;
+      else if (EXTERNAL_LOSS_STATES.has(s.state)) external += d;
       else if (RUNNING_STATES.has(s.state)) run += d;
     }
-    const ppt = Math.max(0, scheduled - planned);
+    // PPT excludes planned stops AND external constraints; what remains is the time
+    // this machine was genuinely accountable for.
+    const ppt = Math.max(0, scheduled - planned - external);
     const unplanned = Math.max(0, ppt - run);
     return {
       ppt: round1(ppt),
       runTime: round1(run),
       plannedDowntime: round1(planned),
       unplannedDowntime: round1(unplanned),
+      externalLoss: round1(external),
       availability: ppt > 0 ? round1(clampPct((run / ppt) * 100)) : 0,
+    };
+  }
+
+  /**
+   * Bottleneck-based OVERALL LINE OEE.
+   *
+   *   Line OEE = Bottleneck Availability × Bottleneck Performance × Final Outfeed Quality
+   *
+   * A packaging line runs at the speed of its constraint. Averaging or rolling up the
+   * OEE of every machine misrepresents the line: downstream assets (palletizer,
+   * wrapper) idle by design whenever the bottleneck is down, so their individual
+   * numbers say nothing about line output. This method therefore takes A and P from
+   * the nominated bottleneck only, and Q from the FINAL outfeed — the last point where
+   * a saleable unit is counted — so every downstream reject (checkweigher, cartoner,
+   * palletizer, wrapper) is captured exactly once and never double-counted.
+   */
+  lineOee(input: {
+    /** A and P source — the constraint machine (e.g. Big Betti). */
+    bottleneck: { availability: number; performance: number; machineId?: string; machineName?: string };
+    /** Q source — units counted at the line's last outfeed point. */
+    finalOutfeed: { totalCount: number; goodCount: number; pointName?: string };
+  }): {
+    oee: number; availability: number; performance: number; quality: number;
+    basis: {
+      method: 'BOTTLENECK';
+      bottleneckMachineId?: string; bottleneckMachineName?: string;
+      outfeedPointName?: string; outfeedTotal: number; outfeedGood: number;
+    };
+  } {
+    const availability = clampPct(input.bottleneck.availability ?? 0);
+    const performance = clampPct(input.bottleneck.performance ?? 0);
+    const total = Math.max(0, input.finalOutfeed.totalCount ?? 0);
+    const good = Math.max(0, Math.min(total, input.finalOutfeed.goodCount ?? 0));
+    const quality = total > 0 ? clampPct((good / total) * 100) : 0;
+    const oee = (availability / 100) * (performance / 100) * (quality / 100) * 100;
+
+    return {
+      oee: round1(oee),
+      availability: round1(availability),
+      performance: round1(performance),
+      quality: round1(quality),
+      basis: {
+        method: 'BOTTLENECK',
+        bottleneckMachineId: input.bottleneck.machineId,
+        bottleneckMachineName: input.bottleneck.machineName,
+        outfeedPointName: input.finalOutfeed.pointName,
+        outfeedTotal: total,
+        outfeedGood: good,
+      },
     };
   }
 
@@ -167,20 +249,28 @@ export class OEEService {
    * percentages). The single primitive for JO→WO→PO and Machine→Line→Area→Plant.
    */
   rollup(children: RollupChild[]): OEEBreakdown {
-    const sum = children.reduce(
+    const sum = children.reduce<{
+      ppt: number; runTime: number; idealRunTime: number;
+      externalLoss: number; totalCount: number; goodCount: number;
+    }>(
       (a, c) => ({
         ppt: a.ppt + Math.max(0, c.ppt || 0),
         runTime: a.runTime + Math.max(0, c.runTime || 0),
         idealRunTime: a.idealRunTime + Math.max(0, c.idealRunTime || 0),
+        externalLoss: a.externalLoss + Math.max(0, c.externalLoss || 0),
         totalCount: a.totalCount + Math.max(0, c.totalCount || 0),
         goodCount: a.goodCount + Math.max(0, c.goodCount || 0),
       }),
-      { ppt: 0, runTime: 0, idealRunTime: 0, totalCount: 0, goodCount: 0 },
+      { ppt: 0, runTime: 0, idealRunTime: 0, externalLoss: 0, totalCount: 0, goodCount: 0 },
     );
 
+    // Children carry GROSS ppt; calculateDetailed nets the external loss out once, so
+    // the parent's A/P are derived on the same accountable time base as each child.
+    const netPpt = Math.max(0, sum.ppt - sum.externalLoss);
     return this.calculateDetailed({
       plannedProductionTime: sum.ppt,
-      unplannedDowntime: Math.max(0, sum.ppt - sum.runTime),
+      externalLoss: sum.externalLoss,
+      unplannedDowntime: Math.max(0, netPpt - sum.runTime),
       idealCycleTime: sum.totalCount > 0 ? sum.idealRunTime / sum.totalCount : 0,
       totalCount: sum.totalCount,
       goodCount: sum.goodCount,

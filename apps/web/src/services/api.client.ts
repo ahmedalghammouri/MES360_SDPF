@@ -26,10 +26,58 @@ export const apiClient: AxiosInstance = axios.create({
   },
 });
 
+/** The persisted session, read straight from storage. */
+const PERSISTED_AUTH_KEY = 'mes360-auth';
+
+/**
+ * The access token, from the store if it is ready and from storage if it is not.
+ *
+ * The store is the normal source. But `persist` rehydrates AFTER the first
+ * render, and several widgets fire their queries on mount — the notification
+ * badge, the hierarchy tree, the alarm counters and every analytics page. On a
+ * DIRECT page load (typing the URL, a bookmark, F5) those requests went out
+ * with no Authorization header, came back 401, and the reader was left with
+ * screens that never resolved even though a perfectly valid session was sitting
+ * in localStorage the whole time.
+ *
+ * Reading storage as a fallback closes that window. It is a fallback and not the
+ * primary source on purpose: once hydrated, the store is authoritative, and a
+ * token refreshed in memory must not be shadowed by a stale copy on disk.
+ */
+function currentAccessToken(): string | null {
+  const fromStore = useAuthStore.getState().accessToken;
+  if (fromStore) return fromStore;
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.localStorage.getItem(PERSISTED_AUTH_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { state?: { accessToken?: string } };
+    return parsed?.state?.accessToken ?? null;
+  } catch {
+    // Corrupt or unreadable storage is not a reason to fail the request; it
+    // simply means we have nothing better than the empty store.
+    return null;
+  }
+}
+
+/** The persisted refresh token, for the same pre-hydration window. */
+function persistedRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(PERSISTED_AUTH_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { state?: { refreshToken?: string } };
+    return parsed?.state?.refreshToken ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Request interceptor — inject auth token
 apiClient.interceptors.request.use(
   (config) => {
-    const { accessToken } = useAuthStore.getState();
+    const accessToken = currentAccessToken();
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
@@ -52,7 +100,11 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      const { refreshToken, setTokens, logout } = useAuthStore.getState();
+      const { setTokens, logout } = useAuthStore.getState();
+      // Same fallback as the request side: a 401 that arrives before the store
+      // has rehydrated would otherwise find no refresh token, log the user out,
+      // and discard a session that was valid all along.
+      const refreshToken = useAuthStore.getState().refreshToken ?? persistedRefreshToken();
 
       if (refreshToken) {
         try {

@@ -5,6 +5,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { InfluxService } from '../historian/influx.service';
 import { MqttMonitorService } from '../iot/mqtt-monitor.service';
 import { ResetSystemDto } from './dto/reset.dto';
+import { UNIT_LADDER, normaliseUnit } from '../../common/units.util';
 
 const CONFIRM_PHRASE = 'RESET';
 /** Broker-wide control topic the edge gateway subscribes to (retained). */
@@ -309,4 +310,38 @@ export class SystemService {
       { timeout: 120_000 },
     );
   }
+  /**
+   * The factory's DISPLAY unit — how quantities are presented, nothing more.
+   *
+   * All stored quantities and all internal arithmetic are in PIECES (see
+   * common/units.util.ts), because that is the only unit in which output from
+   * different routing steps can be added. This setting therefore cannot change a
+   * calculation; it only decides the rung the user reads totals on.
+   */
+  async getDisplayUnit(factoryId: string | null): Promise<{ displayUnit: string; ladder: string[] }> {
+    const ladder = [...UNIT_LADDER];
+    if (!factoryId) return { displayUnit: 'PIECE', ladder };
+    const f = await this.prisma.factory.findUnique({
+      where: { id: factoryId },
+      select: { displayUnit: true },
+    });
+    return { displayUnit: f?.displayUnit ?? 'PIECE', ladder };
+  }
+
+  async setDisplayUnit(factoryId: string | null, unit: string) {
+    if (!factoryId) throw new BadRequestException('No factory in scope.');
+    const rung = normaliseUnit(unit);
+    if (!rung) {
+      throw new BadRequestException(
+        `"${unit}" is not a packaging unit. Choose one of: ${UNIT_LADDER.join(', ')}.`,
+      );
+    }
+    const f = await this.prisma.factory.update({
+      where: { id: factoryId },
+      data: { displayUnit: rung },
+      select: { displayUnit: true },
+    });
+    return { displayUnit: f.displayUnit };
+  }
+
 }

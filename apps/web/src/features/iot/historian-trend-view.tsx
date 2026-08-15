@@ -1,4 +1,5 @@
 'use client';
+import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { useTranslation } from 'react-i18next';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -386,7 +387,9 @@ export function HistorianTrendView() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
         <div>
-          <h1 className="text-lg font-bold">{t('headers.historian.title')}</h1>
+          <h1 className="text-lg font-bold flex items-center gap-2">{t('headers.historian.title')}
+            <DataModeBadge mode="live" />
+          </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('headers.historian.subtitle')}
           </p>

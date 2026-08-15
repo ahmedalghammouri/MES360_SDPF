@@ -124,10 +124,21 @@ export class HistorianService {
     const total = good + rejected;
     const ict = jo.idealCycleTimeSec ?? null;
 
-    // Classic / schedule-based availability = operating ÷ planned window
+    // Classic / schedule-based availability = operating ÷ planned window ELAPSED SO FAR.
+    //
+    // The planned window is the whole order — here 08 Aug → 24 Aug. Dividing 2h04m of
+    // operating time by 16 days of plan produced Availability 0.7% on the shop-floor
+    // dashboard while the KPI page showed 100% for the same machine at the same
+    // moment. An order is not unavailable for days it has not reached yet; planned
+    // production time accrues as the clock passes, so the window is clamped to `at`.
+    //
+    // `plannedStart` is NOT clamped: an order that should have started at 06:00 and
+    // began at 08:00 really did lose two hours of availability, and that must show.
     let availability: number | null = null;
     if (jo.plannedStart && jo.plannedEnd) {
-      const plannedMins = (new Date(jo.plannedEnd).getTime() - new Date(jo.plannedStart).getTime()) / MIN;
+      const ps = new Date(jo.plannedStart).getTime();
+      const pe = Math.min(new Date(jo.plannedEnd).getTime(), at.getTime());
+      const plannedMins = Math.max(0, pe - ps) / MIN;
       if (plannedMins > 0) availability = Math.min(100, (operatingMin / plannedMins) * 100);
     }
     // Time-based availability = Uptime ÷ (Uptime + Downtime)

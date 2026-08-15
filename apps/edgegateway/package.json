@@ -11,7 +11,8 @@
     "start": "node dist/main.js",
     "start:dev": "pnpm prisma:generate && nest start --watch",
     "package:win": "pnpm build && pkg . --targets node22-win-x64 --output build/edgegateway.exe && node scripts/copy-runtime-assets.mjs",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "jest --config jest.config.js"
   },
   "bin": "dist/main.js",
   "pkg": {
@@ -20,7 +21,9 @@
       "node_modules/.prisma/client/*.node",
       "prisma/schema.prisma"
     ],
-    "scripts": ["dist/**/*.js"]
+    "scripts": [
+      "dist/**/*.js"
+    ]
   },
   "dependencies": {
     "@influxdata/influxdb-client": "^1.35.0",

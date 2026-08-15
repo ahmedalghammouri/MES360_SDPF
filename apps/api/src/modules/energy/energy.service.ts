@@ -85,6 +85,22 @@ export class EnergyService {
     return { total, byType, byMeter };
   }
 
+  /**
+   * ELECTRICAL kWh consumed in a window for a scope — the single public read every
+   * electricity-derived KPI must use (cost, energy ratio, Scope 2 carbon), so those
+   * figures can never disagree with the Energy dashboard.
+   */
+  async electricalKwh(
+    factoryId: string | null,
+    scope: { areaId?: string; lineId?: string; machineId?: string } | undefined,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
+    const meterWhere = this.scopeMeterWhere(scope);
+    const { byType } = await this.consumptionFromReadings(factoryId, meterWhere, from, to);
+    return byType['ELECTRICAL'] ?? 0;
+  }
+
   async getOverview(
     factoryId: string | null,
     scope?: { areaId?: string; lineId?: string; machineId?: string },

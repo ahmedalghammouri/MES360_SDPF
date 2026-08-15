@@ -1,0 +1,560 @@
+'use client';
+/**
+ * Machine state timeline — a zoomable Gantt of what every machine was doing.
+ *
+ * ── Form ────────────────────────────────────────────────────────────────────
+ * The data's job is IDENTITY OVER TIME: which state, for how long, on which
+ * machine. That is a state-band chart, not a bar or a line — duration is the
+ * mark's length and the category is its fill.
+ *
+ * ── Colour ──────────────────────────────────────────────────────────────────
+ * These are STATUS colours, not a categorical series: they encode what a state
+ * MEANS, so eleven machine states fold into five roles the plant actually acts
+ * on. Folding is deliberate — a reader needs "was it producing / whose fault
+ * was it" at a glance, and the exact state is one hover away.
+ *
+ *   producing   green    RUNNING
+ *   own loss    red      BREAKDOWN, STOPPED
+ *   external    amber    STARVED, BLOCKED          (someone else's constraint)
+ *   planned     blue     PLANNED_STOP, MAINTENANCE, SETUP, CHANGEOVER
+ *   idle        neutral  IDLE, OFFLINE
+ *
+ * Both modes were validated with the palette checker at `--pairs all`, because
+ * any two states can end up adjacent on a row:
+ *
+ *   light  #008300 #e34948 #eda100 #2a78d6 → PASS (CVD ΔE 7.2, normal 20.8)
+ *   dark   #008300 #d9534f #c08a00 #3987e5 → PASS (CVD ΔE 7.1, normal 15.5)
+ *
+ * Both sit in the 6–8 CVD band, which is legal ONLY with secondary encoding, so
+ * this chart ships all of it and not as decoration: a permanent legend, 2px
+ * surface gaps between touching bands, direct labels inside bands wide enough to
+ * hold them, and a texture toggle for colour-vision-deficient and print readers.
+ * Remove those and the palette is no longer defensible.
+ *
+ * ── Zoom ────────────────────────────────────────────────────────────────────
+ * Zoom narrows the visible WINDOW and re-renders against it, rather than CSS-
+ * scaling the drawn result. Scaling would blur the labels and thicken the 2px
+ * gaps into blobs; recomputing keeps every mark and every tick crisp at any
+ * depth, and lets the axis change granularity as the span shrinks.
+ */
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, Baseline } from 'lucide-react';
+
+import { cn } from '@/lib/utils';
+
+// ── Status roles ────────────────────────────────────────────────────────────
+
+export type StateRole = 'producing' | 'ownLoss' | 'external' | 'planned' | 'idle';
+
+const STATE_ROLE: Record<string, StateRole> = {
+  RUNNING: 'producing',
+  BREAKDOWN: 'ownLoss',
+  STOPPED: 'ownLoss',
+  STARVED: 'external',
+  BLOCKED: 'external',
+  PLANNED_STOP: 'planned',
+  MAINTENANCE: 'planned',
+  SETUP: 'planned',
+  CHANGEOVER: 'planned',
+  IDLE: 'idle',
+  OFFLINE: 'idle',
+};
+
+export const roleOf = (state: string): StateRole => STATE_ROLE[state] ?? 'idle';
+
+/** Role → CSS custom property. Values live in the style block below. */
+const ROLE_VAR: Record<StateRole, string> = {
+  producing: 'var(--st-producing)',
+  ownLoss: 'var(--st-own-loss)',
+  external: 'var(--st-external)',
+  planned: 'var(--st-planned)',
+  idle: 'var(--st-idle)',
+};
+
+/** Texture angle per role — the accessibility channel, off unless asked for. */
+const ROLE_TEXTURE: Record<StateRole, string> = {
+  producing: 'none',
+  ownLoss: '45deg',
+  external: '135deg',
+  planned: '45deg',
+  idle: 'none',
+};
+
+export interface GanttSegment {
+  id?: string;
+  state: string;
+  startTime: string | Date;
+  endTime?: string | Date | null;
+  cause?: string | null;
+}
+
+export interface GanttRow {
+  id: string;
+  label: string;
+  sublabel?: string;
+  segments: GanttSegment[];
+  /** Optional right-aligned summary, e.g. "99.7% · 13h 34m". */
+  meta?: string;
+}
+
+// ── Time helpers ────────────────────────────────────────────────────────────
+
+const MIN = 60_000;
+const HOUR = 60 * MIN;
+const DAY = 24 * HOUR;
+
+const fmtClock = (t: number) =>
+  new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+const fmtDate = (t: number) =>
+  new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+const fmtDur = (ms: number) => {
+  const m = ms / MIN;
+  if (m < 1) return `${Math.round(ms / 1000)}s`;
+  if (m < 60) return `${Math.round(m)}m`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${Math.round(m % 60)}m`;
+};
+
+/**
+ * Axis ticks at a round interval for the visible span.
+ *
+ * Stepping through round units rather than dividing the span into n parts is
+ * what makes a zoomed axis readable: labels land on 10:00 and 10:15, never on
+ * 10:07:23.
+ */
+function ticksFor(from: number, to: number, width: number) {
+  const span = to - from;
+  const target = Math.max(3, Math.floor(width / 110)); // ~110px per label
+  const steps = [
+    MIN, 2 * MIN, 5 * MIN, 10 * MIN, 15 * MIN, 30 * MIN,
+    HOUR, 2 * HOUR, 3 * HOUR, 6 * HOUR, 12 * HOUR,
+    DAY, 2 * DAY, 7 * DAY,
+  ];
+  const step = steps.find((s) => span / s <= target) ?? DAY * 30;
+
+  // Anchor to the local calendar so ticks fall on real clock boundaries.
+  const first = new Date(from);
+  if (step >= DAY) first.setHours(0, 0, 0, 0);
+  else if (step >= HOUR) first.setMinutes(0, 0, 0);
+  else first.setSeconds(0, 0);
+
+  const out: Array<{ t: number; label: string; major: boolean }> = [];
+  for (let t = first.getTime(); t <= to; t += step) {
+    if (t < from) continue;
+    const d = new Date(t);
+    const midnight = d.getHours() === 0 && d.getMinutes() === 0;
+    out.push({
+      t,
+      label: step >= DAY || midnight ? fmtDate(t) : fmtClock(t),
+      major: midnight || step >= DAY,
+    });
+  }
+  return out;
+}
+
+// ── Component ───────────────────────────────────────────────────────────────
+
+export function MachineStateGantt({
+  rows,
+  windowStart,
+  windowEnd,
+  className,
+}: {
+  rows: GanttRow[];
+  windowStart: string | Date | number;
+  windowEnd: string | Date | number;
+  className?: string;
+}) {
+  const { t } = useTranslation(['production', 'common']);
+
+  const fullFrom = new Date(windowStart).getTime();
+  const fullTo = new Date(windowEnd).getTime();
+  const fullSpan = Math.max(MIN, fullTo - fullFrom);
+
+  // The visible window. Zoom and pan move THIS, and everything re-renders
+  // against it — no transform, so text and the 2px gaps stay exact.
+  const [view, setView] = useState({ from: fullFrom, to: fullTo });
+  const [textured, setTextured] = useState(false);
+  const [hover, setHover] = useState<
+    { x: number; y: number; state: string; cause?: string | null; from: number; to: number; row: string } | null
+  >(null);
+
+  const plotRef = useRef<HTMLDivElement>(null);
+  const [plotWidth, setPlotWidth] = useState(800);
+
+  // Re-fit when the caller's window changes (a new date filter, say).
+  useEffect(() => {
+    setView({ from: fullFrom, to: fullTo });
+  }, [fullFrom, fullTo]);
+
+  useEffect(() => {
+    const el = plotRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([e]) => setPlotWidth(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const span = Math.max(MIN, view.to - view.from);
+  const zoomed = span < fullSpan - 1000;
+
+  /** Clamp any proposed window to the data and to a one-minute floor. */
+  const clamp = useCallback((from: number, to: number) => {
+    let s = Math.max(MIN, to - from);
+    if (s > fullSpan) s = fullSpan;
+    let f = from;
+    if (f < fullFrom) f = fullFrom;
+    if (f + s > fullTo) f = fullTo - s;
+    return { from: f, to: f + s };
+  }, [fullFrom, fullTo, fullSpan]);
+
+  /** Zoom about a fixed point so what is under the pointer stays under it. */
+  const zoomAt = useCallback((factor: number, anchorRatio = 0.5) => {
+    setView((v) => {
+      const s = v.to - v.from;
+      const anchor = v.from + s * anchorRatio;
+      const next = s * factor;
+      return clamp(anchor - next * anchorRatio, anchor + next * (1 - anchorRatio));
+    });
+  }, [clamp]);
+
+  const pan = useCallback((fraction: number) => {
+    setView((v) => {
+      const s = v.to - v.from;
+      return clamp(v.from + s * fraction, v.to + s * fraction);
+    });
+  }, [clamp]);
+
+  const reset = useCallback(() => setView({ from: fullFrom, to: fullTo }), [fullFrom, fullTo]);
+
+  // Wheel zoom, anchored at the pointer. Non-passive so the page does not
+  // scroll away underneath the gesture.
+  useEffect(() => {
+    const el = plotRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && Math.abs(e.deltaY) < 1) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      zoomAt(e.deltaY > 0 ? 1.25 : 0.8, ratio);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [zoomAt]);
+
+  // Drag to pan.
+  const drag = useRef<{ x: number; from: number; to: number } | null>(null);
+  const onPointerDown = (e: React.PointerEvent) => {
+    drag.current = { x: e.clientX, from: view.from, to: view.to };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || !plotRef.current) return;
+    const w = plotRef.current.getBoundingClientRect().width || 1;
+    const shift = ((d.x - e.clientX) / w) * (d.to - d.from);
+    setView(clamp(d.from + shift, d.to + shift));
+  };
+  const endDrag = () => { drag.current = null; };
+
+  const ticks = useMemo(() => ticksFor(view.from, view.to, plotWidth), [view.from, view.to, plotWidth]);
+
+  const now = Date.now();
+  const nowPct = now >= view.from && now <= view.to ? ((now - view.from) / span) * 100 : null;
+
+  const rolesPresent = useMemo(() => {
+    const set = new Set<StateRole>();
+    for (const r of rows) for (const s of r.segments) set.add(roleOf(s.state));
+    return [...set];
+  }, [rows]);
+
+  return (
+    <div className={cn('viz-gantt', className)}>
+      <style jsx>{`
+        .viz-gantt {
+          --st-producing: #008300;
+          --st-own-loss: #e34948;
+          --st-external: #eda100;
+          --st-planned: #2a78d6;
+          --st-idle: #8a8a85;
+          --st-surface: hsl(var(--card));
+          --st-grid: hsl(var(--border));
+        }
+        @media (prefers-color-scheme: dark) {
+          :global(:root:not([data-theme='light'])) .viz-gantt {
+            --st-own-loss: #d9534f;
+            --st-external: #c08a00;
+            --st-planned: #3987e5;
+            --st-idle: #6f6f6a;
+          }
+        }
+        :global(:root[data-theme='dark']) .viz-gantt {
+          --st-own-loss: #d9534f;
+          --st-external: #c08a00;
+          --st-planned: #3987e5;
+          --st-idle: #6f6f6a;
+        }
+      `}</style>
+
+      {/* Controls — one row, above the plot. */}
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <div className="text-[11px] text-muted-foreground font-mono">
+          {fmtDate(view.from)} {fmtClock(view.from)} → {fmtDate(view.to)} {fmtClock(view.to)}
+          {zoomed && <span className="ms-2 text-primary">{t('gantt.zoomed')}</span>}
+        </div>
+        <div className="flex items-center gap-1">
+          <IconBtn onClick={() => pan(-0.25)} label={t('gantt.panLeft')}><ChevronLeft size={15} /></IconBtn>
+          <IconBtn onClick={() => zoomAt(0.6)} label={t('gantt.zoomIn')}><ZoomIn size={15} /></IconBtn>
+          <IconBtn onClick={() => zoomAt(1.7)} label={t('gantt.zoomOut')} disabled={!zoomed}><ZoomOut size={15} /></IconBtn>
+          <IconBtn onClick={() => pan(0.25)} label={t('gantt.panRight')}><ChevronRight size={15} /></IconBtn>
+          <IconBtn onClick={reset} label={t('gantt.reset')} disabled={!zoomed}><RotateCcw size={15} /></IconBtn>
+          <IconBtn onClick={() => setTextured((v) => !v)} label={t('gantt.texture')} active={textured}>
+            <Baseline size={15} />
+          </IconBtn>
+        </div>
+      </div>
+
+      <div className="flex">
+        {/* Row labels — outside the pan area so they never scroll away.
+            The per-machine summary lives HERE rather than floating over the
+            plot: sitting inside the row it landed on top of the band above it,
+            which a visual check caught immediately. */}
+        <div className="w-44 shrink-0 pe-3">
+          <div className="h-5" />
+          {rows.map((r) => (
+            <div key={r.id} className="h-9 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-xs font-medium truncate">{r.label}</div>
+                {r.sublabel && <div className="text-[10px] text-muted-foreground truncate">{r.sublabel}</div>}
+              </div>
+              {r.meta && (
+                <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">
+                  {r.meta}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Plot */}
+        <div className="flex-1 min-w-0">
+          {/* Axis */}
+          <div className="relative h-5 text-[10px] text-muted-foreground font-mono select-none">
+            {ticks.map((tk) => (
+              <span
+                key={tk.t}
+                className={cn('absolute -translate-x-1/2 whitespace-nowrap', tk.major && 'font-semibold text-foreground/70')}
+                style={{ left: `${((tk.t - view.from) / span) * 100}%` }}
+              >
+                {tk.label}
+              </span>
+            ))}
+          </div>
+
+          <div
+            ref={plotRef}
+            className="relative cursor-grab active:cursor-grabbing touch-none"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onPointerLeave={() => { endDrag(); setHover(null); }}
+          >
+            {/* Recessive grid, drawn behind the marks. */}
+            {ticks.map((tk) => (
+              <div
+                key={`g-${tk.t}`}
+                className="absolute top-0 bottom-0 w-px pointer-events-none"
+                style={{
+                  left: `${((tk.t - view.from) / span) * 100}%`,
+                  background: 'var(--st-grid)',
+                  opacity: tk.major ? 0.5 : 0.25,
+                }}
+              />
+            ))}
+
+            {rows.map((r) => (
+              <GanttRowBands
+                key={r.id}
+                row={r}
+                from={view.from}
+                to={view.to}
+                span={span}
+                textured={textured}
+                onHover={setHover}
+              />
+            ))}
+
+            {nowPct !== null && (
+              <div
+                className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
+                style={{ left: `${nowPct}%`, background: 'hsl(var(--primary))' }}
+              >
+                <span className="absolute -top-0.5 -translate-x-1/2 text-[9px] px-1 rounded bg-primary text-primary-foreground">
+                  {t('gantt.now')}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Legend — always present, so identity is never colour alone. */}
+      <div className="flex items-center gap-4 flex-wrap mt-4 pt-3 border-t border-border/40">
+        {(['producing', 'ownLoss', 'external', 'planned', 'idle'] as StateRole[])
+          .filter((role) => rolesPresent.includes(role))
+          .map((role) => (
+            <span key={role} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span
+                className="w-3 h-3 rounded-sm"
+                style={{
+                  background: ROLE_VAR[role],
+                  backgroundImage: textured && ROLE_TEXTURE[role] !== 'none'
+                    ? `repeating-linear-gradient(${ROLE_TEXTURE[role]}, rgba(0,0,0,.35) 0 2px, transparent 2px 5px)`
+                    : undefined,
+                }}
+              />
+              {t(`gantt.role.${role}`)}
+            </span>
+          ))}
+        <span className="text-[11px] text-muted-foreground/70 ms-auto">{t('gantt.hint')}</span>
+      </div>
+
+      {hover && (
+        <div
+          className="fixed z-50 pointer-events-none rounded-lg border border-border bg-card px-3 py-2 shadow-lg"
+          style={{ left: hover.x + 14, top: hover.y + 14 }}
+        >
+          {/* Value leads, label follows. */}
+          <div className="text-sm font-semibold">{fmtDur(hover.to - hover.from)}</div>
+          <div className="flex items-center gap-1.5 text-xs mt-0.5">
+            <span className="w-4 h-0.5 rounded" style={{ background: ROLE_VAR[roleOf(hover.state)] }} />
+            <span className="font-medium">{hover.state}</span>
+            {hover.cause && <span className="text-muted-foreground">· {hover.cause}</span>}
+          </div>
+          <div className="text-[11px] text-muted-foreground font-mono mt-1">
+            {fmtClock(hover.from)} → {fmtClock(hover.to)}
+          </div>
+          <div className="text-[11px] text-muted-foreground">{hover.row}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One machine's row of bands. */
+function GanttRowBands({
+  row, from, to, span, textured, onHover,
+}: {
+  row: GanttRow;
+  from: number; to: number; span: number;
+  textured: boolean;
+  onHover: (h: any) => void;
+}) {
+  const { t } = useTranslation('production');
+
+  const bands = useMemo(() => row.segments.map((s, i) => {
+    const rawFrom = new Date(s.startTime).getTime();
+    const rawTo = s.endTime ? new Date(s.endTime).getTime() : to;
+    const a = Math.max(from, rawFrom);
+    const b = Math.min(to, rawTo);
+    if (!(b > a)) return null;
+    const widthPct = ((b - a) / span) * 100;
+    return {
+      key: s.id ?? `${row.id}-${i}`,
+      leftPct: ((a - from) / span) * 100,
+      widthPct,
+      state: s.state,
+      role: roleOf(s.state),
+      cause: s.cause ?? null,
+      from: a,
+      to: b,
+      // Direct-label the EXCEPTIONS only, and only where the text genuinely
+      // fits. Repeating RUNNING across a row is noise, while the stops are what
+      // a reader is actually hunting for — and labelling them is where the
+      // palette's required secondary encoding does real work.
+      showLabel: widthPct > 7 && roleOf(s.state) !== 'producing',
+    };
+  }).filter(Boolean) as any[], [row.segments, row.id, from, to, span]);
+
+  return (
+    <div className="relative h-9 flex items-center">
+      <div className="relative w-full h-6 rounded-md overflow-hidden bg-muted/25">
+        {bands.length === 0 && (
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-muted-foreground">
+            {t('gantt.noData')}
+          </span>
+        )}
+        {bands.map((b) => (
+          <div
+            key={b.key}
+            role="img"
+            aria-label={`${row.label} ${b.state} ${fmtClock(b.from)} ${fmtDur(b.to - b.from)}`}
+            tabIndex={0}
+            className="absolute top-0 h-full transition-[filter] hover:brightness-110 focus:brightness-110 focus:outline-none"
+            style={{
+              left: `${b.leftPct}%`,
+              // The 2px surface gap that separates touching marks. Taken off the
+              // width rather than drawn as a border — a border would be ink the
+              // reader has to discount.
+              width: `calc(${b.widthPct}% - 2px)`,
+              minWidth: 2,
+              background: ROLE_VAR[b.role as StateRole],
+              backgroundImage: textured && ROLE_TEXTURE[b.role as StateRole] !== 'none'
+                ? `repeating-linear-gradient(${ROLE_TEXTURE[b.role as StateRole]}, rgba(0,0,0,.35) 0 3px, transparent 3px 7px)`
+                : undefined,
+            }}
+            onPointerMove={(e) => onHover({
+              x: e.clientX, y: e.clientY, state: b.state, cause: b.cause,
+              from: b.from, to: b.to, row: row.label,
+            })}
+            onFocus={(e) => {
+              const r = (e.target as HTMLElement).getBoundingClientRect();
+              onHover({
+                x: r.left, y: r.top, state: b.state, cause: b.cause,
+                from: b.from, to: b.to, row: row.label,
+              });
+            }}
+            onBlur={() => onHover(null)}
+          >
+            {b.showLabel && (
+              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white/95 pointer-events-none px-1 truncate">
+                {b.state}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function IconBtn({
+  onClick, label, children, disabled, active,
+}: {
+  onClick: () => void; label: string; children: React.ReactNode; disabled?: boolean; active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      className={cn(
+        'h-7 w-7 grid place-items-center rounded-md border transition-colors',
+        active
+          ? 'border-primary/50 bg-primary/10 text-primary'
+          : 'border-border/60 text-muted-foreground hover:text-foreground hover:border-border',
+        disabled && 'opacity-40 pointer-events-none',
+      )}
+    >
+      {children}
+    </button>
+  );
+}

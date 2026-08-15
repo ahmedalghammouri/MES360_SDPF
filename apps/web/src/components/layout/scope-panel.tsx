@@ -7,7 +7,7 @@
  *   • Scope   — plant hierarchy tree (Factory→Area→Line→Machine) → scope-store
  *   • Period  — Today/Shift/Week/Month/Custom → time-range-store
  *   • Orders  — Production Order / Work Order (production & manufacturing routes)
- *   • View    — trend style (Area/Line/Bar) + OEE mode (schedule vs Time Base-OEE)
+ *   • View    — trend style (Area/Line/Bar) + OEE mode (schedule vs OEE-TB)
  * plus a Live indicator and a global Refresh. Every page reads these via the
  * matching store/hook, so one control surface drives the whole MES360° web app.
  */

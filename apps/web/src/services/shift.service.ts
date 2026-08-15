@@ -14,8 +14,14 @@ export interface ShiftTemplate {
   crossesMidnight: boolean;
   shiftDurationHours: number;
   plannedProductionHours: number;
-  breakMinutes: number;
-  cleaningMinutes: number;
+  /** @deprecated Replaced by planned stop rows. The API still returns it for
+   *  older clients; nothing reads it and nothing writes it. */
+  breakMinutes?: number;
+  /** @deprecated see breakMinutes */
+  cleaningMinutes?: number;
+  /** Planned stops scheduled inside this shift. The availability denominator is
+   *  derived from these, so this list is what makes the number explicable. */
+  plannedStops?: Array<{ id: string; name: string; durationMinutes: number; startOffsetMin: number | null }>;
   days: number[];           // 0=Sun … 6=Sat
   targetQtyPerShift: number | null;
   targetUnit?: string;      // PIECE/INNER/CARTON/PALLET

@@ -97,13 +97,13 @@ export function FactoryAnalyticsView() {
       <div className="flex-1 overflow-auto p-6 space-y-5">
         {/* KPI strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KPICard title={atOee ? `${t('analytics.oee')} (AT)` : t('analytics.oee')} value={(atOee ? cur?.oeeTb : cur?.oee) ?? 0} unit="%" target={WORLD_CLASS} colorMode="oee" isLoading={oeeLoading} />
-          <KPICard title={atOee ? `${t('analytics.availability')} (AT)` : t('analytics.availability')} value={(atOee ? cur?.availabilityTb : cur?.availability) ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
+          <KPICard title={atOee ? `${t('analytics.oee')} (OEE-TB)` : t('analytics.oee')} value={(atOee ? cur?.oeeTb : cur?.oee) ?? 0} unit="%" target={WORLD_CLASS} colorMode="oee" isLoading={oeeLoading} />
+          <KPICard title={atOee ? `${t('analytics.availability')} (OEE-TB)` : t('analytics.availability')} value={(atOee ? cur?.availabilityTb : cur?.availability) ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
           <KPICard title={t('analytics.performance')} value={cur?.performance ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
           <KPICard title={t('analytics.quality')} value={cur?.quality ?? 0} unit="%" colorMode="default" isLoading={oeeLoading} />
         </div>
 
-        {/* Time-Based (Time Base-OEE) + reliability strip */}
+        {/* Time-Based (OEE-TB) + reliability strip */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground -mt-1 px-1">
           <span>{t('analytics.atOee')}: <b className="text-foreground">{(cur?.oeeTb ?? 0).toFixed(1)}%</b></span>
           <span>{t('analytics.availabilityTb')}: <b className="text-foreground">{(cur?.availabilityTb ?? 0).toFixed(1)}%</b></span>

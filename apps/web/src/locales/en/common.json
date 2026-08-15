@@ -19,38 +19,81 @@
     "evidence": "Photos & Files"
   },
   "picker": {
-    "searchMachines": "Search machines...", "noMachines": "No machines found",
-    "searchWorkCenters": "Search work centers...", "noResults": "No results",
-    "manage": "Manage {{label}}", "noneDefined": "No {{label}} defined yet.",
-    "select": "Select…", "search": "Search…", "noMatches": "No matches"
+    "searchMachines": "Search machines...",
+    "noMachines": "No machines found",
+    "searchWorkCenters": "Search work centers...",
+    "noResults": "No results",
+    "manage": "Manage {{label}}",
+    "noneDefined": "No {{label}} defined yet.",
+    "select": "Select…",
+    "search": "Search…",
+    "noMatches": "No matches"
   },
   "charts": {
-    "currentShift": "Current Shift", "activeAlarms": "Active Alarms", "noActiveAlarms": "No active alarms", "allNormal": "All systems operating normally",
-    "oee": "OEE", "live": "LIVE", "machineStatusGrid": "Machine Status Grid", "realtimeOverview": "Real-time equipment overview",
-    "qualityTrend": "Quality Trend", "fpyDefects": "First Pass Yield and defect rates",
-    "productionOutput": "Production Output", "actualVsTarget": "Actual vs target with efficiency",
-    "oeeAnalysis": "OEE Analysis", "oeeFull": "Overall Equipment Effectiveness",
-    "availability": "Availability", "performance": "Performance", "quality": "Quality",
-    "mttrMtbf": "Mean Time to Repair vs Mean Time Between Failures", "downtimePareto": "Downtime Pareto", "downtimeParetoSub": "Top downtime causes (Pareto analysis)", "mttrMtbfTitle": "MTTR & MTBF Trends",
-    "gRows": "Rows", "gTimeScale": "Time scale", "gActions": "Actions", "gOrders": "Orders", "gResources": "Resources", "gSupply": "Supply", "gDemand": "Demand",
+    "currentShift": "Current Shift",
+    "activeAlarms": "Active Alarms",
+    "noActiveAlarms": "No active alarms",
+    "allNormal": "All systems operating normally",
+    "oee": "OEE",
+    "live": "LIVE",
+    "machineStatusGrid": "Machine Status Grid",
+    "realtimeOverview": "Real-time equipment overview",
+    "qualityTrend": "Quality Trend",
+    "fpyDefects": "First Pass Yield and defect rates",
+    "productionOutput": "Production Output",
+    "actualVsTarget": "Actual vs target with efficiency",
+    "oeeAnalysis": "OEE Analysis",
+    "oeeFull": "Overall Equipment Effectiveness",
+    "availability": "Availability",
+    "performance": "Performance",
+    "quality": "Quality",
+    "mttrMtbf": "Mean Time to Repair vs Mean Time Between Failures",
+    "downtimePareto": "Downtime Pareto",
+    "downtimeParetoSub": "Top downtime causes (Pareto analysis)",
+    "mttrMtbfTitle": "MTTR & MTBF Trends",
+    "gRows": "Rows",
+    "gTimeScale": "Time scale",
+    "gActions": "Actions",
+    "gOrders": "Orders",
+    "gResources": "Resources",
+    "gSupply": "Supply",
+    "gDemand": "Demand",
     "worldClass": "World Class",
     "production": {
-      "actualOutput": "Actual Output", "target": "Target", "efficiencyPct": "Efficiency %", "units": "Units"
+      "actualOutput": "Actual Output",
+      "target": "Target",
+      "efficiencyPct": "Efficiency %",
+      "units": "Units"
     },
     "qualityTrendSeries": {
-      "fpy": "FPY %", "rework": "Rework %", "scrap": "Scrap %"
+      "fpy": "FPY %",
+      "rework": "Rework %",
+      "scrap": "Scrap %"
     },
     "mttr": {
-      "mttrHours": "MTTR (hours)", "mtbfHours": "MTBF (hours)", "mttrAxis": "MTTR (h)", "mtbfAxis": "MTBF (h)", "noData": "No reliability data available yet"
+      "mttrHours": "MTTR (hours)",
+      "mtbfHours": "MTBF (hours)",
+      "mttrAxis": "MTTR (h)",
+      "mtbfAxis": "MTBF (h)",
+      "noData": "No reliability data available yet"
     },
     "pareto": {
-      "downtimeMin": "Downtime (min)", "cumulativePct": "Cumulative %", "min": "Min"
+      "downtimeMin": "Downtime (min)",
+      "cumulativePct": "Cumulative %",
+      "min": "Min"
     },
     "spc": {
-      "title": "Statistical Process Control (X-Bar Chart)", "value": "Value", "mean": "Mean", "controlLimits": "Control Limits", "specLimits": "Spec Limits", "noData": "No SPC measurements recorded for this parameter"
+      "title": "Statistical Process Control (X-Bar Chart)",
+      "value": "Value",
+      "mean": "Mean",
+      "controlLimits": "Control Limits",
+      "specLimits": "Spec Limits",
+      "noData": "No SPC measurements recorded for this parameter"
     },
     "gantt": {
-      "category": "Category", "resource": "Resource", "noItems": "No scheduled items in this range. Adjust the date range or filters."
+      "category": "Category",
+      "resource": "Resource",
+      "noItems": "No scheduled items in this range. Adjust the date range or filters."
     }
   },
   "gantt": {
@@ -119,8 +162,8 @@
   },
   "atOee": {
     "schedule": "OEE",
-    "tb": "Time Base-OEE",
-    "hint": "Toggle schedule-based OEE vs time-based (Time Base-OEE)"
+    "tb": "OEE-TB",
+    "hint": "Toggle schedule-based OEE vs time-based (OEE-TB)"
   },
   "filters": {
     "title": "Filters",
@@ -206,5 +249,16 @@
     "selected": "{{count}} selected",
     "clearSelection": "Clear selection",
     "confirmDelete": "This action cannot be undone. Are you sure?"
+  },
+  "units": {
+    "piece": "pcs",
+    "inner": "inner",
+    "carton": "carton",
+    "pallet": "pallet"
+  },
+  "permission": {
+    "deniedTitle": "You do not have access to this page",
+    "deniedBody": "This is an administration surface. Ask an administrator to grant you the permission below from Access Control.",
+    "required": "Permission required:"
   }
 }

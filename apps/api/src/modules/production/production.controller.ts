@@ -9,6 +9,9 @@ import {
 import { ProductionService } from './production.service';
 import { OEEService } from './oee.service';
 import { KpiService } from './kpi.service';
+import { ScheduleKpiService } from './schedule-kpi.service';
+import { PrismaService } from '../../database/prisma.service';
+import { currentShiftStart } from '../../common/shift-window.util';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuditLog } from '../../common/decorators/audit-log.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -36,6 +39,49 @@ interface RequestUser {
   factoryId: string | null;
 }
 
+/**
+ * Resolve an analysis window, on the SAME terms as every other endpoint.
+ *
+ * Two things used to make these endpoints disagree with the cards beside them:
+ *
+ *  1. `timeframe` was ignored. `getOEESummary` resolves 'shift' from the shift
+ *     templates (shift start → now); these endpoints silently used a calendar day
+ *     instead, so Overall Line OEE covered a different period than the OEE card
+ *     directly above it on the same screen.
+ *
+ *  2. The dates were parsed as UTC (`...T00:00:00.000Z`) while the web builds them
+ *     from LOCAL calendar components on purpose — its own comment warns that
+ *     `toISOString` shifts local midnight into the previous day. In Riyadh (UTC+3)
+ *     that put a three-hour offset between two numbers on one screen. Dropping the
+ *     `Z` parses in server-local time, matching the rest of the system.
+ *
+ * The upper bound never runs past NOW: a KPI cannot cover hours that have not
+ * happened, and charging planned time for them is what made Availability read 14%.
+ */
+async function resolveRange(
+  prisma: PrismaService,
+  factoryId: string | null,
+  timeframe: string | undefined,
+  dateFrom?: string,
+  dateTo?: string,
+  defaultDays = 7,
+): Promise<{ from: Date; to: Date }> {
+  const now = new Date();
+
+  if (String(timeframe ?? '').toLowerCase() === 'shift') {
+    const start = (await currentShiftStart(prisma, factoryId))
+      ?? new Date(new Date().setHours(0, 0, 0, 0));
+    return { from: start, to: now };
+  }
+
+  const rawTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : now;
+  const to = rawTo > now ? now : rawTo;
+  const from = dateFrom
+    ? new Date(`${dateFrom}T00:00:00.000`)
+    : new Date(to.getTime() - defaultDays * 86_400_000);
+  return { from, to };
+}
+
 @ApiTags('Production')
 @ApiBearerAuth('JWT-auth')
 @Controller('production')
@@ -44,6 +90,10 @@ export class ProductionController {
     private readonly productionService: ProductionService,
     private readonly oeeService: OEEService,
     private readonly kpiService: KpiService,
+    private readonly scheduleKpi: ScheduleKpiService,
+    // Needed to resolve the CURRENT shift from its template, the same way
+    // getOEESummary does — otherwise these endpoints answer for a different period.
+    private readonly prisma: PrismaService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -138,6 +188,80 @@ export class ProductionController {
     @Query('machineId') machineId?: string,
   ) {
     return this.kpiService.hierarchyOEE(user.factoryId, dateFrom, dateTo, { areaId, lineId, machineId });
+  }
+
+  @Get('oee/line')
+  @ApiOperation({
+    summary: 'Overall Line OEE by the bottleneck method',
+    description:
+      'Line OEE = Bottleneck Availability × Bottleneck Performance × Final Outfeed Quality. ' +
+      'The constraint and outfeed machines are nominated on the production line; when unset ' +
+      'the API falls back to lowest design capacity / last machine in line order and reports ' +
+      'which rule it used in basis.resolvedBy. Per-machine values are returned alongside as ' +
+      'diagnostics — they are not the line KPI.',
+  })
+  @ApiQuery({ name: 'lineId', required: true })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  async getLineOee(
+    @CurrentUser() user: RequestUser,
+    @Query('lineId') lineId: string,
+    @Query('timeframe') timeframe?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const { from, to } = await resolveRange(this.prisma, user.factoryId, timeframe, dateFrom, dateTo, 7);
+    return this.kpiService.lineOeeAnalytics(user.factoryId, lineId, from, to);
+  }
+
+  @Get('kpi/master-schedule-attainment')
+  @ApiOperation({
+    summary: 'Master Schedule Attainment (MSA)',
+    description:
+      'MSA = Σ min(Actual Qty, Scheduled Qty) ÷ Total Scheduled Qty × 100. Each order is ' +
+      'credited at most its scheduled quantity, so over-producing one order cannot mask a ' +
+      'shortfall on another. Returns the per-order lines behind the figure.',
+  })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'skuId', required: false })
+  async getMasterScheduleAttainment(
+    @CurrentUser() user: RequestUser,
+    @Query('timeframe') timeframe?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('lineId') lineId?: string,
+    @Query('skuId') skuId?: string,
+  ) {
+    const { from, to } = await resolveRange(this.prisma, user.factoryId, timeframe, dateFrom, dateTo, 30);
+    return this.scheduleKpi.masterScheduleAttainment(user.factoryId, from, to, { lineId, skuId });
+  }
+
+  @Get('kpi/capacity-utilization')
+  @ApiOperation({
+    summary: 'Volume-based capacity utilization',
+    description:
+      'Actual Units Produced ÷ Maximum Designed Unit Capacity × 100, where the denominator is ' +
+      'machine design capacity (units/hour) × calendar hours in the window. Reports any machine ' +
+      'in scope without a design capacity, since it contributes nothing to the denominator.',
+  })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
+  async getCapacityUtilization(
+    @CurrentUser() user: RequestUser,
+    @Query('timeframe') timeframe?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+  ) {
+    const { from, to } = await resolveRange(this.prisma, user.factoryId, timeframe, dateFrom, dateTo, 30);
+    return this.scheduleKpi.volumeCapacityUtilization(user.factoryId, from, to, { areaId, lineId, machineId });
   }
 
   @Get('oee-records')

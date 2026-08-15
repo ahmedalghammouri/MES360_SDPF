@@ -159,6 +159,7 @@
         <div class="sec">IIoT &amp; Connectivity</div>
         <button data-tab="devices" onclick="switchTab('devices')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>Devices</button>
         <button data-tab="tags" onclick="switchTab('tags')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></svg>Tag Browser</button>
+        <button data-tab="signals" onclick="switchTab('signals')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20V8"/></svg>Signal Rules</button>
         <button data-tab="meters" onclick="switchTab('meters')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>Energy Meters</button>
         <div class="sec">System</div>
         <button data-tab="settings" onclick="switchTab('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
@@ -208,6 +209,17 @@
             <div id="tagPager"></div></div>
         </section>
 
+        <section id="tab-signals" class="hidden">
+          <div class="card"><div class="card-h"><span class="ttl">Bound signals</span></div>
+            <div class="tbl-wrap"><table><thead><tr><th>Tag</th><th>Machine</th><th>Address</th><th>Role</th><th>Thresholds</th></tr></thead><tbody id="sigRows"></tbody></table></div></div>
+          <div class="card" style="margin-top:14px"><div class="card-h"><span class="ttl">State rules — what a state costs in downtime and OEE</span><button class="sm" onclick="openStateRuleForm()">+ Add Rule</button></div>
+            <div class="tbl-wrap"><table><thead><tr><th>State</th><th>Scope</th><th>Downtime</th><th>Planned</th><th>Charged to OEE</th><th>Reason</th><th>Category</th><th>Debounce</th><th></th></tr></thead><tbody id="ruleRows"></tbody></table></div>
+            <div class="hint">A rule for a specific machine wins over the factory rule for the same state, which wins over the gateway built-in default.</div></div>
+          <div class="card" style="margin-top:14px"><div class="card-h"><span class="ttl">Alarm rules — a tag value crossing a limit</span><button class="sm" onclick="openAlarmForm()">+ Add Alarm</button></div>
+            <div class="tbl-wrap"><table><thead><tr><th>Code</th><th>Tag</th><th>Condition</th><th>Deadband</th><th>Delay</th><th>Severity</th><th></th></tr></thead><tbody id="alarmRows"></tbody></table></div>
+            <div class="hint">Evaluated here on every reading, so a crossing between two server polls is not missed and alarms keep firing while the link is down.</div></div>
+        </section>
+
         <section id="tab-meters" class="hidden">
           <div class="kpis" id="meterKpis"></div>
           <div class="card"><div class="card-h"><span class="ttl">Energy / Power Meters</span><button class="sm" onclick="openMeterForm()">+ Add Meter</button></div>
@@ -232,7 +244,7 @@
 
 <script>
   const T={get:()=>localStorage.getItem('eg_token'),set:t=>localStorage.setItem('eg_token',t),clear:()=>localStorage.removeItem('eg_token')};
-  const TITLES={overview:['Overview','Live monitoring'],devices:['Devices','Modbus device configuration'],tags:['Tag Browser','Tag & counter configuration'],meters:['Energy Meters','Power-meter configuration'],settings:['Settings','Service connections']};
+  const TITLES={overview:['Overview','Live monitoring'],devices:['Devices','Modbus device configuration'],tags:['Tag Browser','Tag & counter configuration'],signals:['Signal Rules','How a signal becomes a state, and what it costs'],meters:['Energy Meters','Power-meter configuration'],settings:['Settings','Service connections']};
   let timer=null,tab='overview',cache={devices:[],tags:[],machines:[],lines:[],areas:[]},prevVals={};
   function lineOpts(sel){return'<option value="">— select —</option>'+cache.lines.map(l=>`<option value="${l.id}" ${l.id===sel?'selected':''}>${esc(l.name)} (${esc(l.code)})</option>`).join('')}
   function areaOpts(sel){return'<option value="">— select —</option>'+cache.areas.map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)} (${esc(a.code)})</option>`).join('')}
@@ -271,9 +283,9 @@
     switchTab('overview');startPoll()}
 
   function switchTab(t){tab=t;document.querySelectorAll('nav button[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
-    ['overview','devices','tags','meters','settings'].forEach(s=>document.getElementById('tab-'+s).classList.toggle('hidden',s!==t));
+    ['overview','devices','tags','signals','meters','settings'].forEach(s=>document.getElementById('tab-'+s).classList.toggle('hidden',s!==t));
     document.getElementById('pageTitle').textContent=TITLES[t][0];document.getElementById('pageSub').textContent=TITLES[t][1];
-    if(t==='overview')refreshOverview();if(t==='devices')loadDevices();if(t==='tags')loadTags();if(t==='meters')loadMeters();if(t==='settings')loadSettings()}
+    if(t==='overview')refreshOverview();if(t==='devices')loadDevices();if(t==='tags')loadTags();if(t==='signals')loadSignals();if(t==='meters')loadMeters();if(t==='settings')loadSettings()}
 
   // Polling (1.5s)
   function startPoll(){clearInterval(timer);tick();timer=setInterval(tick,1500)}
@@ -381,10 +393,87 @@
     <div><label>Historian</label><select id="f_hmode">${selOpts2([['CHANGE','On change'],['RATE','By rate (interval)']],e.historizationMode||'CHANGE')}</select></div>
     <div><label>Historian interval (sec)</label><input id="f_hrate" value="${e.historizationRateSec??''}" placeholder="60"></div>
     <div><label>Deadband (min change)</label><input id="f_deadband" value="${e.deadband??''}" placeholder="blank = any change"></div>
+    <div class="section">Signal interpretation — how this wire becomes a machine state</div>
+    <div><label>Machine status driver</label><select id="f_isstatus" onchange="document.getElementById('sigBox').style.display=this.value==='true'?'contents':'none'">${selOpts2([["false","No"],["true","Yes"]], e.isMachineStatus?"true":"false")}</select></div>
+    <div id="sigBox" style="display:${e.isMachineStatus?"contents":"none"}">
+      <div><label>Signal role</label><select id="f_sigrole">${selOpts2([["","— plain status word / bit —"],["RUN_MODE","Run Mode (ON = running or ready)"],["RUN_MODE_PULSED","Run Mode pulsed (steady / pulsing / off)"],["PROCESSING","Processing (product actually being worked)"],["INFEED_AVAILABLE","Infeed available"],["OUTFEED_BLOCKED","Outfeed blocked"]], e.signalRole||"")}</select></div>
+      <div><label>Status map (INT only)</label><input id="f_statusmap" value="${e.statusMap?esc(JSON.stringify(e.statusMap)):""}" placeholder='{"0":"IDLE","1":"RUNNING"}'></div>
+      <div><label>Pulse window (ms)</label><input id="f_pulsewin" value="${e.pulseWindowMs??""}" placeholder="6000"></div>
+      <div><label>Pulse min edges</label><input id="f_pulseedges" value="${e.pulseMinEdges??""}" placeholder="4"></div>
+      <div><label>Idle before Starved (ms)</label><input id="f_idlems" value="${e.idleThresholdMs??""}" placeholder="300000"></div>
+    </div>
     </div>`,async()=>{const num=v=>v===''?undefined:Number(v),isC=val('f_ttype')==='COUNTER';
-      const dto={name:val('f_name'),tagType:val('f_ttype'),dataType:val('f_dtype'),deviceId:val('f_device')||null,unit:val('f_unit')||null,...scopeDto('f'),address:val('f_addr')||null,registerType:val('f_rtype'),wordCount:num(val('f_wc')),wordOrder:val('f_wo'),scaleFactor:num(val('f_scale')),offset:num(val('f_offset')),counterRole:isC?val('f_role'):'NONE',edgeType:isC?val('f_edge'):'RISING',mqttPublishMode:val('f_mqmode'),mqttPublishRateSec:num(val('f_mqrate')),historizationMode:val('f_hmode'),historizationRateSec:num(val('f_hrate')),deadband:num(val('f_deadband'))};
+      const dto={name:val('f_name'),tagType:val('f_ttype'),dataType:val('f_dtype'),deviceId:val('f_device')||null,unit:val('f_unit')||null,...scopeDto('f'),address:val('f_addr')||null,registerType:val('f_rtype'),wordCount:num(val('f_wc')),wordOrder:val('f_wo'),scaleFactor:num(val('f_scale')),offset:num(val('f_offset')),counterRole:isC?val('f_role'):'NONE',edgeType:isC?val('f_edge'):'RISING',mqttPublishMode:val('f_mqmode'),mqttPublishRateSec:num(val('f_mqrate')),historizationMode:val('f_hmode'),historizationRateSec:num(val('f_hrate')),deadband:num(val('f_deadband')),isMachineStatus:val('f_isstatus')==='true',signalRole:val('f_isstatus')==='true'&&val('f_sigrole')?val('f_sigrole'):null,statusMap:(()=>{const v=val('f_statusmap');if(!v)return null;try{return JSON.parse(v)}catch{throw new Error('Status map is not valid JSON')}})(),pulseWindowMs:num(val('f_pulsewin')),pulseMinEdges:num(val('f_pulseedges')),idleThresholdMs:num(val('f_idlems'))};
       if(ed){await api('/tags/'+e.id,{method:'PATCH',body:JSON.stringify(dto)})}else{dto.code=val('f_code');if(!dto.code||!dto.name)throw new Error('Code and name required');await api('/tags',{method:'POST',body:JSON.stringify(dto)})}closeModal();loadTags()})}
   async function delTag(id,name){if(!confirm('Delete tag '+name+'?'))return;await api('/tags/'+id,{method:'DELETE'});loadTags()}
+
+  // Signal Rules — signal interpretation, state semantics and alarm limits.
+  // Editable at the panel because commissioning happens at the cabinet, often
+  // with no route to the server.
+  const STATES=["RUNNING","IDLE","STOPPED","BREAKDOWN","PLANNED_STOP","SETUP","CHANGEOVER","MAINTENANCE","STARVED","BLOCKED","OFFLINE"];
+  const CATS=["MECHANICAL","ELECTRICAL","MATERIAL","PROCESS","QUALITY","CHANGEOVER","PLANNED_MAINTENANCE","PLANNED_BREAK","EXTERNAL","OTHER"];
+  const SEVS=["CRITICAL","HIGH","MEDIUM","LOW","INFO"];
+  const CONDS=["GT","GTE","LT","LTE","EQ","NEQ"];
+  async function loadSignals(){try{const[tags,rules,alarms,machines]=await Promise.all([api('/tags'),api('/state-rules'),api('/alarm-definitions'),api('/machines')]);
+    cache.tags=tags||[];cache.rules=rules||[];cache.alarms=alarms||[];cache.machines=machines||[];renderSignals()}
+    catch(e){document.getElementById('ruleRows').innerHTML=emptyRow(9,e.message)}}
+  function renderSignals(){
+    const sig=cache.tags.filter(x=>x.isMachineStatus||x.signalRole);
+    document.getElementById('sigRows').innerHTML=sig.map(x=>`<tr>
+      <td class="mono" style="color:#8fb3ae;font-weight:600">${esc(x.code)}</td>
+      <td>${esc((x.machine&&x.machine.code)||'—')}</td>
+      <td class="mono">${x.registerType==='DISCRETE'?'DI '+esc(x.address):esc(x.registerType||'')+' '+esc(x.address||'')}</td>
+      <td>${x.signalRole?`<span class="tg neutral">${esc(x.signalRole)}</span>`:'<span style="color:hsl(var(--muted-fg))">not set</span>'}</td>
+      <td style="color:hsl(var(--muted-fg))">${x.signalRole==='RUN_MODE_PULSED'?`${x.pulseWindowMs??6000} ms / ${x.pulseMinEdges??4} edges`:x.signalRole==='PROCESSING'?`${Math.round((x.idleThresholdMs??300000)/1000)} s idle`:''}</td>
+    </tr>`).join('')||emptyRow(5,'No status signals bound yet — set a signal role on a tag in the Tag Browser.');
+    const yn=v=>v?'<span class="tg GOOD">YES</span>':'<span class="tg neutral">NO</span>';
+    document.getElementById('ruleRows').innerHTML=cache.rules.map(r=>`<tr style="${r.isActive===false?'opacity:.5':''}">
+      <td class="mono" style="font-weight:600">${esc(r.state)}</td>
+      <td>${r.machineId?esc((r.machine&&r.machine.code)||'machine'):'<span style="color:hsl(var(--muted-fg))">factory-wide</span>'}</td>
+      <td>${yn(r.isDowntime)}</td><td>${yn(r.isPlanned)}</td><td>${yn(r.affectsOEE)}</td>
+      <td class="mono">${esc(r.reasonCode||'—')}</td><td>${esc(r.category)}</td><td>${r.debounceSeconds??0}s</td>
+      <td style="text-align:right;white-space:nowrap"><button class="ghost sm" onclick='openStateRuleForm(${JSON.stringify(r)})'>Edit</button> <button class="danger sm" onclick="delStateRule('${r.id}','${esc(r.state)}')">Delete</button></td>
+    </tr>`).join('')||emptyRow(9,'No rules — the gateway falls back to its built-in defaults.');
+    document.getElementById('alarmRows').innerHTML=cache.alarms.map(a=>`<tr style="${a.isActive===false?'opacity:.5':''}">
+      <td><div class="mono" style="color:#8fb3ae;font-weight:600">${esc(a.code)}</div><div style="color:hsl(var(--muted-fg));font-size:12px">${esc(a.name)}</div></td>
+      <td class="mono">${esc((a.tag&&a.tag.code)||'—')}</td>
+      <td class="mono">${esc(a.condition||'GT')} ${a.threshold} ${esc((a.tag&&a.tag.unit)||'')}</td>
+      <td>${a.deadband??'—'}</td><td>${a.delaySeconds??0}s</td><td><span class="tg neutral">${esc(a.severity)}</span></td>
+      <td style="text-align:right;white-space:nowrap"><button class="ghost sm" onclick='openAlarmForm(${JSON.stringify(a)})'>Edit</button> <button class="danger sm" onclick="delAlarm('${a.id}','${esc(a.code)}')">Delete</button></td>
+    </tr>`).join('')||emptyRow(7,'No alarm rules — nothing on a tag value will raise an alarm until one is added.')}
+  function openStateRuleForm(r){const e=r||{},ed=!!r;openModal((ed?'Edit':'Add')+' State Rule',`<div class="grid2">
+    <div><label>State</label><select id="r_state" ${ed?'disabled':''}>${selOpts(STATES,e.state||'BREAKDOWN')}</select></div>
+    <div><label>Scope</label><select id="r_machine" ${ed?'disabled':''}><option value="">Factory-wide</option>${cache.machines.map(m=>`<option value="${m.id}" ${m.id===e.machineId?'selected':''}>${esc(m.code)} — ${esc(m.name)}</option>`).join('')}</select></div>
+    <div><label>Open a downtime event</label><select id="r_dt">${selOpts2([['true','Yes'],['false','No']],e.isDowntime===false?'false':'true')}</select></div>
+    <div><label>Planned stop</label><select id="r_pl">${selOpts2([['false','No'],['true','Yes']],e.isPlanned?'true':'false')}</select></div>
+    <div><label>Charged against OEE</label><select id="r_oee">${selOpts2([['true','Yes'],['false','No — external loss']],e.affectsOEE===false?'false':'true')}</select></div>
+    <div><label>Reason code</label><input id="r_reason" value="${esc(e.reasonCode||'')}" placeholder="UNPLANNED_BREAKDOWN"></div>
+    <div><label>Category</label><select id="r_cat">${selOpts(CATS,e.category||'OTHER')}</select></div>
+    <div><label>Debounce (sec)</label><input id="r_deb" value="${e.debounceSeconds??0}" placeholder="0"></div>
+    <div style="grid-column:1/-1"><label>Description</label><input id="r_desc" value="${esc(e.description||'')}"></div>
+    <div style="grid-column:1/-1" class="hint">Charged against OEE off means the time is recorded but removed from the availability denominator — for losses caused outside this machine, such as waiting for material.</div>
+    </div>`,async()=>{const dto={state:ed?e.state:val('r_state'),machineId:ed?(e.machineId||null):(val('r_machine')||null),isDowntime:val('r_dt')==='true',isPlanned:val('r_pl')==='true',affectsOEE:val('r_oee')==='true',reasonCode:val('r_reason')||null,category:val('r_cat'),debounceSeconds:Number(val('r_deb'))||0,description:val('r_desc')||null};
+      await api('/state-rules',{method:'POST',body:JSON.stringify(dto)});closeModal();loadSignals()})}
+  async function delStateRule(id,state){if(!confirm('Delete the '+state+' rule? It falls back to the factory rule, or to the gateway default.'))return;await api('/state-rules/'+id,{method:'DELETE'});loadSignals()}
+  function openAlarmForm(a){const e=a||{},ed=!!a;openModal((ed?'Edit':'Add')+' Alarm Rule',`<div class="grid2">
+    <div><label>Code *</label><input id="a_code" value="${esc(e.code||'')}" placeholder="TEMP_HIGH"></div>
+    <div><label>Name *</label><input id="a_name" value="${esc(e.name||'')}"></div>
+    <div style="grid-column:1/-1"><label>Tag *</label><select id="a_tag"><option value="">— select —</option>${cache.tags.map(x=>`<option value="${x.id}" ${x.id===e.tagId?'selected':''}>${esc(x.code)}${x.machine&&x.machine.code?' — '+esc(x.machine.code):''}${x.unit?' ('+esc(x.unit)+')':''}</option>`).join('')}</select></div>
+    <div><label>Condition</label><select id="a_cond">${selOpts(CONDS,e.condition||'GT')}</select></div>
+    <div><label>Threshold *</label><input id="a_thr" value="${e.threshold??''}"></div>
+    <div><label>Deadband</label><input id="a_dead" value="${e.deadband??''}" placeholder="blank = clears the moment it recovers"></div>
+    <div><label>Delay (sec)</label><input id="a_delay" value="${e.delaySeconds??0}" placeholder="0"></div>
+    <div><label>Severity</label><select id="a_sev">${selOpts(SEVS,e.severity||'HIGH')}</select></div>
+    <div><label>Category</label><input id="a_cat" value="${esc(e.category||'PROCESS')}"></div>
+    <div><label>Acknowledge automatically</label><select id="a_ack">${selOpts2([['false','No'],['true','Yes']],e.autoAck?'true':'false')}</select></div>
+    <div><label>Active</label><select id="a_act">${selOpts2([['true','Yes'],['false','No']],e.isActive===false?'false':'true')}</select></div>
+    <div style="grid-column:1/-1" class="hint">Delay suppresses a momentary spike. Deadband stops a value sitting on the limit from raising an event every poll.</div>
+    </div>`,async()=>{const dto={code:val('a_code'),name:val('a_name'),tagId:val('a_tag'),condition:val('a_cond'),threshold:val('a_thr'),deadband:val('a_dead')===''?null:Number(val('a_dead')),delaySeconds:Number(val('a_delay'))||0,severity:val('a_sev'),category:val('a_cat'),autoAck:val('a_ack')==='true',isActive:val('a_act')==='true'};
+      if(!dto.code||!dto.name||!dto.tagId)throw new Error('Code, name and tag are required');
+      if(dto.threshold===''||isNaN(Number(dto.threshold)))throw new Error('A numeric threshold is required, otherwise the alarm can never fire');
+      dto.threshold=Number(dto.threshold);
+      if(ed){await api('/alarm-definitions/'+e.id,{method:'PATCH',body:JSON.stringify(dto)})}else{await api('/alarm-definitions',{method:'POST',body:JSON.stringify(dto)})}closeModal();loadSignals()})}
+  async function delAlarm(id,code){if(!confirm('Delete the '+code+' alarm rule? Past events are kept.'))return;await api('/alarm-definitions/'+id,{method:'DELETE'});loadSignals()}
 
   // Energy Meters
   async function loadMeters(){

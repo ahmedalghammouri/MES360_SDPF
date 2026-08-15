@@ -105,3 +105,36 @@ export function plantWallClockToUtc(
   ts = wall - offsetAt(ts);
   return new Date(ts);
 }
+
+/**
+ * Resolve a `YYYY-MM-DD` filter pair into an analysis window.
+ *
+ * ── The bug this exists to stop repeating ───────────────────────────────────
+ * `new Date('2026-08-09')` parses as midnight **UTC**. The web builds these
+ * strings from LOCAL calendar components on purpose — its own comment warns that
+ * `toISOString` shifts local midnight into the previous day. At a +03 plant the
+ * two conventions are three hours apart, so between local midnight and 03:00 a
+ * "Today" window began in the FUTURE and every KPI on the page read 0.0% while
+ * "Shift" and "Week" looked perfectly healthy.
+ *
+ * It was fixed one call site at a time and reappeared in the next one. This is
+ * the single definition; call it instead of parsing dates by hand.
+ *
+ *  • `dateFrom` → local start of that day
+ *  • `dateTo`   → local END of that day, so a single-day range is not zero-width
+ *  • the upper bound never runs past NOW — a KPI cannot cover hours that have
+ *    not happened, and charging planned time for them collapses Availability
+ */
+export function resolveLocalRange(
+  dateFrom?: string,
+  dateTo?: string,
+  defaultDays = 7,
+  now: Date = new Date(),
+): { from: Date; to: Date } {
+  const rawTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : now;
+  const to = rawTo > now ? now : rawTo;
+  const from = dateFrom
+    ? new Date(`${dateFrom}T00:00:00.000`)
+    : new Date(to.getTime() - defaultDays * 86_400_000);
+  return { from, to };
+}

@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -54,6 +55,7 @@ export function CommandCenterView() {
           <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
             <Gauge size={18} className="text-primary" />
             {t('commandCenter.title')}
+            <DashboardInfo id="command-center" />
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('commandCenter.subtitle')}</p>
         </div>

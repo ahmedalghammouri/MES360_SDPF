@@ -126,6 +126,7 @@ const navItems: NavItem[] = [
     children: [
       { label: 'OEE Analytics', href: '/production/oee',    icon: LineChart },
       { label: 'Machine OEE',   href: '/manufacturing/oee', icon: Activity  },
+      { label: 'Machine Status',  href: '/manufacturing/machine-status', icon: Activity },
     ],
   },
   {
@@ -200,6 +201,7 @@ const navItems: NavItem[] = [
         ],
       },
       { label: 'Shift Configuration', href: '/production/shifts', icon: Clock, badge: 'NCC', badgeVariant: 'outline' },
+      { label: 'Planned Stops',   href: '/production/planned-stops', icon: CalendarClock },
     ],
   },
   {
@@ -432,6 +434,7 @@ const navItems: NavItem[] = [
         children: [
           { label: 'Devices',          href: '/iot/devices',   icon: Cpu      },
           { label: 'Tag Browser',      href: '/iot/tags',      icon: Network  },
+          { label: 'Signal Rules',     href: '/iot/signal-rules', icon: SlidersHorizontal },
           { label: 'Data Streams',     href: '/iot/streams',   icon: Activity },
           { label: 'Historian Trends', href: '/iot/historian', icon: LineChart, badge: 'Live', badgeVariant: 'secondary' },
         ],

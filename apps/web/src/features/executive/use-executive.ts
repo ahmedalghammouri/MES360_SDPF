@@ -13,6 +13,9 @@ export interface ExecutiveRow {
   availability: number;
   performance: number;
   quality: number;
+  // Time-based twin so the executive table can honour the OEE-basis toggle.
+  oeeTb?: number;
+  availabilityTb?: number;
   output: number;
   costMtd: number;
   electricalMtd: number;
@@ -26,6 +29,7 @@ export interface ExecutiveData {
   totals: {
     factories: number;
     avgOee: number;
+    avgOeeTb?: number;
     totalOutput: number;
     totalCostMtd: number;
     totalElectricalMtd: number;

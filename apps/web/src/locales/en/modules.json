@@ -73,7 +73,7 @@
       },
       "kpi": {
         "avgOee": "Avg OEE",
-        "avgAtOee": "Avg Time Base-OEE",
+        "avgAtOee": "Avg OEE-TB",
         "avgAvailability": "Avg Availability",
         "availability": "Availability",
         "performance": "Performance",
@@ -145,7 +145,7 @@
         "availability": "Availability",
         "performance": "Performance",
         "quality": "Quality",
-        "atOee": "Time Base-OEE",
+        "atOee": "OEE-TB",
         "qty": "Qty",
         "category": "Category",
         "product": "Product",
@@ -1187,7 +1187,29 @@
       "removeConfirmPre": "Are you sure you want to remove",
       "removeConfirmPost": "from the hierarchy? This will deactivate the node and hide it from all views.",
       "removing": "Removing...",
-      "removeNode": "Remove Node"
+      "removeNode": "Remove Node",
+      "oeeBasisTitle": "Overall Line OEE basis",
+      "oeeBasisDesc": "A line runs at the speed of its constraint, so line OEE is not an average of its machines.",
+      "bottleneckMachine": "Bottleneck machine",
+      "outfeedMachine": "Final outfeed point(s)",
+      "autoLowestCapacity": "Automatic — slowest routing cycle time",
+      "autoLastInLine": "Automatic — last machine in line order",
+      "searchMachines": "Search machines…",
+      "noMachines": "No machines on this line yet",
+      "bottleneckHint": "Supplies Availability and Performance. Rate comes from the process routing step.",
+      "outfeedHint": "Supplies Quality — where saleable units are counted.",
+      "oeeBasisFormula": "Line OEE = Bottleneck Availability × Bottleneck Performance × Final Outfeed Quality",
+      "oeeMethod": {
+        "ROLLUP": "Roll-up (all machines)",
+        "BOTTLENECK": "Bottleneck"
+      },
+      "oeeMethodDesc": {
+        "ROLLUP": "Quantity-weighted across every machine. Answers: how did the assets perform.",
+        "BOTTLENECK": "Constraint sets the rate. Answers: how did the LINE perform."
+      },
+      "outfeedAllHint": "None selected — every machine on the line counts as an outfeed.",
+      "selectAllMachines": "Use all machines",
+      "oeeRollupFormula": "Line OEE = A × P × Q re-derived from the summed minutes and counts of every machine (not an average of percentages)"
     }
   },
   "dashboardCenter": {
@@ -1405,14 +1427,14 @@
     }
   },
   "analytics": {
-    "title": "Energy Analytics",
+    "title": "Factory Analytics",
     "subtitlePre": "Deep OEE / loss / reliability analysis",
     "wholeFactory": "Whole factory",
     "oee": "OEE",
     "availability": "Availability",
     "performance": "Performance",
     "quality": "Quality",
-    "atOee": "Time-Based OEE (Time Base-OEE)",
+    "atOee": "OEE-TB (Time-Based OEE)",
     "availabilityTb": "Availability (Time-Based)",
     "mttr": "MTTR",
     "mtbf": "MTBF",
@@ -1515,7 +1537,7 @@
     "tfMonth": "This Month",
     "overallOee": "Overall OEE",
     "target": "Target",
-    "atOee": "Time-Based OEE (Time Base-OEE)",
+    "atOee": "OEE-TB (Time-Based OEE)",
     "availabilityTb": "Availability (Time-Based)",
     "scheduleNote": "Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)",
     "trendTitle": "OEE Trend — Last 30 Records",
@@ -1571,7 +1593,7 @@
     "colState": "State",
     "colOeePct": "OEE %",
     "historyTitle": "OEE History (Last 50 Records)",
-    "historySub": "Schedule-based (solid) vs Time-based / Time Base-OEE (dashed)",
+    "historySub": "Schedule-based (solid) vs OEE-TB (time-based) (dashed)",
     "benchmarkTitle": "World-Class Benchmark Position",
     "bmPoor": "Poor (<45%)",
     "bmAcceptable": "Acceptable (45%)",
@@ -1582,7 +1604,7 @@
     "acceptableImprove": "Acceptable — improvement needed",
     "belowThreshold": "Below acceptable threshold",
     "export": "Export",
-    "atOee": "Time-Based OEE (Time Base-OEE)",
+    "atOee": "OEE-TB (Time-Based OEE)",
     "availabilityTb": "Availability (Time-Based)",
     "scheduleNote": "Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)"
   },
@@ -1598,7 +1620,7 @@
     "noTrendData": "No trend data available",
     "elapsed": "Elapsed",
     "output": "Output",
-    "atOee": "Time-Based OEE (Time Base-OEE)",
+    "atOee": "OEE-TB (Time-Based OEE)",
     "availabilityTb": "Availability (Time-Based)",
     "scheduleNote": "Cards above are schedule-based · time-based = uptime ÷ (uptime + downtime)",
     "machinesCount_one": "{{count}} machine",
@@ -1773,5 +1795,34 @@
     "confidential": "MES360° PLATFORM v1.0 — CONFIDENTIAL",
     "footerFacilities": "5 FACILITIES",
     "footerCities": "3 CITIES"
+  },
+  "advKpi": {
+    "lineOee": "Overall Line OEE",
+    "msa": "Master Schedule Attainment",
+    "capacity": "Capacity Utilization",
+    "selectLine": "Select a production line in the scope panel.",
+    "bottleneckAuto": "No bottleneck configured — using the slowest routing cycle time. Set it in Plant Hierarchy → Edit Production Line.",
+    "lineOeeWhy": "A line runs at the speed of its constraint. Averaging every machine misrepresents it, because assets downstream of the bottleneck idle by design whenever it stops.",
+    "bottleneck": "Bottleneck",
+    "outfeed": "Outfeed point",
+    "credited": "Credited",
+    "scheduled": "scheduled",
+    "orders": "orders",
+    "missingCapacity": "{{count}} machine(s) have no routing cycle time, so they add nothing to the denominator.",
+    "missingList": "Not in any routing:",
+    "designed": "designed",
+    "machines": "machines",
+    "rollupWhy": "Quantity-weighted across every machine on the line — the minutes and counts are summed, then A, P and Q are re-derived from the totals. It is not an average of machine percentages.",
+    "outfeedAll": "All machines on the line",
+    "changeBasis": "Change the basis in Plant Hierarchy → Edit Production Line.",
+    "methodBottleneck": "Bottleneck",
+    "methodRollup": "Roll-up"
+  },
+  "carbon": {
+    "scope2": "Scope 2 Carbon Footprint",
+    "method": "Calculation method",
+    "factor": "Factor applied",
+    "effective": "Effective from",
+    "fallback": "No emission factor configured for this factory — the KSA default was applied. Set one to make this figure auditable."
   }
 }

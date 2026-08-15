@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 import { useTranslation } from 'react-i18next';
 import { toFactoryDayKey } from '@/lib/datetime';
 
@@ -88,7 +89,9 @@ export function QualityReportView() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
         <div>
-          <h1 className="text-lg font-bold">{t('reports.quality.title')}</h1>
+          <h1 className="text-lg font-bold flex items-center gap-2">{t('reports.quality.title')}
+            <DashboardInfo id="quality-report" />
+          </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('reports.quality.subtitle')}
           </p>

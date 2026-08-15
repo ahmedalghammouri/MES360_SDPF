@@ -34,6 +34,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { StateTimelineStrip } from '@/components/charts/state-timeline-strip';
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/services/api.client';
 import { useBreadcrumbStore } from '@/store/breadcrumb-store';
@@ -213,48 +214,20 @@ const CHART_TOOLTIP = {
   },
 };
 
-// ── Machine status timeline strip (state records across the window) ──
+// ── Machine status timeline strip ──
+// The bespoke renderer that used to live here laid its bands out in a flex row,
+// which closes the gaps between records: a machine that reported nothing for an
+// hour looked as though it had been running. It now uses the shared strip, so
+// this view and the Machine Status page draw the same records the same way.
 function StateTimeline({ records, windowStart, windowEnd }: {
   records: any[]; windowStart: string; windowEnd: string | null;
 }) {
-  const { t } = useTranslation('production');
-  const start = new Date(windowStart).getTime();
-  const end = windowEnd ? new Date(windowEnd).getTime() : Date.now();
-  const span = Math.max(1, end - start);
-  if (!records.length) {
-    return <div className="text-xs text-muted-foreground py-3 text-center">{t('jolive.noStateRecords')}</div>;
-  }
   return (
-    <div>
-      <div className="h-7 rounded-lg overflow-hidden flex w-full border border-border/40 bg-muted/30">
-        {records.map((r, i) => {
-          const s = Math.max(start, new Date(r.startTime).getTime());
-          const e = Math.min(end, r.endTime ? new Date(r.endTime).getTime() : end);
-          const w = Math.max(0.4, ((e - s) / span) * 100);
-          return (
-            <div
-              key={r.id ?? i}
-              className="h-full"
-              style={{ width: `${w}%`, backgroundColor: STATE_COLORS[r.state] ?? '#64748b' }}
-              title={`${r.state}${r.downtimeCause ? ` — ${r.downtimeCause.name}` : ''}\n${fmtDT(r.startTime)} → ${r.endTime ? fmtDT(r.endTime) : 'now'}${r.durationMinutes ? ` (${fmtMins(r.durationMinutes)})` : ''}`}
-            />
-          );
-        })}
-      </div>
-      <div className="flex justify-between text-[10px] text-muted-foreground mt-1 font-mono">
-        <span>{fmtTime(new Date(start))}</span>
-        <span>{windowEnd ? fmtTime(new Date(end)) : t('jolive.now')}</span>
-      </div>
-      <div className="flex items-center gap-3 flex-wrap mt-2">
-        {Object.entries(STATE_COLORS)
-          .filter(([state]) => records.some((r) => r.state === state))
-          .map(([state, color]) => (
-            <span key={state} className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />{state}
-            </span>
-          ))}
-      </div>
-    </div>
+    <StateTimelineStrip
+      segments={records}
+      windowStart={windowStart}
+      windowEnd={windowEnd}
+    />
   );
 }
 

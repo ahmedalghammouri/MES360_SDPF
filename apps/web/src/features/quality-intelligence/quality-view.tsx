@@ -1,4 +1,5 @@
 'use client';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -32,6 +33,7 @@ export function QualityIntelligenceView() {
           <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
             <ShieldCheck size={18} className="text-purple-500" />
             {t('cockpit.title')}
+            <DashboardInfo id="quality-intelligence" />
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('cockpit.subtitle')}</p>
         </div>

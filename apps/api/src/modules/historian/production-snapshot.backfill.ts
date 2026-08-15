@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
-import { toBaseUnits, type SkuPackaging } from '../../common/units.util';
+import { toPieces, type SkuPackaging } from '../../common/units.util';
 
 const MIN = 60_000;
 
@@ -68,7 +68,12 @@ export class ProductionSnapshotBackfill {
   private async backfillJo(prisma: PrismaClient, jo: any, maxSeq: Map<string, number>, from: Date, to: Date): Promise<number> {
     const sku: SkuPackaging | null = jo.workOrder?.sku ?? null;
     const unit: string | undefined = jo.outputUnit ?? undefined;
-    const toBase = (q: number) => (sku && unit ? toBaseUnits(q, unit, sku) : q);
+    // The *Base columns hold PIECES — the smallest rung of the packaging ladder,
+    // where conversion is exact and steps counting in different units can be summed.
+    // This used toBaseUnits, which converts to the SKU INVENTORY base unit (CARTON
+    // here), so every fact-store quantity was a carton count that the dashboards then
+    // labelled "pcs". Inventory keeps its own base unit; analytics must not borrow it.
+    const toBase = (q: number) => (sku && unit ? toPieces(q, unit, sku) : q);
 
     const startMs = jo.actualStart!.getTime();
     const endMs = Math.min((jo.actualEnd ?? to).getTime(), to.getTime());

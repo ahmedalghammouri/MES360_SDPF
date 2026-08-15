@@ -217,6 +217,14 @@ services:
       # Read OEE/KPI from the persisted ProductionSnapshot fact store (stable,
       # dimension-classified) instead of recomputing live from job-order "last counts".
       SNAPSHOTS_READ: "on"
+      # Rate limiting. The 100/60s default was BELOW what one dashboard load costs:
+      # the page's own queries plus ~9 sidebar badge queries, re-run on every
+      # navigation. The resulting 429s made React Query return undefined, so KPI
+      # cards silently rendered 0 — a rate limit was being read as production data.
+      # Keyed per IP, and behind Docker every browser shares one IP, so this bucket
+      # is shared by the whole plant. Sized for that.
+      THROTTLE_TTL: "60"
+      THROTTLE_LIMIT: "2000"
       # Grafana embedding for the Dashboard Center (server base + browser-facing iframe base).
       GRAFANA_URL: http://grafana:3000
       GRAFANA_PUBLIC_URL: http://localhost:3003

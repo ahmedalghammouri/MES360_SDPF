@@ -59,7 +59,12 @@ import { configuration } from './config/configuration';
         throttlers: [
           {
             ttl: config.get<number>('THROTTLE_TTL', 60) * 1000,
-            limit: config.get<number>('THROTTLE_LIMIT', 100),
+            // The old default of 100/60s was lower than the cost of a single
+            // dashboard load, so ordinary navigation tripped it and KPI cards
+            // rendered 0 from failed requests. The limit is keyed per IP and every
+            // browser behind Docker shares one, so it must budget for the whole
+            // plant, not one user. Override with THROTTLE_LIMIT.
+            limit: config.get<number>('THROTTLE_LIMIT', 2000),
           },
         ],
       }),

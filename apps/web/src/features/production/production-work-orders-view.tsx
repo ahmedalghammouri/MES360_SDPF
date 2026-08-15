@@ -619,7 +619,17 @@ export function ProductionWorkOrdersView() {
                     <TableCell colSpan={10} className="text-center py-12 text-muted-foreground text-sm">{t('noWorkOrders')}</TableCell>
                   </TableRow>
                 ) : sortedOrders.map(order => {
-                  const progress = order.progress ?? (order.plannedQty > 0 ? Math.min(Math.round((order.actualQty / order.plannedQty) * 100), 100) : 0);
+                  // The bar tracks QUANTITY so it agrees with the qty cell beside it.
+                  // It used the API's `progress`, which is STEP completion — putting a
+                  // 0% bar next to "2,240 / 400,000" and a "0/5 steps" line that already
+                  // said the same thing. Step completion keeps its own line below.
+                  //
+                  // One decimal, because a long order spends its first hours below 1%
+                  // and whole-number rounding renders real output as a flat zero.
+                  const progressGood = (order as any).goodQty ?? order.actualQty ?? 0;
+                  const progress = order.plannedQty > 0
+                    ? Math.min(Math.round((progressGood / order.plannedQty) * 1000) / 10, 100)
+                    : 0;
                   const canEdit = !['COMPLETED', 'CANCELLED'].includes(order.status);
                   const canDelete = ['PLANNED', 'RELEASED', 'ON_HOLD', 'CANCELLED'].includes(order.status);
                   return (
@@ -819,11 +829,18 @@ export function ProductionWorkOrdersView() {
                   const good   = d.liveGoodQty  ?? d.goodQty  ?? 0;
                   const scrap  = d.liveScrapQty ?? d.scrapQty ?? 0;
                   const actual = d.liveActualQty ?? d.actualQty ?? 0;
-                  // Qty-based % for the final output vs WO planned
-                  const qtyPct = d.plannedQty > 0 ? Math.min(Math.round((good / d.plannedQty) * 100), 100) : 0;
-                  // Unit of the last JO = WO output unit
-                  const lastJO = d.jobOrders?.[d.jobOrders.length - 1];
-                  const unit = lastJO?.outputUnit ?? '';
+                  // Qty-based % for the final output vs WO planned. One decimal so the
+                  // early hours of a large order read as 0.5%, not a discouraging 0%.
+                  const qtyPct = d.plannedQty > 0
+                    ? Math.min(Math.round((good / d.plannedQty) * 1000) / 10, 100)
+                    : 0;
+                  // plannedQty/goodQty/actualQty are denominated in the WORK ORDER's
+                  // own unit, which the API returns as `qtyUnit`. Labelling them with
+                  // the last job order's outputUnit was wrong by the whole packaging
+                  // ladder: a piece figure rendered as "40000 PALLET" overstates by
+                  // 160×, and the same number then carried a different unit on the PO
+                  // screen (CARTON) than here (PALLET).
+                  const unit = d.qtyUnit ?? '';
                   return (
                     <div>
                       <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('wo.productionProgress')}</p>

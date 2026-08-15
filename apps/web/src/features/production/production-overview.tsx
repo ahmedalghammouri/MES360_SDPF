@@ -119,7 +119,7 @@ export function ProductionOverview() {
           <KPICard title={t('kpi.completed')} value={productionKPIs?.completedOrders ?? 0} colorMode="default" isLoading={isLoading} />
         </div>
 
-        {/* Time-Based (Time Base-OEE) — shown beside the schedule-based OEE above */}
+        {/* Time-Based (OEE-TB) — shown beside the schedule-based OEE above */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground px-1">
           <span>{t('atOee')}: <b className="text-foreground">{(productionKPIs?.oeeTb ?? 0).toFixed(1)}%</b></span>
           <span>{t('availabilitySchedule')}: <b className="text-foreground">{(productionKPIs?.availability ?? 0).toFixed(1)}%</b></span>

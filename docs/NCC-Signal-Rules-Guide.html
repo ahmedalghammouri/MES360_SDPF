@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal Rules — Configuration Guide</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#14181d; --muted:#5b6672; --line:#dfe4ea; --soft:#f6f8fa;
+    --ok:#0f7b3e; --okbg:#e8f6ee; --warn:#8a5a00; --warnbg:#fdf3e0;
+    --stop:#a51c1c; --stopbg:#fdecec; --accent:#0b5fa5; --accentbg:#e9f2fb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12161a; --fg:#e7ecf1; --muted:#9aa7b4; --line:#2a323b; --soft:#181e24;
+      --ok:#5ad48c; --okbg:#12301f; --warn:#e3b256; --warnbg:#2e2413;
+      --stop:#f08a8a; --stopbg:#331717; --accent:#68b0ee; --accentbg:#122636;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12161a; --fg:#e7ecf1; --muted:#9aa7b4; --line:#2a323b; --soft:#181e24;
+    --ok:#5ad48c; --okbg:#12301f; --warn:#e3b256; --warnbg:#2e2413;
+    --stop:#f08a8a; --stopbg:#331717; --accent:#68b0ee; --accentbg:#122636;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);margin:0;
+       font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:980px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+  h2{font-size:19px;margin:38px 0 12px;padding-bottom:7px;border-bottom:2px solid var(--line)}
+  h3{font-size:15px;margin:24px 0 8px}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .note{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:18px 0}
+  .note.warn{background:var(--warnbg);border-color:transparent}
+  .note.stop{background:var(--stopbg);border-color:transparent}
+  .note.acc{background:var(--accentbg);border-color:transparent}
+  .note b{display:block;margin-bottom:4px}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+  code{background:var(--soft);padding:1px 5px;border-radius:4px;border:1px solid var(--line)}
+  pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto}
+  pre code{background:none;border:0;padding:0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:start;vertical-align:top}
+  th{background:var(--soft);font-weight:600}
+  .scroll{overflow-x:auto}
+  svg{max-width:100%;height:auto}
+  .lead{font-size:16px}
+  footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  @media print{ .wrap{max-width:none;padding:0} h2{break-after:avoid} tr{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Signal Rules — Configuration Guide</h1>
+<p class="sub">NCC · SDPF · how a contact becomes a state, what that state costs, and where to change it</p>
+
+<div class="note acc">
+  <b>The whole page in one sentence</b>
+  <b>Bound signals</b> decide what a wire <i>means</i>; <b>State rules</b> decide what that meaning
+  <i>costs</i> in downtime and OEE. They are two different questions, which is why they are two
+  different tables.
+</div>
+
+<h2>1 · The chain, end to end</h2>
+
+<div class="scroll">
+<svg viewBox="0 0 940 232" role="img" aria-label="From discrete input to KPI">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+  </defs>
+  <g font-size="12" color="currentColor" fill="currentColor">
+    <rect x="8"   y="70" width="150" height="58" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="83"  y="94"  text-anchor="middle" font-weight="700">Discrete input</text>
+    <text x="83"  y="112" text-anchor="middle" font-size="11">DI 4 · true / false</text>
+
+    <rect x="196" y="70" width="168" height="58" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="280" y="94"  text-anchor="middle" font-weight="700">Bound signal</text>
+    <text x="280" y="112" text-anchor="middle" font-size="11">signalRole + thresholds</text>
+
+    <rect x="402" y="70" width="150" height="58" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="477" y="94"  text-anchor="middle" font-weight="700">Machine state</text>
+    <text x="477" y="112" text-anchor="middle" font-size="11">RUNNING / STARVED …</text>
+
+    <rect x="590" y="70" width="160" height="58" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="670" y="94"  text-anchor="middle" font-weight="700">State rule</text>
+    <text x="670" y="112" text-anchor="middle" font-size="11">cost of that state</text>
+
+    <rect x="788" y="70" width="144" height="58" rx="8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <text x="860" y="94"  text-anchor="middle" font-weight="700">KPI</text>
+    <text x="860" y="112" text-anchor="middle" font-size="11">Availability · OEE</text>
+
+    <line x1="158" y1="99" x2="190" y2="99" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="364" y1="99" x2="396" y2="99" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="552" y1="99" x2="584" y2="99" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="750" y1="99" x2="782" y2="99" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar)"/>
+
+    <text x="280" y="46" text-anchor="middle" font-size="11" opacity=".75">Tag Browser / Bound signals</text>
+    <text x="670" y="46" text-anchor="middle" font-size="11" opacity=".75">State rules</text>
+    <line x1="196" y1="54" x2="364" y2="54" stroke="currentColor" stroke-width="1" opacity=".4"/>
+    <line x1="590" y1="54" x2="750" y2="54" stroke="currentColor" stroke-width="1" opacity=".4"/>
+
+    <text x="477" y="168" text-anchor="middle" font-size="11" opacity=".75">
+      inference (STARVED / BLOCKED) → debounce → written once it is believed
+    </text>
+    <text x="477" y="190" text-anchor="middle" font-size="11" opacity=".75">
+      MachineCurrentStatus + DowntimeEvent
+    </text>
+    <line x1="477" y1="128" x2="477" y2="152" stroke="currentColor" stroke-width="1.2" opacity=".5" marker-end="url(#ar)"/>
+  </g>
+</svg>
+</div>
+
+<p>Everything between the first box and the last is configuration held in the database. The gateway
+re-reads it within <b>30 seconds</b>, so no change here needs a restart or a redeploy.</p>
+
+<h2>2 · Bound signals — what a wire means</h2>
+
+<p class="lead">One row per physical point that carries machine state. Configure it from
+<b>IoT → Signal Rules → Bind a signal</b>, or on the tag itself in the Tag Browser.</p>
+
+<h3>The five roles</h3>
+<table>
+  <thead><tr><th style="width:22%">Role</th><th>What it asserts</th><th style="width:26%">Thresholds it uses</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>RUN_MODE</code></td>
+      <td>ON = the machine is running <b>or</b> ready with nothing to process. It does not, on its own,
+        separate working from waiting.</td>
+      <td>none</td>
+    </tr>
+    <tr>
+      <td><code>RUN_MODE_PULSED</code></td>
+      <td>Judged by rhythm, not level: <b>steady ON</b> = running, <b>pulsing</b> = stopped,
+        <b>OFF</b> = alarm. Euro-Pack Robot signals this way.</td>
+      <td>pulse window · minimum edges</td>
+    </tr>
+    <tr>
+      <td><code>PROCESSING</code></td>
+      <td>Product is actually being worked. This is the signal that separates a machine that is
+        <i>producing</i> from one that is merely <i>able</i> to.</td>
+      <td>idle before starved</td>
+    </tr>
+    <tr>
+      <td><code>INFEED_AVAILABLE</code></td>
+      <td>Material is arriving. OFF while stopped is read as <b>Starved</b>.</td>
+      <td>none</td>
+    </tr>
+    <tr>
+      <td><code>OUTFEED_BLOCKED</code></td>
+      <td>Cannot discharge. ON while stopped is read as <b>Blocked</b>.</td>
+      <td>none</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <b>Why PROCESSING exists at all</b>
+  NCC's own signal document says Cartomac and Uni-Tech report Run Mode ON <i>"including the condition
+  where the machine is ready, but no product is currently being processed"</i>. On this line a starved
+  machine <b>never looks stopped</b>. Any rule that waits for a stop before classifying it would never
+  fire. Run Mode says the machine is <i>able</i> to work; the wrapping table's rotation says whether it
+  <i>is</i>. Without a PROCESSING signal bound, starvation on that machine is undetectable — not
+  wrongly detected, simply invisible.
+</div>
+
+<h3>The thresholds, and how to choose them</h3>
+<table>
+  <thead><tr><th style="width:24%">Field</th><th>Meaning</th><th style="width:30%">How to pick it</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Pulse window</b> (ms)<br><span style="opacity:.7">default 6000</span></td>
+      <td>How far back the gateway looks when deciding whether the bit is oscillating.</td>
+      <td>A few pulse periods, so one missed poll does not read as steady.</td>
+    </tr>
+    <tr>
+      <td><b>Minimum edges</b><br><span style="opacity:.7">default 4</span></td>
+      <td>How many transitions inside that window count as "pulsing".</td>
+      <td>Raise it if electrical noise is being read as a stop.</td>
+    </tr>
+    <tr>
+      <td><b>Idle before Starved</b> (ms)<br><span style="opacity:.7">default 300000 = 5 min</span></td>
+      <td>How long a PROCESSING signal may stay inactive before the machine counts as waiting rather
+        than mid-cycle.</td>
+      <td><b>The machine's slowest normal cycle.</b> The wrapping table rests minutes between pallets;
+        a filler does not.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="note stop">
+  <b>The idle threshold is the one to get right</b>
+  Too short and the system reports starvation between every pallet — inventing external losses,
+  removing them from the machine's OEE, and flattering equipment that was working fine. Too long and a
+  real stoppage goes unrecorded. Over-reporting is the worse failure of the two, so the default errs
+  long. Set it to 30 s only for a demonstration, never for a running plant.
+</div>
+
+<h3>Effect on the system</h3>
+<ul>
+  <li>Decides which <b>machine state</b> is written, which is what opens and closes downtime events.</li>
+  <li>A status tag with <b>no role</b> is read literally through its status map and takes no part in
+    starvation or blockage detection. The page marks these in amber — it is a silent
+    half-configuration, not a blank.</li>
+  <li><b>Counting is not affected.</b> A pulse that arrives is a unit that was made; it is counted
+    regardless of what the state signal says. Signals change the <i>time</i> analysis, never the
+    <i>quantity</i>.</li>
+</ul>
+
+<h2>3 · State rules — what a state costs</h2>
+
+<p class="lead">One row per state, per factory — with an optional override per machine. This is where a
+plant states its own policy.</p>
+
+<table>
+  <thead><tr><th style="width:22%">Field</th><th>What it decides</th><th style="width:34%">Where you see the effect</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Open a downtime event</b></td>
+      <td>Whether entering this state creates a downtime record at all, closed when the machine leaves it.</td>
+      <td>Downtime Command Center · MTTR / MTBF · downtime Pareto</td>
+    </tr>
+    <tr>
+      <td><b>Planned stop</b></td>
+      <td>Marks the event as planned. Planned minutes are <b>not</b> counted as unplanned downtime.</td>
+      <td>Availability · planned-vs-unplanned split in reports</td>
+    </tr>
+    <tr>
+      <td><b>Charged against OEE</b></td>
+      <td>Off means the minutes are recorded but excluded from the availability loss.</td>
+      <td><b>Availability, and therefore OEE</b></td>
+    </tr>
+    <tr>
+      <td><b>Reason code · Category</b></td>
+      <td>How the stop is classified before anybody touches it.</td>
+      <td>Downtime analysis, Pareto grouping, exports</td>
+    </tr>
+    <tr>
+      <td><b>Debounce</b> (s)</td>
+      <td>How long the state must hold continuously before it is believed.</td>
+      <td>Event <i>count</i> integrity — see below</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Precedence</h3>
+<pre><code>rule for THIS machine  →  factory-wide rule  →  gateway built-in default</code></pre>
+<p>So one awkward machine can be treated differently without forking the whole table, and deleting a
+rule falls back rather than losing the record. If the configuration cannot be read at all, the built-in
+default still applies: <b>a stop is never lost because a lookup failed</b>.</p>
+
+<h3>What ships, and why</h3>
+<table>
+  <thead><tr><th>State</th><th>Downtime</th><th>Planned</th><th>Charged to OEE</th><th>Debounce</th><th>Reasoning</th></tr></thead>
+  <tbody>
+    <tr><td><code>RUNNING</code></td><td>no</td><td>—</td><td>—</td><td>0 s</td><td>Producing.</td></tr>
+    <tr><td><code>IDLE</code></td><td>no</td><td>—</td><td>—</td><td>3 s</td><td>Powered, no work assigned.</td></tr>
+    <tr><td><code>BREAKDOWN</code></td><td>yes</td><td>no</td><td><b>yes</b></td><td>3 s</td><td>The machine's own fault, charged to it.</td></tr>
+    <tr><td><code>PLANNED_STOP</code></td><td>yes</td><td>yes</td><td>no</td><td>0 s</td><td>Removed from the availability denominator.</td></tr>
+    <tr><td><code>MAINTENANCE</code></td><td>yes</td><td>yes</td><td>no</td><td>0 s</td><td>Planned work.</td></tr>
+    <tr><td><code>SETUP</code> / <code>CHANGEOVER</code></td><td>yes</td><td>yes</td><td><b>yes</b></td><td>0 s</td><td>Planned, but still a loss by default — this is the one plants most often disagree on.</td></tr>
+    <tr><td><code>STARVED</code></td><td>yes</td><td>no</td><td>no</td><td>5 s</td><td>External: recorded so the constraint is visible, excluded so the machine is not punished for waiting.</td></tr>
+    <tr><td><code>BLOCKED</code></td><td>yes</td><td>no</td><td>no</td><td>5 s</td><td>External, exactly as STARVED.</td></tr>
+    <tr><td><code>OFFLINE</code></td><td>yes</td><td>no</td><td>no</td><td>0 s</td><td>No signal. Recorded, not charged as a fault.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <b>Why STARVED and BLOCKED carry a longer settling time</b>
+  They are derived from the states of neighbouring machines, so they move whenever a neighbour moves.
+  Live running on 14 Aug 2026 recorded <b>three BLOCKED events for one machine inside two seconds</b>,
+  0.6 s each. The total minutes were roughly right, but the event count was nonsense and the log was
+  unreadable. Debounce fixes the count without touching the minutes.
+</div>
+
+<h2>4 · Worked example — turning off a policy you disagree with</h2>
+
+<p>Suppose NCC decides changeover should not be charged against the machine.</p>
+<ol>
+  <li><b>IoT → Signal Rules → State rules</b>, edit <code>CHANGEOVER</code>.</li>
+  <li>Turn <b>Charged against OEE</b> off. Save.</li>
+  <li>Within 30 seconds the gateway is applying the new rule.</li>
+</ol>
+<p>From that moment changeover minutes are still recorded and still visible in the Downtime Command
+Center, but they no longer reduce Availability. Nothing was rebuilt, and no engineer was involved.</p>
+
+<div class="note warn">
+  <b>This applies going forward, not backwards</b>
+  The flag is stamped onto each downtime event as it is created. Events already closed keep the value
+  they were created with. That is deliberate — a KPI that silently changes for a month you already
+  reported on is worse than one that changes from today.
+</div>
+
+<h2>5 · Two exclusions, not one — read this before tuning OEE</h2>
+
+<p>A state can be kept out of the OEE loss by <b>two different mechanisms</b>, and they are not the
+same switch:</p>
+
+<table>
+  <thead><tr><th style="width:30%">Mechanism</th><th>Keyed on</th><th>Configurable?</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Charged against OEE</b> on the state rule</td>
+      <td>The flag stored on each downtime event</td>
+      <td><b>Yes</b> — per factory and per machine, from this page</td>
+    </tr>
+    <tr>
+      <td><b>External loss</b> subtracted from planned production time <i>before</i> Availability and
+        Performance are derived</td>
+      <td>The state <b>name</b> being STARVED or BLOCKED</td>
+      <td><b>No</b> — that list is still fixed in the KPI engine</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="note stop">
+  <b>The honest limitation</b>
+  Setting <code>STARVED</code> to "charged against OEE" would make its downtime event count against
+  availability, but the second mechanism would still subtract those minutes from planned production
+  time, because that subtraction is keyed on the state name and not on the rule. In other words:
+  <b>which states count as "external" is not yet configurable</b>, only what each state costs as a
+  downtime event. For NCC's PoC the shipped defaults are consistent and this never bites. It is
+  recorded here so nobody discovers it by getting a surprising number.
+</div>
+
+<h2>6 · Where to change what</h2>
+<table>
+  <thead><tr><th>You want to change…</th><th>Go to</th></tr></thead>
+  <tbody>
+    <tr><td>What a wire means (role, thresholds)</td><td>Signal Rules → <b>Bind a signal</b> / row edit, or Tag Browser</td></tr>
+    <tr><td>What a state costs</td><td>Signal Rules → <b>State rules</b></td></tr>
+    <tr><td>A limit on a measured value</td><td>Signal Rules → <b>Alarm rules</b></td></tr>
+    <tr><td>Any of the above with no server reachable</td><td>Edge gateway dashboard, <code>http://&lt;gateway&gt;:4900</code> → <b>Signal Rules</b></td></tr>
+    <tr><td>Who may open this page</td><td>Access Control → grant <code>iot:signals</code></td></tr>
+  </tbody>
+</table>
+
+<div class="note acc">
+  <b>Why the edge dashboard carries the same screens</b>
+  Commissioning happens at the cabinet, often before the plant network reaches the server. An engineer
+  standing at the panel must be able to bind a signal and see the machine state change, without waiting
+  for anything upstream.
+</div>
+
+<h2>7 · Checking your work</h2>
+<pre><code>-- what the machines are doing right now
+SELECT m.code, s.state
+FROM machine_current_status s JOIN machines m ON m.id = s."machineId"
+ORDER BY m."sortOrder";
+
+-- what it was classified as, and whether it counts
+SELECT m.code, d."reasonCode", d.category, d."isPlanned", d."affectsOEE",
+       d."startTime", d."endTime", d."durationMinutes"
+FROM downtime_events d JOIN machines m ON m.id = d."machineId"
+WHERE d."startTime" >= now() - interval '30 minutes'
+ORDER BY d."startTime" DESC;</code></pre>
+<p>If an event is shorter than the state's debounce, the settling time is not being applied. If a
+machine sits in a state you did not expect, check its bound signals first — the state is only ever as
+good as what the wire was said to mean.</p>
+
+<footer>
+  MES360° · NCC SDPF Proof of Concept · behaviour described here is as implemented and verified on
+  14 August 2026. Both configuration surfaces are database-backed; no change described in this guide
+  requires a rebuild.
+</footer>
+
+</div>
+</body>
+</html>

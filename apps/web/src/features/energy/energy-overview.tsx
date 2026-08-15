@@ -1,6 +1,7 @@
 'use client';
 import { DashboardInfo } from '@/components/ui/dashboard-info';
 import { DataModeBadge } from '@/components/ui/data-mode-badge';
+import { CarbonScope2Card } from './carbon-scope2-card';
 import { useTranslation } from 'react-i18next';
 
 import { useMemo, useState } from 'react';
@@ -557,6 +558,11 @@ export function EnergyOverview() {
             </motion.div>
           );
         })}
+      </div>
+
+      {/* Scope 2 emissions — derived from the same kWh figure as the cards above. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <CarbonScope2Card />
       </div>
 
       {/* Charts row */}

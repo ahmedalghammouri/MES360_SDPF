@@ -93,17 +93,18 @@ describe('OEEService', () => {
   });
 
   describe('availabilityFromSegments', () => {
-    it('computes availability from machine state segments, excluding planned stops', () => {
+    it('computes availability from segments, excluding planned stops AND external losses', () => {
       const r = service.availabilityFromSegments([
         { state: 'RUNNING', durationMinutes: 600 },
         { state: 'BREAKDOWN', durationMinutes: 40 },
         { state: 'STARVED', durationMinutes: 20 },
         { state: 'PLANNED_STOP', durationMinutes: 60, isPlannedStop: true }, // excluded from PPT
       ]);
-      expect(r.ppt).toBe(660);       // 720 scheduled − 60 planned
+      expect(r.ppt).toBe(640);       // 720 scheduled − 60 planned − 20 external
       expect(r.runTime).toBe(600);
-      expect(r.unplannedDowntime).toBe(60);
-      expect(r.availability).toBeCloseTo(90.9, 0);
+      expect(r.externalLoss).toBe(20);
+      expect(r.unplannedDowntime).toBe(40);   // the breakdown only — starved is not the machine's fault
+      expect(r.availability).toBeCloseTo(93.75, 1);
     });
   });
 
@@ -141,6 +142,120 @@ describe('OEEService', () => {
 
     it('should classify poor OEE correctly', () => {
       expect(service.getClassification(30)).toBe('poor');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // External losses (STARVED / BLOCKED) — NCC PoC items 10–12.
+  // A downstream machine waiting on the bottleneck must not be
+  // penalised on Availability or Performance.
+  // ─────────────────────────────────────────────────────────────
+
+  describe('external loss (starved / blocked)', () => {
+    it('removes external loss from PPT so Availability is not penalised', () => {
+      // 480 planned, 120 min starved waiting on upstream, 360 min actually running.
+      const r = service.calculateDetailed({
+        plannedProductionTime: 480,
+        externalLoss: 120,
+        unplannedDowntime: 0,
+        idealCycleTime: 1,
+        totalCount: 360,
+        goodCount: 360,
+      });
+
+      expect(r.ppt).toBe(360);            // 480 − 120 accountable minutes
+      expect(r.runTime).toBe(360);
+      expect(r.availability).toBe(100);   // was 75% before the fix
+      expect(r.performance).toBe(100);    // was 75% before the fix
+      expect(r.losses.externalLossMin).toBe(120);
+    });
+
+    it('still charges the machine for its own unplanned downtime', () => {
+      const r = service.calculateDetailed({
+        plannedProductionTime: 480,
+        externalLoss: 60,
+        unplannedDowntime: 42,   // own breakdown
+        idealCycleTime: 1,
+        totalCount: 378,
+        goodCount: 378,
+      });
+
+      expect(r.ppt).toBe(420);
+      expect(r.runTime).toBe(378);
+      expect(r.availability).toBe(90);   // 378 / 420
+      expect(r.losses.availabilityLossMin).toBe(42);
+      expect(r.losses.externalLossMin).toBe(60);
+    });
+
+    it('classifies STARVED and BLOCKED segments as external, not downtime', () => {
+      const r = service.availabilityFromSegments([
+        { state: 'RUNNING', durationMinutes: 300 },
+        { state: 'STARVED', durationMinutes: 60 },
+        { state: 'BLOCKED', durationMinutes: 30 },
+        { state: 'BREAKDOWN', durationMinutes: 30 },
+        { state: 'PLANNED_STOP', durationMinutes: 60 },
+      ]);
+
+      expect(r.plannedDowntime).toBe(60);
+      expect(r.externalLoss).toBe(90);      // starved + blocked
+      expect(r.ppt).toBe(330);              // 480 − 60 planned − 90 external
+      expect(r.runTime).toBe(300);
+      expect(r.unplannedDowntime).toBe(30); // only the real breakdown
+      expect(r.availability).toBeCloseTo(90.9, 1);
+    });
+
+    it('carries external loss through a roll-up instead of losing it', () => {
+      const r = service.rollup([
+        { ppt: 480, runTime: 360, idealRunTime: 360, externalLoss: 120, totalCount: 360, goodCount: 360 },
+        { ppt: 480, runTime: 420, idealRunTime: 420, externalLoss: 60, totalCount: 420, goodCount: 420 },
+      ]);
+
+      expect(r.externalLoss).toBe(180);
+      expect(r.ppt).toBe(780);          // 960 gross − 180 external
+      expect(r.runTime).toBe(780);
+      expect(r.availability).toBe(100);
+      expect(r.performance).toBe(100);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Bottleneck-based Overall Line OEE — NCC PoC items 7–9.
+  // ─────────────────────────────────────────────────────────────
+
+  describe('lineOee (bottleneck method)', () => {
+    it('uses bottleneck A and P with final-outfeed Q', () => {
+      const r = service.lineOee({
+        bottleneck: { availability: 90, performance: 95, machineName: 'Big Betti' },
+        finalOutfeed: { totalCount: 10_000, goodCount: 9_800, pointName: 'Wrapping Machine' },
+      });
+
+      expect(r.availability).toBe(90);
+      expect(r.performance).toBe(95);
+      expect(r.quality).toBe(98);
+      expect(r.oee).toBeCloseTo(83.8, 1);   // 0.90 × 0.95 × 0.98
+      expect(r.basis.method).toBe('BOTTLENECK');
+      expect(r.basis.bottleneckMachineName).toBe('Big Betti');
+      expect(r.basis.outfeedPointName).toBe('Wrapping Machine');
+    });
+
+    it('is unaffected by a starved downstream machine', () => {
+      // The palletizer's own numbers are irrelevant to line OEE — only the
+      // constraint and the final outfeed count.
+      const r = service.lineOee({
+        bottleneck: { availability: 88, performance: 92 },
+        finalOutfeed: { totalCount: 5_000, goodCount: 5_000 },
+      });
+      expect(r.quality).toBe(100);
+      expect(r.oee).toBeCloseTo(81, 0);
+    });
+
+    it('returns zero quality — and zero OEE — when nothing reached the outfeed', () => {
+      const r = service.lineOee({
+        bottleneck: { availability: 95, performance: 95 },
+        finalOutfeed: { totalCount: 0, goodCount: 0 },
+      });
+      expect(r.quality).toBe(0);
+      expect(r.oee).toBe(0);
     });
   });
 });

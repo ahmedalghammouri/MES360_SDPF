@@ -1,4 +1,6 @@
 'use client';
+import { DataModeBadge } from '@/components/ui/data-mode-badge';
+import { DashboardInfo } from '@/components/ui/dashboard-info';
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -33,6 +35,7 @@ export function DowntimeCenterView() {
           <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
             <PauseCircle size={18} className="text-rose-500" />
             {t('cockpit.title')}
+            <DashboardInfo id="downtime-center" />
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('cockpit.subtitle')}</p>
         </div>
@@ -57,7 +60,10 @@ export function DowntimeCenterView() {
             <SectionTitle icon={Activity} color="#f43f5e">{t('cockpit.sections.trend')}</SectionTitle>
             <div className="grid grid-cols-12 gap-4">
               <div className="industrial-card p-4 col-span-12 lg:col-span-8">
-                <div className="text-xs font-semibold text-muted-foreground mb-2">{t('cockpit.plannedVsUnplanned')}</div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold text-muted-foreground">{t('cockpit.plannedVsUnplanned')}</span>
+                  <DataModeBadge mode="period" />
+                </div>
                 <div className="h-64"><DowntimeTrend data={data?.trend ?? []} type={trendType} /></div>
               </div>
               <div className="industrial-card p-4 col-span-12 lg:col-span-4">
@@ -96,7 +102,10 @@ export function DowntimeCenterView() {
             <div className="grid grid-cols-12 gap-4">
               {/* Live open stops */}
               <div className="industrial-card p-4 col-span-12 lg:col-span-4">
-                <div className="text-xs font-semibold text-muted-foreground mb-3">{t('cockpit.liveOpen')} · {data?.liveOpen.length ?? 0}</div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs font-semibold text-muted-foreground">{t('cockpit.liveOpen')} · {data?.liveOpen.length ?? 0}</span>
+                  <DataModeBadge mode="live" />
+                </div>
                 {(data?.liveOpen.length ?? 0) === 0 ? (
                   <div className="flex h-28 items-center justify-center text-xs text-muted-foreground">{t('cockpit.allRunning')}</div>
                 ) : (

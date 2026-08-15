@@ -10,6 +10,7 @@ import {
 import { Sparkles, Gauge, Package, CheckCircle2, Activity, Layers, Clock } from 'lucide-react';
 import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
+import { useOeeMode } from '@/hooks/use-oee-mode';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { cn } from '@/lib/utils';
 import { DashboardInfo } from '@/components/ui/dashboard-info';
@@ -34,12 +35,13 @@ const GROUPS = [
 ] as const;
 type GroupBy = (typeof GROUPS)[number]['value'];
 
-interface GroupRow { key: string; label: string; oee: number; availability: number; performance: number; quality: number; output: number; good: number; }
+interface GroupRow { key: string; label: string; oee: number; availability: number; performance: number; quality: number; oeeTb?: number; availabilityTb?: number; output: number; good: number; }
 
 export function InsightsStudioView() {
   const { t } = useTranslation(['production', 'common']);
   const { filter, key } = useScope();
   const { params: timeParams, key: timeKey, label: timeLabel } = useTimeRange();
+  const oeeMode = useOeeMode();
   const [groupBy, setGroupBy] = useState<GroupBy>('shift');
 
   const { data: oeeCalc, isFetching: kpiLoading } = useQuery({
@@ -63,8 +65,10 @@ export function InsightsStudioView() {
   const r1 = (v: any) => Math.round((Number(v) || 0) * 10) / 10;
 
   const kpis = [
-    { label: t('cards.oee'), value: `${r1(c.oee)}%`, icon: Gauge, color: 'text-brand-400' },
-    { label: t('cards.availability'), value: `${r1(c.availability)}%`, icon: Activity, color: 'text-sky-400' },
+    // Both headline cards follow the basis chosen in the filter panel. Performance
+    // and Quality are identical under either basis, so they carry no suffix.
+    { label: oeeMode.label(t('cards.oee')), value: `${r1(oeeMode.pick(c.oee, c.oeeTb))}%`, icon: Gauge, color: 'text-brand-400' },
+    { label: oeeMode.label(t('cards.availability')), value: `${r1(oeeMode.pick(c.availability, c.availabilityTb))}%`, icon: Activity, color: 'text-sky-400' },
     { label: t('cards.performance'), value: `${r1(c.performance)}%`, icon: Activity, color: 'text-violet-400' },
     { label: t('cards.quality'), value: `${r1(c.quality)}%`, icon: CheckCircle2, color: 'text-emerald-400' },
     { label: t('insights.output'), value: r1(totalOutput).toLocaleString(), icon: Package, color: 'text-amber-400' },
@@ -180,7 +184,7 @@ export function InsightsStudioView() {
                   <ReTooltip contentStyle={TT} labelStyle={TTL} itemStyle={TTL} formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'OEE']} />
                   <ReferenceLine x={WORLD_CLASS} stroke="#22c55e" strokeDasharray="6 4" strokeOpacity={0.6} />
                   <Bar dataKey="oee" radius={[0, 4, 4, 0]} barSize={15}>
-                    {rows.map((r) => <Cell key={r.key} fill={oeeColor(r.oee)} />)}
+                    {rows.map((r) => <Cell key={r.key} fill={oeeColor(oeeMode.pick(r.oee, r.oeeTb))} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -244,7 +248,7 @@ export function InsightsStudioView() {
                   {rows.map((r) => (
                     <tr key={r.key} className="border-b border-border/20">
                       <td className="py-1.5 font-medium truncate max-w-[200px]">{r.label}</td>
-                      <td className="text-end font-bold tabular-nums" style={{ color: oeeColor(r.oee) }}>{r.oee.toFixed(1)}%</td>
+                      <td className="text-end font-bold tabular-nums" style={{ color: oeeColor(oeeMode.pick(r.oee, r.oeeTb)) }}>{oeeMode.pick(r.oee, r.oeeTb).toFixed(1)}%</td>
                       <td className="text-end tabular-nums text-muted-foreground">{r.availability.toFixed(1)}%</td>
                       <td className="text-end tabular-nums text-muted-foreground">{r.performance.toFixed(1)}%</td>
                       <td className="text-end tabular-nums text-muted-foreground">{r.quality.toFixed(1)}%</td>

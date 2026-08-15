@@ -8,6 +8,7 @@ import { Activity, Zap, Clock, BarChart3 } from 'lucide-react';
 
 import { cn, getMachineStateStyle, formatPercent, formatDuration, timeAgo } from '@/lib/utils';
 import { useScopeStore } from '@/store/scope-store';
+import { useOeeMode } from '@/hooks/use-oee-mode';
 import type { Machine } from '@/features/dashboard/use-dashboard-data';
 
 interface MachineCardProps {
@@ -17,6 +18,9 @@ interface MachineCardProps {
 function MachineCard({ machine }: MachineCardProps) {
   const { t } = useTranslation('common');
   const stateStyle = getMachineStateStyle(machine.state);
+  // The grid follows the OEE basis chosen in the filter panel, like every other card.
+  const oeeMode = useOeeMode();
+  const oee = oeeMode.pick(machine.oee, machine.oeeTb);
   const router = useRouter();
   const setScope = useScopeStore((s) => s.setScope);
 
@@ -60,17 +64,17 @@ function MachineCard({ machine }: MachineCardProps) {
       <div className="mb-2">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] text-muted-foreground">{t('charts.oee')}</span>
-          <span className={cn('text-[11px] font-bold tabular-nums', machine.oee >= 85 ? 'text-success-400' : machine.oee >= 65 ? 'text-brand-400' : 'text-warning-400')}>
-            {formatPercent(machine.oee)}
+          <span className={cn('text-[11px] font-bold tabular-nums', oee >= 85 ? 'text-success-400' : oee >= 65 ? 'text-brand-400' : 'text-warning-400')}>
+            {formatPercent(oee)}
           </span>
         </div>
         <div className="h-1 bg-muted rounded-full overflow-hidden">
           <div
             className={cn(
               'h-full rounded-full transition-all duration-700',
-              machine.oee >= 85 ? 'bg-success-500' : machine.oee >= 65 ? 'bg-brand-500' : 'bg-warning-500',
+              oee >= 85 ? 'bg-success-500' : oee >= 65 ? 'bg-brand-500' : 'bg-warning-500',
             )}
-            style={{ width: `${machine.oee}%` }}
+            style={{ width: `${oee}%` }}
           />
         </div>
       </div>

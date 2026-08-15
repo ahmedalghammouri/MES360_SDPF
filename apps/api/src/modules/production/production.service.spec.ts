@@ -184,7 +184,7 @@ describe('ProductionService', () => {
   describe('getKPIs', () => {
     it('returns KPI object sourced from the OEE engine, incl. both OEE variants', async () => {
       // getKPIs sources OEE from KpiService.oeeAnalytics (the single source of truth),
-      // exposing schedule-based AND time-based (AT-OEE) values.
+      // exposing schedule-based AND time-based (OEE-TB) values.
       mockKpi.oeeAnalytics.mockResolvedValueOnce({
         current: { oee: 82.5, availability: 87.2, performance: 94.8, quality: 99.2, oeeTb: 80.1, availabilityTb: 84.6 },
         totalOutput: 0, goodOutput: 0, downtimeMin: 0, byEquipment: [], trend: [],

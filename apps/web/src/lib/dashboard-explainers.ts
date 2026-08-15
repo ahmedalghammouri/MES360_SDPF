@@ -26,6 +26,20 @@ export interface Explainer {
   notes?: Bi[];
 }
 
+/**
+ * Line OEE can be produced by two different bases. Every page that shows a
+ * line-level figure includes this, so the same explanation travels with the
+ * number wherever it appears instead of living in one card.
+ */
+export const LINE_OEE_BASIS: ExplainerMetric = {
+  name: { en: 'Line OEE basis — Roll-up vs Bottleneck', ar: 'أساس OEE للخط — التجميع مقابل عنق الزجاجة' },
+  formula: 'ROLLUP: A × P × Q from summed minutes/counts  ·  BOTTLENECK: bottleneck A × bottleneck P × final-outfeed Q',
+  desc: {
+    en: 'Each production line is measured on the basis configured for it in Plant Hierarchy → Edit Production Line, and the basis is labelled next to every line figure. ROLLUP sums the planned, run and earned minutes plus the counts of every machine and re-derives A, P and Q — it is not an average of percentages, and it answers "how did the assets perform". BOTTLENECK takes A and P from the constraint machine and Q from the final outfeed point(s) — it answers "how did the LINE perform", which is the fairer question for a synchronised line where downstream assets idle by design whenever the constraint stops. A line set to BOTTLENECK with no constraint resolvable falls back to ROLLUP and is marked with an asterisk.',
+    ar: 'كل خط يُقاس بالأساس المُعدّ له من هيكل المصنع ← تعديل خط الإنتاج، والأساس مكتوب بجوار كل رقم خط. التجميع يجمع الدقائق المخططة والتشغيلية والمكتسبة وأعداد كل الماكينات ثم يعيد اشتقاق A وP وQ — وليس متوسط نسب — ويجيب: كيف كان أداء الأصول. وعنق الزجاجة يأخذ A وP من ماكينة القيد وQ من نقاط الإخراج النهائية — ويجيب: كيف كان أداء الخط، وهو السؤال الأعدل لخط متزامن تتوقف فيه الماكينات التالية بحكم التصميم كلما توقف القيد. والخط المضبوط على عنق الزجاجة دون قيد يمكن تحديده يرجع للتجميع ويُوسَم بنجمة.',
+  },
+};
+
 const OEE_METRICS: ExplainerMetric[] = [
   {
     name: { en: 'OEE — Overall Equipment Effectiveness', ar: 'OEE — الفعالية الكلية للمعدّات' },
@@ -122,7 +136,7 @@ export const EXPLAINERS: Record<string, Explainer> = {
       en: 'Deep-dive into Overall Equipment Effectiveness: the A×P×Q breakdown, trend over time, and per-equipment ranking to find the biggest loss.',
       ar: 'تحليل معمّق للفعالية الكلية للمعدّات: تفصيل A×P×Q، والاتجاه عبر الزمن، وترتيب المعدّات لاكتشاف أكبر مصدر فقد.',
     },
-    metrics: OEE_METRICS,
+    metrics: [...OEE_METRICS, LINE_OEE_BASIS],
     dataSources: [
       { en: 'GET /production/oee/calculate — current OEE, trend, and per-equipment breakdown for the selected timeframe.', ar: 'GET /production/oee/calculate — OEE الحالي والاتجاه وتفصيل كل معدّة للفترة المختارة.' },
       { en: 'Source of truth: OEERecord rows persisted at each job-order completion; the engine rolls them up the ISA-95 hierarchy.', ar: 'مصدر الحقيقة: سجلات OEERecord المحفوظة عند اكتمال كل أمر تشغيل؛ والمحرك يجمّعها عبر هرم ISA-95.' },
@@ -368,7 +382,7 @@ export const EXPLAINERS: Record<string, Explainer> = {
       en: 'The executive single-pane view: factory-wide OEE, production, downtime Pareto, quality and live status — aggregated across all lines.',
       ar: 'العرض التنفيذي الموحّد: OEE على مستوى المصنع، الإنتاج، باريتو التوقفات، الجودة والحالة الحيّة — مجمّعة عبر كل الخطوط.',
     },
-    metrics: OEE_METRICS,
+    metrics: [...OEE_METRICS, LINE_OEE_BASIS],
     dataSources: [
       { en: 'Aggregates the same production/maintenance/quality/energy KPI endpoints, so the headline numbers equal the per-module pages.', ar: 'تجمع نفس مؤشرات الإنتاج/الصيانة/الجودة/الطاقة، فالأرقام الرئيسية تساوي صفحات كل وحدة.' },
     ],
@@ -399,6 +413,273 @@ export const EXPLAINERS: Record<string, Explainer> = {
     ],
     howToUse: [
       { en: 'On a recall, backward-trace the suspect finished lot to bound which raw lots/suppliers are implicated.', ar: 'عند الاستدعاء، تتبّع المنتج المشتبه خلفيًا لتحديد دفعات/موردي المواد المعنية.' },
+    ],
+  },
+
+  // ── Downtime Command Center ──────────────────────────────────
+  'downtime-center': {
+    title: { en: 'Downtime Command Center', ar: 'مركز قيادة التوقفات' },
+    summary: {
+      en: 'Every machine stop in the window: how long, why, planned or not, and which stops actually cost availability. Reliability figures here are equipment-based (derived from stops), which is a different lens from the work-order-based figures in Maintenance Reports — both are correct and the difference is explained below.',
+      ar: 'كل توقف للماكينات في الفترة: المدة والسبب ومخطط أم لا، وأي التوقفات كلّف الجاهزية فعلاً. مؤشرات الموثوقية هنا مبنية على التوقفات، وهي عدسة مختلفة عن تقارير الصيانة المبنية على أوامر العمل — كلاهما صحيح والفرق مشروح أدناه.',
+    },
+    metrics: [
+      {
+        name: { en: 'Unplanned vs planned minutes', ar: 'الدقائق غير المخططة مقابل المخططة' },
+        desc: {
+          en: 'A stop is planned when isPlanned is set, or its category is PLANNED_MAINTENANCE / PLANNED_CLEANING / PLANNED_BREAK / CHANGEOVER. Planned stops reduce planned production time; they are not availability losses.',
+          ar: 'التوقف مخطط إذا كان isPlanned مفعّلاً، أو كانت فئته صيانة/تنظيفاً/استراحة مخططة أو تغيير منتج. التوقفات المخططة تقلّل زمن الإنتاج المخطط ولا تُحتسب خسارة جاهزية.',
+        },
+      },
+      {
+        name: { en: 'MTTR (equipment lens)', ar: 'MTTR — عدسة المعدّة' },
+        formula: 'MTTR = Σ breakdown stop hours ÷ breakdown stop count',
+        desc: {
+          en: 'Average production time lost per breakdown. Only genuine equipment failures count: UNPLANNED_BREAKDOWN reason code, or MECHANICAL / ELECTRICAL / UTILITY category.',
+          ar: 'متوسط زمن الإنتاج المفقود لكل عطل. تُحتسب الأعطال الحقيقية فقط: رمز العطل غير المخطط، أو فئة ميكانيكية/كهربائية/مرافق.',
+        },
+      },
+      {
+        name: { en: 'MTBF (equipment lens)', ar: 'MTBF — عدسة المعدّة' },
+        formula: 'MTBF = (Capacity hours − all downtime hours) ÷ breakdown stop count',
+        desc: {
+          en: 'Average uptime between breakdowns. Capacity hours = window hours × active machines in scope.',
+          ar: 'متوسط زمن التشغيل بين الأعطال. ساعات الطاقة = ساعات الفترة × الماكينات النشطة في النطاق.',
+        },
+      },
+      {
+        name: { en: 'Availability loss %', ar: 'نسبة خسارة الجاهزية' },
+        formula: 'OEE-impacting downtime hours ÷ capacity hours × 100',
+        desc: { en: 'Share of capacity consumed by stops that count against OEE.', ar: 'نسبة الطاقة التي استهلكتها التوقفات المحتسبة على OEE.' },
+      },
+    ],
+    dataSources: [
+      { en: 'GET /production/downtime/cockpit — DowntimeEvent rows clamped to the window; open stops are timed to now. Classification constants live in one place (reliability.service.ts) and are shared with Maintenance and Reports.', ar: 'GET /production/downtime/cockpit — سجلات التوقف مقصوصة على الفترة، والتوقفات المفتوحة تُحسب حتى الآن. ثوابت التصنيف في مكان واحد (reliability.service.ts) مشتركة مع الصيانة والتقارير.' },
+    ],
+    notes: [
+      { en: 'Micro-stops, starved, blocked, material and operator stops are unplanned but are NOT equipment failures, so they are excluded from MTBF/MTTR while still counting as downtime. Including them was the cause of the earlier mismatch with Maintenance Reports.', ar: 'التوقفات القصيرة والانتظار والانسداد ونقص المواد وغياب المشغّل توقفات غير مخططة لكنها ليست أعطال معدّات، فتُستبعد من MTBF/MTTR مع بقائها ضمن التوقفات. إدراجها كان سبب الاختلاف السابق مع تقارير الصيانة.' },
+    ],
+  },
+
+  // ── Maintenance Reliability (MTBF / MTTR) ────────────────────
+  'maintenance-reliability': {
+    title: { en: 'Reliability (MTBF / MTTR)', ar: 'الموثوقية (MTBF / MTTR)' },
+    summary: {
+      en: 'Asset reliability measured from maintenance work orders — the maintenance function\'s own view. The Downtime Command Center measures the same concepts from machine stops. Both come from one engine with one rule set; they differ because they answer different questions.',
+      ar: 'موثوقية الأصول مقاسة من أوامر عمل الصيانة — رؤية وظيفة الصيانة نفسها. مركز قيادة التوقفات يقيس المفاهيم ذاتها من توقفات الماكينات. كلاهما من محرك واحد بقواعد واحدة، ويختلفان لأنهما يجيبان سؤالين مختلفين.',
+    },
+    metrics: [
+      {
+        name: { en: 'MTTR (maintenance lens)', ar: 'MTTR — عدسة الصيانة' },
+        formula: 'MTTR = Σ repair hours ÷ completed corrective+emergency WOs',
+        desc: {
+          en: 'Technician wrench time per repair. Uses the WO\'s logged actual hours; when missing, the started→completed elapsed time. Preventive, inspection and lubrication work orders are excluded — they are not repairs.',
+          ar: 'زمن الإصلاح الفعلي لكل عطل. يستخدم الساعات المسجّلة على أمر العمل، وعند غيابها الزمن بين البدء والإكمال. أوامر الصيانة الوقائية والفحص والتزييت مستبعدة لأنها ليست إصلاحاً.',
+        },
+      },
+      {
+        name: { en: 'MTBF (maintenance lens)', ar: 'MTBF — عدسة الصيانة' },
+        formula: 'MTBF = Operating hours ÷ corrective+emergency WOs raised',
+        desc: {
+          en: 'Operating hours are actual RUNNING machine-state hours; when no state history exists it falls back to active machines × window hours, and says so.',
+          ar: 'ساعات التشغيل هي ساعات حالة التشغيل الفعلية؛ وعند غياب سجل الحالات يُستخدم عدد الماكينات النشطة × ساعات الفترة، ويُصرَّح بذلك.',
+        },
+      },
+    ],
+    dataSources: [
+      { en: 'ReliabilityService — one engine serving the Maintenance cockpit, the Downtime Command Center and the Analytics reports, so no two screens can disagree.', ar: 'ReliabilityService — محرك واحد يخدم قمرة الصيانة ومركز التوقفات وتقارير التحليلات، فلا يمكن أن تختلف شاشتان.' },
+    ],
+    notes: [
+      { en: 'Why the two lenses differ: a stop cleared by the operator never becomes a work order, and a work order can be raised without a production stop. Equipment MTTR is production time lost; maintenance MTTR is wrench time. Maintenance KPI cards use month-to-date by design, while reports use the selected window.', ar: 'سبب اختلاف العدستين: التوقف الذي يعالجه المشغّل لا يصبح أمر عمل، وأمر العمل قد يُفتح دون توقف إنتاج. MTTR للمعدّة هو زمن الإنتاج المفقود، وMTTR للصيانة هو زمن الإصلاح. بطاقات الصيانة تستخدم الشهر حتى تاريخه بالتصميم، بينما التقارير تستخدم الفترة المختارة.' },
+    ],
+  },
+
+  // ── Quality Intelligence ─────────────────────────────────────
+  'quality-intelligence': {
+    title: { en: 'Quality Intelligence', ar: 'ذكاء الجودة' },
+    summary: {
+      en: 'The quality command centre: first-pass yield trend, defect Pareto, NCR severity and status mix, inspection outcomes and the CAPA funnel — all for the selected scope and period.',
+      ar: 'مركز قيادة الجودة: اتجاه النجاح من أول مرة، وباريتو العيوب، وتوزيع شدة وحالة عدم المطابقة، ونتائج الفحص، وقمع الإجراءات التصحيحية — للنطاق والفترة المختارين.',
+    },
+    metrics: [
+      {
+        name: { en: 'First Pass Yield (FPY)', ar: 'النجاح من أول مرة' },
+        formula: 'FPY = Σ inspection pass qty ÷ Σ inspection total qty × 100',
+        desc: { en: 'Units accepted at first inspection, before any rework. Not the same as the OEE Quality factor, which is based on produced good vs total output.', ar: 'الوحدات المقبولة من أول فحص قبل أي إعادة عمل. تختلف عن عامل الجودة في OEE المبني على الإنتاج السليم مقابل الإجمالي.' },
+        benchmark: { en: 'World-class ≥ 99%.', ar: 'عالمي ≥ 99%.' },
+      },
+      {
+        name: { en: 'Defect Rate / PPM', ar: 'معدل العيوب' },
+        formula: 'Defect Rate = Σ fail qty ÷ Σ total qty × 100 ; PPM = ×1,000,000',
+        desc: { en: 'The complement of FPY by construction: FPY + Defect Rate = 100.', ar: 'مكمّل FPY بحكم التعريف: FPY + معدل العيوب = 100.' },
+      },
+      {
+        name: { en: 'Cpk', ar: 'Cpk' },
+        desc: { en: 'Process capability from real SPC measurements against configured spec limits. Null when no characteristic has both limits set — it is never approximated.', ar: 'قدرة العملية من قياسات SPC الحقيقية مقابل حدود المواصفة المُعرَّفة. تكون فارغة إذا لم تُضبط الحدود، ولا تُقدَّر تقريبياً أبداً.' },
+        benchmark: { en: '≥ 1.33 capable, ≥ 1.67 six-sigma.', ar: '≥ 1.33 قادرة، ≥ 1.67 ستة سيجما.' },
+      },
+    ],
+    dataSources: [
+      { en: 'GET /quality/cockpit and /quality/kpis — InspectionResult, NCR and CAPA. The Quality Reports page reads the same figures for the same scope, so the two must agree.', ar: 'GET /quality/cockpit و/quality/kpis — نتائج الفحص وعدم المطابقة والإجراءات التصحيحية. صفحة تقارير الجودة تقرأ الأرقام نفسها للنطاق نفسه، فيجب أن تتطابقا.' },
+    ],
+  },
+
+  // ── Analytics & Reports hub ──────────────────────────────────
+  'analytics-reports': {
+    title: { en: 'Analytics & Reports', ar: 'التحليلات والتقارير' },
+    summary: {
+      en: 'Report packs for production, quality and maintenance over a chosen window, exportable to PDF, Excel and CSV. Every figure is produced by the same calculation engine as the live dashboards — a report and a cockpit must never disagree for the same scope and period.',
+      ar: 'حزم تقارير للإنتاج والجودة والصيانة لفترة مختارة، قابلة للتصدير إلى PDF وExcel وCSV. كل رقم يأتي من محرك الحساب نفسه الذي يغذّي اللوحات الحية — فلا يجوز أن يختلف تقرير عن قمرة لنفس النطاق والفترة.',
+    },
+    metrics: [
+      {
+        name: { en: 'Master Schedule Attainment (MSA)', ar: 'الالتزام بالجدول الرئيسي' },
+        formula: 'MSA = Σ min(Actual Qty, Scheduled Qty) ÷ Total Scheduled Qty × 100',
+        desc: {
+          en: 'Each order is credited at most its scheduled quantity, so over-producing one order cannot mask a shortfall on another. 100% means every order met its plan — not that total output matched total plan.',
+          ar: 'يُحتسب لكل أمر ما لا يتجاوز كميته المجدولة، فلا يمكن لزيادة إنتاج أمر أن تخفي نقص أمر آخر. 100% تعني أن كل أمر حقّق خطته، لا أن الإجمالي طابق الإجمالي.',
+        },
+      },
+      {
+        name: { en: 'Volume-Based Capacity Utilization', ar: 'استغلال الطاقة الإنتاجية' },
+        formula: 'Actual Units Produced ÷ Maximum Designed Unit Capacity × 100',
+        desc: {
+          en: 'The rated capacity comes from the process routing step cycle time (3600 ÷ cycleTimeSec, converted to the SKU base unit) × calendar hours — the same master data that generates job orders, so capacity can never drift from the plan.',
+          ar: 'الطاقة المقدَّرة تأتي من زمن دورة مرحلة التوجيه (3600 ÷ زمن الدورة، محوَّلاً لوحدة الأساس) × ساعات الفترة — نفس البيانات التي تُولَّد منها أوامر التشغيل، فلا تنفصل الطاقة عن الخطة.',
+        },
+      },
+    ],
+    dataSources: [
+      { en: 'GET /reports/production|quality|maintenance, /production/kpi/master-schedule-attainment, /production/kpi/capacity-utilization.', ar: 'GET /reports/production|quality|maintenance و/production/kpi/master-schedule-attainment و/production/kpi/capacity-utilization.' },
+    ],
+    notes: [
+      { en: 'Machines not assigned to any active routing step with a cycle time contribute nothing to the capacity denominator. The API lists them by name rather than silently shrinking the denominator, which would flatter the result.', ar: 'الماكينات غير المُسندة لأي مرحلة توجيه نشطة بزمن دورة لا تضيف شيئاً لمقام الطاقة. الـAPI يذكرها بالاسم بدل تصغير المقام بصمت، وهو ما كان سيجمّل النتيجة.' },
+    ],
+  },
+
+  // ── Energy analytics + Scope 2 carbon ────────────────────────
+  'energy-analytics': {
+    title: { en: 'Energy Analytics & Carbon', ar: 'تحليلات الطاقة والكربون' },
+    summary: {
+      en: 'Energy resolved to the things that consume it — machine, work order, SKU, shift — plus the Scope 2 carbon footprint of the electricity used.',
+      ar: 'الطاقة منسوبة إلى ما يستهلكها — الماكينة وأمر العمل والمنتج والوردية — مع البصمة الكربونية للنطاق ٢ للكهرباء المستهلكة.',
+    },
+    metrics: [
+      {
+        name: { en: 'Energy ratio', ar: 'نسبة الطاقة' },
+        formula: 'kWh ÷ good output (also kWh/kg and kWh/running hour)',
+        desc: { en: 'Energy per unit produced. Compared against the best ratio the same machine previously demonstrated for the same SKU, so drift is measured against proven performance rather than an arbitrary target.', ar: 'الطاقة لكل وحدة منتجة، تُقارن بأفضل نسبة سبق أن حققتها الماكينة نفسها للمنتج نفسه، فيُقاس الانحراف مقابل أداء مثبت لا هدف اعتباطي.' },
+      },
+      {
+        name: { en: 'Scope 2 carbon footprint', ar: 'البصمة الكربونية — النطاق ٢' },
+        formula: 'kg CO₂e = kWh purchased electricity × grid emission factor',
+        desc: {
+          en: 'Location-based Scope 2 per the GHG Protocol. The kWh is read from the same source as the energy cards, so carbon and energy can never disagree. The factor is stored configuration, versioned by effective date, and a defaulted factor is flagged rather than passed off as approved.',
+          ar: 'النطاق ٢ حسب بروتوكول الغازات الدفيئة. الكيلوواط تُقرأ من مصدر بطاقات الطاقة نفسه، فلا يختلف الكربون عن الطاقة. المعامل إعداد مخزَّن مُصدَّر بالتاريخ الفعّال، والمعامل الافتراضي يُوسَم صراحةً ولا يُقدَّم كأنه معتمد.',
+        },
+      },
+    ],
+    dataSources: [
+      { en: 'GET /energy/analytics, /energy/carbon/scope2, /energy/carbon/emission-factor. Consumption is derived from EnergyReading meter deltas.', ar: 'GET /energy/analytics و/energy/carbon/scope2 و/energy/carbon/emission-factor. الاستهلاك مشتق من فروق قراءات العدادات.' },
+    ],
+    notes: [
+      { en: 'Scope 1 (on-site fuel combustion) and Scope 3 (value chain) are out of scope for this PoC — only purchased electricity is covered.', ar: 'النطاق ١ (احتراق الوقود بالموقع) والنطاق ٣ (سلسلة القيمة) خارج نطاق هذا الإثبات — المشمول هو الكهرباء المشتراة فقط.' },
+    ],
+  },
+
+  // ── Quality report ───────────────────────────────────────────
+  'quality-report': {
+    title: { en: 'Quality Report', ar: 'تقرير الجودة' },
+    summary: {
+      en: 'Inspection and non-conformance performance for the selected period, exportable for review. The figures are computed by the same service as the Quality cockpit, so the report and the dashboard must show identical values for identical scope and dates.',
+      ar: 'أداء الفحص وعدم المطابقة للفترة المختارة، قابل للتصدير للمراجعة. الأرقام تُحسب بنفس الخدمة التي تغذّي قمرة الجودة، فيجب أن يعرض التقرير واللوحة القيم ذاتها لنفس النطاق والتواريخ.',
+    },
+    metrics: [
+      {
+        name: { en: 'First Pass Yield (FPY)', ar: 'النجاح من أول مرة' },
+        formula: 'FPY = Σ inspection pass qty ÷ Σ inspection total qty × 100',
+        desc: { en: 'Units accepted at first inspection, before rework. Distinct from the OEE Quality factor, which is based on produced good vs total output — the two answer different questions and will not normally be equal.', ar: 'الوحدات المقبولة من أول فحص قبل إعادة العمل. تختلف عن عامل الجودة في OEE المبني على الإنتاج السليم مقابل الإجمالي — السؤالان مختلفان ولا يتساويان عادةً.' },
+        benchmark: { en: 'World-class ≥ 99%.', ar: 'عالمي ≥ 99%.' },
+      },
+      {
+        name: { en: 'Defect Rate / PPM', ar: 'معدل العيوب' },
+        formula: 'Defect Rate = Σ fail qty ÷ Σ total qty × 100',
+        desc: { en: 'FPY + Defect Rate = 100 by construction. The denominator is inspected units.', ar: 'FPY + معدل العيوب = 100 بحكم التعريف. المقام هو الوحدات المفحوصة.' },
+      },
+      {
+        name: { en: 'NCRs and critical NCRs', ar: 'تقارير عدم المطابقة والحرجة منها' },
+        desc: { en: 'Non-conformance records raised in the window, with the critical subset called out separately.', ar: 'سجلات عدم المطابقة المفتوحة في الفترة، مع إبراز الحرجة منها منفصلة.' },
+      },
+    ],
+    dataSources: [
+      { en: 'GET /reports/quality — InspectionResult and NCR filtered to the window and factory.', ar: 'GET /reports/quality — نتائج الفحص وعدم المطابقة مُرشَّحة على الفترة والمصنع.' },
+    ],
+  },
+
+  // ── Maintenance report ───────────────────────────────────────
+  'maintenance-report': {
+    title: { en: 'Maintenance Report', ar: 'تقرير الصيانة' },
+    summary: {
+      en: 'Work-order completion, reliability and cost for the selected period. MTBF and MTTR here are the maintenance lens (work-order based). The Downtime Command Center shows the equipment lens (stop based); both come from one engine and the reason they differ is stated below.',
+      ar: 'إنجاز أوامر العمل والموثوقية والتكلفة للفترة المختارة. MTBF وMTTR هنا بعدسة الصيانة (مبنية على أوامر العمل)، بينما مركز قيادة التوقفات يعرض عدسة المعدّة (مبنية على التوقفات). كلاهما من محرك واحد، وسبب الاختلاف مذكور أدناه.',
+    },
+    metrics: [
+      {
+        name: { en: 'MTTR', ar: 'متوسط زمن الإصلاح' },
+        formula: 'MTTR = Σ repair hours ÷ completed corrective+emergency WOs',
+        desc: { en: 'Preventive, inspection and lubrication work orders are excluded — they are planned work, not repairs.', ar: 'أوامر الصيانة الوقائية والفحص والتزييت مستبعدة — فهي عمل مخطط لا إصلاح.' },
+      },
+      {
+        name: { en: 'MTBF', ar: 'متوسط الزمن بين الأعطال' },
+        formula: 'MTBF = Operating hours ÷ corrective+emergency WOs raised',
+        desc: { en: 'Operating hours are actual RUNNING machine-state hours, falling back to active machines × window hours when no state history exists.', ar: 'ساعات التشغيل هي ساعات حالة التشغيل الفعلية، ويُستعاض عنها بعدد الماكينات النشطة × ساعات الفترة عند غياب سجل الحالات.' },
+      },
+      {
+        name: { en: 'Completion rate', ar: 'معدل الإنجاز' },
+        formula: 'Completed WOs ÷ total WOs in window × 100',
+        desc: { en: 'Share of work orders raised in the period that were finished.', ar: 'نسبة أوامر العمل المفتوحة في الفترة التي أُنجزت.' },
+      },
+    ],
+    dataSources: [
+      { en: 'GET /reports/maintenance, backed by ReliabilityService — the single MTBF/MTTR engine shared with the Maintenance cockpit and the Downtime Command Center.', ar: 'GET /reports/maintenance، مدعوماً بـReliabilityService — محرك MTBF/MTTR الوحيد المشترك مع قمرة الصيانة ومركز التوقفات.' },
+    ],
+    notes: [
+      { en: 'Equipment MTTR measures production time lost; maintenance MTTR measures technician wrench time. A stop cleared by the operator never becomes a work order, and a work order can exist without a production stop — so the two lenses legitimately differ.', ar: 'MTTR للمعدّة يقيس زمن الإنتاج المفقود، وMTTR للصيانة يقيس زمن عمل الفني. التوقف الذي يعالجه المشغّل لا يصبح أمر عمل، وأمر العمل قد يوجد بلا توقف إنتاج — فالاختلاف بين العدستين مشروع.' },
+    ],
+  },
+
+  // ── Production report ────────────────────────────────────────
+  'production-report': {
+    title: { en: 'Production Report', ar: 'تقرير الإنتاج' },
+    summary: {
+      en: 'Output, OEE and downtime for the selected period, sourced from the canonical job-order analytics — the same engine behind the Performance & KPI pages — so output is normalised to the product base unit and OEE is time-weighted rather than averaged.',
+      ar: 'الإنتاج وOEE والتوقفات للفترة المختارة، مصدرها تحليلات أوامر التشغيل المعتمدة — نفس المحرك خلف صفحات الأداء والمؤشرات — فالإنتاج مُوحَّد على وحدة أساس المنتج وOEE مرجّح زمنياً لا متوسطاً.',
+    },
+    metrics: [
+      {
+        name: { en: 'Planned vs actual vs good', ar: 'المخطط مقابل الفعلي مقابل السليم' },
+        desc: { en: 'Planned is the ideal output achievable in the run time at the ideal rate, so efficiency equals OEE Performance — a real bounded percentage, not a placeholder that always reads 100%.', ar: 'المخطط هو الإنتاج المثالي الممكن في زمن التشغيل بالمعدل المثالي، فتصبح الكفاءة مساوية لأداء OEE — نسبة حقيقية محدودة لا قيمة صورية تقرأ 100% دائماً.' },
+      },
+      {
+        name: { en: 'Downtime minutes', ar: 'دقائق التوقف' },
+        desc: { en: 'Unplanned, OEE-affecting stop minutes in the window.', ar: 'دقائق التوقفات غير المخططة المؤثرة على OEE في الفترة.' },
+      },
+    ],
+    dataSources: [
+      { en: 'GET /reports/production — KpiService job-order analytics plus DowntimeEvent aggregation.', ar: 'GET /reports/production — تحليلات أوامر التشغيل من KpiService مع تجميع أحداث التوقف.' },
+    ],
+  },
+
+  // ── Command Center ───────────────────────────────────────────
+  'command-center': {
+    title: { en: 'Command Center', ar: 'مركز القيادة' },
+    summary: {
+      en: 'The single live operating picture: current OEE and its factors, output against plan, active alarms, machine states and the running work orders — all for the scope and period selected in the panel.',
+      ar: 'الصورة التشغيلية الحية الموحّدة: OEE الحالي وعوامله، والإنتاج مقابل الخطة، والإنذارات النشطة، وحالات الماكينات، وأوامر العمل الجارية — للنطاق والفترة المختارين من اللوحة.',
+    },
+    metrics: [...OEE_METRICS, LINE_OEE_BASIS],
+    dataSources: [
+      { en: 'GET /dashboard/kpis and the live KPI socket feed. OEE comes from the same engine as every other surface, so the headline number here must equal the one on Performance & KPIs for the same scope and window.', ar: 'GET /dashboard/kpis وتغذية المؤشرات الحية. OEE يأتي من المحرك ذاته الذي يغذّي كل الشاشات، فالرقم هنا يجب أن يساوي نظيره في صفحة الأداء والمؤشرات لنفس النطاق والفترة.' },
     ],
   },
 };

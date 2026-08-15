@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -62,5 +62,26 @@ export class SystemController {
   @ApiOperation({ summary: 'Pause/resume historian writes (owner only)' })
   setHistorianPaused(@Body() body: { paused?: boolean }) {
     return this.systemService.setHistorianPaused(!!body?.paused);
+  }
+  // ────────────────────────────────────────────────────────────
+  // DISPLAY UNIT — presentation only, never affects a calculation
+  // ────────────────────────────────────────────────────────────
+
+  @Get('display-unit')
+  @ApiOperation({
+    summary: 'The packaging unit quantities are presented in',
+    description:
+      'Quantities are STORED and calculated in PIECES — the only unit in which output from '
+      + 'different routing steps can be added. This setting decides which rung of the packaging '
+      + 'ladder the user reads totals on, and cannot change any computed value.',
+  })
+  getDisplayUnit(@CurrentUser() user: RequestUser) {
+    return this.systemService.getDisplayUnit(user.factoryId ?? null);
+  }
+
+  @Patch('display-unit')
+  @ApiOperation({ summary: 'Set the factory display unit (PIECE | INNER | CARTON | PALLET)' })
+  setDisplayUnit(@CurrentUser() user: RequestUser, @Body() body: { displayUnit: string }) {
+    return this.systemService.setDisplayUnit(user.factoryId ?? null, body?.displayUnit);
   }
 }

@@ -9,7 +9,7 @@ export interface DashboardKPIs {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (Time Base-OEE) variant emitted by the backend alongside schedule-based OEE.
+  // Time-based (OEE-TB) variant emitted by the backend alongside schedule-based OEE.
   oeeTb: number;
   availabilityTb: number;
   totalOutput: number;
@@ -30,6 +30,12 @@ export interface Machine {
   code: string;
   state: 'RUNNING' | 'IDLE' | 'STOPPED' | 'FAULT' | 'MAINTENANCE' | 'OFFLINE';
   oee: number;
+  /**
+   * Time-based OEE. Null when the machine has no live job order — the stored
+   * snapshot carries only the schedule-based figure, so there is nothing honest to
+   * show on the time basis and the card falls back rather than inventing one.
+   */
+  oeeTb?: number | null;
   currentOrder?: string;
   throughput: number;
   runtime: number;

@@ -13,6 +13,7 @@ import { IngestService, type TagReadingRecord } from './ingest.service';
 import { CounterService, type CounterTag } from './counter.service';
 import { EnergyReadingService, type MeterContext } from './energy-reading.service';
 import { StatusService, type StatusTag } from './status.service';
+import { AlarmService } from './alarm.service';
 import { ModbusLogService } from './modbus-log.service';
 
 interface PolledTag {
@@ -71,6 +72,7 @@ export class ModbusPollerService implements OnModuleDestroy {
     private readonly counter: CounterService,
     private readonly energy: EnergyReadingService,
     private readonly statusSvc: StatusService,
+    private readonly alarms: AlarmService,
     private readonly ctx: GatewayContextService,
     private readonly config: ConfigService,
     private readonly mlog: ModbusLogService,
@@ -125,7 +127,7 @@ export class ModbusPollerService implements OnModuleDestroy {
       const signature = JSON.stringify({
         proto: dev.protocol, ip: dev.ipAddress, port: dev.port, unit: dev.unitId, poll: dev.pollIntervalMs,
         serial: [dev.serialPort, dev.baudRate, dev.parity, dev.dataBits, dev.stopBits], meter: dev.energyMeter?.id ?? null,
-        tags: dev.tagDefinitions.map((t) => [t.id, t.address, t.registerType, t.dataType, t.scaleFactor, t.offset, t.wordCount, t.wordOrder, t.counterRole, t.edgeType, t.machineId, t.energyRole, (t as any).historizationEnabled, (t as any).mqttPublishMode, (t as any).mqttPublishRateSec, (t as any).historizationMode, (t as any).historizationRateSec, (t as any).deadband, (t as any).isMachineStatus]),
+        tags: dev.tagDefinitions.map((t) => [t.id, t.address, t.registerType, t.dataType, t.scaleFactor, t.offset, t.wordCount, t.wordOrder, t.counterRole, t.edgeType, t.machineId, t.energyRole, (t as any).historizationEnabled, (t as any).mqttPublishMode, (t as any).mqttPublishRateSec, (t as any).historizationMode, (t as any).historizationRateSec, (t as any).deadband, (t as any).isMachineStatus, (t as any).signalRole, (t as any).pulseWindowMs, (t as any).pulseMinEdges, (t as any).idleThresholdMs]),
       });
       const existing = this.devices.get(dev.id);
       if (existing && existing.signature === signature) continue; // unchanged
@@ -192,6 +194,11 @@ export class ModbusPollerService implements OnModuleDestroy {
             machineId: t.machineId ?? dev.machineId ?? null,
             dataType: t.dataType as string,
             statusMap: ((t as any).statusMap as Record<string, string> | null) ?? null,
+            // How this bit is to be READ. On an eight-input module a bit's meaning
+            // cannot be inferred from its value; it has to be declared.
+            signalRole: ((t as any).signalRole as string | null) ?? null,
+            pulseWindowMs: ((t as any).pulseWindowMs as number | null) ?? null,
+            pulseMinEdges: ((t as any).pulseMinEdges as number | null) ?? null,
           },
         };
       });
@@ -289,11 +296,17 @@ export class ModbusPollerService implements OnModuleDestroy {
         };
         await this.ingest.ingest(record);
 
-        // Machine-status driver tag → derive + apply live machine state (drives downtime
-        // + gates counters). Process BEFORE counters so the RUNNING gate is up to date.
+        // Machine-status driver tag → derive and apply the live machine state,
+        // which is what opens and closes downtime events. Counting is NOT gated
+        // on it: a pulse that arrives is a unit that was made, and discarding it
+        // because the state signal disagreed would lose real production.
         if (tag.isMachineStatus) {
           await this.statusSvc.process(tag.statusTag, numeric, ts);
         }
+
+        // Configured alarms on this tag. Runs on every GOOD reading, not only on
+        // status tags — a threshold on a temperature or a meter is the ordinary case.
+        await this.alarms.evaluate(tag.tagId, tag.machineId, numeric, ts);
 
         if (tag.isCounter) {
           const event = await this.counter.process(tag.counterTag, res.raw, ts);

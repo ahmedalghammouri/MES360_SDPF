@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Industrial Automation System Architecture</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #14201f; --muted: #5d6f6d; --line: #d7e0de;
+    --accent: #0f766e; --accent-soft: #ecf7f5; --warn: #b45309; --warn-soft: #fef6e7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 14px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  .sheet { max-width: 1040px; margin: 0 auto; padding: 32px 36px 64px; }
+  header.doc { border-bottom: 3px solid var(--accent); padding-bottom: 14px; margin-bottom: 24px; }
+  header.doc h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -0.01em; }
+  header.doc .sub { color: var(--muted); font-size: 13px; }
+  header.doc .meta { margin-top: 10px; font-size: 12px; color: var(--muted); }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em;
+       color: var(--accent); margin: 32px 0 12px; }
+  h3 { font-size: 14px; margin: 22px 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 10px 0 18px; }
+  th, td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; }
+  code, .mono { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+  .note { border-left: 3px solid var(--accent); background: var(--accent-soft);
+          padding: 10px 14px; margin: 14px 0; font-size: 13px; }
+  .warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px;
+         background: var(--accent-soft); border: 1px solid var(--line); }
+  svg { max-width: 100%; height: auto; }
+  .scroll { overflow-x: auto; }
+  footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--line);
+           font-size: 11.5px; color: var(--muted); }
+  @media print {
+    .sheet { max-width: none; padding: 0; }
+    h2 { break-after: avoid; } table { break-inside: auto; } tr { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+<header class="doc">
+  <h1>Industrial Automation System Architecture</h1>
+  <div class="sub">Tracker ID 26 · L0 → L4, and how a contact becomes a KPI</div>
+  <div class="meta">NCC · SDPF · generated from the live configuration on
+    2026-08-14 14:08 UTC</div>
+</header>
+
+<h2>1 · Layers</h2>
+<div class="scroll">
+<svg viewBox="0 0 940 372" width="940" role="img"
+     aria-label="Automation layers L0 to L4">
+      <g>
+        <rect x="10" y="12" width="920" height="62" rx="8"
+              fill="#ecf7f5" stroke="#0f766e" stroke-width="1.5"/>
+        <text x="30" y="38" font-size="13" font-weight="700"
+              fill="#14201f">L0 · Field</text>
+        <text x="30" y="58" font-size="11.5"
+              fill="#5d6f6d">5 machines · sensors and contacts · 7 power meter(s)</text>
+      </g>
+      <g>
+        <rect x="10" y="84" width="920" height="62" rx="8"
+              fill="#ecf7f5" stroke="#0f766e" stroke-width="1.5"/>
+        <text x="30" y="110" font-size="13" font-weight="700"
+              fill="#14201f">L1 · Control &amp; I/O</text>
+        <text x="30" y="130" font-size="11.5"
+              fill="#5d6f6d">2 Modbus device(s) — remote I/O modules (8 DI each) and meters over TCP and RTU</text>
+      </g>
+      <g>
+        <rect x="10" y="156" width="920" height="62" rx="8"
+              fill="#0f766e" stroke="#0f766e" stroke-width="1.5"/>
+        <text x="30" y="182" font-size="13" font-weight="700"
+              fill="#ffffff">L2 · Edge Gateway</text>
+        <text x="30" y="202" font-size="11.5"
+              fill="#d7f0ec">Polls at 100 ms · counts locally · derives machine state · evaluates alarms · buffers through an outage</text>
+      </g>
+      <g>
+        <rect x="10" y="228" width="920" height="62" rx="8"
+              fill="#ecf7f5" stroke="#0f766e" stroke-width="1.5"/>
+        <text x="30" y="254" font-size="13" font-weight="700"
+              fill="#14201f">L3 · MES services</text>
+        <text x="30" y="274" font-size="11.5"
+              fill="#5d6f6d">Production, OEE, downtime, quality, energy · fact store of per-minute snapshots</text>
+      </g>
+      <g>
+        <rect x="10" y="300" width="920" height="62" rx="8"
+              fill="#ecf7f5" stroke="#0f766e" stroke-width="1.5"/>
+        <text x="30" y="326" font-size="13" font-weight="700"
+              fill="#14201f">L4 · Business</text>
+        <text x="30" y="346" font-size="11.5"
+              fill="#5d6f6d">Dashboards, reports, ERP / SAP integration</text>
+      </g></svg>
+</div>
+
+<h2>2 · What is bound today</h2>
+<table>
+  <thead><tr><th>Layer</th><th>Component</th><th>Count</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>L0</td><td>Machines</td><td>5</td><td>M1, M2, M3, M4, M5</td></tr>
+    <tr><td>L1</td><td>Modbus devices</td><td>3</td><td>TCP and RTU</td></tr>
+    <tr><td>L1</td><td>Counting inputs</td><td>10</td><td>Discrete, edge-counted at the gateway</td></tr>
+    <tr><td>L1</td><td>Status inputs</td><td>5</td><td>Discrete boolean, interpreted by signal role</td></tr>
+    <tr><td>L1</td><td>Energy registers</td><td>16</td><td>Float32 holding registers</td></tr>
+  </tbody>
+</table>
+
+<h2>3 · Why counting happens at the edge</h2>
+<p>The gateway polls at 100 ms and counts edges locally. A pulse that exists only between two server
+polls is a pulse that would otherwise never be counted, and production figures that drop units during a
+network blip are not figures anybody can act on. The gateway also buffers to disk, so a break in the
+link to the platform delays the data without losing it.</p>
+
+<h2>4 · How a state becomes a number</h2>
+<table>
+  <thead><tr><th>Step</th><th>Where</th><th>What happens</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>L1 → L2</td><td>A discrete input is read and interpreted through its
+      <b>signal role</b> — level, or rhythm for a pulsing signal.</td></tr>
+    <tr><td>2</td><td>L2</td><td>Run Mode says the machine is <i>able</i> to work. A
+      <b>Processing</b> signal says whether it <i>is</i>. Ready-but-idle is classified against the
+      line as STARVED or BLOCKED, never guessed when there is no signal to support it.</td></tr>
+    <tr><td>3</td><td>L2</td><td>A <b>state rule</b> decides what that state costs: whether it opens a
+      downtime event, whether it is planned, which reason code it carries, and whether it is charged
+      against OEE. Editable per factory and per machine.</td></tr>
+    <tr><td>4</td><td>L2 → L3</td><td>The event and the counts are written to the platform;
+      per-minute snapshots become the fact store the KPIs read.</td></tr>
+    <tr><td>5</td><td>L3</td><td>External losses (STARVED / BLOCKED) are removed from planned production
+      time <b>before</b> Availability and Performance are derived, so a machine is not punished for
+      waiting on the line.</td></tr>
+  </tbody>
+</table>
+
+<div class="note"><b>Nothing in steps 1–3 is compiled in.</b> Signal roles, pulse and idle thresholds,
+state rules and alarm limits are all rows in the database, edited from the application or from the edge
+gateway's own dashboard. That is deliberate: which contact means what, and what a stop costs, are plant
+decisions — a customer should not need a redeploy to change one.</div>
+
+<h2>5 · Resilience</h2>
+<table>
+  <thead><tr><th>Failure</th><th>Behaviour</th></tr></thead>
+  <tbody>
+    <tr><td>Platform unreachable</td><td>The gateway keeps polling, counting and evaluating alarms;
+      readings buffer to disk and flush when the link returns.</td></tr>
+    <tr><td>Gateway restarted mid-stop</td><td>Counter state is restored from disk; an open downtime or
+      alarm event is adopted rather than duplicated.</td></tr>
+    <tr><td>A sensor reads BAD quality</td><td>It is ignored for classification. Acting on a reading the
+      gateway itself distrusts would put a wrong reason into the downtime log.</td></tr>
+    <tr><td>A contact chatters</td><td>A configurable settling time per state prevents an event per poll.</td></tr>
+  </tbody>
+</table>
+<footer>
+  Generated by <code>prisma/generate-engineering-drawings.ts</code> directly from
+  <code>machines</code>, <code>devices</code> and <code>tag_definitions</code>. It describes what the
+  system is actually bound to, not what was intended. Re-run it after any I/O change.
+</footer>
+</div>
+</body>
+</html>

@@ -71,6 +71,38 @@ function runSeed(file) {
     console.error('⚠ RBAC seed skipped (non-fatal):', e?.message ?? e);
   }
 
+  // Quantity units — repairs quantities stored before units were recorded, and
+  // recomputes work-order totals from their job orders in PIECES. Convergent: every
+  // value is re-derived from source, so running it on every boot is safe and it
+  // self-heals if a bad write ever slips through.
+  try {
+    runSeed('backfill-quantity-units.ts');
+  } catch (e) {
+    console.error('⚠ Quantity-unit backfill skipped (non-fatal):', e?.message ?? e);
+  }
+
+  // Scope 2 grid emission factor — CONFIG, so it runs on every boot like the two
+  // seeds above. It only fills a gap: a factory that already has a factor keeps it,
+  // because the value is editable in the app and overwriting it would silently
+  // revert the customer's own figure and change past carbon reports.
+  try {
+    runSeed('seed-emission-factors.ts');
+  } catch (e) {
+    console.error('⚠ Emission-factor seed skipped (non-fatal):', e?.message ?? e);
+  }
+
+  // Machine STATUS tags — CONFIG, same contract as the seed above: it only fills
+  // a gap and never touches a machine that already has a status tag bound, so an
+  // address or value map an engineer corrected on site survives every restart.
+  //
+  // Without these, a machine that stops produces no downtime event at all: the
+  // counters go quiet and nothing records why.
+  try {
+    runSeed('seed-machine-status-tags.ts');
+  } catch (e) {
+    console.error('⚠ Machine status-tag seed skipped (non-fatal):', e?.message ?? e);
+  }
+
   // Backfill the ProductionSnapshot fact store from existing job-order history so
   // dashboards have real per-shift/WO/PO/product history immediately. Idempotent
   // (unique-key upserts). Uses the compiled service; non-fatal if dist isn't present.

@@ -1,5 +1,6 @@
 'use client';
 import { DashboardInfo } from '@/components/ui/dashboard-info';
+import { AdvancedKpiCards } from './advanced-kpi-cards';
 import { toFactoryDayKey } from '@/lib/datetime';
 import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +23,7 @@ import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { useOrderFilterStore } from '@/store/order-filter-store';
 import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
+import { useDisplayUnit } from '@/hooks/use-display-unit';
 import { motion } from 'framer-motion';
 import {
   BarChart,
@@ -55,7 +57,7 @@ interface DashboardKpis {
   availability: number;
   performance: number;
   quality: number;
-  // Time-based (Time Base-OEE) variant emitted by the backend alongside schedule-based OEE.
+  // Time-based (OEE-TB) variant emitted by the backend alongside schedule-based OEE.
   oeeTb?: number;
   availabilityTb?: number;
   totalOutput: number;
@@ -240,6 +242,7 @@ export default function ProductionKpiView() {
   // Work-order metric filters now live in the global ScopePanel (Orders section).
   const { poNumber: poFilter, woId: woFilter } = useOrderFilterStore();
   const { atOee } = useDashboardPrefsStore();
+  const { unitLabel } = useDisplayUnit();
 
   // --- Queries ---
   const { data: poResp } = useQuery({
@@ -252,6 +255,18 @@ export default function ProductionKpiView() {
   const { data: kpis, isLoading: kpisLoading } = useQuery({
     queryKey: ['dashboard', 'kpis', key],
     queryFn: () => api.get<DashboardKpis>('/dashboard/kpis', { params: filter }),
+    refetchInterval: 60_000,
+  });
+
+  // First Pass Yield comes from INSPECTIONS, not from production counts. Deriving it
+  // from good/total output computes the OEE Quality factor instead — a different
+  // metric that answers a different question, which is why this card used to show a
+  // number identical to OEE Q. Same window as every other figure on the page.
+  const { data: qualityReport } = useQuery({
+    queryKey: ['reports', 'quality', 'fpy', timeKey, key],
+    queryFn: () => api.get<{ fpy: number; defectRate: number; inspectionCount: number }>(
+      '/reports/quality', { params: { from: dateFrom, to: dateTo } },
+    ),
     refetchInterval: 60_000,
   });
 
@@ -339,7 +354,13 @@ export default function ProductionKpiView() {
 
   // First-Pass Yield = good ÷ total produced, from the windowed engine (consistent
   // with Output/Scrap). 0 when nothing was produced in the selected period.
-  const firstPassYield = summary.totalOutput > 0 ? (summary.goodOutput / summary.totalOutput) * 100 : 0;
+  // The OEE Quality factor — good units ÷ total produced. NOT first-pass yield.
+  const qualityFactor = summary.totalOutput > 0 ? (summary.goodOutput / summary.totalOutput) * 100 : 0;
+  // Real FPY from inspection records. Falls back to 0 (not to the quality factor)
+  // when no inspections exist in the window, so an absent measurement reads as
+  // absent instead of borrowing an unrelated number.
+  const firstPassYield = qualityReport?.fpy ?? 0;
+  const hasInspections = (qualityReport?.inspectionCount ?? 0) > 0;
   const totalScrap = Math.max(0, summary.totalOutput - summary.goodOutput);
 
   // --- Radar data ---
@@ -503,7 +524,7 @@ export default function ProductionKpiView() {
         {/* 1. Primary KPI row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <PrimaryKpiCard
-            title={atOee ? `${t('cards.oee')} (AT)` : t('cards.oee')}
+            title={atOee ? `${t('cards.oee')} (OEE-TB)` : t('cards.oee')}
             value={atOee ? summary.oeeTb : summary.oee}
             unit="%"
             trend={kpis?.oeeTrend ?? 0}
@@ -518,12 +539,19 @@ export default function ProductionKpiView() {
             trend={kpis?.qualityTrend ?? 0}
             target={99}
             icon={<Award size={16} />}
-            benchmarkNote={t('kpiv.benchSixSigma')}
+            // With no inspections in the window there is nothing to measure — say so
+            // rather than letting a 0% read as a catastrophic yield.
+            benchmarkNote={hasInspections
+              ? t('kpiv.benchSixSigma')
+              : t('kpiv.noInspections', 'No inspections recorded in this period')}
           />
           <PrimaryKpiCard
             title={t('cards.totalOutput')}
             value={summary.totalOutput}
-            unit=" units"
+            // Output spans every SKU in scope, so it stays in PIECES — there is no
+            // single conversion factor for a multi-product total. The unit is named
+            // rather than left as a generic "units", which told the user nothing.
+            unit={` ${unitLabel('PIECE')}`}
             trend={kpis?.outputTrend ?? 0}
             target={plannedOutput}
             icon={<Factory size={16} />}
@@ -540,12 +568,16 @@ export default function ProductionKpiView() {
           />
         </div>
 
-        {/* Time-Based (Time Base-OEE) — standardized backend metric, beside the schedule-based KPIs above */}
+        {/* Time-Based (OEE-TB) — standardized backend metric, beside the schedule-based KPIs above */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground -mt-3 px-1">
           <span>{t('atOee')}: <b className="text-foreground">{(kpis?.oeeTb ?? 0).toFixed(1)}%</b></span>
           <span>{t('availabilityTb')}: <b className="text-foreground">{(kpis?.availabilityTb ?? 0).toFixed(1)}%</b></span>
           <span className="opacity-70">{t('kpiv.atOeeHint')}</span>
         </div>
+
+        {/* 1b. Bottleneck Line OEE, Master Schedule Attainment, Capacity Utilization.
+               Each carries its formula and resolved basis next to the number. */}
+        <AdvancedKpiCards />
 
         {/* 2. OEE Components — Radar + Target table */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

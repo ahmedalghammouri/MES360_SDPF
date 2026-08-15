@@ -1,4 +1,5 @@
 'use client';
+import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { useTranslation } from 'react-i18next';
 
 import { useEffect, useState } from 'react';
@@ -49,7 +50,9 @@ export function EnergyLiveView() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
         <div>
-          <h1 className="text-lg font-bold flex items-center gap-2"><Activity size={18} className="text-primary" /> {t('energy.live.title')}</h1>
+          <h1 className="text-lg font-bold flex items-center gap-2"><Activity size={18} className="text-primary" /> {t('energy.live.title')}
+            <DataModeBadge mode="live" />
+          </h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('energy.live.subtitle')}</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5 h-8 text-xs">
