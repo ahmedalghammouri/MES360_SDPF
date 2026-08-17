@@ -1398,6 +1398,10 @@ model ProductionSnapshot {
   runMin         Float  @default(0)
   downMin        Float  @default(0)
   plannedDownMin Float  @default(0)
+  /// Stopped minutes that a MachineStateRule marks as NOT affecting OEE (starved,
+  /// blocked, or anything else the plant configures that way). Carved out of BOTH
+  /// runMin and plannedMin so the wait is neither charged nor credited.
+  externalMin    Float  @default(0)
   microStopMin   Float  @default(0)
   idealCycleSec  Float?
   idealRunMin    Float  @default(0) // earned minutes = idealCycleSec/60 × totalBase

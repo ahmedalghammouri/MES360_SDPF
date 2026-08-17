@@ -6,10 +6,14 @@ import { HistorianScheduler } from './historian.scheduler';
 import { HistorianController } from './historian.controller';
 import { ProductionSnapshotService } from './production-snapshot.service';
 import { ProductionSnapshotBackfill } from './production-snapshot.backfill';
+import { SystemOwnerGuard } from '../../common/guards/system-owner.guard';
 
 @Module({
   controllers: [HistorianController],
-  providers: [InfluxService, HistorianService, HistorianScheduler, ProductionSnapshotService, ProductionSnapshotBackfill],
+  // SystemOwnerGuard is provided here too (not only in SystemModule) because the
+  // snapshot rebuild endpoint rewrites the fact store and must be gated the same way
+  // as the Danger Zone it belongs to.
+  providers: [InfluxService, HistorianService, HistorianScheduler, ProductionSnapshotService, ProductionSnapshotBackfill, SystemOwnerGuard],
   exports: [HistorianService, InfluxService, ProductionSnapshotService, ProductionSnapshotBackfill],
 })
 export class HistorianModule {}

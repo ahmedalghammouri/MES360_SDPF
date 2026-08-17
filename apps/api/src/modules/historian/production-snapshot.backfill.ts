@@ -113,24 +113,31 @@ export class ProductionSnapshotBackfill {
       const scrapRaw = i === n - 1 ? Math.max(0, finalScrap - scrapPer * (n - 1)) : scrapPer;
       const totalRaw = goodRaw + scrapRaw;
 
-      let downMin = 0, plannedDownMin = 0;
+      // Same three-way split as the live writer, driven by the flags the machine's
+      // MachineStateRule stamped on the event (planned / affects OEE / neither).
+      let downMin = 0, plannedDownMin = 0, externalMin = 0;
       for (const ev of events) {
         const f = Math.max(ev.startTime.getTime(), winFrom);
         const t = Math.min((ev.endTime ?? new Date(winTo)).getTime(), winTo);
         const m = Math.max(0, (t - f) / MIN);
         if (m <= 0) continue;
-        if (ev.isPlanned) plannedDownMin += m; else if (ev.affectsOEE) downMin += m;
+        if (ev.isPlanned) plannedDownMin += m;
+        else if (ev.affectsOEE) downMin += m;
+        else externalMin += m;
       }
-      // Mirror kpi.joRollupChild for OEE parity: runMin = actual span in bucket (downtime
-      // NOT subtracted); plannedMin = planned-window overlap (fallback runMin → A=100).
+      // Run time is OPERATING time — see production-snapshot.service for the full
+      // reasoning. Unplanned stops leave run but stay in PPT (so they are charged to
+      // Availability); planned and rule-excluded stops leave both.
       const psn = jo.plannedStart ? jo.plannedStart.getTime() : null;
       const pen = jo.plannedEnd ? jo.plannedEnd.getTime() : null;
-      const runMin = elapsedMin;
+      const excluded = plannedDownMin + externalMin;
+      const runMin = Math.max(0, elapsedMin - downMin - excluded);
       const plannedOverlap = (psn != null && pen != null)
         ? Math.max(0, (Math.min(pen, bEnd) - Math.max(psn, bStart)) / MIN)
         : 0;
-      // PPT floored at runMin (joRollupChild) → availability ≤ 100, Performance = earned/run.
-      const plannedMin = Math.max(runMin, plannedOverlap);
+      // PPT floored at the ELAPSED span, not at runMin — flooring at run would pull the
+      // downtime out of the denominator too and pin availability back at 100%.
+      const plannedMin = Math.max(0, Math.max(elapsedMin, plannedOverlap) - excluded);
 
       const goodBase = toBase(goodRaw);
       const scrapBase = toBase(scrapRaw);
@@ -159,7 +166,7 @@ export class ProductionSnapshotBackfill {
         outputUnit: unit ?? null, baseUnit: sku?.baseUnit ?? null,
         goodRaw, scrapRaw, reworkRaw: 0, totalRaw, plannedQtyOutRaw: jo.plannedQtyOut ?? null,
         goodBase, scrapBase, reworkBase: 0, totalBase, plannedQtyOutBase: jo.plannedQtyOut != null ? toBase(jo.plannedQtyOut) : null,
-        plannedMin, runMin, downMin, plannedDownMin, microStopMin: 0, idealCycleSec: ict, idealRunMin,
+        plannedMin, runMin, downMin, plannedDownMin, externalMin, microStopMin: 0, idealCycleSec: ict, idealRunMin,
         availability, performance, quality, oee, availabilityTb, oeeTb,
       };
       await prisma.productionSnapshot.upsert({

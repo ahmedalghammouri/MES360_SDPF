@@ -167,7 +167,12 @@ export class ProductionSnapshotService {
     const winTo = Math.min(at.getTime(), bucketEnd.getTime());
     const elapsedMin = Math.max(0, (winTo - winFrom) / MIN);
 
-    let downMin = 0, plannedDownMin = 0;
+    // Three kinds of stopped time, and the DowntimeEvent itself says which is which:
+    // `isPlanned` and `affectsOEE` are stamped onto the event from the machine's
+    // MachineStateRule when the state opens it. So the classification below is the
+    // plant's configuration, not a list of state names compiled into the code — mark
+    // a state as planned, or as not affecting OEE, and this follows without a deploy.
+    let downMin = 0, plannedDownMin = 0, externalMin = 0;
     for (const ev of events) {
       if (ev.machineId !== jo.machineId) continue;
       const from = Math.max(ev.startTime.getTime(), winFrom);
@@ -176,20 +181,31 @@ export class ProductionSnapshotService {
       if (m <= 0) continue;
       if (ev.isPlanned) plannedDownMin += m;
       else if (ev.affectsOEE) downMin += m;
+      else externalMin += m;              // starved / blocked / rule-excluded
     }
-    // Mirror kpi.joRollupChild EXACTLY for OEE parity: runMin = actual operating span
-    // in the bucket (downtime is NOT subtracted — it only feeds the time-based variant);
-    // plannedMin = planned-window overlap with the bucket (falls back to runMin when the
-    // JO has no planned span, so availability = 100 like joRollupChild's actualSpan floor).
+    // Run time is OPERATING time: the span the job order occupied, minus every minute
+    // the machine was stopped in it. Until this change runMin was the raw elapsed span,
+    // so a machine that broke down mid-bucket still reported a full minute of run and
+    // availability could not fall below 100% — the stop was only visible in the
+    // time-based variant. Both bases now agree on what "running" means.
+    //
+    // Each kind of stop leaves the equation differently:
+    //   • unplanned (downMin)      → out of run, STAYS in PPT  → charged to Availability
+    //   • planned   (plannedDownMin) → out of both              → excluded by definition
+    //   • external  (externalMin)  → out of both                → the line's constraint,
+    //                                                             not this machine's fault
+    // which makes PPT − run = downMin exactly, the identity every read surface assumes.
     const psn = jo.plannedStart ? new Date(jo.plannedStart).getTime() : null;
     const pen = jo.plannedEnd ? new Date(jo.plannedEnd).getTime() : null;
-    const runMin = elapsedMin;
+    const excluded = plannedDownMin + externalMin;
+    const runMin = Math.max(0, elapsedMin - downMin - excluded);
     const plannedOverlap = (psn != null && pen != null)
       ? Math.max(0, (Math.min(pen, bucketEnd.getTime()) - Math.max(psn, bucketStart.getTime())) / MIN)
       : 0;
-    // PPT is floored at runMin (joRollupChild: "if actualSpan > ppt, ppt = actualSpan"),
-    // so availability ≤ 100 and Performance = earned/run (not earned/ppt).
-    const plannedMin = Math.max(runMin, plannedOverlap);
+    // PPT is floored at the elapsed span (joRollupChild: "if actualSpan > ppt, ppt =
+    // actualSpan") — NOT at runMin, or subtracting downtime from run would subtract it
+    // from the denominator too and availability would stay pinned at 100%.
+    const plannedMin = Math.max(0, Math.max(elapsedMin, plannedOverlap) - excluded);
 
     const goodBase = toBase(goodRaw);
     const scrapBase = toBase(scrapRaw);
@@ -236,7 +252,7 @@ export class ProductionSnapshotService {
       plannedQtyOutRaw: jo.plannedQtyOut ?? null,
       goodBase, scrapBase, reworkBase: 0, totalBase,
       plannedQtyOutBase: jo.plannedQtyOut != null ? toBase(jo.plannedQtyOut) : null,
-      plannedMin, runMin, downMin, plannedDownMin, microStopMin: 0,
+      plannedMin, runMin, downMin, plannedDownMin, externalMin, microStopMin: 0,
       idealCycleSec: ict, idealRunMin,
       availability, performance, quality, oee, availabilityTb, oeeTb,
     };

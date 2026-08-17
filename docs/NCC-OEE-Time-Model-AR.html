@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>نموذج الزمن في حساب OEE</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#14181d; --muted:#5b6672; --line:#dfe4ea; --soft:#f6f8fa;
+    --ok:#0f7b3e; --okbg:#e8f6ee; --warn:#8a5a00; --warnbg:#fdf3e0;
+    --stop:#a51c1c; --stopbg:#fdecec; --accent:#0b5fa5; --accentbg:#e9f2fb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12161a; --fg:#e7ecf1; --muted:#9aa7b4; --line:#2a323b; --soft:#181e24;
+      --ok:#5ad48c; --okbg:#12301f; --warn:#e3b256; --warnbg:#2e2413;
+      --stop:#f08a8a; --stopbg:#331717; --accent:#68b0ee; --accentbg:#122636;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12161a; --fg:#e7ecf1; --muted:#9aa7b4; --line:#2a323b; --soft:#181e24;
+    --ok:#5ad48c; --okbg:#12301f; --warn:#e3b256; --warnbg:#2e2413;
+    --stop:#f08a8a; --stopbg:#331717; --accent:#68b0ee; --accentbg:#122636;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);margin:0;
+       font:16px/1.9 "Segoe UI","Tahoma",system-ui,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:27px;margin:0 0 6px}
+  h2{font-size:20px;margin:42px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  h3{font-size:17px;margin:26px 0 10px}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .note{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:18px 0}
+  .note.warn{background:var(--warnbg);border-color:transparent}
+  .note.stop{background:var(--stopbg);border-color:transparent}
+  .note.acc{background:var(--accentbg);border-color:transparent}
+  .note.ok{background:var(--okbg);border-color:transparent}
+  .note b{display:block;margin-bottom:5px}
+  code,pre{font-family:ui-monospace,Consolas,monospace;font-size:13.5px;direction:ltr;unicode-bidi:embed}
+  code{background:var(--soft);padding:1px 6px;border-radius:4px;border:1px solid var(--line)}
+  pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px 16px;
+      overflow-x:auto;text-align:left;direction:ltr}
+  pre code{background:none;border:0;padding:0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:start;vertical-align:top}
+  th{background:var(--soft);font-weight:600}
+  td.num{font-family:ui-monospace,Consolas,monospace;text-align:center}
+  ol,ul{padding-inline-start:24px} li{margin:6px 0}
+  .scroll{overflow-x:auto}
+  svg{max-width:100%;height:auto}
+  .bad{color:var(--stop);font-weight:600}
+  .good{color:var(--ok);font-weight:600}
+  .step{border:1px solid var(--line);border-radius:10px;margin:14px 0;overflow:hidden}
+  .step > header{background:var(--soft);padding:10px 16px;border-bottom:1px solid var(--line);font-weight:700}
+  .step .b{padding:14px 18px}
+  footer{margin-top:46px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+  @media print{ .wrap{max-width:none;padding:0} h2{break-after:avoid} tr{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>نموذج الزمن في حساب OEE</h1>
+<p class="sub">NCC · SDPF · كيف تُحسب <span dir="ltr">planned / run / down / operating time</span>، وأين الخلل، وكيف يُعالَج</p>
+
+<div class="note acc">
+  <b>الخلاصة قبل التفصيل</b>
+  الأزمنة الأربعة تُحسب <b>مرّة واحدة لكل دقيقة ولكل أمر تشغيل</b> وتُخزَّن في جدول الحقائق
+  <code>production_snapshots</code>. الشاشات لا تحسبها — تجمعها فقط، ولهذا تتّفق كل الصفحات.
+  <br><br>
+  <b>لكن في بياناتك الحالية <code dir="ltr">plannedMin = runMin</code> في كل دقيقة</b>، فالإتاحة المجدولة
+  تساوي ١٠٠٪ دائماً — حتى في دقيقة كانت الماكينة متعطّلة فيها بالكامل. التفصيل والدليل أدناه.
+</div>
+
+<h2>١ · أين تُحسب</h2>
+
+<div class="scroll">
+<svg viewBox="0 0 940 150" role="img" aria-label="مسار حساب الأزمنة">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+    <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+  <g font-size="12.5" fill="currentColor" font-family="Segoe UI, Tahoma, sans-serif">
+    <rect x="10"  y="45" width="200" height="60" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="110" y="70" text-anchor="middle" font-weight="700">أمر التشغيل + التوقّفات</text>
+    <text x="110" y="90" text-anchor="middle" font-size="11.5">الحالة، البداية، الأحداث</text>
+
+    <rect x="255" y="45" width="240" height="60" rx="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <text x="375" y="70" text-anchor="middle" font-weight="700">لقطة كل دقيقة</text>
+    <text x="375" y="90" text-anchor="middle" font-size="11.5">production-snapshot.service.ts</text>
+
+    <rect x="540" y="45" width="180" height="60" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="630" y="70" text-anchor="middle" font-weight="700">جدول الحقائق</text>
+    <text x="630" y="90" text-anchor="middle" font-size="11.5">production_snapshots</text>
+
+    <rect x="765" y="45" width="165" height="60" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <text x="847" y="70" text-anchor="middle" font-weight="700">الشاشات</text>
+    <text x="847" y="90" text-anchor="middle" font-size="11.5">تجمع فقط</text>
+
+    <line x1="210" y1="75" x2="249" y2="75" stroke="currentColor" stroke-width="1.5" marker-end="url(#a)"/>
+    <line x1="495" y1="75" x2="534" y2="75" stroke="currentColor" stroke-width="1.5" marker-end="url(#a)"/>
+    <line x1="720" y1="75" x2="759" y2="75" stroke="currentColor" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="375" y="130" text-anchor="middle" font-size="11.5" opacity=".75">هنا تُتَّخذ كل قرارات الزمن — ولا تُتَّخذ في أي مكان آخر</text>
+  </g>
+</svg>
+</div>
+
+<h2>٢ · التعريفات الأربعة، من الكود</h2>
+
+<div class="step">
+  <header><span dir="ltr">runMin</span> — زمن التشغيل</header>
+  <div class="b">
+<pre><code>winFrom = max(بداية الدقيقة, actualStart لأمر التشغيل)
+winTo   = min(الآن, نهاية الدقيقة)
+runMin  = winTo − winFrom</code></pre>
+    <p>الزمن المنقضي وأمر التشغيل في حالة <code>EXECUTING</code> داخل تلك الدقيقة.</p>
+    <div class="note warn" style="margin:10px 0 0">
+      <b>التوقّف لا يُطرح منه</b>
+      التعليق في الكود صريح: <i>«downtime is NOT subtracted — it only feeds the time-based
+      variant»</i>. فالماكينة المتعطّلة داخل الدقيقة تُسجَّل مع ذلك دقيقة تشغيل كاملة.
+    </div>
+  </div>
+</div>
+
+<div class="step">
+  <header><span dir="ltr">plannedMin</span> — زمن الإنتاج المخطّط (PPT)</header>
+  <div class="b">
+<pre><code>plannedOverlap = تقاطع [plannedStart, plannedEnd] مع الدقيقة
+plannedMin     = max(runMin, plannedOverlap)</code></pre>
+    <p>تقاطع النافذة المخطّطة لأمر التشغيل مع الدقيقة، <b>بأرضية عند <span dir="ltr">runMin</span></b>.</p>
+    <p>الأرضية موجودة لغرض سليم: تمنع الإتاحة من تجاوز ١٠٠٪ حين يعمل الأمر أطول من نافذته.</p>
+    <div class="note warn" style="margin:10px 0 0">
+      <b>لكنها تجعل الإتاحة ١٠٠٪ بنيوياً</b>
+      اللقطة تُكتب <b>فقط بينما أمر التشغيل في حالة EXECUTING</b>، فـ<code dir="ltr">runMin</code>
+      يساوي الدقيقة كاملة دائماً. وما دامت النافذة المخطّطة تغطّي تلك الدقيقة فإن
+      <code dir="ltr">plannedOverlap</code> يساوي الدقيقة كاملة أيضاً. فالطرفان متساويان حتماً.
+      <br><br>وإن كان الأمر يعمل <i>خارج</i> نافذته فإن الأرضية <code dir="ltr">max()</code>
+      تُعيدهما إلى التساوي. أي أن الإتاحة المجدولة <b>لا تستطيع أن تنزل تحت ١٠٠٪ بسبب توقّف</b>،
+      مهما طال التوقّف.
+    </div>
+  </div>
+</div>
+
+<div class="step">
+  <header><span dir="ltr">downMin</span> و<span dir="ltr">plannedDownMin</span> — التوقّف</header>
+  <div class="b">
+<pre><code>for (كل حدث توقّف يتقاطع مع الدقيقة على تلك الماكينة)
+  if (ev.isPlanned)        plannedDownMin += m
+  else if (ev.affectsOEE)  downMin += m</code></pre>
+    <p>ثلاث حالات، لا اثنتان:</p>
+    <ul>
+      <li><b>مخطّط</b> → <code dir="ltr">plannedDownMin</code></li>
+      <li><b>غير مخطّط ومحسوب على OEE</b> → <code dir="ltr">downMin</code></li>
+      <li><b>غير محسوب على OEE</b> (نقص المادة والانسداد) → <span class="bad">لا يدخل أياً منهما</span> —
+          وهذا مقصود: الماكينة لا تُعاقَب على انتظار الخط.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <header><span dir="ltr">idealRunMin</span> — الزمن المكتسَب (operating time المثالي)</header>
+  <div class="b">
+<pre><code>idealRunMin = (idealCycleTimeSec / 60) × عدد الوحدات المنتجة</code></pre>
+    <p>بالعدّ <b>الخام</b> بوحدة مخرج المرحلة، لا بالقطع — لأن زمن الدورة معرَّف لتلك الوحدة تحديداً.
+    ضربه بالقطع كان سيجعل الأداء يختلف من مرحلة لأخرى بلا سبب فيزيائي.</p>
+  </div>
+</div>
+
+<h2>٣ · كيف تُشتقّ العوامل</h2>
+
+<pre><code>الإتاحة المجدولة  = runMin / plannedMin
+الإتاحة الزمنية   = runMin / (runMin + downMin)
+الأداء            = idealRunMin / runMin
+الجودة            = السليم / (السليم + الهالك)
+
+OEE      = الإتاحة المجدولة × الأداء × الجودة
+OEE-TB   = الإتاحة الزمنية  × الأداء × الجودة</code></pre>
+
+<div class="note acc">
+  <b>لماذا مقياسان للإتاحة؟</b>
+  المجدولة تسأل: «هل غطّى أمر التشغيل نافذته المخطّطة؟». والزمنية تسأل: «من الوقت الذي كانت
+  الماكينة فيه قيد الأمر، كم كانت تعمل فعلاً؟». وهما يجيبان عن سؤالين مختلفين — وفي بياناتك
+  الحالية يجيب أحدهما إجابة عديمة المعنى.
+</div>
+
+<h2>٤ · المشكلة الأولى — الإتاحة المجدولة ١٠٠٪ دائماً</h2>
+
+<h3>الدليل من قاعدة بياناتك</h3>
+
+<p>صفوف حقيقية، من دقائق كانت M1 فيها متعطّلة <b>الدقيقة كاملة</b>:</p>
+
+<table>
+  <thead><tr>
+    <th>الماكينة</th><th>الدقيقة</th>
+    <th><span dir="ltr">plannedMin</span></th><th><span dir="ltr">runMin</span></th><th><span dir="ltr">downMin</span></th>
+    <th>الإتاحة المجدولة</th><th>الإتاحة الزمنية</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>M1</td><td>08-11 13:47</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td><td class="num bad">100.0%</td><td class="num">50.0%</td></tr>
+    <tr><td>M1</td><td>08-11 13:50</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td><td class="num bad">100.0%</td><td class="num">50.0%</td></tr>
+    <tr><td>M1</td><td>08-11 13:58</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td><td class="num bad">100.0%</td><td class="num">50.0%</td></tr>
+    <tr><td>M1</td><td>08-11 14:09</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td><td class="num bad">100.0%</td><td class="num">50.0%</td></tr>
+  </tbody>
+</table>
+
+<div class="note stop">
+  <b>اقرأ الصفّ الأول مرّة أخرى</b>
+  دقيقة واحدة، توقّف مدّته <b>دقيقة كاملة</b> — والإتاحة المجدولة تقول <b>١٠٠٪</b>.
+  <br><br>
+  السبب بنيوي، لا خطأ في بيانات:
+  <br>١. اللقطة تُكتب فقط بينما الأمر <code>EXECUTING</code>، فـ<code dir="ltr">runMin</code>
+  هو الدقيقة كاملة — والتوقّف لا يُطرح منه.
+  <br>٢. النافذة المخطّطة لأوامرك تمتدّ <b>٣٨١ ساعة</b> (من ٨ إلى ٢٤ أغسطس)، فهي تغطّي كل دقيقة،
+  و<code dir="ltr">plannedOverlap</code> يساوي الدقيقة كاملة هو الآخر.
+  <br><br>النتيجة: <code dir="ltr">1 ÷ 1 = 100%</code> مهما حدث في تلك الدقيقة.
+  <br><br><b>وهذا ليس مسألة ملء بيانات ناقصة</b> — النوافذ موجودة. المشكلة أن مقام الإتاحة
+  مشتقّ من <b>مدى أمر التشغيل نفسه</b> لا من <b>خطة الشيفت</b>.
+</div>
+
+<p>ولهذا تقرأ كل شاشاتك <code dir="ltr">AVAILABILITY 100.0%</code> بينما
+<code dir="ltr">Availability (Time-Based)</code> تقرأ رقماً واقعياً أقلّ. المؤشّر المجدول
+<b>يقيس نفسه بنفسه</b> في وضعك الحالي، فلا يحمل معلومة.</p>
+
+<h3>أثره على OEE</h3>
+<p>بما أن الإتاحة ١٠٠٪ ثابتة، فـ <code dir="ltr">OEE = 1 × الأداء × الجودة</code> — أي أن
+مؤشّر OEE عندك <b>يقيس الأداء والجودة فقط</b>، ولا يرى فقد التوقّف إطلاقاً.</p>
+
+<h2>٥ · المشكلة الثانية — أعداد كسرية</h2>
+
+<p>عمود <code dir="ltr">totalRaw</code> يحمل قيماً مثل:</p>
+<pre><code>0.07882806746945092
+3.841705620288849e-09
+3.895006539522683e-11</code></pre>
+
+<p>عدد الوحدات المنتجة يجب أن يكون <b>صحيحاً</b>. هذه بقايا فاصلة عائمة من تحويل الوحدات
+(قسمة على سلّم التعبئة ثم ضرب). أثرها على الإجماليات ضئيل، لكنها تُفسد <b>الأداء على الدقائق
+الصغيرة</b>: قيمة <code dir="ltr">3.8e-09</code> تُنتج زمناً مكتسَباً صفراً وأداءً ٠٪ لدقيقة
+كانت الماكينة تعمل فيها فعلاً.</p>
+
+<h2>٦ · مثال محسوب بالكامل</h2>
+
+<p>شيفت ٨ ساعات على ماكينة واحدة. ٣٠ دقيقة عطل، وزمن الدورة المثالي ٢ ثانية للقطعة،
+والإنتاج ١٠٬٠٠٠ قطعة منها ١٠٠ هالك.</p>
+
+<h3>أ. السلوك الحالي (بلا نافذة مخطّطة)</h3>
+<table>
+  <thead><tr><th>الكمّية</th><th>القيمة</th><th>من أين</th></tr></thead>
+  <tbody>
+    <tr><td><span dir="ltr">runMin</span></td><td class="num">480</td><td>الزمن المنقضي كاملاً — العطل غير مطروح</td></tr>
+    <tr><td><span dir="ltr">plannedMin</span></td><td class="num">480</td><td><code dir="ltr">max(480, 0)</code> — لا نافذة مخطّطة</td></tr>
+    <tr><td><span dir="ltr">downMin</span></td><td class="num">30</td><td>من أحداث التوقّف</td></tr>
+    <tr><td><span dir="ltr">idealRunMin</span></td><td class="num">333.3</td><td><code dir="ltr">(2/60) × 10000</code></td></tr>
+    <tr><td>الإتاحة المجدولة</td><td class="num bad">100.0%</td><td><code dir="ltr">480 / 480</code></td></tr>
+    <tr><td>الإتاحة الزمنية</td><td class="num">94.1%</td><td><code dir="ltr">480 / (480 + 30)</code></td></tr>
+    <tr><td>الأداء</td><td class="num">69.4%</td><td><code dir="ltr">333.3 / 480</code></td></tr>
+    <tr><td>الجودة</td><td class="num">99.0%</td><td><code dir="ltr">9900 / 10000</code></td></tr>
+    <tr><td><b>OEE</b></td><td class="num"><b>68.7%</b></td><td><code dir="ltr">100% × 69.4% × 99%</code></td></tr>
+  </tbody>
+</table>
+<p><b>الملاحظة:</b> نصف ساعة عطل لم تُغيّر OEE بمقدار نقطة واحدة.</p>
+
+<h3>ب. بعد العلاج الأول — نافذة مخطّطة حقيقية</h3>
+<p>نفس الشيفت، لكن أمر التشغيل مخطّط له <code dir="ltr">plannedStart→plannedEnd</code> = ٨ ساعات،
+والماكينة توقّفت فعلياً ٣٠ دقيقة فلم تعمل إلا ٤٥٠ دقيقة.</p>
+<table>
+  <thead><tr><th>الكمّية</th><th>القيمة</th></tr></thead>
+  <tbody>
+    <tr><td><span dir="ltr">plannedMin</span></td><td class="num">480</td></tr>
+    <tr><td><span dir="ltr">runMin</span></td><td class="num">450</td></tr>
+    <tr><td>الإتاحة المجدولة</td><td class="num good">93.8%</td></tr>
+    <tr><td>الأداء</td><td class="num">74.1% <span style="opacity:.7">(333.3 / 450)</span></td></tr>
+    <tr><td>الجودة</td><td class="num">99.0%</td></tr>
+    <tr><td><b>OEE</b></td><td class="num"><b>68.8%</b></td></tr>
+  </tbody>
+</table>
+<div class="note ok">
+  <b>لاحظ ما تغيّر وما لم يتغيّر</b>
+  OEE بقي عند ~٦٩٪ تقريباً، لكن <b>توزيعه صار صحيحاً</b>: الفقد ظهر في الإتاحة (٩٣٫٨٪) بدل أن
+  يُحمَّل كله على الأداء. وهذا هو الفرق بين مؤشّر يخبرك <i>«أين المشكلة»</i> ومؤشّر يخبرك فقط
+  <i>«هناك مشكلة»</i>.
+</div>
+
+<h2>٧ · طرق العلاج</h2>
+
+<div class="step">
+  <header>العلاج ١ — اشتقّ زمن الإنتاج المخطّط من الشيفت لا من أمر التشغيل <span style="opacity:.7">(الأصحّ مبدئياً)</span></header>
+  <div class="b">
+    <p><b>الجذر:</b> المقام الحالي هو مدى أمر التشغيل، وأمر التشغيل موجود لأنه يعمل — فالمقام
+    والبسط يقيسان الشيء نفسه. التعريف القياسي لـ PPT هو <b>زمن الشيفت ناقص التوقّفات المخطّطة</b>،
+    وهو مستقلّ تماماً عمّا فعلته الماكينة.</p>
+    <p><b>ما يلزم:</b> النظام صار يملك هذا بالفعل — نماذج الشيفتات والتوقّفات المخطّطة
+    (<code>PlannedStopTemplate</code>) و<code dir="ltr">plannedProductionMinutes</code> المشتقّة منها.
+    الناقص هو ربط مقام الإتاحة بها بدل بمدى أمر التشغيل.</p>
+    <p><b>الأثر:</b> دقيقة توقّف فيها الإنتاج تبقى ضمن المقام ولا تدخل البسط، فتظهر فقداً حقيقياً
+    في الإتاحة — وهو ما يتوقّعه أي قارئ.</p>
+    <p><b>الكلفة:</b> تغيير في محرّك اللقطات، ويحتاج توليد نسخ الشيفتات أولاً. والأرقام الجديدة
+    لن تكون مقارِنة للقديمة.</p>
+  </div>
+</div>
+
+<div class="step">
+  <header>العلاج ٢ — اطرح التوقّف من زمن التشغيل</header>
+  <div class="b">
+<pre><code>runMin = elapsedMin − downMin</code></pre>
+    <p><b>الأثر:</b> الإتاحة المجدولة تتصرّف كما يتوقّع أي قارئ، والتوقّف يظهر فيها مباشرةً
+    بلا حاجة إلى نوافذ مخطّطة.</p>
+    <div class="note stop" style="margin:10px 0 0">
+      <b>لكنه يغيّر تعريف OEE في كل تاريخ النظام</b>
+      كل رقم OEE حُسب ورُفع في تقرير سابق محسوب على التعريف القديم. تطبيق هذا يجعل الأرقام
+      الجديدة غير قابلة للمقارنة بالقديمة، ويجعل النظام يختلف عن تصميمه الموثّق
+      (<code>docs/DESIGN-oee-kpi-engine.md</code>).
+      <br><br>ولن أطبّقه من تلقاء نفسي — إنه قرار عمل لا قرار برمجة.
+    </div>
+  </div>
+</div>
+
+<div class="step">
+  <header>العلاج ٣ — اعرض الإتاحة الزمنية بوصفها المؤشّر الأساسي</header>
+  <div class="b">
+    <p><b>ما يتغيّر:</b> لا شيء في الحساب. المفتاح موجود في النظام بالفعل
+    (<span dir="ltr">Schedule-based / Time-based</span>) وكلا الرقمين محسوب ومخزَّن.</p>
+    <p><b>الأثر:</b> يقرأ المستخدم فوراً رقماً يعكس التوقّف — ٩٤٫١٪ في المثال أعلاه بدل ١٠٠٪.</p>
+    <p><b>الحدّ:</b> الإتاحة الزمنية تتجاهل الوقت الذي لم يكن للماكينة فيه أمر تشغيل أصلاً،
+    فهي مؤشّر «كم عملت وهي مُكلَّفة» لا «كم من الخطة نُفِّذت».</p>
+    <p class="good">أرخص علاج وأسرعه، ولا يمسّ رقماً تاريخياً.</p>
+  </div>
+</div>
+
+<div class="step">
+  <header>العلاج ٤ — تصحيح الأعداد الكسرية</header>
+  <div class="b">
+    <p>تقريب <code dir="ltr">totalRaw</code> و<code dir="ltr">goodRaw</code> إلى عدد صحيح عند
+    الكتابة، أو تصفير أي قيمة أصغر من عتبة صغيرة. إصلاح موضعي بلا أثر على التعريفات.</p>
+  </div>
+</div>
+
+<h2>٨ · التوصية</h2>
+
+<div class="note acc">
+  <b>ابدأ بـ ٣ ثم ١</b>
+  <br>١. <b>حوّل العرض الافتراضي إلى الإتاحة الزمنية</b> — تكلفته صفر، ويُخرجك فوراً من
+  «١٠٠٪ دائماً» إلى رقم يتحرّك مع الواقع. افعلها اليوم.
+  <br>٢. <b>ثم اربط مقام الإتاحة بخطة الشيفت</b> (العلاج ١). هذا هو الإصلاح الجذري، وأساسه
+  جاهز في النظام الآن؛ ينقصه توليد نسخ الشيفتات وضبط أهداف التوقّفات المخطّطة.
+  <br><br>
+  والعلاج ٢ يبقى مطروحاً، لكنه قرار يُتَّخذ بوعي أنه يعيد تعريف مؤشّر رُفعت به تقارير سابقة.
+</div>
+
+<h2>٩ · كيف تتحقّق بنفسك</h2>
+
+<pre><code>-- الدقائق التي فيها توقّف: قارن المؤشّرين
+SELECT m.code, s."bucketStart",
+       s."plannedMin", s."runMin", s."downMin",
+       s.availability      AS avail_scheduled,
+       s."availabilityTb"  AS avail_time_based
+FROM production_snapshots s
+JOIN machines m ON m.id = s."machineId"
+WHERE s.granularity = 'MINUTE' AND s."downMin" &gt; 0
+ORDER BY s."downMin" DESC
+LIMIT 20;
+
+-- ما عرض النافذة المخطّطة لكل أمر تشغيل؟
+SELECT "operationName", status,
+       round(EXTRACT(EPOCH FROM ("plannedEnd" - "plannedStart")) / 3600) AS planned_hours
+FROM job_orders;</code></pre>
+
+<p>إن كانت <code dir="ltr">planned_hours</code> أكبر بكثير من مدّة شيفت — عندك <b>٣٨١ ساعة</b> —
+فالنافذة تغطّي كل دقيقة، والمقام يساوي البسط، والإتاحة المجدولة ١٠٠٪ بحكم البناء لا بحكم الأداء.</p>
+
+<footer>
+  MES360° · NCC SDPF · كل ما في هذه الوثيقة مقروء من الكود المنشور ومن صفوف حقيقية في قاعدة
+  <code>mes360</code> بتاريخ ١٨ أغسطس ٢٠٢٦. مصدر الحساب:
+  <code>apps/api/src/modules/historian/production-snapshot.service.ts</code>
+  والاشتقاق في <code>apps/api/src/modules/production/kpi.service.ts</code>.
+  <br>يُقرأ مع: <code>NCC-Planned-Stops-Guide-AR.html</code> و<code>NCC-Signal-Rules-Guide.html</code>.
+</footer>
+
+</div>
+</body>
+</html>

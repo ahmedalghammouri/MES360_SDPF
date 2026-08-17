@@ -77,7 +77,7 @@ export class OeeAnalyticsService {
     const rows = await this.prisma.$queryRaw<Array<{
       machineId: string;
       plannedMin: number; runMin: number; downMin: number; plannedDownMin: number;
-      microStopMin: number; idealRunMin: number;
+      externalMin: number; microStopMin: number; idealRunMin: number;
       totalBase: number; goodBase: number; scrapBase: number;
     }>>(Prisma.sql`
       WITH scoped AS (
@@ -94,6 +94,7 @@ export class OeeAnalyticsService {
                SUM("runMin")::float         AS "runMin",
                SUM("downMin")::float        AS "downMin",
                SUM("plannedDownMin")::float AS "plannedDownMin",
+               SUM("externalMin")::float    AS "externalMin",
                SUM("microStopMin")::float   AS "microStopMin",
                SUM("idealRunMin")::float    AS "idealRunMin"
         FROM scoped GROUP BY "machineId"
@@ -123,6 +124,7 @@ export class OeeAnalyticsService {
              COALESCE(t."runMin", 0)         AS "runMin",
              COALESCE(t."downMin", 0)        AS "downMin",
              COALESCE(t."plannedDownMin", 0) AS "plannedDownMin",
+             COALESCE(t."externalMin", 0)    AS "externalMin",
              COALESCE(t."microStopMin", 0)   AS "microStopMin",
              COALESCE(t."idealRunMin", 0)    AS "idealRunMin",
              COALESCE(q."totalBase", 0)      AS "totalBase",
@@ -132,9 +134,12 @@ export class OeeAnalyticsService {
     `);
     const byId = new Map(rows.map((r) => [r.machineId, r]));
 
-    // External loss lives in the state history, not in the snapshots: STARVED
-    // and BLOCKED are conditions of the line, not of a production bucket.
-    const external = await this.externalMinutes(machineIds, from, to);
+    // External loss now comes from the fact store like every other minute. It used to
+    // be re-derived here from machine_state_records filtered on a hardcoded
+    // ['STARVED','BLOCKED'] — two sources for one quantity, and blind to any state a
+    // plant configures as OEE-excluded in its MachineStateRules. The writer classifies
+    // each stopped minute from the rule that opened it, so this column already answers
+    // "which states does THIS plant exclude" without naming any of them.
 
     // Calendar time is per machine, so the window is multiplied by how many
     // machines are in scope. Using the bare window would make TEEP for a line
@@ -143,7 +148,7 @@ export class OeeAnalyticsService {
 
     const perMachine = machines.map((m) => {
       const r = byId.get(m.id);
-      const ext = external.get(m.id) ?? 0;
+      const ext = r?.externalMin ?? 0;
       return {
         machineId: m.id, code: m.code, name: m.name, line: m.line?.code ?? null,
         ...this.derive({
@@ -238,13 +243,17 @@ export class OeeAnalyticsService {
     const plannedProductionMin = this.r(x.plannedMin);
     const plannedStopMin = this.r(x.plannedDownMin);
 
-    // Loading time = what was scheduled: production plus its planned stops.
-    const loadingMin = this.r(plannedProductionMin + plannedStopMin);
+    const externalMin = this.r(x.externalMin);
+    // Loading time = what was scheduled. Planned Production Time is what is left of it
+    // after the two carve-outs that OEE does not judge: planned stops (never expected
+    // to produce) and external stops (the line could not feed or drain a healthy
+    // machine). Both are already out of plannedMin and runMin in the fact store, so
+    // loading has to add them back to stay the top of the same waterfall.
+    const loadingMin = this.r(plannedProductionMin + plannedStopMin + externalMin);
     const scheduleLossMin = Math.max(0, this.r(calendarMin - loadingMin));
 
     const runMin = this.r(x.runMin);
     const unplannedStopMin = Math.max(0, this.r(x.downMin));
-    const externalMin = this.r(x.externalMin);
 
     // Availability compares run time with the time it was supposed to run.
     const availability = this.pct(runMin, plannedProductionMin);
@@ -286,8 +295,12 @@ export class OeeAnalyticsService {
       { key: 'scheduleLoss', minutes: t.scheduleLossMin, kind: 'loss' as const },
       { key: 'loading', minutes: t.loadingMin, kind: 'base' as const },
       { key: 'plannedStops', minutes: t.plannedStopMin, kind: 'loss' as const },
+      // External sits ABOVE Planned Production Time, beside planned stops — it is
+      // carved out of OEE, not charged to Availability. Adding it to the availability
+      // loss (as this did) double-subtracted it and the bars stopped reconciling.
+      { key: 'external', minutes: t.externalMin, kind: 'loss' as const },
       { key: 'plannedProduction', minutes: t.plannedProductionMin, kind: 'base' as const },
-      { key: 'availabilityLoss', minutes: this.r(t.unplannedStopMin + t.externalMin), kind: 'loss' as const },
+      { key: 'availabilityLoss', minutes: t.unplannedStopMin, kind: 'loss' as const },
       { key: 'runTime', minutes: t.runMin, kind: 'base' as const },
       { key: 'performanceLoss', minutes: t.performanceLossMin, kind: 'loss' as const },
       { key: 'netOperating', minutes: t.netOperatingMin, kind: 'base' as const },
@@ -302,33 +315,10 @@ export class OeeAnalyticsService {
       { key: 'scheduleLoss', minutes: t.scheduleLossMin, factor: 'utilization' },
       { key: 'plannedStops', minutes: t.plannedStopMin, factor: 'utilization' },
       { key: 'breakdowns', minutes: t.unplannedStopMin, factor: 'availability' },
-      { key: 'external', minutes: t.externalMin, factor: 'availability' },
+      { key: 'external', minutes: t.externalMin, factor: 'utilization' },
       { key: 'speedLoss', minutes: t.performanceLossMin, factor: 'performance' },
       { key: 'qualityLoss', minutes: t.qualityLossMin, factor: 'quality' },
     ].filter((l) => l.minutes > 0).sort((a, b) => b.minutes - a.minutes);
-  }
-
-  /** STARVED and BLOCKED minutes per machine, clipped to the window. */
-  private async externalMinutes(machineIds: string[], from: Date, to: Date) {
-    const recs = await this.prisma.machineStateRecord.findMany({
-      where: {
-        machineId: { in: machineIds },
-        state: { in: ['STARVED', 'BLOCKED'] as never },
-        startTime: { lte: to },
-        OR: [{ endTime: null }, { endTime: { gte: from } }],
-      },
-      select: { machineId: true, startTime: true, endTime: true },
-      take: 20_000,
-    });
-
-    const out = new Map<string, number>();
-    for (const r of recs) {
-      const s = Math.max(from.getTime(), r.startTime.getTime());
-      const e = Math.min(to.getTime(), r.endTime ? r.endTime.getTime() : to.getTime());
-      if (e <= s) continue;
-      out.set(r.machineId, (out.get(r.machineId) ?? 0) + (e - s) / 60_000);
-    }
-    return out;
   }
 
   /** Daily factor trend, bucketed on the plant's calendar rather than UTC. */

@@ -2098,6 +2098,7 @@
       "scheduleLoss": "غير مجدول",
       "loading": "زمن التحميل",
       "plannedStops": "توقّفات مخطّطة",
+      "external": "توقّفات خارجية",
       "plannedProduction": "الإنتاج المخطّط",
       "availabilityLoss": "فقد الإتاحة",
       "runTime": "زمن التشغيل",
