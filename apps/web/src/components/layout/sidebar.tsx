@@ -127,6 +127,10 @@ const navItems: NavItem[] = [
       { label: 'OEE Analytics', href: '/production/oee',    icon: LineChart },
       { label: 'Machine OEE',   href: '/manufacturing/oee', icon: Activity  },
       { label: 'Machine Status',  href: '/manufacturing/machine-status', icon: Activity },
+      { label: 'Availability Analytics', href: '/production/availability-analytics', icon: Clock },
+      { label: 'Performance Analytics',  href: '/production/performance-analytics',  icon: Gauge },
+      { label: 'Quality Analytics',      href: '/production/quality-analytics',      icon: ShieldCheck },
+      { label: 'Loss Tree & TEEP',       href: '/production/loss-tree',              icon: Layers, badge: 'New', badgeVariant: 'default' },
     ],
   },
   {

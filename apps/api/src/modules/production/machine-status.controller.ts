@@ -2,6 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 
 import { MachineStatusService } from './machine-status.service';
+import { OeeAnalyticsService } from './oee-analytics.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
@@ -22,7 +23,10 @@ interface RequestUser {
 @ApiBearerAuth('JWT-auth')
 @Controller('machine-status')
 export class MachineStatusController {
-  constructor(private readonly service: MachineStatusService) {}
+  constructor(
+    private readonly service: MachineStatusService,
+    private readonly lossTree: OeeAnalyticsService,
+  ) {}
 
   @Get('availability')
   @RequirePermissions('production:read')
@@ -69,5 +73,27 @@ export class MachineStatusController {
     @Query('dateTo') dateTo?: string,
   ) {
     return this.service.quality(user.factoryId, { areaId, lineId, machineId }, dateFrom, dateTo);
+  }
+
+  /**
+   * The full OEE loss tree: waterfall, losses, TEEP and the factor detail.
+   *
+   * ONE endpoint feeds the Availability, Performance, Quality and combined
+   * analytics pages. They slice the same payload rather than each computing its
+   * own version of a shared quantity — which is exactly how the dashboards came
+   * to disagree with one another in the first place.
+   */
+  @Get('analytics')
+  @RequirePermissions('production:read')
+  @ApiOperation({ summary: 'OEE loss waterfall, TEEP and per-factor detail' })
+  async analytics(
+    @CurrentUser() user: RequestUser,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.lossTree.analytics(user.factoryId, { areaId, lineId, machineId }, dateFrom, dateTo);
   }
 }

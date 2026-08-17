@@ -47,12 +47,18 @@ const fmtDay = (d: string | Date) =>
   new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric' });
 
 const CHART_TOOLTIP = {
+  // contentStyle alone is not enough: Recharts paints the tooltip's LABEL and
+  // each ITEM with its own default dark colour, so on a dark card the text is
+  // near-invisible. All three have to be told about the theme.
   contentStyle: {
     background: 'hsl(var(--card))',
     border: '1px solid hsl(var(--border))',
     borderRadius: 8,
     fontSize: 12,
+    color: 'hsl(var(--foreground))',
   },
+  labelStyle: { color: 'hsl(var(--foreground))' },
+  itemStyle: { color: 'hsl(var(--foreground))' },
 };
 
 export function MachineStatusView() {
@@ -266,8 +272,8 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={data.reasons.slice(0, 8)} layout="vertical" margin={{ left: 8, right: 16 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-                <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis type="category" dataKey="label" width={130} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                <XAxis type="number" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis type="category" dataKey="label" width={130} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--muted-foreground))" />
                 <RTooltip {...CHART_TOOLTIP} formatter={(v: any) => [fmtMin(Number(v)), t('machineStatus.duration')]} />
                 <Bar dataKey="minutes" radius={[0, 4, 4, 0]}>
                   {data.reasons.slice(0, 8).map((r: any, i: number) => (
@@ -327,8 +333,8 @@ function PerformanceTab({ data, isLoading, error, onRetry }: TabProps) {
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={series}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--muted-foreground))" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--muted-foreground))" />
               <RTooltip {...CHART_TOOLTIP} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <ReferenceLine y={85} stroke="#22c55e" strokeDasharray="4 4"
@@ -416,8 +422,8 @@ function QualityTab({ data, isLoading, error, onRetry }: TabProps) {
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={series}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis domain={[90, 100]} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis domain={[90, 100]} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--muted-foreground))" />
                 <RTooltip {...CHART_TOOLTIP} />
                 <Line type="monotone" dataKey="qualityPct" name={t('machineStatus.quality')}
                   stroke="#22c55e" strokeWidth={2.5} dot={false} />
@@ -431,8 +437,8 @@ function QualityTab({ data, isLoading, error, onRetry }: TabProps) {
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={data.machines}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-              <XAxis dataKey="code" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-              <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+              <XAxis dataKey="code" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--muted-foreground))" />
+              <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--muted-foreground))" />
               <RTooltip {...CHART_TOOLTIP} />
               <Bar dataKey="scrap" name={t('machineStatus.scrap')} fill="#ef4444" radius={[4, 4, 0, 0]} />
             </BarChart>

@@ -5,6 +5,7 @@ import { ProductionService } from './production.service';
 import { OEEService } from './oee.service';
 import { KpiService } from './kpi.service';
 import { MachineStatusService } from './machine-status.service';
+import { OeeAnalyticsService } from './oee-analytics.service';
 import { MachineStatusController } from './machine-status.controller';
 import { ScheduleKpiService } from './schedule-kpi.service';
 import { DowntimeController } from './downtime.controller';
@@ -21,7 +22,7 @@ import { HistorianModule } from '../historian/historian.module';
 @Module({
   imports: [ApsModule, HistorianModule],
   controllers: [MachineStatusController, ProductionController, DowntimeController, RecipeController, TraceabilityController, MaterialRequestController],
-  providers: [MachineStatusService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService, WorkOrderSchedulerService, MaterialRequestService],
+  providers: [MachineStatusService, OeeAnalyticsService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService, WorkOrderSchedulerService, MaterialRequestService],
   exports: [ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService],
 })
 export class ProductionModule {}
