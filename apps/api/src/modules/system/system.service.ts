@@ -121,11 +121,19 @@ export class SystemService {
     const energy = { energyReadings, energySummaries, energyWoSummaries, energyWoMachineKpis };
     const energyTotal = Object.values(energy).reduce((a, b) => a + b, 0);
 
+    // Per-subsystem totals for the individually resettable areas. Counted with
+    // cheap COUNT(*) queries rather than derived from the numbers above, because
+    // the scopes overlap: downtime events belong to both the downtime reset and
+    // the shift reset, and a derived figure would disagree with what the reset
+    // actually deletes.
+    const counts = await this.subsystemCounts();
+
     return {
       production,
       productionTotal,
       energy,
       energyTotal,
+      counts,
       preserved: { inspections, maintenanceOrders, downtimeEvents, spcMeasurements },
       timeseries: {
         enabled: this.influx.isEnabled(),
@@ -174,6 +182,20 @@ export class SystemService {
       }
     } else if (dto.scope === 'timeseries') {
       timeseriesWiped = await this.influx.wipeBucket();
+    } else if (dto.scope === 'quality') {
+      Object.assign(summary, await this.resetQuality());
+    } else if (dto.scope === 'maintenance') {
+      Object.assign(summary, await this.resetMaintenance());
+    } else if (dto.scope === 'downtime') {
+      Object.assign(summary, await this.resetDowntime());
+    } else if (dto.scope === 'alarms') {
+      Object.assign(summary, await this.resetAlarms());
+    } else if (dto.scope === 'inventory') {
+      Object.assign(summary, await this.resetInventory());
+    } else if (dto.scope === 'shifts') {
+      Object.assign(summary, await this.resetShifts());
+    } else if (dto.scope === 'notifications') {
+      Object.assign(summary, await this.resetNotifications());
     }
 
     // 3. Audit trail (best-effort — never blocks the reset result).
@@ -214,6 +236,159 @@ export class SystemService {
    * unlinking quality inspections, maintenance work orders, downtime events and
    * SPC measurements. Runs as one committed transaction.
    */
+  /**
+   * How many records each scoped reset would remove.
+   *
+   * Every count is individually guarded: a model missing from this deployment's
+   * schema reports zero rather than failing the whole status call, which is the
+   * only thing standing between one optional table and a blank Danger Zone.
+   */
+  private async subsystemCounts(): Promise<Record<string, number>> {
+    const p = this.prisma as any;
+    const safe = async (fn: () => Promise<number>) => {
+      try {
+        return await fn();
+      } catch {
+        // Model absent from this deployment's schema, or the table is not
+        // there yet. Zero is the truthful answer for "nothing to delete".
+        return 0;
+      }
+    };
+
+    const [
+      downtimeEvents, machineStates, inspections, spc, ncrs,
+      maintenanceOrders, alarms, shiftInstances, stockMoves, notifications,
+    ] = await Promise.all([
+      safe(() => p.downtimeEvent.count()),
+      safe(() => p.machineStateRecord.count()),
+      safe(() => p.inspectionResult.count()),
+      safe(() => p.sPCMeasurement.count()),
+      safe(() => p.nCR.count()),
+      safe(() => p.maintenanceWO.count()),
+      safe(() => p.alarmEvent.count()),
+      safe(() => p.shiftInstance.count()),
+      safe(() => p.stockMovement.count()),
+      safe(() => p.notification.count()),
+    ]);
+
+    return {
+      downtime: downtimeEvents + machineStates,
+      quality: inspections + spc + ncrs,
+      maintenance: maintenanceOrders,
+      alarms,
+      shifts: shiftInstances,
+      inventory: stockMoves,
+      notifications,
+    };
+  }
+
+  // ── Scoped resets ─────────────────────────────────────────────────────────
+  // Each clears one self-contained subsystem's HISTORY and leaves its
+  // CONFIGURATION alone. They are separate because "reset everything" is almost
+  // never what somebody wants: clearing a demo's production history should not
+  // cost the plant its quality catalogue or its maintenance plan.
+  //
+  // Prisma has no "delete if the table exists", so optional models are wrapped
+  // in a catch that yields zero — a schema without CAPA must not fail a quality
+  // reset that would otherwise have succeeded.
+
+  /** Inspections, non-conformances, CAPAs and SPC measurements. */
+  private async resetQuality(): Promise<Record<string, number>> {
+    return this.prisma.$transaction(async (tx: any) => {
+      const out: Record<string, number> = {};
+      const del = async (name: string, fn: () => Promise<{ count: number }>) => {
+        out[name] = (await fn().catch(() => ({ count: 0 }))).count;
+      };
+      await del('spcMeasurements', () => tx.sPCMeasurement.deleteMany({}));
+      await del('inspectionResults', () => tx.inspectionResult.deleteMany({}));
+      await del('capaActions', () => tx.cAPAAction.deleteMany({}));
+      await del('capas', () => tx.cAPA.deleteMany({}));
+      await del('ncrs', () => tx.nCR.deleteMany({}));
+      return out;
+    }, { timeout: 120_000 });
+  }
+
+  /** Maintenance work orders, tasks and requests. Assets and PM plans stay. */
+  private async resetMaintenance(): Promise<Record<string, number>> {
+    return this.prisma.$transaction(async (tx: any) => {
+      const out: Record<string, number> = {};
+      const del = async (name: string, fn: () => Promise<{ count: number }>) => {
+        out[name] = (await fn().catch(() => ({ count: 0 }))).count;
+      };
+      await del('maintenanceTasks', () => tx.maintenanceTask.deleteMany({}));
+      await del('maintenanceOrders', () => tx.maintenanceWO.deleteMany({}));
+      await del('maintenanceRequests', () => tx.maintenanceRequest.deleteMany({}));
+      return out;
+    }, { timeout: 120_000 });
+  }
+
+  /**
+   * Downtime events AND the machine state timeline behind them.
+   *
+   * Cleared together deliberately: the two describe the same minutes from two
+   * angles, and clearing one alone leaves the OEE engine with a timeline that
+   * has no reasons, or reasons with no timeline. Causes stay — they are
+   * configuration.
+   */
+  private async resetDowntime(): Promise<Record<string, number>> {
+    return this.prisma.$transaction(async (tx: any) => {
+      const out: Record<string, number> = {};
+      out.downtimeEvents = (await tx.downtimeEvent.deleteMany({})).count;
+      out.machineStateRecords = (await tx.machineStateRecord.deleteMany({})).count;
+      return out;
+    }, { timeout: 120_000 });
+  }
+
+  /** Alarm history. Alarm DEFINITIONS are configuration and are preserved. */
+  private async resetAlarms(): Promise<Record<string, number>> {
+    return this.prisma.$transaction(async (tx: any) => {
+      const out: Record<string, number> = {};
+      out.alarmEvents = (await tx.alarmEvent.deleteMany({})).count;
+      return out;
+    }, { timeout: 120_000 });
+  }
+
+  /** Stock movement history. Items, locations and levels are master data. */
+  private async resetInventory(): Promise<Record<string, number>> {
+    return this.prisma.$transaction(async (tx: any) => {
+      const out: Record<string, number> = {};
+      const del = async (name: string, fn: () => Promise<{ count: number }>) => {
+        out[name] = (await fn().catch(() => ({ count: 0 }))).count;
+      };
+      await del('stockMovements', () => tx.stockMovement.deleteMany({}));
+      await del('inventoryTransactions', () => tx.inventoryTransaction.deleteMany({}));
+      return out;
+    }, { timeout: 120_000 });
+  }
+
+  /**
+   * Shift instances and the planned stops materialised from them.
+   *
+   * Shift templates, schedules and planned-stop definitions survive — they are
+   * how the plant is configured to run. This clears only what was generated, so
+   * a fresh range can be materialised cleanly.
+   */
+  private async resetShifts(): Promise<Record<string, number>> {
+    return this.prisma.$transaction(async (tx: any) => {
+      const out: Record<string, number> = {};
+      out.plannedDowntimeEvents = (await tx.downtimeEvent.deleteMany({ where: { isPlanned: true } })).count;
+      out.shiftInstances = (await tx.shiftInstance.deleteMany({})).count;
+      return out;
+    }, { timeout: 120_000 });
+  }
+
+  /** Notification history — noise that accumulates over a long demo. */
+  private async resetNotifications(): Promise<Record<string, number>> {
+    return this.prisma.$transaction(async (tx: any) => {
+      const out: Record<string, number> = {};
+      const del = async (name: string, fn: () => Promise<{ count: number }>) => {
+        out[name] = (await fn().catch(() => ({ count: 0 }))).count;
+      };
+      await del('notifications', () => tx.notification.deleteMany({}));
+      return out;
+    }, { timeout: 120_000 });
+  }
+
   private async resetProduction(): Promise<Record<string, number>> {
     return this.prisma.$transaction(
       async (tx) => {

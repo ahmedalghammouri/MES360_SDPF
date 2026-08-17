@@ -44,7 +44,12 @@ FROM node:20-alpine AS production
 #   (e.g. TZ=Asia/Riyadh) is silently ignored and Node falls back to UTC — every
 #   server-side shift boundary, getHours() and working-day calculation then runs
 #   3 hours out. Setting TZ in compose only works if this package is present.
-RUN apk add --no-cache dumb-init openssl tzdata
+# postgresql16-client: pg_dump / pg_restore for the in-app backup & restore.
+#   The MAJOR VERSION MUST MATCH the server (postgres:16) — pg_dump refuses to
+#   dump a newer server than itself, and a custom-format archive written by a
+#   different major cannot be restored. Pin it here rather than taking whatever
+#   `postgresql-client` currently resolves to.
+RUN apk add --no-cache dumb-init openssl tzdata postgresql16-client
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -64,6 +69,10 @@ RUN mkdir -p logs && chown nestjs:nodejs logs
 # named volume mounted at /app/uploads inherits this ownership, so the non-root
 # process can write uploads. (Recreate the volume if it was made before this line.)
 RUN mkdir -p uploads && chown nestjs:nodejs uploads
+# Same reasoning for database backups: the named volume at /app/backups picks up
+# this ownership when it is first created, so the non-root process can write a
+# dump there. (Recreate the volume if it was made before this line existed.)
+RUN mkdir -p backups && chown nestjs:nodejs backups
 
 USER nestjs
 

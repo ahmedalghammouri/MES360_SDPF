@@ -1,6 +1,9 @@
 import { IsBoolean, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 
-export type ResetScope = 'production' | 'timeseries' | 'energy';
+export type ResetScope =
+  | 'production' | 'timeseries' | 'energy'
+  | 'quality' | 'maintenance' | 'downtime' | 'alarms'
+  | 'inventory' | 'shifts' | 'notifications';
 
 export class ResetSystemDto {
   /**
@@ -12,7 +15,11 @@ export class ResetSystemDto {
    *                    derived per-WO / per-machine ratios from PostgreSQL.
    *                    Meters, tariffs and device bindings are preserved.
    */
-  @IsIn(['production', 'timeseries', 'energy'])
+  @IsIn([
+    'production', 'timeseries', 'energy',
+    'quality', 'maintenance', 'downtime', 'alarms',
+    'inventory', 'shifts', 'notifications',
+  ])
   scope!: ResetScope;
 
   /** When scope='production', also wipe the InfluxDB historian in the same run. */

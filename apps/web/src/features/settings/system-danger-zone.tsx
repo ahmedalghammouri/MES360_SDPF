@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
+import { SystemBackups } from './system-backups';
 import axios, { type AxiosInstance } from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -18,6 +20,8 @@ import {
 import { toast } from '@/components/ui/use-toast';
 
 interface SystemStatus {
+  /** Per-subsystem totals for the individually resettable areas. */
+  counts?: Record<string, number>;
   production: Record<string, number>;
   energy: Record<string, number>;
   energyTotal: number;
@@ -25,7 +29,29 @@ interface SystemStatus {
   preserved: { inspections: number; maintenanceOrders: number; downtimeEvents: number; spcMeasurements: number };
   timeseries: { enabled: boolean; bucket: string; points: number | null; paused: boolean };
 }
-type ResetTarget = { scope: 'production' | 'timeseries' | 'energy'; title: string; danger: string } | null;
+type ResetScope =
+  | 'production' | 'timeseries' | 'energy'
+  | 'quality' | 'maintenance' | 'downtime' | 'alarms'
+  | 'inventory' | 'shifts' | 'notifications';
+
+type ResetTarget = { scope: ResetScope; title: string; danger: string } | null;
+
+/**
+ * The subsystems that can be cleared on their own.
+ *
+ * Separate entries rather than one "reset everything" because clearing a demo's
+ * production history should never cost the plant its quality catalogue or its
+ * maintenance plan. Each card says what goes and what stays.
+ */
+const EXTRA_SCOPES: Array<{ scope: ResetScope; key: string }> = [
+  { scope: 'downtime', key: 'downtime' },
+  { scope: 'quality', key: 'quality' },
+  { scope: 'maintenance', key: 'maintenance' },
+  { scope: 'alarms', key: 'alarms' },
+  { scope: 'shifts', key: 'shifts' },
+  { scope: 'inventory', key: 'inventory' },
+  { scope: 'notifications', key: 'notifications' },
+];
 
 /** Same-origin API base (behind nginx) with an SSR fallback. */
 function apiBase() {
@@ -183,6 +209,11 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
 
   const canSubmit = password.length > 0 && confirmPhrase.trim() === 'RESET' && !resetMut.isPending;
 
+  // Backups and resets are opposite halves of the same job — one makes the
+  // other survivable — so they live on one screen behind two tabs rather than
+  // in two places an administrator has to remember to visit in order.
+  const [tab, setTab] = useState<'reset' | 'backups'>('reset');
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -192,6 +223,27 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
         </Button>
       </div>
 
+      <div className="flex gap-1 border-b border-border/50">
+        {(['reset', 'backups'] as const).map((x) => (
+          <button
+            key={x}
+            onClick={() => setTab(x)}
+            className={cn(
+              'px-4 py-2 text-sm border-b-2 -mb-px transition-colors',
+              tab === x
+                ? 'border-primary text-foreground font-medium'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {t(x === 'reset' ? 'dz.tabReset' : 'dz.tabBackups')}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'backups' && <SystemBackups client={client} />}
+
+      {tab === 'reset' && (
+        <>
       {/* Status snapshot */}
       <div className="rounded-xl border border-border/60 p-5">
         <div className="flex items-center justify-between mb-4">
@@ -285,6 +337,23 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
         onClick={() => setTarget({ scope: 'timeseries', title: t('dz.wipeTsTitle'), danger: t('dz.wipeTsDanger') })}
       />
 
+      {/* Subsystem resets — each clears one area's HISTORY, never its configuration. */}
+      {EXTRA_SCOPES.map(({ scope, key }) => (
+        <ResetCard
+          key={scope}
+          title={t(`dz.scope.${key}.title`)}
+          description={t(`dz.scope.${key}.desc`)}
+          count={status?.counts?.[key] as number | undefined}
+          affectedLabel={t('dz.affectedRecords')}
+          resetLabel={t('dz.reset')}
+          onClick={() => setTarget({
+            scope,
+            title: t(`dz.scope.${key}.title`),
+            danger: t(`dz.scope.${key}.danger`),
+          })}
+        />
+      ))}
+
       {/* Confirmation dialog */}
       <Dialog open={!!target} onOpenChange={(o) => !o && closeDialog()}>
         <DialogContent className="max-w-md">
@@ -326,6 +395,8 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }

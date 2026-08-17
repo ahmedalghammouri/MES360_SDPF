@@ -183,6 +183,81 @@
     "resetEnergyTitle": "Reset Energy Meter Data",
     "resetEnergyDesc": "Permanently deletes energy meter readings, period summaries, per-WO energy summaries and WO×machine energy ratios from PostgreSQL. Meters, tariffs and device bindings are preserved. Kept separate from the production reset because these are real measurements streamed from physical meters — a running edge gateway will repopulate live data immediately, so stop it first to keep the tables empty.",
     "resetEnergyDanger": "This permanently deletes all energy meter readings and every KPI derived from them. Measured history cannot be recovered.",
-    "downtimeKept": "Downtime (kept)"
+    "downtimeKept": "Downtime (kept)",
+    "scope": {
+      "downtime": {
+        "title": "Reset Downtime & Machine Timeline",
+        "desc": "Deletes every downtime event and the machine state history behind it. The two are cleared together because they describe the same minutes from two angles — clearing one alone leaves OEE with a timeline that has no reasons. Downtime causes and categories are configuration and are preserved.",
+        "danger": "all downtime events and machine state records"
+      },
+      "quality": {
+        "title": "Reset Quality Records",
+        "desc": "Deletes inspections, inspection results, non-conformances, CAPAs and SPC measurements. The quality catalogue — defect types, inspection plans, characteristics and control limits — is configuration somebody built and is preserved.",
+        "danger": "all quality inspections, NCRs, CAPAs and SPC measurements"
+      },
+      "maintenance": {
+        "title": "Reset Maintenance History",
+        "desc": "Deletes maintenance work orders, their tasks and maintenance requests. Assets, preventive-maintenance schedules and spare-part definitions are the maintenance plan, not its history, and are preserved.",
+        "danger": "all maintenance work orders, tasks and requests"
+      },
+      "alarms": {
+        "title": "Reset Alarm History",
+        "desc": "Deletes every recorded alarm event. Alarm rules — the conditions, thresholds, deadbands and delays — are configuration and are preserved, so alarms keep firing from the next reading onwards.",
+        "danger": "all alarm events"
+      },
+      "shifts": {
+        "title": "Reset Shift Instances & Planned Stops",
+        "desc": "Deletes generated shift instances and the planned-stop events materialised from them. Shift templates, schedules and planned-stop definitions survive — they are how the plant is configured to run — so a fresh range can be materialised straight afterwards.",
+        "danger": "all shift instances and materialised planned stops"
+      },
+      "inventory": {
+        "title": "Reset Inventory Movements",
+        "desc": "Deletes the stock movement and transaction log. Items, warehouses, locations and current stock levels are master data and are preserved.",
+        "danger": "all stock movements and inventory transactions"
+      },
+      "notifications": {
+        "title": "Reset Notifications",
+        "desc": "Deletes the notification history that accumulates over a long demo. Nothing else is affected.",
+        "danger": "all notifications"
+      }
+    },
+    "tabReset": "Reset data",
+    "tabBackups": "Backups"
+  },
+  "backups": {
+    "title": "Database Backups",
+    "subtitle": "Take a full copy of the database at any moment. Copies are stored on the server and can be restored, downloaded or deleted from here.",
+    "labelField": "Label (optional)",
+    "labelPlaceholder": "e.g. before the NCC demo",
+    "create": "Take backup",
+    "creating": "Taking backup…",
+    "created": "Backup created",
+    "createFailed": "Backup failed",
+    "colLabel": "Backup",
+    "colWhen": "Taken",
+    "colSize": "Size",
+    "colBy": "By",
+    "empty": "No backups yet. Take one before any reset.",
+    "listFailed": "Could not load the backup list.",
+    "safety": "safety copy",
+    "download": "Download",
+    "downloadFailed": "Download failed",
+    "restore": "Restore",
+    "delete": "Delete",
+    "restoreTitle": "Restore the database?",
+    "restoreDesc": "This REPLACES the entire database with \"{{label}}\", taken {{when}}. Everything recorded since then is lost.",
+    "safetyNote": "A safety copy of the current database is taken automatically first, and its id is shown when the restore finishes — so this is reversible.",
+    "password": "Your password",
+    "typePhrase": "Type {{phrase}} to confirm",
+    "restoreConfirm": "Restore now",
+    "restoring": "Restoring…",
+    "restored": "Database restored",
+    "restoredDesc": "A safety copy was kept as {{id}}. The page will reload.",
+    "restoreFailed": "Restore failed",
+    "deleteTitle": "Delete this backup?",
+    "deleteDesc": "\"{{label}}\" will be removed from the server permanently. This does not affect the database itself.",
+    "deleted": "Backup deleted",
+    "deleteFailed": "Could not delete the backup",
+    "storageNote": "Backups live on a persistent volume on the server, so they survive a container rebuild. Download the ones that matter — a copy that only exists on the same machine as the database is not an offsite backup."
   }
 }

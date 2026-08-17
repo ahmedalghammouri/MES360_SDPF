@@ -34,6 +34,10 @@ volumes:
   nginx-certs:
   grafana-data:
   uploads-data:
+  # Database backups taken from inside the app. A NAMED volume so they survive
+  # a container rebuild — a backup that disappears on the next deploy is not a
+  # backup.
+  backups-data:
 
 services:
   # ============================================================
@@ -246,6 +250,7 @@ services:
       - "3001:3001"
     volumes:
       - uploads-data:/app/uploads
+      - backups-data:/app/backups
     networks:
       - mes-network
     depends_on:

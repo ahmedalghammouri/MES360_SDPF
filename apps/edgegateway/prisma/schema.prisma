@@ -139,6 +139,11 @@ model Factory {
 
   machineStateRules      MachineStateRule[]
 
+  plannedStopTemplates PlannedStopTemplate[]
+  scheduleRules        ScheduleRule[]
+  workOrderStopRules   WorkOrderStopRule[]
+
+
   @@map("factories")
 }
 
@@ -222,6 +227,10 @@ model ProductionLine {
   tagDefinitions TagDefinition[]
 
   @@unique([factoryId, code])
+  plannedStopTargets PlannedStopTarget[]
+  workOrderStopRules WorkOrderStopRule[]
+
+
   @@map("production_lines")
 }
 
@@ -309,6 +318,10 @@ model Machine {
   @@index([factoryId])
   @@index([lineId])
   machineStateRules MachineStateRule[]
+
+  plannedStopTargets PlannedStopTarget[]
+  workOrderStopRules WorkOrderStopRule[]
+
 
   @@map("machines")
 }
@@ -685,6 +698,9 @@ model SKU {
   @@index([factoryId])
   @@index([categoryId])
   @@index([baseWeightId])
+  workOrderStopRules WorkOrderStopRule[]
+
+
   @@map("skus")
 }
 
@@ -1083,8 +1099,10 @@ model ShiftTemplate {
   crossesMidnight        Boolean  @default(false)
   plannedProductionHours Float // e.g. 11.0
   shiftDurationHours     Float // e.g. 12.0
-  breakMinutes           Int      @default(30)
-  cleaningMinutes        Int      @default(30)
+  /// DEPRECATED — replaced by PlannedStopTemplate rows the user creates.
+  /// Read by nothing; kept only until every factory has been migrated.
+  breakMinutes           Int      @default(0)
+  cleaningMinutes        Int      @default(0)
   days                   Json // [0=Sun,1=Mon,...,6=Sat]
   targetQtyPerShift      Int? // default production target per shift per line
   targetUnit             String   @default("CARTON") // unit of targetQtyPerShift: PIECE/INNER/CARTON/PALLET
@@ -1092,8 +1110,14 @@ model ShiftTemplate {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  factory   Factory         @relation(fields: [factoryId], references: [id])
-  instances ShiftInstance[]
+  /// Recurrence lives here now. `days` below is retained only so existing rows
+  /// keep working until they are migrated; new code must read scheduleRule.
+  scheduleRuleId String?
+
+  factory      Factory               @relation(fields: [factoryId], references: [id])
+  scheduleRule ScheduleRule?         @relation(fields: [scheduleRuleId], references: [id])
+  instances    ShiftInstance[]
+  plannedStops PlannedStopTemplate[]
 
   @@unique([factoryId, code])
   @@map("shift_templates")
@@ -1202,6 +1226,10 @@ model DowntimeCause {
   @@index([factoryId])
   @@index([machineId])
   @@index([parentId])
+  plannedStopTemplates PlannedStopTemplate[]
+  workOrderStopRules   WorkOrderStopRule[]
+
+
   @@map("downtime_causes")
 }
 
@@ -1239,6 +1267,10 @@ model DowntimeEvent {
   machineId            String
   workCenterId         String? // ISA-95 WorkCenter link (replaces raw machine where routing is used)
   workOrderId          String?
+  /// The job order that caused this stop, for work-order stop rules such as
+  /// changeover. Without it a changeover cannot be traced back to the order
+  /// that triggered it, which is the whole point of scheduling it.
+  jobOrderId           String?
   shiftInstanceId      String?
   causeId              String?
   operatorId           String? // operator on shift who reported / triggered
@@ -1264,6 +1296,7 @@ model DowntimeEvent {
   machine    Machine        @relation(fields: [machineId], references: [id])
   workCenter WorkCenter?    @relation("WCDowntimes", fields: [workCenterId], references: [id])
   workOrder  WorkOrder?     @relation(fields: [workOrderId], references: [id])
+  jobOrder   JobOrder?      @relation(fields: [jobOrderId], references: [id])
   cause      DowntimeCause? @relation(fields: [causeId], references: [id])
   operator   User?          @relation("DowntimeOperator", fields: [operatorId], references: [id])
 
@@ -3543,6 +3576,8 @@ model JobOrder {
   @@index([workOrderId])
   @@index([factoryId, status])
   @@index([machineId])
+  downtimeEvents DowntimeEvent[]
+
   @@map("job_orders")
 }
 
@@ -3843,4 +3878,179 @@ model PlantDashboardWidget {
 
   @@index([dashboardId])
   @@map("plant_dashboard_widgets")
+}
+
+// ============================================================
+// PLANNED STOPS — scheduled, never assumed
+// ------------------------------------------------------------
+// Everything that removes time from the OEE availability denominator must be a
+// row somebody created. It used to be two numbers baked into the shift template
+// (breakMinutes, cleaningMinutes, both defaulting to 30) plus code that invented
+// WHEN they happened — the break at the midpoint of the shift, the cleaning at
+// the end. Nobody chose any of that, and it fed Availability directly.
+//
+// Three ways a planned stop reaches the floor, and a stop uses exactly one:
+//   1. inside a shift        → shiftTemplateId set, startOffsetMin from shift start
+//   2. on its own schedule   → scheduleRuleId set  (maintenance windows, etc.)
+//   3. with a work order     → WorkOrderStopRule   (changeover and the like)
+// ============================================================
+
+/// Where a planned stop lands. A break usually stops a whole line; cleaning one
+/// machine stops only that machine. Recording it on every machine — which is
+/// what the old generator did — invents downtime for equipment nobody touched.
+enum PlannedStopScope {
+  FACTORY
+  LINE
+  MACHINE
+}
+
+model PlannedStopTemplate {
+  id        String   @id @default(uuid())
+  factoryId String
+  code      String
+  name      String
+  nameAr    String?
+
+  /// Minutes the stop lasts. No default: an unstated duration is the bug this
+  /// model exists to remove.
+  durationMinutes Int
+
+  /// Where it applies. MACHINE/LINE read the join tables below; FACTORY needs none.
+  scope PlannedStopScope @default(LINE)
+
+  /// Classification carried onto every event this produces. `causeId` points at a
+  /// DowntimeCause the user created — the system no longer invents one.
+  causeId  String?
+  category DowntimeCategory @default(PLANNED_BREAK)
+
+  // ── How it is scheduled — exactly one of these three ──
+  /// Inside a shift: minutes after the shift starts. Explicit, because "the
+  /// middle of the shift" is a guess and the plant knows the real time.
+  shiftTemplateId String?
+  startOffsetMin  Int?
+
+  /// On its own recurrence, independent of any shift.
+  scheduleRuleId String?
+
+  isActive    Boolean  @default(true)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  factory       Factory                    @relation(fields: [factoryId], references: [id])
+  cause         DowntimeCause?             @relation(fields: [causeId], references: [id])
+  shiftTemplate ShiftTemplate?             @relation(fields: [shiftTemplateId], references: [id], onDelete: Cascade)
+  scheduleRule  ScheduleRule?              @relation(fields: [scheduleRuleId], references: [id], onDelete: Cascade)
+  targets       PlannedStopTarget[]
+
+  @@unique([factoryId, code])
+  @@index([factoryId, isActive])
+  @@map("planned_stop_templates")
+}
+
+/// The lines or machines a scoped stop applies to. Empty for FACTORY scope.
+model PlannedStopTarget {
+  id        String  @id @default(uuid())
+  templateId String
+  lineId    String?
+  machineId String?
+
+  template PlannedStopTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  line     ProductionLine?     @relation(fields: [lineId], references: [id])
+  machine  Machine?            @relation(fields: [machineId], references: [id])
+
+  @@unique([templateId, lineId, machineId])
+  @@map("planned_stop_targets")
+}
+
+/// A recurrence, shared by shift templates and standalone planned stops.
+///
+/// Replaces the old `days Json` on ShiftTemplate, which could only ever say
+/// "these weekdays, forever". A plant needs to say "these weekdays until the end
+/// of the quarter", or "this Friday only, overtime".
+model ScheduleRule {
+  id        String @id @default(uuid())
+  factoryId String
+  name      String
+
+  /// Weekdays it runs on: 0 = Sunday … 6 = Saturday.
+  /// A day NOT listed is a non-working day — that is how a holiday is expressed,
+  /// rather than by a separate exception list.
+  daysOfWeek Json @default("[]")
+
+  /// First date it applies (inclusive). Null = from today.
+  startDate DateTime?
+  /// Last date it applies (inclusive). Null with isPerpetual = runs indefinitely.
+  endDate DateTime?
+  /// True = no end. Kept explicit rather than inferred from a null endDate, so
+  /// "forever" is a decision somebody made and not a field they forgot.
+  isPerpetual Boolean @default(false)
+
+  /// A single dated occurrence — Friday overtime — which ignores daysOfWeek.
+  oneOffDate DateTime?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  factory        Factory               @relation(fields: [factoryId], references: [id])
+  shiftTemplates ShiftTemplate[]
+  plannedStops   PlannedStopTemplate[]
+
+  @@index([factoryId, isActive])
+  @@map("schedule_rules")
+}
+
+/// A planned stop that runs WITH a work order rather than on the calendar —
+/// changeover being the obvious case.
+///
+/// The trigger matters: a line that changes product needs a full changeover,
+/// while a new order for the SAME product may need only a short setup. Charging
+/// both the same way is how changeover loss becomes untraceable.
+model WorkOrderStopRule {
+  id        String @id @default(uuid())
+  factoryId String
+  code      String
+  name      String
+
+  /// PRODUCT_CHANGE — the SKU differs from the previous order on that machine
+  /// ORDER_CHANGE   — any new order, including the same SKU
+  /// ALWAYS         — every order, unconditionally
+  trigger WorkOrderStopTrigger @default(PRODUCT_CHANGE)
+
+  durationMinutes Int
+  causeId         String?
+  category        DowntimeCategory @default(CHANGEOVER)
+
+  /// Whether the produced event is charged against OEE. Changeover is planned
+  /// but still a loss in most plants, so this defaults to true — the opposite of
+  /// a break. It stays editable because plants genuinely disagree.
+  affectsOEE Boolean @default(true)
+  isPlanned  Boolean @default(true)
+
+  /// Optional narrowing: only for these lines/machines, only for this SKU.
+  lineId    String?
+  machineId String?
+  skuId     String?
+
+  isActive    Boolean  @default(true)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  factory Factory         @relation(fields: [factoryId], references: [id])
+  cause   DowntimeCause?  @relation(fields: [causeId], references: [id])
+  line    ProductionLine? @relation(fields: [lineId], references: [id])
+  machine Machine?        @relation(fields: [machineId], references: [id])
+  sku     SKU?            @relation(fields: [skuId], references: [id])
+
+  @@unique([factoryId, code])
+  @@index([factoryId, isActive])
+  @@map("work_order_stop_rules")
+}
+
+enum WorkOrderStopTrigger {
+  PRODUCT_CHANGE
+  ORDER_CHANGE
+  ALWAYS
 }
