@@ -214,6 +214,11 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
         <Stat label={t('machineStatus.availability')}
               value={totals.availabilityPct == null ? '—' : `${totals.availabilityPct}%`} tone="primary" />
         <Stat label={t('machineStatus.uptime')} value={`${totals.uptimePct ?? 0}%`} />
+        {/* The denominator, shown next to the numerator. Availability was a number
+            a reader had to take on faith: 99.3% with 1h 35m running and 0m
+            unplanned, and nothing on the page to divide by. */}
+        <Stat label={t('machineStatus.plannedProduction')} value={fmtMin(totals.plannedMin ?? 0)}
+              sub={t('machineStatus.plannedProductionHelp')} />
         <Stat label={t('machineStatus.running')} value={fmtMin(totals.runMin ?? 0)} tone="good" />
         <Stat label={t('machineStatus.unplanned')} value={fmtMin(totals.unplannedMin ?? 0)} tone="bad" />
         <Stat label={t('machineStatus.external')} value={fmtMin(totals.externalMin ?? 0)} tone="warn" />
@@ -247,6 +252,7 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
               <TableRow>
                 <TableHead>{t('machineStatus.machine')}</TableHead>
                 <TableHead className="text-right">{t('machineStatus.availability')}</TableHead>
+                <TableHead className="text-right">{t('machineStatus.plannedProduction')}</TableHead>
                 <TableHead className="text-right">{t('machineStatus.running')}</TableHead>
                 <TableHead className="text-right">{t('machineStatus.unplanned')}</TableHead>
                 <TableHead className="text-right">{t('machineStatus.external')}</TableHead>
@@ -261,6 +267,7 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
                     <div className="text-[11px] text-muted-foreground">{m.name}</div>
                   </TableCell>
                   <TableCell className="text-right"><Pct v={m.availabilityPct} /></TableCell>
+                  <TableCell className="text-right text-xs text-muted-foreground">{fmtMin(m.plannedMin)}</TableCell>
                   <TableCell className="text-right text-xs">{fmtMin(m.runMin)}</TableCell>
                   <TableCell className="text-right text-xs text-red-400">{fmtMin(m.unplannedMin)}</TableCell>
                   <TableCell className="text-right text-xs text-amber-400">{fmtMin(m.externalMin)}</TableCell>
@@ -488,7 +495,10 @@ function QualityTab({ data, isLoading, error, onRetry }: TabProps) {
 
 // ── Small shared pieces ─────────────────────────────────────
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' | 'warn' | 'primary' }) {
+function Stat({ label, value, sub, tone }: {
+  label: string; value: string; sub?: string;
+  tone?: 'good' | 'bad' | 'warn' | 'primary';
+}) {
   return (
     <div className="rounded-lg border border-border/50 p-3">
       <div className="text-[11px] text-muted-foreground">{label}</div>
@@ -498,11 +508,17 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'go
         tone === 'bad' && 'text-red-400',
         tone === 'warn' && 'text-amber-500',
       )}>{value}</div>
+      {sub && <div className="text-[10px] text-muted-foreground/70 mt-1 leading-snug">{sub}</div>}
     </div>
   );
 }
 
-function Pct({ v, good = 85 }: { v: number; good?: number }) {
+function Pct({ v, good = 85 }: { v: number | null; good?: number }) {
+  // null is not zero: a machine with no planned production has no availability to
+  // report, and 0% would accuse it of failing when it was never asked to run.
+  if (v == null) {
+    return <span className="text-sm text-muted-foreground" title="No planned production in this window">—</span>;
+  }
   return (
     <span className={cn('text-sm font-semibold', v >= good ? 'text-emerald-500' : v >= good * 0.7 ? 'text-amber-500' : 'text-red-400')}>
       {v}%

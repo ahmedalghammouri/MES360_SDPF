@@ -2007,7 +2007,9 @@
     "saturatedBody": "Performance is capped at 100% because exceeding the ideal means the ideal cycle time is wrong, not that the machine beat physics. Until the routing cycle times are corrected, this indicator carries no information for those machines — raised with NCC as tracker item 27.",
     "unitHelp": "Quantities are in the product’s smallest packaging unit, so machines at different stages of the line can be compared directly.",
     "loadFailed": "Could not load this view. The request failed — if you have just reopened the app, your session may still be waking up.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "plannedProduction": "Planned production",
+    "plannedProductionHelp": "The denominator of Availability: time the machine was scheduled to produce, after planned and external stops are taken out."
   },
   "gantt": {
     "zoomIn": "Zoom in",
