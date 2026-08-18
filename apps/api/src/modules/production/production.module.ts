@@ -17,12 +17,14 @@ import { TraceabilityController } from './traceability.controller';
 import { WorkOrderSchedulerService } from './work-order-scheduler.service';
 import { MaterialRequestService } from './material-request.service';
 import { MaterialRequestController } from './material-request.controller';
+import { LiveController } from './live.controller';
+import { LiveKpiService } from './live-kpi.service';
 import { HistorianModule } from '../historian/historian.module';
 
 @Module({
   imports: [ApsModule, HistorianModule],
-  controllers: [MachineStatusController, ProductionController, DowntimeController, RecipeController, TraceabilityController, MaterialRequestController],
-  providers: [MachineStatusService, OeeAnalyticsService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService, WorkOrderSchedulerService, MaterialRequestService],
-  exports: [ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService],
+  controllers: [LiveController, MachineStatusController, ProductionController, DowntimeController, RecipeController, TraceabilityController, MaterialRequestController],
+  providers: [LiveKpiService, MachineStatusService, OeeAnalyticsService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService, WorkOrderSchedulerService, MaterialRequestService],
+  exports: [LiveKpiService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService],
 })
 export class ProductionModule {}
