@@ -18,17 +18,18 @@ describe('ScheduleKpiService', () => {
     const prisma = {
       productionOrder: { findMany: jest.fn().mockResolvedValue(orders) },
       machine: { findMany: jest.fn().mockResolvedValue(machines) },
-      // Actual output is read row-by-row (not SUMmed in SQL) because each row carries
-      // its own unit and the database cannot convert between packaging levels.
-      jobOrder: { findMany: jest.fn().mockResolvedValue(producedRows) },
+      // Actual output comes from the per-minute fact store, already in PIECES and
+      // already clamped to the window — see the comment in volumeCapacityUtilization
+      // for why the cumulative JobOrder counter could not be used.
+      $queryRaw: jest.fn().mockResolvedValue(producedRows),
+      jobOrder: { findMany: jest.fn().mockResolvedValue([]) },
       routingStep: { findMany: jest.fn().mockResolvedValue(routingSteps) },
     };
     return { service: new ScheduleKpiService(prisma as never), prisma };
   }
 
-  /** A produced job-order row as the capacity reader sees it. */
-  const produced = (machineId: string, qty: number, outputUnit: string | null = null, sku: unknown = null) =>
-    ({ machineId, actualQtyGood: qty, outputUnit, workOrder: { sku } });
+  /** A fact-store output row as the capacity reader sees it (pieces, in-window). */
+  const produced = (machineId: string, pieces: number) => ({ machineId, pieces });
 
   /**
    * A routing step as the capacity resolver reads it. `cycleTimeSec` is seconds per
@@ -204,6 +205,22 @@ describe('ScheduleKpiService', () => {
       expect(r.maxDesignedUnits).toBe(72_000);
       expect(r.actualUnits).toBe(18_000);
       expect(r.utilizationPct).toBe(25);
+    });
+
+    it('measures output over the SAME window as the capacity it is divided by', async () => {
+      // The defect this pins: actual output was read from JobOrder.actualQtyGood, a
+      // CUMULATIVE lifetime counter, while the denominator was built from the window's
+      // hours. With job orders open for 230 hours the card read 760% for a window of a
+      // few hours. Both sides must describe the same period or the ratio means nothing.
+      const { service, prisma } = build([], [machine('m1')], [produced('m1', 18_000)], [step('m1', 36)]);
+      await service.volumeCapacityUtilization(factoryId, from, to);
+
+      // The output query is bounded by the requested window on both ends...
+      const sql = JSON.stringify(prisma.$queryRaw.mock.calls[0][0]);
+      expect(sql).toContain(from.toISOString());
+      expect(sql).toContain(to.toISOString());
+      // ...and the cumulative job-order counter is not consulted at all.
+      expect(prisma.jobOrder.findMany).not.toHaveBeenCalled();
     });
 
     it('sums the denominator across machines in scope', async () => {

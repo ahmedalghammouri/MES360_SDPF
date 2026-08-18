@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { Prisma } from '@prisma/client';
 import { toPieces } from '../../common/units.util';
 
 /**
@@ -299,39 +300,34 @@ export class ScheduleKpiService {
     const machineIds = machines.map((m) => m.id);
     const rated = await this.ratedCapacityByMachine(factoryId, machineIds, { skuId: opts.skuId });
 
-    // Actual good output per machine in the window, from the job orders that ran on it.
+    // Actual good output per machine, CLAMPED TO THE WINDOW.
     //
-    // A `groupBy` + `_sum` was wrong here: each machine records output in ITS OWN
-    // unit (inners at the filler, cartons at the cartoner, pallets at the
-    // palletiser), and the database cannot convert. Summing in SQL therefore added
-    // unlike quantities. Rows are fetched with their unit and totalled in pieces,
-    // which is also the unit the rated capacity below is expressed in — so
-    // numerator and denominator finally share a unit.
+    // This read `JobOrder.actualQtyGood` — a CUMULATIVE lifetime counter — and
+    // compared it with a denominator built from the window's hours. On this plant the
+    // job orders had been open for 230 hours, so asking for "today" put 230 hours of
+    // production over a few hours of designed capacity and the card read 760%.
+    // A ratio whose two sides cover different periods is not a high utilisation, it is
+    // a meaningless number, and it is the same defect already fixed for PPT vs run time.
+    //
+    // The fact store is the fix and the right source anyway: its MINUTE rows are
+    // per-bucket DELTAS already normalised to PIECES, which is the unit the rated
+    // capacity below is expressed in. Summing them over the window gives exactly the
+    // output produced IN the window, on the same basis every other analytics surface
+    // uses — so this card can no longer disagree with the pages beside it.
     const producedRows = machineIds.length
-      ? await this.prisma.jobOrder.findMany({
-          where: {
-            ...(factoryId ? { factoryId } : {}),
-            machineId: { in: machineIds },
-            // Overlap, not containment — a job order that began before the window
-            // and is still running is exactly the one that matters, and the old
-            // start-or-end-inside form excluded it, zeroing the KPI. Mirrors
-            // joOverlapsWindow() in kpi.service.ts.
-            AND: [
-              { actualStart: { lte: to } },
-              { OR: [{ actualEnd: null }, { actualEnd: { gte: from } }] },
-            ],
-          },
-          select: {
-            machineId: true, actualQtyGood: true, outputUnit: true,
-            workOrder: { select: { sku: { select: { unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } } } },
-          },
-        })
+      ? await this.prisma.$queryRaw<Array<{ machineId: string; pieces: number }>>(Prisma.sql`
+          SELECT "machineId", COALESCE(SUM("goodBase"), 0)::float8 AS pieces
+          FROM production_snapshots
+          WHERE granularity = 'MINUTE'
+            AND "machineId" IN (${Prisma.join(machineIds)})
+            AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
+          GROUP BY "machineId"
+        `)
       : [];
     const actualByMachine = new Map<string, number>();
     for (const row of producedRows) {
       if (!row.machineId) continue;
-      const pieces = toPieces(row.actualQtyGood ?? 0, row.outputUnit, row.workOrder?.sku ?? null);
-      actualByMachine.set(row.machineId, (actualByMachine.get(row.machineId) ?? 0) + pieces);
+      actualByMachine.set(row.machineId, row.pieces);
     }
 
     const windowHours = Math.max(0, (to.getTime() - from.getTime()) / 3_600_000);
@@ -389,7 +385,9 @@ export class ScheduleKpiService {
           'Rated throughput from the routing step cycle time (3600 ÷ cycleTimeSec, converted to ' +
           'PIECES) × calendar hours in the window. A machine-specific cycle time on the step ' +
           'overrides the step default. Where several routings cover a machine, the slowest rate is used. ' +
-          'This is the same master data that generates job orders, so capacity can never drift from the plan.',
+          'This is the same master data that generates job orders, so capacity can never drift from the plan. ' +
+          'Actual output is summed from the per-minute fact store, so both sides of the ratio cover exactly ' +
+          'the selected window.',
         note:
           machinesMissingCapacity.length > 0
             ? `${machinesMissingCapacity.length} machine(s) in scope are not assigned to any active ` +

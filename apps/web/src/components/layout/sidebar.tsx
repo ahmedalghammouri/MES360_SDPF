@@ -40,6 +40,7 @@ import {
   LogOut,
   Layers3,
   Layers,
+  Target,
   BoxesIcon,
   Zap,
   ClipboardCheck,
@@ -131,6 +132,7 @@ const navItems: NavItem[] = [
       { label: 'Performance Analytics',  href: '/production/performance-analytics',  icon: Gauge },
       { label: 'Quality Analytics',      href: '/production/quality-analytics',      icon: ShieldCheck },
       { label: 'Loss Tree & TEEP',       href: '/production/loss-tree',              icon: Layers, badge: 'New', badgeVariant: 'default' },
+      { label: 'Schedule & Capacity',    href: '/production/schedule-capacity',      icon: Target, badge: 'New', badgeVariant: 'default' },
     ],
   },
   {
