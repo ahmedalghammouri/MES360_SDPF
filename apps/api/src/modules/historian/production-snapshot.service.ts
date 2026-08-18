@@ -4,6 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { toPieces, type SkuPackaging } from '../../common/units.util';
 import { resolveShiftAt, type ShiftTemplateWindow, type ResolvedShift } from '../../common/shift-window.util';
+import { splitStoppedTime } from '../../common/stopped-time.util';
 
 const MIN = 60_000;
 
@@ -169,20 +170,17 @@ export class ProductionSnapshotService {
 
     // Three kinds of stopped time, and the DowntimeEvent itself says which is which:
     // `isPlanned` and `affectsOEE` are stamped onto the event from the machine's
-    // MachineStateRule when the state opens it. So the classification below is the
-    // plant's configuration, not a list of state names compiled into the code — mark
-    // a state as planned, or as not affecting OEE, and this follows without a deploy.
-    let downMin = 0, plannedDownMin = 0, externalMin = 0;
-    for (const ev of events) {
-      if (ev.machineId !== jo.machineId) continue;
-      const from = Math.max(ev.startTime.getTime(), winFrom);
-      const to = Math.min((ev.endTime ?? at).getTime(), winTo);
-      const m = Math.max(0, (to - from) / MIN);
-      if (m <= 0) continue;
-      if (ev.isPlanned) plannedDownMin += m;
-      else if (ev.affectsOEE) downMin += m;
-      else externalMin += m;              // starved / blocked / rule-excluded
-    }
+    // MachineStateRule when the state opens it. So the classification is the plant's
+    // configuration, not a list of state names compiled into the code — mark a state
+    // as planned, or as not affecting OEE, and this follows without a deploy.
+    //
+    // splitStoppedTime merges overlaps rather than summing durations: this log
+    // contains duplicated events and minutes covered by a planned AND an unplanned
+    // stop at once, and summing them made the stopped total exceed the bucket.
+    const { plannedMin: plannedDownMin, externalMin, downMin } = splitStoppedTime(
+      events.filter((ev) => ev.machineId === jo.machineId),
+      winFrom, winTo, at.getTime(),
+    );
     // Run time is OPERATING time: the span the job order occupied, minus every minute
     // the machine was stopped in it. Until this change runMin was the raw elapsed span,
     // so a machine that broke down mid-bucket still reported a full minute of run and
@@ -194,7 +192,9 @@ export class ProductionSnapshotService {
     //   • planned   (plannedDownMin) → out of both              → excluded by definition
     //   • external  (externalMin)  → out of both                → the line's constraint,
     //                                                             not this machine's fault
-    // which makes PPT − run = downMin exactly, the identity every read surface assumes.
+    // which makes PPT − run = downMin EXACTLY — the identity every read surface
+    // assumes, and the reason the three kinds are split by precedence above rather
+    // than summed.
     const psn = jo.plannedStart ? new Date(jo.plannedStart).getTime() : null;
     const pen = jo.plannedEnd ? new Date(jo.plannedEnd).getTime() : null;
     const excluded = plannedDownMin + externalMin;

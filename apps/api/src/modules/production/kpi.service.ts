@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { Prisma, MachineState } from '@prisma/client';
 import { OEEService, RollupChild, OEEBreakdown } from './oee.service';
 import { toPieces } from '../../common/units.util';
+import { splitStoppedTime, type StopInterval } from '../../common/stopped-time.util';
 import { ScheduleKpiService } from './schedule-kpi.service';
 
 /**
@@ -509,10 +510,6 @@ export class KpiService {
     const sku = jo.workOrder?.sku ?? null;
     const totalCount = sku && jo.outputUnit ? toPieces(total, jo.outputUnit, sku) : total;
     const goodCount = sku && jo.outputUnit ? toPieces(good, jo.outputUnit, sku) : good;
-    // Starved/blocked minutes inside this step's window. Capped at the run span so a
-    // stale open state segment can never drive PPT negative.
-    const externalLoss = Math.min(actualSpan, this.joExternalLoss(jo, states, win));
-
     // Run time is OPERATING time — the span minus every minute the machine was stopped.
     // The three kinds of stop leave the equation differently, and this must match the
     // fact-store writer (production-snapshot.service) minute for minute or the same
@@ -520,13 +517,30 @@ export class KpiService {
     //   • planned stops    → out of run AND out of PPT (never expected to produce)
     //   • external stops   → out of run, and out of PPT via netPpt in aggregateJos
     //   • unplanned stops  → out of run, KEPT in PPT   → this is the availability loss
-    // Each is capped at what is left so a stale open event can never drive run negative.
-    const plannedStop = Math.min(actualSpan, this.joPlannedStop(jo, downtime, win));
-    const stopped = Math.min(actualSpan, externalLoss + plannedStop);
-    const unplanned = Math.min(actualSpan - stopped, this.joUnplanned(jo, downtime, win));
+    //
+    // The split goes through the SAME helper the writer uses, over both sources at
+    // once: downtime events carry the planned/unplanned classification, machine state
+    // records carry starved/blocked. Feeding them together is what makes overlaps
+    // between the two — a starved state and the event it opened describing the same
+    // minutes — collapse instead of being subtracted twice.
+    const jsWin = win ? Math.max(jo.actualStart!.getTime(), win.from) : jo.actualStart!.getTime();
+    const jeWin = win && winTo != null
+      ? Math.min((jo.actualEnd ?? new Date()).getTime(), winTo)
+      : (jo.actualEnd ?? new Date()).getTime();
+    const stops: StopInterval[] = [
+      ...downtime
+        .filter((d) => !jo.machineId || d.machineId === jo.machineId)
+        .map((d) => ({ startTime: d.startTime, endTime: d.endTime, isPlanned: d.isPlanned, affectsOEE: d.affectsOEE })),
+      ...states
+        .filter((st) => !jo.machineId || st.machineId === jo.machineId)
+        .map((st) => ({ startTime: st.startTime, endTime: st.endTime, isPlanned: false, affectsOEE: false })),
+    ];
+    const split = splitStoppedTime(stops, jsWin, jeWin, Date.now());
+    const externalLoss = Math.min(actualSpan, split.externalMin);
+
     return {
-      ppt: Math.max(0, ppt - plannedStop),
-      runTime: Math.max(0, actualSpan - stopped - unplanned),
+      ppt: Math.max(0, ppt - split.plannedMin),
+      runTime: Math.max(0, actualSpan - split.plannedMin - externalLoss - split.downMin),
       idealRunTime, externalLoss, totalCount, goodCount,
     };
   }

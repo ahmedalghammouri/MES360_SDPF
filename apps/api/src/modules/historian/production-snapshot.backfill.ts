@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { toPieces, type SkuPackaging } from '../../common/units.util';
+import { splitStoppedTime } from '../../common/stopped-time.util';
 
 const MIN = 60_000;
 
@@ -113,18 +114,10 @@ export class ProductionSnapshotBackfill {
       const scrapRaw = i === n - 1 ? Math.max(0, finalScrap - scrapPer * (n - 1)) : scrapPer;
       const totalRaw = goodRaw + scrapRaw;
 
-      // Same three-way split as the live writer, driven by the flags the machine's
-      // MachineStateRule stamped on the event (planned / affects OEE / neither).
-      let downMin = 0, plannedDownMin = 0, externalMin = 0;
-      for (const ev of events) {
-        const f = Math.max(ev.startTime.getTime(), winFrom);
-        const t = Math.min((ev.endTime ?? new Date(winTo)).getTime(), winTo);
-        const m = Math.max(0, (t - f) / MIN);
-        if (m <= 0) continue;
-        if (ev.isPlanned) plannedDownMin += m;
-        else if (ev.affectsOEE) downMin += m;
-        else externalMin += m;
-      }
+      // Same three-way split as the live writer, through the SAME helper — overlaps
+      // and duplicate events merged, then assigned by precedence.
+      const { plannedMin: plannedDownMin, externalMin, downMin } =
+        splitStoppedTime(events, winFrom, winTo, winTo);
       // Run time is OPERATING time — see production-snapshot.service for the full
       // reasoning. Unplanned stops leave run but stay in PPT (so they are charged to
       // Availability); planned and rule-excluded stops leave both.
