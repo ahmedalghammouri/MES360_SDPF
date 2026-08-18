@@ -111,6 +111,8 @@ export interface DailyFactTotals {
 export interface MachineFactTotals {
   plannedMin: number; runMin: number; downMin: number; plannedDownMin: number;
   externalMin: number; microStopMin: number; idealRunMin: number;
+  /** Minutes the machine reported nothing at all — not run, not down, unmeasured. */
+  unmeasuredMin: number;
   totalBase: number; goodBase: number; scrapBase: number;
 }
 
@@ -685,6 +687,7 @@ export class KpiService {
                SUM("downMin")::float        AS "downMin",
                SUM("plannedDownMin")::float AS "plannedDownMin",
                SUM("externalMin")::float    AS "externalMin",
+               SUM("unmeasuredMin")::float  AS "unmeasuredMin",
                SUM("microStopMin")::float   AS "microStopMin",
                SUM("idealRunMin")::float    AS "idealRunMin"
         FROM scoped GROUP BY "machineId"
@@ -715,6 +718,7 @@ export class KpiService {
              COALESCE(t."downMin", 0)        AS "downMin",
              COALESCE(t."plannedDownMin", 0) AS "plannedDownMin",
              COALESCE(t."externalMin", 0)    AS "externalMin",
+             COALESCE(t."unmeasuredMin", 0)  AS "unmeasuredMin",
              COALESCE(t."microStopMin", 0)   AS "microStopMin",
              COALESCE(t."idealRunMin", 0)    AS "idealRunMin",
              COALESCE(q."totalBase", 0)      AS "totalBase",

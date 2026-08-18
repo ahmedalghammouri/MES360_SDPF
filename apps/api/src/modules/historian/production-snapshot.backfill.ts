@@ -143,17 +143,23 @@ export class ProductionSnapshotBackfill {
       const { coveredMin, producingMin } = observedTime(
         states, winFrom, winTo, winTo, PRODUCING_STATES,
       );
-      const assumedRun = Math.max(0, elapsedMin - downMin - excluded);
-      const runMin = coveredMin > 0
-        ? Math.min(assumedRun, Math.max(0, producingMin - excluded))
-        : assumedRun;
-      const unexplainedMin = Math.max(0, assumedRun - runMin);
-      const plannedOverlap = (psn != null && pen != null)
+      const accountable = Math.max(0, elapsedMin - downMin - excluded);
+      // Run time is only ever the minutes the machine reported PRODUCING. Time it
+      // did not report at all is neither run nor down — it is unmeasured, and
+      // calling it production is the same fail-open assumption this replaced, just
+      // applied to a different gap. A machine with no status signal now reports no
+      // availability rather than a flattering one.
+      const runMin = Math.min(accountable, Math.max(0, producingMin - excluded));
+      // Observed but not producing and not excused → a stop, charged to availability.
+      // Never observed → carved out of both sides, and reported as its own quantity.
+      const unmeasuredMin = Math.max(0, accountable - Math.max(0, coveredMin - excluded));
+      const unexplainedMin = Math.max(0, accountable - runMin - unmeasuredMin);
+        const plannedOverlap = (psn != null && pen != null)
         ? Math.max(0, (Math.min(pen, bEnd) - Math.max(psn, bStart)) / MIN)
         : 0;
       // PPT floored at the ELAPSED span, not at runMin — flooring at run would pull the
       // downtime out of the denominator too and pin availability back at 100%.
-      const plannedMin = Math.max(0, Math.max(elapsedMin, plannedOverlap) - excluded);
+      const plannedMin = Math.max(0, Math.max(elapsedMin, plannedOverlap) - excluded - unmeasuredMin);
 
       const goodBase = toBase(goodRaw);
       const scrapBase = toBase(scrapRaw);
@@ -182,7 +188,7 @@ export class ProductionSnapshotBackfill {
         outputUnit: unit ?? null, baseUnit: sku?.baseUnit ?? null,
         goodRaw, scrapRaw, reworkRaw: 0, totalRaw, plannedQtyOutRaw: jo.plannedQtyOut ?? null,
         goodBase, scrapBase, reworkBase: 0, totalBase, plannedQtyOutBase: jo.plannedQtyOut != null ? toBase(jo.plannedQtyOut) : null,
-        plannedMin, runMin, downMin: downMin + unexplainedMin, plannedDownMin, externalMin, microStopMin: 0, idealCycleSec: ict, idealRunMin,
+        plannedMin, runMin, downMin: downMin + unexplainedMin, plannedDownMin, externalMin, unmeasuredMin, microStopMin: 0, idealCycleSec: ict, idealRunMin,
         availability, performance, quality, oee, availabilityTb, oeeTb,
       };
       await prisma.productionSnapshot.upsert({

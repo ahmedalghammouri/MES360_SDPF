@@ -222,6 +222,12 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
         <Stat label={t('machineStatus.running')} value={fmtMin(totals.runMin ?? 0)} tone="good" />
         <Stat label={t('machineStatus.unplanned')} value={fmtMin(totals.unplannedMin ?? 0)} tone="bad" />
         <Stat label={t('machineStatus.external')} value={fmtMin(totals.externalMin ?? 0)} tone="warn" />
+        {/* Only shown when there IS unmeasured time — an extra zero on every screen
+            teaches people to ignore the card that matters when it is not zero. */}
+        {(totals.unmeasuredMin ?? 0) > 0 && (
+          <Stat label={t('machineStatus.unmeasured')} value={fmtMin(totals.unmeasuredMin)}
+                sub={t('machineStatus.unmeasuredHelp')} tone="warn" />
+        )}
         <Stat label={t('machineStatus.stops')} value={String(totals.stops ?? 0)} />
       </div>
 
@@ -256,6 +262,7 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
                 <TableHead className="text-right">{t('machineStatus.running')}</TableHead>
                 <TableHead className="text-right">{t('machineStatus.unplanned')}</TableHead>
                 <TableHead className="text-right">{t('machineStatus.external')}</TableHead>
+                <TableHead className="text-right">{t('machineStatus.unmeasured')}</TableHead>
                 <TableHead className="text-right">{t('machineStatus.stops')}</TableHead>
               </TableRow>
             </TableHeader>
@@ -271,6 +278,11 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
                   <TableCell className="text-right text-xs">{fmtMin(m.runMin)}</TableCell>
                   <TableCell className="text-right text-xs text-red-400">{fmtMin(m.unplannedMin)}</TableCell>
                   <TableCell className="text-right text-xs text-amber-400">{fmtMin(m.externalMin)}</TableCell>
+                  <TableCell className="text-right text-xs">
+                    {(m.unmeasuredMin ?? 0) > 0
+                      ? <span className="text-amber-500" title={t('machineStatus.unmeasuredHelp')}>{fmtMin(m.unmeasuredMin)}</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
                   <TableCell className="text-right text-xs">{m.stops}</TableCell>
                 </TableRow>
               ))}

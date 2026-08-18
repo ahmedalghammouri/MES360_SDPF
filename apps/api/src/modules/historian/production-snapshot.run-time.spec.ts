@@ -31,6 +31,11 @@ describe('ProductionSnapshotService — a minute bucket', () => {
     workOrder: { productionOrderId: null, skuId: null, shiftInstanceId: null, sku: null, shiftInstance: null },
   };
 
+  /** The machine reporting one state for the whole bucket. */
+  const reported = (state: string) => ([{
+    machineId: 'm1', state, startTime: bucketStart, endTime: bucketEnd,
+  }]);
+
   /** A downtime event covering the whole bucket, flagged as the rule would flag it. */
   const covering = (flags: { isPlanned: boolean; affectsOEE: boolean }) => ({
     machineId: 'm1', startTime: bucketStart, endTime: bucketEnd, ...flags,
@@ -59,13 +64,14 @@ describe('ProductionSnapshotService — a minute bucket', () => {
     const service = new ProductionSnapshotService(prisma as never);
     await service.captureMinute(at);
     return written as {
-      plannedMin: number; runMin: number; downMin: number;
-      plannedDownMin: number; externalMin: number; availability: number | null;
+      plannedMin: number; runMin: number; downMin: number; plannedDownMin: number;
+      externalMin: number; unmeasuredMin: number; availability: number | null;
     };
   }
 
   it('counts a clean minute as a full minute of run', async () => {
-    const r = await capture([]);
+    // The machine has to SAY it was running — run time is measured now, not assumed.
+    const r = await capture([], reported('RUNNING'));
     expect(r.runMin).toBeCloseTo(1, 3);
     expect(r.plannedMin).toBeCloseTo(1, 3);
     expect(r.availability).toBeCloseTo(100, 3);
@@ -110,7 +116,7 @@ describe('ProductionSnapshotService — a minute bucket', () => {
       endTime: bucketEnd,
       isPlanned: false, affectsOEE: true,
     };
-    const r = await capture([half]);
+    const r = await capture([half], reported('RUNNING'));
     expect(r.plannedMin - r.runMin).toBeCloseTo(r.downMin, 3);
     expect(r.availability).toBeCloseTo(50, 3);
   });
@@ -150,22 +156,36 @@ describe('ProductionSnapshotService — a minute bucket', () => {
       expect(r.downMin).toBeCloseTo(0, 3);
     });
 
-    it('caps run at the measured producing time, not the elapsed span', async () => {
-      // Reported running for half the bucket and nothing for the other half.
+    it('reports UNMEASURED, not run, when the machine has no status signal', async () => {
+      // A machine with nothing wired — the Checkweigher — reports no states. The
+      // first version of this fix assumed those minutes were production, which is
+      // the same fail-open behaviour it was meant to remove, just moved to a
+      // different gap. Unobserved time is neither run nor down.
+      const r = await capture([], []);
+      expect(r.runMin).toBeCloseTo(0, 3);
+      expect(r.unmeasuredMin).toBeCloseTo(1, 3);
+      expect(r.downMin).toBeCloseTo(0, 3);
+    });
+
+    it('gives such a machine no availability rather than a flattering one', async () => {
+      // Unmeasured time leaves PPT too: you cannot judge availability on minutes
+      // nobody observed. Null says "not measured"; 0% and 100% are both lies.
+      const r = await capture([], []);
+      expect(r.plannedMin).toBeCloseTo(0, 3);
+      expect(r.availability).toBeNull();
+    });
+
+    it('measures only the part of the window the machine did report', async () => {
+      // Reported RUNNING for the first half, silent for the second.
       const half = {
         machineId: 'm1', state: 'RUNNING',
         startTime: bucketStart, endTime: new Date(bucketStart.getTime() + 30_000),
       };
       const r = await capture([], [half]);
       expect(r.runMin).toBeCloseTo(0.5, 3);
-      expect(r.downMin).toBeCloseTo(0.5, 3);
-    });
-
-    it('keeps assuming when the machine has no status signal at all', async () => {
-      // A machine with nothing wired — the Checkweigher — reports no states.
-      // Silence is not evidence of a stop, so it must not be charged for it.
-      const r = await capture([], []);
-      expect(r.runMin).toBeCloseTo(1, 3);
+      expect(r.unmeasuredMin).toBeCloseTo(0.5, 3);
+      expect(r.plannedMin).toBeCloseTo(0.5, 3);
+      expect(r.availability).toBeCloseTo(100, 3);
     });
 
     it('does not double-charge a stop that DID produce an event', async () => {

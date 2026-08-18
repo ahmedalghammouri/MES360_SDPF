@@ -179,6 +179,9 @@ export class MachineStatusService {
         // other page reports from.
         runMin, unplannedMin, plannedMin, externalMin,
         plannedStopMin: f?.plannedDownMin ?? 0,
+        // Time the machine reported nothing. Shown so an unwired machine is visibly
+        // unmeasured rather than quietly flattering.
+        unmeasuredMin: f?.unmeasuredMin ?? 0,
         availabilityPct: plannedMin > 0 ? this.pct(runMin, plannedMin) : null,
         // Uptime share is deliberately clock-based and labelled as such: the raw
         // proportion of the window spent producing, nothing excluded. Showing both
@@ -195,6 +198,7 @@ export class MachineStatusService {
       unplannedMin: acc.unplannedMin + r.unplannedMin,
       plannedMin: acc.plannedMin + r.plannedMin,
       externalMin: acc.externalMin + r.externalMin,
+      unmeasuredMin: acc.unmeasuredMin + r.unmeasuredMin,
       idleMin: acc.idleMin + r.idleMin,
       stops: acc.stops + r.stops,
     }), this.emptyTotals());
@@ -414,7 +418,7 @@ export class MachineStatusService {
   }
 
   private emptyTotals() {
-    return { totalMin: 0, runMin: 0, unplannedMin: 0, plannedMin: 0, externalMin: 0, idleMin: 0, stops: 0 };
+    return { totalMin: 0, runMin: 0, unplannedMin: 0, plannedMin: 0, externalMin: 0, unmeasuredMin: 0, idleMin: 0, stops: 0 };
   }
 
   private pct(num: number, den: number): number {

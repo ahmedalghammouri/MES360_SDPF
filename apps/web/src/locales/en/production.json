@@ -2009,7 +2009,9 @@
     "loadFailed": "Could not load this view. The request failed — if you have just reopened the app, your session may still be waking up.",
     "retry": "Try again",
     "plannedProduction": "Planned production",
-    "plannedProductionHelp": "The denominator of Availability: time the machine was scheduled to produce, after planned and external stops are taken out."
+    "plannedProductionHelp": "The denominator of Availability: time the machine was scheduled to produce, after planned and external stops are taken out.",
+    "unmeasured": "Unmeasured",
+    "unmeasuredHelp": "Time inside a job order when the machine reported no state at all — no status signal wired, or the gateway was silent. Not counted as run or as downtime, and excluded from availability."
   },
   "gantt": {
     "zoomIn": "Zoom in",
