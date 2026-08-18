@@ -64,6 +64,26 @@ describe('live and analytics are separate by construction', () => {
     });
   });
 
+  describe('no surface grades a job order on its own', () => {
+    const production = src('production.service.ts');
+
+    it('has removed calcJobOrderOEE entirely', () => {
+      // It computed availability as elapsed-since-start over planned duration with
+      // NO downtime subtracted — the fail-open assumption, still running in its own
+      // corner long after the fact store stopped making it. The shop-floor live
+      // page and every per-step badge read from it.
+      expect(production).not.toMatch(/calcJobOrderOEE/);
+    });
+
+    it('reads step factors from the fact store instead', () => {
+      expect(production).toContain('jobOrderFactTotals(');
+    });
+
+    it('batches them, so a list of steps is one query not forty', () => {
+      expect(production).toMatch(/jobOrderFactors\(\s*[\s\S]{0,120}flatMap/);
+    });
+  });
+
   describe('both answer with the same arithmetic', () => {
     it('routes through the canonical aggregate in kpi.service', () => {
       for (const s of [live, analytics]) expect(s).toContain('machineFactTotals(');

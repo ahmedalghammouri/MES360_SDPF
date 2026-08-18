@@ -731,6 +731,70 @@ export class KpiService {
 
 
   /**
+   * The same aggregate, keyed by JOB ORDER — for anything that reports on a step.
+   *
+   * The shop-floor live page and the per-step badges used to compute their own
+   * A/P/Q from the job-order row: availability as elapsed-since-start over planned
+   * duration, with no downtime subtracted at all. That is the original fail-open
+   * assumption, still running in its own corner of the code, and it could not fall
+   * below 100% for a machine that simply kept reporting.
+   *
+   * The fact store already keys on jobOrderId, so a step's real minutes are one
+   * query away and there was never a reason to estimate them.
+   */
+  async jobOrderFactTotals(
+    jobOrderIds: string[],
+    win?: { from: Date; to: Date },
+  ): Promise<Map<string, MachineFactTotals>> {
+    if (jobOrderIds.length === 0) return new Map();
+    const window = win
+      ? Prisma.sql`AND "bucketStart" >= ${win.from} AND "bucketStart" < ${win.to}`
+      : Prisma.empty;
+    const rows = await this.prisma.$queryRaw<Array<MachineFactTotals & { jobOrderId: string }>>(Prisma.sql`
+      SELECT "jobOrderId",
+             COALESCE(SUM("plannedMin"), 0)::float8     AS "plannedMin",
+             COALESCE(SUM("runMin"), 0)::float8         AS "runMin",
+             COALESCE(SUM("downMin"), 0)::float8        AS "downMin",
+             COALESCE(SUM("plannedDownMin"), 0)::float8 AS "plannedDownMin",
+             COALESCE(SUM("externalMin"), 0)::float8    AS "externalMin",
+             COALESCE(SUM("unmeasuredMin"), 0)::float8  AS "unmeasuredMin",
+             COALESCE(SUM("microStopMin"), 0)::float8   AS "microStopMin",
+             COALESCE(SUM("idealRunMin"), 0)::float8    AS "idealRunMin",
+             COALESCE(SUM("totalBase"), 0)::float8      AS "totalBase",
+             COALESCE(SUM("goodBase"), 0)::float8       AS "goodBase",
+             COALESCE(SUM("scrapBase"), 0)::float8      AS "scrapBase"
+      FROM production_snapshots
+      WHERE granularity = 'MINUTE'
+        AND "jobOrderId" IN (${Prisma.join(jobOrderIds)})
+        ${window}
+      GROUP BY "jobOrderId"
+    `);
+    return new Map(rows.map((r) => [r.jobOrderId, r]));
+  }
+
+  /**
+   * A/P/Q/OEE from a fact-store total. One place, so a step badge, a live page and
+   * an analytics table cannot grade the same job order differently.
+   *
+   * Null rather than zero wherever the denominator is absent: a step with nothing
+   * planned has no availability, and 0% would read as failure instead of "never
+   * asked to run".
+   */
+  factorsFromFacts(f: MachineFactTotals | undefined) {
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+    const runMin = f?.runMin ?? 0;
+    const plannedMin = f?.plannedMin ?? 0;
+    const total = f?.totalBase ?? 0;
+    const availability = plannedMin > 0 ? r1((runMin / plannedMin) * 100) : null;
+    const performance = runMin > 0 ? Math.min(100, r1(((f?.idealRunMin ?? 0) / runMin) * 100)) : null;
+    const quality = total > 0 ? r1(((f?.goodBase ?? 0) / total) * 100) : null;
+    const oee = availability != null && performance != null && quality != null
+      ? r1((availability / 100) * (performance / 100) * (quality / 100) * 100)
+      : null;
+    return { availability, performance, quality, oee };
+  }
+
+  /**
    * The same aggregate, bucketed per plant-calendar day — for trend lines.
    *
    * Kept beside {@link machineFactTotals} rather than in the pages that draw

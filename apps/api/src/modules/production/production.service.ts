@@ -238,6 +238,11 @@ export class ProductionService implements OnApplicationBootstrap {
       }),
     ]);
 
+    // One fact-store read for every step on the page, rather than one per row.
+    const joFactors = await this.jobOrderFactors(
+      data.flatMap((wo) => wo.jobOrders.map((j) => j.id)),
+    );
+
     return {
       data: data.map((wo) => {
         const mapped = this.mapWorkOrder(wo);
@@ -283,7 +288,7 @@ export class ProductionService implements OnApplicationBootstrap {
             status: jo.status,
             machine: jo.machine,
             operator: jo.operator,
-            joOEE: this.calcJobOrderOEE(jo).joOEE,
+            joOEE: (joFactors.get(jo.id) ?? this.noFactors()).joOEE,
           })),
         };
       }),
@@ -363,6 +368,8 @@ export class ProductionService implements OnApplicationBootstrap {
     // quantities), while `plannedQtyOrdered` + `plannedQtyOrderedUnit` keep the
     // number the planner actually typed, in the unit they typed it in. A screen can
     // show the operator "150 PALLET" and still draw a truthful bar.
+    const joFactors = await this.jobOrderFactors(wo.jobOrders.map((j) => j.id));
+
     const plannedQtyBase = toPieces(wo.plannedQty ?? 0, (wo as any).qtyUnit, woPkg);
 
     return {
@@ -382,7 +389,7 @@ export class ProductionService implements OnApplicationBootstrap {
       totalSteps,
       jobOrders: wo.jobOrders.map((jo) => ({
         ...jo,
-        ...this.calcJobOrderOEE(jo),
+        ...(joFactors.get(jo.id) ?? this.noFactors()),
       })),
     };
   }
@@ -3551,7 +3558,8 @@ export class ProductionService implements OnApplicationBootstrap {
     });
 
     const withDep = await this.attachDepTypes(jos);
-    const withOee = withDep.map((jo) => ({ ...jo, ...this.calcJobOrderOEE(jo) }));
+    const joFactors = await this.jobOrderFactors(withDep.map((j: any) => j.id));
+    const withOee = withDep.map((jo: any) => ({ ...jo, ...(joFactors.get(jo.id) ?? this.noFactors()) }));
     return this.attachTimeBasedOEE(withOee);
   }
 
@@ -3652,7 +3660,8 @@ export class ProductionService implements OnApplicationBootstrap {
     });
 
     const withDep = await this.attachDepTypes(jos);
-    return withDep.map((jo) => ({ ...jo, ...this.calcJobOrderOEE(jo) }));
+    const joFactors = await this.jobOrderFactors(withDep.map((j: any) => j.id));
+    return withDep.map((jo: any) => ({ ...jo, ...(joFactors.get(jo.id) ?? this.noFactors()) }));
   }
 
   async generateJobOrders(
@@ -4531,67 +4540,44 @@ export class ProductionService implements OnApplicationBootstrap {
   // OEE PER JOB ORDER
   // ────────────────────────────────────────────────────────────
 
-  private calcJobOrderOEE(jo: any): {
-    joQuality: number | null;
-    joPerformance: number | null;
-    joAvailability: number | null;
-    joOEE: number | null;
-  } {
-    const totalProduced = (jo.actualQtyGood ?? 0) + (jo.actualQtyRejected ?? 0);
-
-    // Quality
-    const joQuality: number | null =
-      totalProduced > 0
-        ? parseFloat(((jo.actualQtyGood / totalProduced) * 100).toFixed(1))
-        : null;
-
-    // Operating time in seconds
-    let operatingTimeSec: number | null = null;
-    if (jo.actualStart) {
-      const startMs = new Date(jo.actualStart).getTime();
-      const endMs   = jo.actualEnd ? new Date(jo.actualEnd).getTime() : Date.now();
-      operatingTimeSec = (endMs - startMs) / 1000;
+  /**
+   * A/P/Q/OEE for a set of job orders, from the fact store.
+   *
+   * ── What this replaces ──────────────────────────────────────────────────
+   * `calcJobOrderOEE` computed these from the job-order row alone: availability
+   * as elapsed-since-start over planned duration, with NO downtime subtracted.
+   * That is the fail-open assumption removed from the fact store weeks ago, still
+   * running here in its own corner — so the shop-floor live page and the per-step
+   * badges reported an availability that could not fall below 100% for a machine
+   * that merely kept reporting, and disagreed with every other screen.
+   *
+   * It also derived quality from the step's own counters, so a routed order was
+   * graded five times over instead of on the units that actually left the line.
+   *
+   * The fact store keys on jobOrderId, so the real minutes were always one query
+   * away. Batched deliberately: a list of forty steps is one round trip.
+   */
+  private async jobOrderFactors(
+    jobOrderIds: string[],
+  ): Promise<Map<string, { joAvailability: number | null; joPerformance: number | null; joQuality: number | null; joOEE: number | null }>> {
+    const out = new Map<string, { joAvailability: number | null; joPerformance: number | null; joQuality: number | null; joOEE: number | null }>();
+    if (jobOrderIds.length === 0) return out;
+    const facts = await this.kpiService.jobOrderFactTotals(jobOrderIds);
+    for (const id of jobOrderIds) {
+      const f = this.kpiService.factorsFromFacts(facts.get(id));
+      out.set(id, {
+        joAvailability: f.availability,
+        joPerformance: f.performance,
+        joQuality: f.quality,
+        joOEE: f.oee,
+      });
     }
+    return out;
+  }
 
-    // Performance: only if idealCycleTimeSec > 0 and operatingTimeSec > 0
-    let joPerformance: number | null = null;
-    if (
-      jo.idealCycleTimeSec != null &&
-      jo.idealCycleTimeSec > 0 &&
-      operatingTimeSec != null &&
-      operatingTimeSec > 0
-    ) {
-      const raw = ((jo.idealCycleTimeSec * totalProduced) / operatingTimeSec) * 100;
-      joPerformance = parseFloat(Math.min(100, raw).toFixed(1));
-    }
-
-    // Availability: only if plannedStart and plannedEnd exist
-    let joAvailability: number | null = null;
-    if (jo.plannedStart && jo.plannedEnd && operatingTimeSec != null) {
-      // Planned production time accrues as the clock passes: an order running today
-      // is not "unavailable" for the fortnight of plan still ahead of it. Without
-      // this clamp the per-step badges read A: 0.2% while the machine was running
-      // normally. Same rule as historian.computeSample and kpi.joRollupChild.
-      const plannedEndMs = Math.min(new Date(jo.plannedEnd).getTime(), Date.now());
-      const plannedDurationSec =
-        Math.max(0, plannedEndMs - new Date(jo.plannedStart).getTime()) / 1000;
-      if (plannedDurationSec > 0) {
-        const raw = (operatingTimeSec / plannedDurationSec) * 100;
-        joAvailability = parseFloat(Math.min(100, raw).toFixed(1));
-      }
-    }
-
-    // OEE
-    let joOEE: number | null = null;
-    if (joAvailability != null && joPerformance != null && joQuality != null) {
-      joOEE = parseFloat(
-        ((joAvailability / 100) * (joPerformance / 100) * (joQuality / 100) * 100).toFixed(1),
-      );
-    } else if (joQuality != null) {
-      joOEE = joQuality;
-    }
-
-    return { joQuality, joPerformance, joAvailability, joOEE };
+  /** The empty shape, for a step the fact store has never seen. */
+  private noFactors() {
+    return { joAvailability: null, joPerformance: null, joQuality: null, joOEE: null };
   }
 
   async deleteJobOrders(factoryId: string | null, workOrderId: string) {
@@ -4652,7 +4638,10 @@ export class ProductionService implements OnApplicationBootstrap {
     if (!jo) throw new NotFoundException('Job order not found');
 
     const [withDep] = await this.attachDepTypes([jo]);
-    const oee = this.calcJobOrderOEE(jo);
+    // From the fact store, like every other surface. This page used to grade the
+    // step from its own row and reported an availability that could not fall below
+    // 100% for a machine that simply kept reporting.
+    const oee = (await this.jobOrderFactors([jo.id])).get(jo.id) ?? this.noFactors();
 
     // ── Analysis window: actual start (or planned) → actual end (or now) ──
     const now = new Date();
