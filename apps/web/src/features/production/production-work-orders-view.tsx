@@ -47,6 +47,14 @@ const STATUS_LABELS: Record<string, string> = {
   PLANNED: 'Planned', RELEASED: 'Released', IN_PROGRESS: 'In Progress',
   COMPLETED: 'Completed', ON_HOLD: 'On Hold', CANCELLED: 'Cancelled',
 };
+/**
+ * Quantities are grouped, never raw. A packaging line's figures run to six digits —
+ * "24000" and "240000" are one glance apart on a dense card, and the screenshots that
+ * prompted this fix showed exactly that ambiguity. Fractions are dropped: a count of
+ * physical units has no meaningful decimal.
+ */
+const fmtQty = (n: number | null | undefined) => Math.round(n ?? 0).toLocaleString();
+
 const PRIORITY_CLS: Record<string, string> = {
   CRITICAL: 'border-red-500 text-red-400', HIGH: 'border-orange-500 text-orange-400',
   MEDIUM: 'border-yellow-500 text-yellow-400', LOW: 'border-slate-500 text-slate-400',
@@ -829,18 +837,23 @@ export function ProductionWorkOrdersView() {
                   const good   = d.liveGoodQty  ?? d.goodQty  ?? 0;
                   const scrap  = d.liveScrapQty ?? d.scrapQty ?? 0;
                   const actual = d.liveActualQty ?? d.actualQty ?? 0;
+                  // The live quantities (good/scrap/actual) are in PIECES. The
+                  // commitment is stored in the ORDER's own unit — PALLET on this
+                  // line — so the bar has to divide by the commitment CONVERTED to
+                  // pieces (`plannedQtyBase`). Dividing by the raw 150 compared
+                  // pieces with pallets: a finished order drew as 0.6%.
+                  const plannedBase = d.plannedQtyBase ?? d.plannedQty ?? 0;
                   // Qty-based % for the final output vs WO planned. One decimal so the
                   // early hours of a large order read as 0.5%, not a discouraging 0%.
-                  const qtyPct = d.plannedQty > 0
-                    ? Math.min(Math.round((good / d.plannedQty) * 1000) / 10, 100)
+                  const qtyPct = plannedBase > 0
+                    ? Math.min(Math.round((good / plannedBase) * 1000) / 10, 100)
                     : 0;
-                  // plannedQty/goodQty/actualQty are denominated in the WORK ORDER's
-                  // own unit, which the API returns as `qtyUnit`. Labelling them with
-                  // the last job order's outputUnit was wrong by the whole packaging
-                  // ladder: a piece figure rendered as "40000 PALLET" overstates by
-                  // 160×, and the same number then carried a different unit on the PO
-                  // screen (CARTON) than here (PALLET).
+                  // `unit` labels the PIECES figures. The commitment keeps its own
+                  // unit and its own label — showing "150 PALLET" as "150 INNER"
+                  // understated the order by the whole packaging ladder.
                   const unit = d.qtyUnit ?? '';
+                  const orderedQty = d.plannedQtyOrdered ?? d.plannedQty ?? 0;
+                  const orderedUnit = d.plannedQtyOrderedUnit ?? unit;
                   return (
                     <div>
                       <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('wo.productionProgress')}</p>
@@ -859,11 +872,13 @@ export function ProductionWorkOrdersView() {
                           </div>
                         </div>
                         {/* Output qty bar (final step vs WO planned) */}
-                        {d.plannedQty > 0 && (
+                        {plannedBase > 0 && (
                           <div>
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-[10px] text-muted-foreground">{t('wo.finalOutputVsPlanned')}</span>
-                              <span className="text-[10px] font-semibold">{good} / {d.plannedQty} {unit}</span>
+                              <span className="text-[10px] font-semibold">
+                                {fmtQty(good)} / {fmtQty(plannedBase)} {unit}
+                              </span>
                             </div>
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -876,10 +891,13 @@ export function ProductionWorkOrdersView() {
                         {/* KPIs */}
                         <div className="grid grid-cols-4 gap-2 text-center pt-1 border-t border-border/30">
                           {[
-                            { label: t('wo.planned'),     value: `${d.plannedQty}`,       sub: unit },
-                            { label: t('wo.outputLast'),  value: `${actual}`,              sub: unit,  color: 'text-foreground' },
-                            { label: t('wo.good'),        value: `${good}`,               sub: unit,  color: 'text-green-400' },
-                            { label: t('wo.totalScrap'),  value: `${scrap}`,              sub: t('wo.allSteps'), color: scrap > 0 ? 'text-red-400' : '' },
+                            // The commitment is shown AS ORDERED — "150 PALLET" is
+                            // what the planner typed and what the operator recognises.
+                            // The three live figures beside it are in pieces and say so.
+                            { label: t('wo.planned'),     value: fmtQty(orderedQty),  sub: orderedUnit },
+                            { label: t('wo.outputLast'),  value: fmtQty(actual),      sub: unit,  color: 'text-foreground' },
+                            { label: t('wo.good'),        value: fmtQty(good),        sub: unit,  color: 'text-green-400' },
+                            { label: t('wo.totalScrap'),  value: fmtQty(scrap),       sub: t('wo.allSteps'), color: scrap > 0 ? 'text-red-400' : '' },
                           ].map(m => (
                             <div key={m.label}>
                               <div className={cn('text-base font-bold tabular-nums', (m as any).color)}>{m.value}</div>
@@ -901,7 +919,12 @@ export function ProductionWorkOrdersView() {
                     </p>
                     <div className="space-y-1.5">
                       {(detail as any).jobOrders.map((jo: any) => {
-                        const joProgress = jo.plannedQty > 0 ? Math.min(Math.round((jo.actualQtyGood / jo.plannedQty) * 100), 100) : 0;
+                        // JobOrder has no `plannedQty` column — it is `plannedQtyOut`.
+                        // Reading the wrong name made every step bar sit at 0% and the
+                        // quantity render as "0 / INNER" with the number missing, on
+                        // every job order of every work order.
+                        const joPlanned = jo.plannedQtyOut ?? 0;
+                        const joProgress = joPlanned > 0 ? Math.min(Math.round((jo.actualQtyGood / joPlanned) * 100), 100) : 0;
                         const statusColor: Record<string, string> = {
                           EXECUTING: 'text-green-400', COMPLETE: 'text-blue-400',
                           PAUSED: 'text-yellow-400', READY: 'text-muted-foreground',
@@ -935,11 +958,11 @@ export function ProductionWorkOrdersView() {
                                 <div className="h-full bg-primary/70 rounded-full transition-all" style={{ width: `${joProgress}%` }} />
                               </div>
                               <span className="text-[10px] tabular-nums text-muted-foreground">
-                                <span className="text-foreground font-medium">{jo.actualQtyGood}</span>
+                                <span className="text-foreground font-medium">{fmtQty(jo.actualQtyGood)}</span>
                                 {jo.actualQtyRejected > 0 && (
-                                  <span className="text-red-400"> +{jo.actualQtyRejected}✗</span>
+                                  <span className="text-red-400"> +{fmtQty(jo.actualQtyRejected)}✗</span>
                                 )}
-                                <span> / {jo.plannedQty} {jo.outputUnit}</span>
+                                <span> / {joPlanned > 0 ? fmtQty(joPlanned) : '—'} {jo.outputUnit ?? ''}</span>
                               </span>
                             </div>
                             <div className="flex items-center gap-3 text-[10px] text-muted-foreground">

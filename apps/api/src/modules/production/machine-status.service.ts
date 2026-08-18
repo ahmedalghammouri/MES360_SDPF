@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { KpiService } from './kpi.service';
 import { resolveLocalRange } from '../../common/plant-time.util';
+import { currentShiftStart } from '../../common/shift-window.util';
 
 /**
  * Machine status analytics — the timeline, and the three OEE factors behind it.
@@ -70,17 +71,38 @@ export class MachineStatusService {
    *
    * Shared with the rest of the API so a chart and a KPI card asked for "today"
    * cover the same seconds — the mismatch that used to make two screens disagree.
+   *
+   * `timeframe` is honoured for the SAME reason. These endpoints used to accept only
+   * dateFrom/dateTo, so picking "Shift" in the sidebar measured the whole calendar
+   * day here while /production/oee/calculate — which does resolve the shift from the
+   * templates — measured the sixteen minutes since the shift began. Two pages, one
+   * button, two windows, and every figure on them disagreed for a reason that had
+   * nothing to do with the arithmetic underneath.
    */
-  private window(dateFrom?: string, dateTo?: string) {
-    return resolveLocalRange(dateFrom, dateTo, 7);
+  private async window(
+    factoryId: string | null,
+    dateFrom?: string,
+    dateTo?: string,
+    timeframe?: string,
+  ) {
+    const range = resolveLocalRange(dateFrom, dateTo, 7);
+    if (String(timeframe ?? '').toLowerCase() !== 'shift') return range;
+    // The REAL current shift start, not "since midnight". Falls back to the calendar
+    // range when no shift template covers now — a guess would be worse than the day.
+    //
+    // factoryId is a PARAMETER, never an instance field: this service is a singleton
+    // and two concurrent requests for different factories would otherwise resolve
+    // each other's shift.
+    const shiftStart = await currentShiftStart(this.prisma, factoryId);
+    return shiftStart ? { from: shiftStart, to: range.to } : range;
   }
 
   // ────────────────────────────────────────────────────────────
   // AVAILABILITY — the timeline and what it adds up to
   // ────────────────────────────────────────────────────────────
 
-  async availability(factoryId: string | null, scope: StatusScope, dateFrom?: string, dateTo?: string) {
-    const { from, to } = this.window(dateFrom, dateTo);
+  async availability(factoryId: string | null, scope: StatusScope, dateFrom?: string, dateTo?: string, timeframe?: string) {
+    const { from, to } = await this.window(factoryId, dateFrom, dateTo, timeframe);
     const machines = await this.machinesInScope(factoryId, scope);
     if (machines.length === 0) {
       return { from, to, machines: [], totals: this.emptyTotals(), reasons: [] };
@@ -227,8 +249,8 @@ export class MachineStatusService {
   // PERFORMANCE — pace, from the fact store
   // ────────────────────────────────────────────────────────────
 
-  async performance(factoryId: string | null, scope: StatusScope, dateFrom?: string, dateTo?: string) {
-    const { from, to } = this.window(dateFrom, dateTo);
+  async performance(factoryId: string | null, scope: StatusScope, dateFrom?: string, dateTo?: string, timeframe?: string) {
+    const { from, to } = await this.window(factoryId, dateFrom, dateTo, timeframe);
     const machines = await this.machinesInScope(factoryId, scope);
     if (machines.length === 0) return { from, to, machines: [], series: [], totals: null };
     const machineIds = machines.map((m) => m.id);
@@ -290,8 +312,8 @@ export class MachineStatusService {
   // QUALITY
   // ────────────────────────────────────────────────────────────
 
-  async quality(factoryId: string | null, scope: StatusScope, dateFrom?: string, dateTo?: string) {
-    const { from, to } = this.window(dateFrom, dateTo);
+  async quality(factoryId: string | null, scope: StatusScope, dateFrom?: string, dateTo?: string, timeframe?: string) {
+    const { from, to } = await this.window(factoryId, dateFrom, dateTo, timeframe);
     const machines = await this.machinesInScope(factoryId, scope);
     if (machines.length === 0) return { from, to, machines: [], series: [], totals: null };
     const machineIds = machines.map((m) => m.id);

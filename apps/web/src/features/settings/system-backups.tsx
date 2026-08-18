@@ -20,7 +20,7 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  DatabaseBackup, Download, Trash2, RotateCcw, Loader2, AlertTriangle, ShieldCheck, Plus,
+  DatabaseBackup, Download, Trash2, RotateCcw, Loader2, AlertTriangle, ShieldCheck, Plus, Upload,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,7 @@ export interface BackupRow {
   sizeBytes: number;
   database: string;
   createdBy: string;
-  kind: 'MANUAL' | 'SAFETY';
+  kind: 'MANUAL' | 'SAFETY' | 'IMPORTED';
 }
 
 const RESTORE_PHRASE = 'RESTORE';
@@ -73,6 +73,8 @@ export function SystemBackups({ client }: { client: any }) {
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [downloading, setDownloading] = useState<string | null>(null);
+  const fileInput = React.useRef<HTMLInputElement>(null);
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['system', 'backups'],
@@ -85,6 +87,50 @@ export function SystemBackups({ client }: { client: any }) {
   }, [data]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['system', 'backups'] });
+
+  /**
+   * Upload an archive the operator already has locally.
+   *
+   * The download button has been here since the start, so copies have been leaving
+   * this server with no way back in — a dump sitting on somebody's laptop was not a
+   * backup you could actually restore from. This closes that loop.
+   *
+   * Progress is reported because these files are tens of megabytes over a WAN: a
+   * button that simply looks stuck for a minute gets clicked again.
+   */
+  const importMut = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      if (label.trim()) form.append('label', label.trim());
+      setUploadPct(0);
+      const res = await client.post('/system/backups/import', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        // A restore-sized archive over a slow link needs longer than the default.
+        timeout: 30 * 60_000,
+        onUploadProgress: (ev: any) => {
+          if (ev?.total) setUploadPct(Math.round((ev.loaded / ev.total) * 100));
+        },
+      });
+      return res.data;
+    },
+    onSuccess: (res: any) => {
+      const meta = res?.data ?? res;
+      toast({ title: t('backups.imported'), description: `${meta?.label ?? ''} · ${fmtSize(meta?.sizeBytes ?? 0)}` });
+      setLabel('');
+      invalidate();
+    },
+    onError: (e: any) => toast({
+      title: t('backups.importFailed'),
+      description: e?.response?.data?.message ?? e?.message,
+      variant: 'destructive',
+    }),
+    onSettled: () => {
+      setUploadPct(null);
+      // Clear the input so choosing the SAME file again still fires a change event.
+      if (fileInput.current) fileInput.current.value = '';
+    },
+  });
 
   const createMut = useMutation({
     mutationFn: async () => (await client.post('/system/backups', { label: label.trim() || undefined })).data,
@@ -196,10 +242,34 @@ export function SystemBackups({ client }: { client: any }) {
                 onChange={(e) => setLabel(e.target.value)}
               />
             </div>
-            <Button size="sm" onClick={() => createMut.mutate()} disabled={createMut.isPending}>
+            <Button size="sm" onClick={() => createMut.mutate()} disabled={createMut.isPending || importMut.isPending}>
               {createMut.isPending
                 ? <><Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" /> {t('backups.creating')}</>
                 : <><Plus className="w-3.5 h-3.5 me-1.5" /> {t('backups.create')}</>}
+            </Button>
+            {/* The label field above applies to whichever of the two is used, so an
+                uploaded archive can be named on the way in rather than arriving as
+                an opaque filename. */}
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".dump,application/octet-stream"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importMut.mutate(f);
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => fileInput.current?.click()}
+              disabled={importMut.isPending || createMut.isPending}
+              title={t('backups.importHint')}
+            >
+              {importMut.isPending
+                ? <><Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" /> {uploadPct != null ? `${uploadPct}%` : t('backups.importing')}</>
+                : <><Upload className="w-3.5 h-3.5 me-1.5" /> {t('backups.import')}</>}
             </Button>
           </div>
         </div>
@@ -239,6 +309,14 @@ export function SystemBackups({ client }: { client: any }) {
                       {b.kind === 'SAFETY' && (
                         <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-500">
                           <ShieldCheck className="w-3 h-3 me-1" />{t('backups.safety')}
+                        </Badge>
+                      )}
+                      {/* Worth marking: an imported archive was produced somewhere
+                          else, possibly by a different build or a different database,
+                          so it deserves a second look before it replaces this one. */}
+                      {b.kind === 'IMPORTED' && (
+                        <Badge variant="outline" className="text-[9px] border-sky-500/40 text-sky-400">
+                          <Upload className="w-3 h-3 me-1" />{t('backups.importedTag')}
                         </Badge>
                       )}
                     </div>

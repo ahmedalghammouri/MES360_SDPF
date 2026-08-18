@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { KpiService } from './kpi.service';
 import { resolveLocalRange } from '../../common/plant-time.util';
+import { currentShiftStart } from '../../common/shift-window.util';
 
 /**
  * OEE analytics — the loss tree behind the headline number.
@@ -52,8 +53,18 @@ export class OeeAnalyticsService {
     scope: { areaId?: string; lineId?: string; machineId?: string },
     dateFrom?: string,
     dateTo?: string,
+    timeframe?: string,
   ) {
-    const { from, to } = resolveLocalRange(dateFrom, dateTo, 7);
+    // "Shift" has to mean the same window here as it does on every other page. This
+    // read dateFrom/dateTo only, so the sidebar's Shift button measured the whole
+    // calendar day on the four analytics pages while the OEE page measured the
+    // minutes since the shift actually began — and the two disagreed on every figure
+    // for a reason that had nothing to do with the arithmetic.
+    const range = resolveLocalRange(dateFrom, dateTo, 7);
+    const shiftStart = String(timeframe ?? '').toLowerCase() === 'shift'
+      ? await currentShiftStart(this.prisma, factoryId)
+      : null;
+    const { from, to } = shiftStart ? { from: shiftStart, to: range.to } : range;
 
     const ids = await this.kpi.resolveScopeMachineIds(factoryId, scope);
     const machines = await this.prisma.machine.findMany({

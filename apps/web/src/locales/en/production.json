@@ -693,7 +693,9 @@
       "COMPLETED": "Completed",
       "ON_HOLD": "On Hold",
       "CANCELLED": "Cancelled"
-    }
+    },
+    "piecesSuffix": "pieces",
+    "ordered": "ordered"
   },
   "pomenu": {
     "editPo": "Edit PO",

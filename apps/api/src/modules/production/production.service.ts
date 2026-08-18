@@ -14,7 +14,7 @@ import { ApsService } from '../aps/aps.service';
 import { HistorianService } from '../historian/historian.service';
 import {
   convertUnits, isConvertibleUnit, normaliseUnit, piecesPer, smallestLadderUnit,
-  toPieces, sumInPieces, UNIT_LADDER,
+  toPieces, sumInPieces, UNIT_LADDER, type SkuPackaging,
 } from '../../common/units.util';
 import { resolveLocalRange } from '../../common/plant-time.util';
 import type { WorkOrderStatus, Prisma } from '@prisma/client';
@@ -269,6 +269,13 @@ export class ProductionService implements OnApplicationBootstrap {
           // when an inner IS one piece the shop floor calls it an inner, and a card
           // reading "pcs" is read as a different number. Never hardcoded.
           qtyUnit: smallestLadderUnit(wo.sku),
+          // Same split as the detail endpoint: the commitment converted to PIECES so
+          // it is comparable with goodQty/scrapQty above, plus the number as ordered
+          // in the unit it was ordered in. A list row that shows one and a bar that
+          // uses the other is how "150 PALLET" became "150 INNER".
+          plannedQtyBase: toPieces(mapped.plannedQty ?? 0, (wo as any).qtyUnit, wo.sku),
+          plannedQtyOrdered: mapped.plannedQty ?? 0,
+          plannedQtyOrderedUnit: (wo as any).qtyUnit ?? null,
           jobOrders: wo.jobOrders.map((jo) => ({
             id: jo.id,
             operationName: jo.operationName,
@@ -343,11 +350,29 @@ export class ProductionService implements OnApplicationBootstrap {
     // from the job-order steps (there is no single header machine).
     const machines = dedupeMachines(wo.jobOrders.map((jo) => jo.machine));
 
+    // The PLANNED side has to be converted too, and it was not.
+    //
+    // liveGood/liveScrap above are in PIECES. `wo.plannedQty` is stored in the work
+    // order's OWN unit — `wo.qtyUnit`, a real column — which for a packaging line is
+    // typically PALLET. Returning the raw 150 next to a pieces figure and labelling
+    // both with one derived unit made the progress bar compare pallets with pieces:
+    // an order 100% complete rendered as 0.6%, and "150 PALLET" was displayed as
+    // "150 INNER", understating the commitment by the whole packaging ladder.
+    //
+    // So: `plannedQtyBase` is the commitment in PIECES (comparable with the live
+    // quantities), while `plannedQtyOrdered` + `plannedQtyOrderedUnit` keep the
+    // number the planner actually typed, in the unit they typed it in. A screen can
+    // show the operator "150 PALLET" and still draw a truthful bar.
+    const plannedQtyBase = toPieces(wo.plannedQty ?? 0, (wo as any).qtyUnit, woPkg);
+
     return {
       ...wo,
       machines,
       // The unit those live quantities are denominated in, derived from the SKU.
       qtyUnit: smallestLadderUnit(woPkg),
+      plannedQtyBase,
+      plannedQtyOrdered: wo.plannedQty ?? 0,
+      plannedQtyOrderedUnit: (wo as any).qtyUnit ?? null,
       liveGoodQty:    liveGood,
       liveScrapQty:   liveScrap,
       liveActualQty:  liveActual,
@@ -541,7 +566,11 @@ export class ProductionService implements OnApplicationBootstrap {
           workOrders: {
             where: { deletedAt: null },
             select: {
-              id: true, orderNumber: true, status: true, plannedQty: true, actualQty: true, goodQty: true,
+              // qtyUnit is what plannedQty is COUNTED IN. Without it the caller has a
+              // bare 150 and no way to know it means pallets, which is how a work-order
+              // progress bar came to divide pieces by pallets and read 160× high.
+              id: true, orderNumber: true, status: true, plannedQty: true, qtyUnit: true,
+              actualQty: true, goodQty: true,
               jobOrders: { select: { machine: { select: { name: true, code: true } } } },
             },
           },
@@ -553,7 +582,11 @@ export class ProductionService implements OnApplicationBootstrap {
     // targetQtyPieces puts the numerator and denominator of every completion figure
     // in the SAME unit. / are kept untouched for display.
     return {
-      data: data.map((po) => ({ ...po, targetQtyPieces: toPieces(po.targetQty, po.unit, po.sku) })),
+      data: data.map((po) => ({
+        ...po,
+        targetQtyPieces: toPieces(po.targetQty, po.unit, po.sku),
+        workOrders: withPlannedBase(po.workOrders, po.sku),
+      })),
       total, page, limit,
     };
   }
@@ -580,7 +613,11 @@ export class ProductionService implements OnApplicationBootstrap {
       },
     });
     if (!po) throw new NotFoundException('Production order not found');
-    return { ...po, targetQtyPieces: toPieces(po.targetQty, po.unit, po.sku) };
+    return {
+      ...po,
+      targetQtyPieces: toPieces(po.targetQty, po.unit, po.sku),
+      workOrders: withPlannedBase(po.workOrders, po.sku),
+    };
   }
 
   async updateProductionOrder(factoryId: string | null, id: string, dto: UpdateProductionOrderDto) {
@@ -5117,4 +5154,27 @@ function dedupeMachines(
     out.push({ id: m.id, name: m.name, code: m.code });
   }
   return out;
+}
+
+/**
+ * Attach `plannedQtyBase` — a work order's commitment converted to PIECES.
+ *
+ * `WorkOrder.plannedQty` is counted in `WorkOrder.qtyUnit`, which on a packaging
+ * line is PALLET, while every produced quantity the API reports is in pieces.
+ * Handing a caller both without a conversion is how a work-order bar came to divide
+ * pieces by pallets and show 11.3% for an order the production order beside it —
+ * correctly — showed at 0.1%. 160 pieces to a pallet, 160× the truth.
+ *
+ * The ordered figure is kept alongside, in its own unit, because "150 PALLET" is
+ * what the planner typed and what the operator recognises on the floor.
+ */
+function withPlannedBase<
+  T extends { plannedQty?: number | null; qtyUnit?: string | null },
+>(workOrders: T[] | null | undefined, pkg: SkuPackaging | null | undefined) {
+  return (workOrders ?? []).map((wo) => ({
+    ...wo,
+    plannedQtyBase: toPieces(wo.plannedQty ?? 0, wo.qtyUnit, pkg),
+    plannedQtyOrdered: wo.plannedQty ?? 0,
+    plannedQtyOrderedUnit: wo.qtyUnit ?? null,
+  }));
 }

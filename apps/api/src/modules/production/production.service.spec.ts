@@ -18,7 +18,7 @@ const mockPrisma = {
   },
   sKU: { findFirst: jest.fn() },
   machine: { findFirst: jest.fn() },
-  productionOrder: { findFirst: jest.fn() },
+  productionOrder: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
   machineCycleTime: { findFirst: jest.fn() },
   oEERecord: {
     aggregate: jest.fn().mockResolvedValue({ _avg: { oee: null, availability: null, performance: null, quality: null } }),
@@ -180,6 +180,64 @@ describe('ProductionService', () => {
   });
 
   // ─── KPIs ─────────────────────────────────────────────────
+
+  // ─── Quantity units ───────────────────────────────────────
+  /**
+   * A work order's commitment and its produced quantities must be comparable.
+   *
+   * `WorkOrder.plannedQty` is counted in `WorkOrder.qtyUnit` — PALLET on a packaging
+   * line — while every produced quantity the API reports is converted to PIECES.
+   * Returning the raw 150 next to a pieces figure made the work-order screen label
+   * "150 PALLET" as "150 INNER" and made the progress bar divide pieces by pallets:
+   * 160 pieces to a pallet on this SKU, so a bar read 160× high, and the production
+   * order beside it — which did convert — disagreed with it on the same screen.
+   */
+  describe('work-order quantity units', () => {
+    // GENTO 4X2.25 Kg C: 1 piece per inner, 4 inners per carton, 40 cartons per
+    // pallet → 160 pieces to a pallet.
+    const sku = { name: 'GENTO', code: '10310189', baseUnit: 'CARTON', unitsPerInner: 1, innersPerCarton: 4, cartonsPerPallet: 40 };
+
+    const wo = (over: Record<string, unknown> = {}) => ({
+      id: 'wo1', orderNumber: 'WO-2026-0001', status: 'IN_PROGRESS',
+      plannedQty: 150, qtyUnit: 'PALLET',
+      actualQty: 0, goodQty: 0, scrapQty: 0, reworkQty: 0,
+      sku, jobOrders: [], downtimeEvents: [], batchRecords: [], machines: [],
+      ...over,
+    });
+
+    it('converts the commitment to PIECES so it can be compared with output', async () => {
+      mockPrisma.workOrder.findFirst.mockResolvedValue(wo());
+      const r: any = await service.getWorkOrderById('f1', 'wo1');
+
+      expect(r.plannedQtyBase).toBe(150 * 160);   // 24,000 pieces
+    });
+
+    it('keeps the commitment as ORDERED, in the unit it was ordered in', async () => {
+      // "150 PALLET" is what the planner typed and what the operator recognises —
+      // a screen that can only show pieces has lost that.
+      mockPrisma.workOrder.findFirst.mockResolvedValue(wo());
+      const r: any = await service.getWorkOrderById('f1', 'wo1');
+
+      expect(r.plannedQtyOrdered).toBe(150);
+      expect(r.plannedQtyOrderedUnit).toBe('PALLET');
+    });
+
+    it('does not label the commitment with the derived display unit', async () => {
+      // qtyUnit is the unit of the PIECES figures (INNER here, since an inner holds
+      // one piece). It must not be read as the unit of plannedQtyOrdered.
+      mockPrisma.workOrder.findFirst.mockResolvedValue(wo());
+      const r: any = await service.getWorkOrderById('f1', 'wo1');
+
+      expect(r.qtyUnit).not.toBe(r.plannedQtyOrderedUnit);
+    });
+
+    it('leaves a commitment already counted in pieces untouched', async () => {
+      mockPrisma.workOrder.findFirst.mockResolvedValue(wo({ plannedQty: 400_000, qtyUnit: 'PIECE' }));
+      const r: any = await service.getWorkOrderById('f1', 'wo1');
+
+      expect(r.plannedQtyBase).toBe(400_000);
+    });
+  });
 
   describe('getKPIs', () => {
     it('returns KPI object sourced from the OEE engine, incl. both OEE variants', async () => {

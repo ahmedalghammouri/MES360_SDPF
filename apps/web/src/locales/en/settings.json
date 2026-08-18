@@ -258,6 +258,12 @@
     "deleteDesc": "\"{{label}}\" will be removed from the server permanently. This does not affect the database itself.",
     "deleted": "Backup deleted",
     "deleteFailed": "Could not delete the backup",
-    "storageNote": "Backups live on a persistent volume on the server, so they survive a container rebuild. Download the ones that matter — a copy that only exists on the same machine as the database is not an offsite backup."
+    "storageNote": "Backups live on a persistent volume on the server, so they survive a container rebuild. Download the ones that matter — a copy that only exists on the same machine as the database is not an offsite backup.",
+    "import": "Import backup",
+    "importing": "Uploading…",
+    "imported": "Backup imported",
+    "importFailed": "Import failed",
+    "importedTag": "Imported",
+    "importHint": "Upload a .dump archive from this computer so it can be restored from here. Only PostgreSQL custom-format archives (pg_dump -Fc) are accepted."
   }
 }

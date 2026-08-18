@@ -53,7 +53,11 @@ export function useOeeAnalytics() {
   const query = useQuery({
     queryKey: ['oee-analytics', scopeKey, timeKey],
     queryFn: () => api.get('/machine-status/analytics', {
-      params: { ...filter, dateFrom: params.dateFrom, dateTo: params.dateTo },
+      // The whole params object, `timeframe` included. Sending only the dates made
+      // the sidebar's "Shift" resolve to the calendar day on all four analytics
+      // pages while the OEE page resolved the real shift, so the same machine
+      // reported two availabilities depending on which page you were looking at.
+      params: { ...filter, ...params },
     }),
     staleTime: 20_000,
     retry: 2,

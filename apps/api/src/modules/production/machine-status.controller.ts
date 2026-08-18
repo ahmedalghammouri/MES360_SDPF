@@ -36,6 +36,7 @@ export class MachineStatusController {
   @ApiQuery({ name: 'machineId', required: false })
   @ApiQuery({ name: 'dateFrom', required: false, description: 'YYYY-MM-DD, plant-local' })
   @ApiQuery({ name: 'dateTo', required: false, description: 'YYYY-MM-DD, plant-local' })
+  @ApiQuery({ name: 'timeframe', required: false, description: "shift | today | week | month — 'shift' resolves the real shift window from the templates" })
   async availability(
     @CurrentUser() user: RequestUser,
     @Query('areaId') areaId?: string,
@@ -43,8 +44,9 @@ export class MachineStatusController {
     @Query('machineId') machineId?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('timeframe') timeframe?: string,
   ) {
-    return this.service.availability(user.factoryId, { areaId, lineId, machineId }, dateFrom, dateTo);
+    return this.service.availability(user.factoryId, { areaId, lineId, machineId }, dateFrom, dateTo, timeframe);
   }
 
   @Get('performance')
@@ -57,8 +59,9 @@ export class MachineStatusController {
     @Query('machineId') machineId?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('timeframe') timeframe?: string,
   ) {
-    return this.service.performance(user.factoryId, { areaId, lineId, machineId }, dateFrom, dateTo);
+    return this.service.performance(user.factoryId, { areaId, lineId, machineId }, dateFrom, dateTo, timeframe);
   }
 
   @Get('quality')
@@ -71,8 +74,9 @@ export class MachineStatusController {
     @Query('machineId') machineId?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('timeframe') timeframe?: string,
   ) {
-    return this.service.quality(user.factoryId, { areaId, lineId, machineId }, dateFrom, dateTo);
+    return this.service.quality(user.factoryId, { areaId, lineId, machineId }, dateFrom, dateTo, timeframe);
   }
 
   /**
@@ -93,7 +97,8 @@ export class MachineStatusController {
     @Query('machineId') machineId?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('timeframe') timeframe?: string,
   ) {
-    return this.lossTree.analytics(user.factoryId, { areaId, lineId, machineId }, dateFrom, dateTo);
+    return this.lossTree.analytics(user.factoryId, { areaId, lineId, machineId }, dateFrom, dateTo, timeframe);
   }
 }

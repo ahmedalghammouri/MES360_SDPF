@@ -1,12 +1,16 @@
 import {
-  Body, Controller, Delete, Get, Param, Post, Res, UseGuards, StreamableFile,
+  Body, Controller, Delete, Get, Param, Post, Res, UploadedFile, UseGuards,
+  UseInterceptors, StreamableFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { mkdirSync } from 'node:fs';
 import type { Response } from 'express';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SystemOwnerGuard } from '../../common/guards/system-owner.guard';
-import { BackupService } from './backup.service';
+import { BackupService, UPLOAD_LIMIT_BYTES, UPLOAD_STAGING_DIR } from './backup.service';
 
 interface RequestUser {
   id: string;
@@ -39,6 +43,47 @@ export class BackupController {
   @ApiOperation({ summary: 'Take a new full database backup (owner only)' })
   create(@CurrentUser() user: RequestUser, @Body() dto: { label?: string }) {
     return this.backups.create(user as never, dto?.label);
+  }
+
+  /**
+   * Upload an archive from the operator's machine.
+   *
+   * Staged to DISK, never to memory: the API container runs with a 768 MB cap and a
+   * multi-gigabyte dump buffered in RAM would take the whole service down. multer
+   * writes it under the backups volume and the service validates the header before
+   * filing it — see BackupService.importArchive.
+   */
+  @Post('import')
+  @ApiOperation({ summary: 'Upload a .dump archive and file it as a restorable backup (owner only)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        label: { type: 'string' },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: (_req, _file, cb) => {
+        mkdirSync(UPLOAD_STAGING_DIR, { recursive: true });
+        cb(null, UPLOAD_STAGING_DIR);
+      },
+      // The client's filename never reaches the filesystem — it would be a path
+      // traversal straight out of the staging directory. The real name is preserved
+      // in the label instead.
+      filename: (_req, _file, cb) => cb(null, `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.part`),
+    }),
+    limits: { fileSize: UPLOAD_LIMIT_BYTES, files: 1 },
+  }))
+  importArchive(
+    @CurrentUser() user: RequestUser,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: { label?: string },
+  ) {
+    return this.backups.importArchive(user as never, file, dto?.label);
   }
 
   @Post(':id/restore')

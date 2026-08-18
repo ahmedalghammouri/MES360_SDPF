@@ -54,6 +54,9 @@ type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 interface WorkOrderRef {
   id: string; orderNumber: string; status: WOStatus;
   plannedQty: number; actualQty: number; goodQty: number;
+  /** The commitment in PIECES — `plannedQty` is in the order's own unit (PALLET here). */
+  plannedQtyBase?: number;
+  plannedQtyOrdered?: number; plannedQtyOrderedUnit?: string | null;
   machine?: { name: string }; operator?: { name: string };
   plannedStart: string | null; plannedEnd: string | null;
 }
@@ -173,10 +176,14 @@ function poProgress(po: ProductionOrder) {
 function woProgress(wo: WorkOrderRef) {
   if (wo.status === 'COMPLETED') return 100;
   const done = wo.goodQty || wo.actualQty || 0;
-  // plannedQty and goodQty are BOTH in pieces here, so the ratio was already sound —
-  // but the 99% cap hid over-production and whole-number rounding reported the first
-  // hours of a long order as 0%. Neither should be smoothed over.
-  if (wo.plannedQty > 0 && done > 0) return Math.min(100, Math.round((done / wo.plannedQty) * 1000) / 10);
+  // goodQty is in PIECES; plannedQty is in the WORK ORDER's own unit, which on a
+  // packaging line is PALLET. The comment that used to sit here asserted both were
+  // pieces and they were not, so this divided pieces by pallets and reported 11.3%
+  // for a work order the production order beside it — correctly — showed at 0.1%.
+  // 160 pieces to a pallet, 160× the truth. `plannedQtyBase` is the same commitment
+  // converted to pieces, so the two sides finally describe the same thing.
+  const planned = wo.plannedQtyBase ?? wo.plannedQty;
+  if (planned > 0 && done > 0) return Math.min(100, Math.round((done / planned) * 1000) / 10);
   return 0;
 }
 
@@ -693,6 +700,9 @@ function PODetailSheet({ po, open, onClose, actions }: PODetailSheetProps) {
   const cfg = PO_STATUS[po.status];
   const StatusIcon = cfg.icon;
   const progress = poProgress(po);
+  // The same sum poProgress divides — surfaced so the caption under the bar can show
+  // the numbers the percentage was actually built from.
+  const poDonePieces = po.workOrders.reduce((sum, w) => sum + (w.goodQty || w.actualQty || 0), 0);
 
   return (
     <Sheet open={open} onOpenChange={v => !v && onClose()}>
@@ -734,8 +744,17 @@ function PODetailSheet({ po, open, onClose, actions }: PODetailSheetProps) {
                 'bg-slate-500': ['PLANNED','CANCELLED'].includes(po.status),
               })} style={{ width: `${progress}%` }} />
             </div>
-            <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-              <span>{po.completedQty.toLocaleString()} / {po.targetQty.toLocaleString()} {po.unit}</span>
+            {/* The bar is driven by PIECES, so the caption states the piece figures
+                behind it. Showing only "0 / 150 PALLET" beside a bar reading 0.1%
+                left the two looking like they disagreed: no whole pallet had been
+                completed yet, but thousands of pieces had. Both are true; only one
+                of them was on screen. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 mt-2 text-xs text-muted-foreground">
+              <span>
+                {poDonePieces.toLocaleString()} / {(po.targetQtyPieces ?? po.targetQty).toLocaleString()}{' '}
+                {t('podetail.piecesSuffix')}
+                <span className="opacity-60"> · {t('podetail.ordered')} {po.completedQty.toLocaleString()} / {po.targetQty.toLocaleString()} {po.unit}</span>
+              </span>
               <span>{po.workOrders.filter(w => w.status !== 'CANCELLED').length} {t('podetail.wosSuffix')}</span>
             </div>
           </div>

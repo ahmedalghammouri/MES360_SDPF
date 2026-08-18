@@ -71,7 +71,10 @@ export function MachineStatusView() {
   // render still carries its token. Gating on isAuthenticated would flash
   // "no machines" for a frame before the store catches up.
 
-  const query = { ...filter, dateFrom: timeParams.dateFrom, dateTo: timeParams.dateTo };
+  // `timeframe` travels with the dates. Without it the API fell back to the calendar
+  // day, so picking "Shift" measured midnight→now here while the OEE page measured
+  // the minutes since the shift actually began — two pages, one button, two windows.
+  const query = { ...filter, ...timeParams };
 
   const availability = useQuery({
     queryKey: ['machine-status', 'availability', scopeKey, timeKey],

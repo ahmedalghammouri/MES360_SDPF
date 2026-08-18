@@ -693,7 +693,9 @@
       "COMPLETED": "مكتمل",
       "ON_HOLD": "معلّق",
       "CANCELLED": "ملغى"
-    }
+    },
+    "piecesSuffix": "قطعة",
+    "ordered": "المطلوب"
   },
   "pomenu": {
     "editPo": "تعديل أمر الإنتاج",

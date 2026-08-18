@@ -3,8 +3,9 @@ import {
   InternalServerErrorException, UnauthorizedException,
 } from '@nestjs/common';
 import { spawn } from 'node:child_process';
-import { createReadStream, existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
+import { createReadStream, createWriteStream, existsSync } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { mkdir, open, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import * as bcrypt from 'bcryptjs';
 
@@ -45,6 +46,24 @@ const CONFIRM_PHRASE = 'RESTORE';
 /** Long enough for a large plant database, short enough to surface a hang. */
 const DUMP_TIMEOUT_MS = 30 * 60_000;
 
+/**
+ * Upload ceiling. A dump of this plant is ~25 MB; 2 GB leaves room for a much larger
+ * one while still refusing an upload that would fill the backups volume.
+ */
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+
+/**
+ * Every pg_dump custom-format archive starts with these five bytes. Checking them is
+ * what stops an arbitrary file — or a plain-SQL script — from being filed as a
+ * restorable backup and only failing later, mid-restore, with the database already
+ * dropped.
+ */
+const PGDMP_MAGIC = Buffer.from('PGDMP', 'ascii');
+
+/** Where multer stages an upload before it is validated and filed. */
+export const UPLOAD_STAGING_DIR = join(process.env.BACKUP_DIR || '/app/backups', 'incoming');
+export const UPLOAD_LIMIT_BYTES = MAX_UPLOAD_BYTES;
+
 export interface BackupMeta {
   id: string;
   filename: string;
@@ -53,8 +72,12 @@ export interface BackupMeta {
   sizeBytes: number;
   database: string;
   createdBy: string;
-  /** SAFETY backups are taken automatically before a restore. */
-  kind: 'MANUAL' | 'SAFETY';
+  /**
+   * SAFETY backups are taken automatically before a restore. IMPORTED archives were
+   * uploaded from somebody's machine rather than produced by this server, which is
+   * worth showing: they may have come from a different database or a different build.
+   */
+  kind: 'MANUAL' | 'SAFETY' | 'IMPORTED';
   appVersion?: string;
 }
 
@@ -206,6 +229,129 @@ export class BackupService {
       });
       this.logger.log(`backup ${id} created by ${user.email} — ${(s.size / 1e6).toFixed(1)} MB in ${Date.now() - started}ms`);
       return meta;
+    } finally {
+      this.running = null;
+    }
+  }
+
+  // ── Importing an archive from the operator's machine ──────────────────────
+
+  /**
+   * Take a `.dump` the operator already has locally and file it as a restorable
+   * backup on the server.
+   *
+   * The point is to be able to go back to a copy that only exists on somebody's
+   * laptop — the download button has been there since the start, so archives have
+   * been leaving the server with no way back in.
+   *
+   * Three things are checked before anything is written, because a bad archive here
+   * only reveals itself during a restore, by which time the live database has
+   * already been dropped:
+   *
+   *  1. the size, against the volume;
+   *  2. the PGDMP magic, so an arbitrary file cannot be filed as an archive;
+   *  3. `pg_restore --list`, which actually parses the header — the strongest
+   *     available proof that pg_restore will be able to read it later.
+   *
+   * The id is generated here and never taken from the uploaded filename: it becomes
+   * a path, and a caller-supplied one is a traversal out of the backup directory.
+   * The original filename is kept in the label so the operator recognises it.
+   */
+  async importArchive(
+    user: ActingUser,
+    file: { originalname?: string; size?: number; path?: string },
+    label?: string,
+  ): Promise<BackupMeta> {
+    const staged = file?.path;
+    // The upload is already on disk when we get here (multer diskStorage). Anything
+    // that goes wrong from this point must take the staged file with it, or a
+    // rejected upload leaves its bytes on the volume forever.
+    const discard = async () => { if (staged) await unlink(staged).catch(() => undefined); };
+
+    if (!staged) throw new BadRequestException('No file was uploaded');
+    if (this.running) {
+      await discard();
+      throw new BadRequestException(`A ${this.running} is already running. Wait for it to finish.`);
+    }
+
+    this.running = 'backup';
+    let filed: string | null = null;
+    try {
+      const s0 = await stat(staged).catch(() => null);
+      if (!s0 || s0.size === 0) throw new BadRequestException('The uploaded file is empty');
+
+      // Read only the header — the file may be gigabytes and only the first five
+      // bytes decide whether it is an archive at all.
+      const head = Buffer.alloc(PGDMP_MAGIC.length);
+      const fh = await open(staged, 'r');
+      try {
+        await fh.read(head, 0, head.length, 0);
+      } finally {
+        await fh.close();
+      }
+      if (!head.equals(PGDMP_MAGIC)) {
+        throw new BadRequestException(
+          'That file is not a PostgreSQL custom-format archive. Upload a .dump produced by this page ' +
+          'or by `pg_dump -Fc`; a plain .sql file cannot be restored here.',
+        );
+      }
+
+      await this.ensureDir();
+      const id = this.newId('IMPORTED');
+      filed = this.dumpPath(id);
+      // rename() is the cheap path and works whenever staging and the backup
+      // directory share a filesystem, which is the normal deployment. It throws
+      // EXDEV when they do not — a tmpfs /tmp beside a mounted /app/backups volume
+      // is enough — so fall back to a stream copy rather than failing the upload
+      // over a detail of how the container happens to be mounted.
+      try {
+        await rename(staged, filed);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err;
+        await pipeline(createReadStream(staged), createWriteStream(filed));
+        await unlink(staged).catch(() => undefined);
+      }
+
+      // Parse the header for real. A file can carry the magic and still be truncated
+      // or corrupt, and finding that out mid-restore is finding it out too late —
+      // by then the live database has already been dropped.
+      try {
+        await this.run('pg_restore', ['--list', filed], '');
+      } catch (err) {
+        throw new BadRequestException(
+          'The archive could not be read by pg_restore — it looks truncated or corrupt. ' +
+          `Re-download it and try again. (${(err as Error).message})`,
+        );
+      }
+
+      const s1 = await stat(filed);
+      const original = (file.originalname ?? '').trim();
+      const meta: BackupMeta = {
+        id,
+        filename: `${id}.dump`,
+        label: label?.trim() || (original ? `Imported — ${original}` : 'Imported archive'),
+        createdAt: new Date().toISOString(),
+        sizeBytes: s1.size,
+        // The archive's own database name lives inside the dump. Naming the CURRENT
+        // database here would be a false claim about where this archive came from.
+        database: 'imported',
+        createdBy: user.email,
+        kind: 'IMPORTED',
+        appVersion: process.env.APP_VERSION,
+      };
+      await writeFile(this.metaPath(id), JSON.stringify(meta, null, 2), 'utf8');
+
+      await this.audit(user, 'BACKUP_IMPORT', id, {
+        label: meta.label, sizeBytes: meta.sizeBytes, originalFilename: original,
+      });
+      this.logger.log(
+        `backup ${id} IMPORTED by ${user.email} — ${(s1.size / 1e6).toFixed(1)} MB (${original || 'unnamed'})`,
+      );
+      return meta;
+    } catch (err) {
+      if (filed) await unlink(filed).catch(() => undefined);
+      await discard();
+      throw err;
     } finally {
       this.running = null;
     }
