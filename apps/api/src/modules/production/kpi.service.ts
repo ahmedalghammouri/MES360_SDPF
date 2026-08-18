@@ -98,6 +98,23 @@ function joOverlapsWindow(from: Date, to: Date) {
 }
 
 /**
+ * How one machine spent a window, and what it produced in it — the shape every
+ * surface reports from. Minutes are the fact store's own columns; quantities are
+ * already normalised to pieces and filtered to the final routing step.
+ */
+export interface DailyFactTotals {
+  day: Date;
+  plannedMin: number; runMin: number; idealRunMin: number;
+  totalBase: number; goodBase: number;
+}
+
+export interface MachineFactTotals {
+  plannedMin: number; runMin: number; downMin: number; plannedDownMin: number;
+  externalMin: number; microStopMin: number; idealRunMin: number;
+  totalBase: number; goodBase: number; scrapBase: number;
+}
+
+/**
  * States where the machine is healthy but the LINE cannot feed or drain it.
  *
  * This is only the FALLBACK. The real answer lives in MachineStateRule: any state a
@@ -623,6 +640,129 @@ export class KpiService {
       totalCount: counts.total,
       goodCount: counts.good,
     });
+  }
+
+
+  // ── The ONE per-machine time aggregate ────────────────────────────────────
+  /**
+   * Per-machine time and quantity for a window, straight from the fact store.
+   *
+   * ── Why this exists ─────────────────────────────────────────────────────
+   * Availability was being computed in four places from three different data
+   * sources, and on 18 Aug 2026 they disagreed on screen: Machine Status showed
+   * 0% for a machine that Availability Analytics showed at 91.8%, at the same
+   * moment. The underlying cause was a data bug, but the reason it could reach a
+   * user's eyes at all is that nothing forced the two to agree — each surface
+   * had its own arithmetic, so a defect in one was invisible to the other.
+   *
+   * This is now the single implementation. Every page that reports how a machine
+   * spent its time reads THIS, so two screens can be wrong together but can no
+   * longer be wrong differently.
+   *
+   * Time belongs to the machine; QUANTITY is filtered to the final routing step
+   * per work order, because a unit that passes five stations is one unit, not
+   * five. Both rules live here rather than in each caller.
+   */
+  async machineFactTotals(
+    machineIds: string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, MachineFactTotals>> {
+    if (machineIds.length === 0) return new Map();
+    const rows = await this.prisma.$queryRaw<Array<MachineFactTotals & { machineId: string }>>(Prisma.sql`
+      WITH scoped AS (
+        SELECT * FROM production_snapshots
+        WHERE granularity = 'MINUTE'
+          AND "machineId" IN (${Prisma.join(machineIds)})
+          AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
+      ),
+      -- TIME belongs to every machine: a minute the filler spent broken is a
+      -- real minute regardless of where it sat in the routing.
+      t AS (
+        SELECT "machineId",
+               SUM("plannedMin")::float     AS "plannedMin",
+               SUM("runMin")::float         AS "runMin",
+               SUM("downMin")::float        AS "downMin",
+               SUM("plannedDownMin")::float AS "plannedDownMin",
+               SUM("externalMin")::float    AS "externalMin",
+               SUM("microStopMin")::float   AS "microStopMin",
+               SUM("idealRunMin")::float    AS "idealRunMin"
+        FROM scoped GROUP BY "machineId"
+      ),
+      -- QUANTITIES must come from the FINAL routing step per work order on that
+      -- machine, exactly as the OEE engine does it. Summing every step counts one
+      -- physical unit once per stage — five times on this line — which inflates
+      -- output and dilutes the scrap rate until quality reads better than it is.
+      -- Measured here: 99.9% summed across steps against 98.9% done properly.
+      fin AS (
+        SELECT "machineId", "workOrderId", MAX("sequenceOrder") ms
+        FROM scoped GROUP BY "machineId", "workOrderId"
+      ),
+      q AS (
+        SELECT s."machineId",
+               SUM(s."totalBase")::float AS "totalBase",
+               SUM(s."goodBase")::float  AS "goodBase",
+               SUM(s."scrapBase")::float AS "scrapBase"
+        FROM scoped s
+        JOIN fin f ON f."machineId" = s."machineId"
+                  AND f."workOrderId" = s."workOrderId"
+                  AND f.ms = s."sequenceOrder"
+        GROUP BY s."machineId"
+      )
+      SELECT t."machineId",
+             COALESCE(t."plannedMin", 0)     AS "plannedMin",
+             COALESCE(t."runMin", 0)         AS "runMin",
+             COALESCE(t."downMin", 0)        AS "downMin",
+             COALESCE(t."plannedDownMin", 0) AS "plannedDownMin",
+             COALESCE(t."externalMin", 0)    AS "externalMin",
+             COALESCE(t."microStopMin", 0)   AS "microStopMin",
+             COALESCE(t."idealRunMin", 0)    AS "idealRunMin",
+             COALESCE(q."totalBase", 0)      AS "totalBase",
+             COALESCE(q."goodBase", 0)       AS "goodBase",
+             COALESCE(q."scrapBase", 0)      AS "scrapBase"
+      FROM t LEFT JOIN q ON q."machineId" = t."machineId"
+    `);
+    return new Map(rows.map((r) => [r.machineId, r]));
+  }
+
+
+  /**
+   * The same aggregate, bucketed per plant-calendar day — for trend lines.
+   *
+   * Kept beside {@link machineFactTotals} rather than in the pages that draw
+   * charts, for the same reason: this existed twice, once here and once in
+   * machine-status, and two copies of a query are two chances to drift.
+   */
+  async dailyFactTotals(
+    machineIds: string[],
+    from: Date,
+    to: Date,
+  ): Promise<Array<DailyFactTotals>> {
+    if (machineIds.length === 0) return [];
+    return this.prisma.$queryRaw<Array<DailyFactTotals>>(Prisma.sql`
+      WITH scoped AS (
+        SELECT *, date_trunc('day', "bucketStart" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Riyadh') AS d
+        FROM production_snapshots
+        WHERE granularity = 'MINUTE'
+          AND "machineId" IN (${Prisma.join(machineIds)})
+          AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
+      ),
+      t AS (
+        SELECT d, SUM("plannedMin")::float AS "plannedMin", SUM("runMin")::float AS "runMin",
+               SUM("idealRunMin")::float AS "idealRunMin"
+        FROM scoped GROUP BY d
+      ),
+      -- Final step per work order per day, for the same reason as above.
+      fin AS (SELECT d, "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY d, "workOrderId"),
+      q AS (
+        SELECT s.d, SUM(s."totalBase")::float AS "totalBase", SUM(s."goodBase")::float AS "goodBase"
+        FROM scoped s JOIN fin f ON f.d = s.d AND f."workOrderId" = s."workOrderId" AND f.ms = s."sequenceOrder"
+        GROUP BY s.d
+      )
+      SELECT t.d AS day, t."plannedMin", t."runMin", t."idealRunMin",
+             COALESCE(q."totalBase", 0) AS "totalBase", COALESCE(q."goodBase", 0) AS "goodBase"
+      FROM t LEFT JOIN q ON q.d = t.d ORDER BY t.d
+    `);
   }
 
   // ── Fact-store reads (ProductionSnapshot) ──────────────────────────────────

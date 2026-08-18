@@ -151,12 +151,17 @@ export function Stat({
   );
 }
 
-export function Pct({ v, good = 85 }: { v?: number; good?: number }) {
-  const n = v ?? 0;
+export function Pct({ v, good = 85 }: { v?: number | null; good?: number }) {
+  // null is not zero. A machine with no planned production in the window has no
+  // availability to report, and rendering that as 0% accuses it of failing when it
+  // was simply never asked to run. An em dash says "not applicable" honestly.
+  if (v == null) {
+    return <span className="text-sm text-muted-foreground" title="No planned production in this window">—</span>;
+  }
   return (
     <span className={cn('text-sm font-semibold',
-      n >= good ? 'text-emerald-500' : n >= good * 0.7 ? 'text-amber-500' : 'text-red-400')}>
-      {n}%
+      v >= good ? 'text-emerald-500' : v >= good * 0.7 ? 'text-amber-500' : 'text-red-400')}>
+      {v}%
     </span>
   );
 }

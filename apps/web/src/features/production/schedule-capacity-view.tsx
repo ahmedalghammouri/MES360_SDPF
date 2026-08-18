@@ -236,6 +236,11 @@ export function ScheduleCapacityView() {
           </Caveat>
         )}
 
+        {/* The basis is stated up front, not buried: two pages reporting different
+            availabilities for one machine is only defensible if each says which
+            question it is answering. */}
+        <Note>{t('schedCap.scheduleBasisNote')}</Note>
+
         {/* ── Line OEE composition ─────────────────────────────────────── */}
         {lo ? (
           <Panel
@@ -255,7 +260,10 @@ export function ScheduleCapacityView() {
                 <TableRow>
                   <TableHead>{t('oeeAn.machine')}</TableHead>
                   <TableHead className="text-right">{t('oeeAn.oee')}</TableHead>
-                  <TableHead className="text-right">{t('oeeAn.availability')}</TableHead>
+                  {/* Named for what it measures. Calling it plain "Availability"
+                      beside a page that measures a different denominator is how the
+                      same machine came to carry two availabilities. */}
+                  <TableHead className="text-right">{t('schedCap.availabilityVsSchedule')}</TableHead>
                   <TableHead className="text-right">{t('oeeAn.performance')}</TableHead>
                   <TableHead className="text-right">{t('oeeAn.quality')}</TableHead>
                   <TableHead className="text-right">{t('schedCap.externalLoss')}</TableHead>

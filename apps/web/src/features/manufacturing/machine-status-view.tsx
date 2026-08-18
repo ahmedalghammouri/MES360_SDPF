@@ -209,7 +209,10 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        <Stat label={t('machineStatus.availability')} value={`${totals.availabilityPct ?? 0}%`} tone="primary" />
+        {/* No planned production in the window means no availability to report —
+            "—" rather than 0%, which would read as a failure. */}
+        <Stat label={t('machineStatus.availability')}
+              value={totals.availabilityPct == null ? '—' : `${totals.availabilityPct}%`} tone="primary" />
         <Stat label={t('machineStatus.uptime')} value={`${totals.uptimePct ?? 0}%`} />
         <Stat label={t('machineStatus.running')} value={fmtMin(totals.runMin ?? 0)} tone="good" />
         <Stat label={t('machineStatus.unplanned')} value={fmtMin(totals.unplannedMin ?? 0)} tone="bad" />
@@ -226,7 +229,7 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
             id: m.machineId,
             label: m.code,
             sublabel: m.name,
-            meta: `${m.availabilityPct}% · ${fmtMin(m.runMin)}`,
+            meta: `${m.availabilityPct == null ? '—' : `${m.availabilityPct}%`} · ${fmtMin(m.runMin)}`,
             segments: m.segments ?? [],
           }))}
           windowStart={from}

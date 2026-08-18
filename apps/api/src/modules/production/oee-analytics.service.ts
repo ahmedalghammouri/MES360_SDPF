@@ -82,68 +82,13 @@ export class OeeAnalyticsService {
     }
     const machineIds = machines.map((m) => m.id);
 
-    // The same fact store the OEE engine reads, aggregated per machine. Summing
-    // the minute buckets rather than recomputing from raw events is what keeps
-    // these pages numerically identical to OEE Analytics.
-    const rows = await this.prisma.$queryRaw<Array<{
-      machineId: string;
-      plannedMin: number; runMin: number; downMin: number; plannedDownMin: number;
-      externalMin: number; microStopMin: number; idealRunMin: number;
-      totalBase: number; goodBase: number; scrapBase: number;
-    }>>(Prisma.sql`
-      WITH scoped AS (
-        SELECT * FROM production_snapshots
-        WHERE granularity = 'MINUTE'
-          AND "machineId" IN (${Prisma.join(machineIds)})
-          AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
-      ),
-      -- TIME belongs to every machine: a minute the filler spent broken is a
-      -- real minute regardless of where it sat in the routing.
-      t AS (
-        SELECT "machineId",
-               SUM("plannedMin")::float     AS "plannedMin",
-               SUM("runMin")::float         AS "runMin",
-               SUM("downMin")::float        AS "downMin",
-               SUM("plannedDownMin")::float AS "plannedDownMin",
-               SUM("externalMin")::float    AS "externalMin",
-               SUM("microStopMin")::float   AS "microStopMin",
-               SUM("idealRunMin")::float    AS "idealRunMin"
-        FROM scoped GROUP BY "machineId"
-      ),
-      -- QUANTITIES must come from the FINAL routing step per work order on that
-      -- machine, exactly as the OEE engine does it. Summing every step counts one
-      -- physical unit once per stage — five times on this line — which inflates
-      -- output and dilutes the scrap rate until quality reads better than it is.
-      -- Measured here: 99.9% summed across steps against 98.9% done properly.
-      fin AS (
-        SELECT "machineId", "workOrderId", MAX("sequenceOrder") ms
-        FROM scoped GROUP BY "machineId", "workOrderId"
-      ),
-      q AS (
-        SELECT s."machineId",
-               SUM(s."totalBase")::float AS "totalBase",
-               SUM(s."goodBase")::float  AS "goodBase",
-               SUM(s."scrapBase")::float AS "scrapBase"
-        FROM scoped s
-        JOIN fin f ON f."machineId" = s."machineId"
-                  AND f."workOrderId" = s."workOrderId"
-                  AND f.ms = s."sequenceOrder"
-        GROUP BY s."machineId"
-      )
-      SELECT t."machineId",
-             COALESCE(t."plannedMin", 0)     AS "plannedMin",
-             COALESCE(t."runMin", 0)         AS "runMin",
-             COALESCE(t."downMin", 0)        AS "downMin",
-             COALESCE(t."plannedDownMin", 0) AS "plannedDownMin",
-             COALESCE(t."externalMin", 0)    AS "externalMin",
-             COALESCE(t."microStopMin", 0)   AS "microStopMin",
-             COALESCE(t."idealRunMin", 0)    AS "idealRunMin",
-             COALESCE(q."totalBase", 0)      AS "totalBase",
-             COALESCE(q."goodBase", 0)       AS "goodBase",
-             COALESCE(q."scrapBase", 0)      AS "scrapBase"
-      FROM t LEFT JOIN q ON q."machineId" = t."machineId"
-    `);
-    const byId = new Map(rows.map((r) => [r.machineId, r]));
+    // ONE implementation, in kpi.service. This page used to carry its own copy of
+    // this query; Machine Status carried a different computation over a different
+    // table, and on 18 Aug 2026 the two disagreed on screen — 0% against 91.8% for
+    // the same machine at the same moment. Whatever the underlying defect, a
+    // second implementation is what let one surface be wrong while its neighbour
+    // stayed right.
+    const byId = await this.kpi.machineFactTotals(machineIds, from, to);
 
     // External loss now comes from the fact store like every other minute. It used to
     // be re-derived here from machine_state_records filtered on a hardcoded
@@ -334,33 +279,7 @@ export class OeeAnalyticsService {
 
   /** Daily factor trend, bucketed on the plant's calendar rather than UTC. */
   private async dailyTrend(machineIds: string[], from: Date, to: Date, machineCount: number) {
-    const rows = await this.prisma.$queryRaw<Array<{
-      day: Date; plannedMin: number; runMin: number; idealRunMin: number;
-      totalBase: number; goodBase: number;
-    }>>(Prisma.sql`
-      WITH scoped AS (
-        SELECT *, date_trunc('day', "bucketStart" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Riyadh') AS d
-        FROM production_snapshots
-        WHERE granularity = 'MINUTE'
-          AND "machineId" IN (${Prisma.join(machineIds)})
-          AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
-      ),
-      t AS (
-        SELECT d, SUM("plannedMin")::float AS "plannedMin", SUM("runMin")::float AS "runMin",
-               SUM("idealRunMin")::float AS "idealRunMin"
-        FROM scoped GROUP BY d
-      ),
-      -- Final step per work order per day, for the same reason as above.
-      fin AS (SELECT d, "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY d, "workOrderId"),
-      q AS (
-        SELECT s.d, SUM(s."totalBase")::float AS "totalBase", SUM(s."goodBase")::float AS "goodBase"
-        FROM scoped s JOIN fin f ON f.d = s.d AND f."workOrderId" = s."workOrderId" AND f.ms = s."sequenceOrder"
-        GROUP BY s.d
-      )
-      SELECT t.d AS day, t."plannedMin", t."runMin", t."idealRunMin",
-             COALESCE(q."totalBase", 0) AS "totalBase", COALESCE(q."goodBase", 0) AS "goodBase"
-      FROM t LEFT JOIN q ON q.d = t.d ORDER BY t.d
-    `);
+    const rows = await this.kpi.dailyFactTotals(machineIds, from, to);
 
     const dayMin = 24 * 60 * machineCount;
     return rows.map((r) => {

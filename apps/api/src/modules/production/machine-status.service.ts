@@ -130,6 +130,14 @@ export class MachineStatusService {
       byMachine.set(r.machineId, [...(byMachine.get(r.machineId) ?? []), r]);
     }
 
+    // The KPI numbers come from the ONE engine, not from a second computation over
+    // a second table. This page used to derive availability from the state records
+    // above and report 0% for a machine that Availability Analytics — reading the
+    // fact store — reported at 91.8%, at the same moment. The state records remain
+    // the right source for the TIMELINE, which is a picture of what the machine was
+    // doing; they are not a second opinion on the KPI.
+    const facts = await this.kpi.machineFactTotals(machineIds, from, to);
+
     const rows = machines.map((m) => {
       const segments = (byMachine.get(m.id) ?? []).map((r) => {
         // Clip to the window: a record that started before it or is still open
@@ -146,7 +154,17 @@ export class MachineStatusService {
         };
       }).filter((s) => s.minutes > 0);
 
-      const buckets = this.bucketMinutes(segments);
+      // Clock time from the timeline: how long the window was, and how the bands
+      // divide it. A description of the picture, not a KPI.
+      const clock = this.bucketMinutes(segments);
+      const f = facts.get(m.id);
+      // A machine with no fact rows had no planned production in the window, so it
+      // has no availability — null, not 0%, which reads as "it failed" rather than
+      // "it was never asked to run".
+      const runMin = f?.runMin ?? 0;
+      const unplannedMin = f?.downMin ?? 0;
+      const plannedMin = f?.plannedMin ?? 0;
+      const externalMin = f?.externalMin ?? 0;
       return {
         machineId: m.id,
         code: m.code,
@@ -154,13 +172,19 @@ export class MachineStatusService {
         line: m.line?.code ?? null,
         area: m.line?.area?.name ?? null,
         segments,
-        ...buckets,
-        // Availability the way the OEE engine defines it: external losses are
-        // removed from the denominator, so a machine is not punished for
-        // waiting on the line. Reported alongside the raw uptime share so the
-        // difference between the two is visible rather than argued about.
-        availabilityPct: this.pct(buckets.runMin, buckets.runMin + buckets.unplannedMin),
-        uptimePct: this.pct(buckets.runMin, buckets.totalMin),
+        // The window's shape, from the timeline.
+        totalMin: clock.totalMin,
+        idleMin: clock.idleMin,
+        // The KPI minutes, from the fact store — literally the same query every
+        // other page reports from.
+        runMin, unplannedMin, plannedMin, externalMin,
+        plannedStopMin: f?.plannedDownMin ?? 0,
+        availabilityPct: plannedMin > 0 ? this.pct(runMin, plannedMin) : null,
+        // Uptime share is deliberately clock-based and labelled as such: the raw
+        // proportion of the window spent producing, nothing excluded. Showing both
+        // is how the difference stops being an argument — but only one of them is
+        // Availability.
+        uptimePct: this.pct(clock.runMin, clock.totalMin),
         stops: segments.filter((s) => !PRODUCING.has(s.state)).length,
       };
     });
@@ -180,7 +204,10 @@ export class MachineStatusService {
       machines: rows,
       totals: {
         ...totals,
-        availabilityPct: this.pct(totals.runMin, totals.runMin + totals.unplannedMin),
+        // Summed minutes, then ONE division — never an average of percentages,
+        // which would weight a machine that ran ten minutes like one that ran all
+        // week. The same rule as every other rollup in the system.
+        availabilityPct: totals.plannedMin > 0 ? this.pct(totals.runMin, totals.plannedMin) : null,
         uptimePct: this.pct(totals.runMin, totals.totalMin),
       },
       reasons: await this.stopReasons(factoryId, machineIds, from, to),
@@ -255,22 +282,11 @@ export class MachineStatusService {
     if (machines.length === 0) return { from, to, machines: [], series: [], totals: null };
     const machineIds = machines.map((m) => m.id);
 
-    // Aggregated in SQL: a week of per-minute rows is tens of thousands, and
-    // pulling them into Node to sum would move the cost without removing it.
-    const perMachine = await this.prisma.$queryRaw<Array<{
-      machineId: string; runMin: number; idealRunMin: number; totalBase: number; goodBase: number;
-    }>>(Prisma.sql`
-      SELECT "machineId",
-             COALESCE(SUM("runMin"), 0)::float      AS "runMin",
-             COALESCE(SUM("idealRunMin"), 0)::float AS "idealRunMin",
-             COALESCE(SUM("totalBase"), 0)::float   AS "totalBase",
-             COALESCE(SUM("goodBase"), 0)::float    AS "goodBase"
-      FROM production_snapshots
-      WHERE "machineId" IN (${Prisma.join(machineIds)})
-        AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
-      GROUP BY "machineId"
-    `);
-    const byId = new Map(perMachine.map((r) => [r.machineId, r]));
+    // The same per-machine aggregate the availability tab and the analytics pages
+    // read. This carried its own copy of the query — and, unlike the canonical one,
+    // no `granularity = 'MINUTE'` filter, so any rollup row ever written would have
+    // been summed on top of the minutes it was rolled up from.
+    const byId = await this.kpi.machineFactTotals(machineIds, from, to);
 
     const rows = machines.map((m) => {
       const r = byId.get(m.id);
@@ -292,7 +308,9 @@ export class MachineStatusService {
 
     const series = await this.dailySeries(machineIds, from, to);
 
-    const sum = perMachine.reduce((a, r) => ({
+    // Summed from the shared aggregate, then divided once — the same rule as
+    // every rollup here: totals come from minutes, never from averaging percentages.
+    const sum = [...byId.values()].reduce((a, r) => ({
       runMin: a.runMin + r.runMin, idealRunMin: a.idealRunMin + r.idealRunMin,
       totalBase: a.totalBase + r.totalBase,
     }), { runMin: 0, idealRunMin: 0, totalBase: 0 });
@@ -373,29 +391,23 @@ export class MachineStatusService {
    * runs past midnight UTC belongs to the day the plant says it does, and
    * grouping on the raw timestamp would split it across two bars.
    */
+  /**
+   * Daily series for the trend charts — from the shared aggregate.
+   *
+   * This used to be a second copy of the query that lives in kpi.dailyFactTotals,
+   * and it was missing the granularity filter the canonical one has. Scrap is
+   * derived here as total − good rather than summed separately, because the shared
+   * aggregate reports the two the final-step way and a third SUM would be a third
+   * chance to disagree.
+   */
   private async dailySeries(machineIds: string[], from: Date, to: Date) {
-    const rows = await this.prisma.$queryRaw<Array<{
-      day: Date; runMin: number; idealRunMin: number;
-      goodBase: number; scrapBase: number; totalBase: number;
-    }>>(Prisma.sql`
-      SELECT date_trunc('day', "bucketStart" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Riyadh') AS day,
-             COALESCE(SUM("runMin"), 0)::float      AS "runMin",
-             COALESCE(SUM("idealRunMin"), 0)::float AS "idealRunMin",
-             COALESCE(SUM("goodBase"), 0)::float    AS "goodBase",
-             COALESCE(SUM("scrapBase"), 0)::float   AS "scrapBase",
-             COALESCE(SUM("totalBase"), 0)::float   AS "totalBase"
-      FROM production_snapshots
-      WHERE "machineId" IN (${Prisma.join(machineIds)})
-        AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
-      GROUP BY 1 ORDER BY 1
-    `);
-
+    const rows = await this.kpi.dailyFactTotals(machineIds, from, to);
     return rows.map((r) => ({
       date: r.day,
       runMin: this.r(r.runMin),
       output: this.r(r.totalBase),
       good: this.r(r.goodBase),
-      scrap: this.r(r.scrapBase),
+      scrap: this.r(Math.max(0, r.totalBase - r.goodBase)),
       performancePct: Math.min(100, this.pct(r.idealRunMin, r.runMin)),
       qualityPct: this.pct(r.goodBase, r.totalBase),
     }));
