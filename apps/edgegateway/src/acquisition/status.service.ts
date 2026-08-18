@@ -310,29 +310,59 @@ export class StatusService {
     }
 
     if (rule.isDowntime && !open) {
-      const activeWO = await this.prisma.workOrder.findFirst({ where: { status: 'IN_PROGRESS', jobOrders: { some: { machineId } } }, select: { id: true } });
-      await this.prisma.downtimeEvent.create({
-        data: {
-          factoryId, machineId,
-          workOrderId: activeWO?.id ?? null,
-          reasonCode: (rule.reasonCode ?? 'UNPLANNED_BREAKDOWN') as any,
-          category: rule.category as any,
-          reason: `${AUTO_REASON_PREFIX}${state}`,
-          startTime: when,
-          isPlanned: rule.isPlanned,
-          // Straight from the rule. This used to be derived from a hard-coded list
-          // of excluded reason codes, so a plant could not decide for itself that,
-          // say, cleaning should not count against availability.
-          affectsOEE: rule.affectsOEE,
-        } as any,
-      });
+      await this.openEvent(factoryId, machineId, state, rule, when);
     } else if (!rule.isDowntime && open) {
       await this.closeEvent(open, when);
     }
   }
 
-  /** Machines whose history has been checked against reality since boot. */
-  private readonly reconciled = new Set<string>();
+  /**
+   * Open the downtime event for a stopped state.
+   *
+   * Extracted so the steady-state path and the reconciliation path below cannot
+   * drift: an event opened by one and an event opened by the other must carry the
+   * same reason, category and OEE flags, or the same stop would be charged two
+   * different ways depending on which code path noticed it.
+   */
+  private async openEvent(
+    factoryId: string, machineId: string, state: string, rule: StateRule, when: Date,
+  ): Promise<void> {
+    const activeWO = await this.prisma.workOrder.findFirst({
+      where: { status: 'IN_PROGRESS', jobOrders: { some: { machineId } } },
+      select: { id: true },
+    });
+    await this.prisma.downtimeEvent.create({
+      data: {
+        factoryId, machineId,
+        workOrderId: activeWO?.id ?? null,
+        reasonCode: (rule.reasonCode ?? 'UNPLANNED_BREAKDOWN') as any,
+        category: rule.category as any,
+        reason: `${AUTO_REASON_PREFIX}${state}`,
+        startTime: when,
+        isPlanned: rule.isPlanned,
+        // Straight from the rule. This used to be derived from a hard-coded list
+        // of excluded reason codes, so a plant could not decide for itself that,
+        // say, cleaning should not count against availability.
+        affectsOEE: rule.affectsOEE,
+      } as any,
+    });
+  }
+
+  /**
+   * When each machine's history was last checked against reality.
+   *
+   * A Set that was never cleared meant "once per boot", and that left a real hole:
+   * clearing downtime events from the Danger Zone WHILE the gateway is running
+   * leaves a stopped machine with no event and no way to notice, because it never
+   * changes state and it has already been reconciled. It stayed broken until
+   * somebody restarted the gateway.
+   *
+   * A timestamp with a TTL closes that: the check is still effectively free in the
+   * steady state (one lookup per machine per minute, and it exits on the first
+   * query when the event is there), but the system now repairs itself.
+   */
+  private readonly reconciled = new Map<string, number>();
+  private static readonly RECONCILE_TTL_MS = 60_000;
 
   /**
    * One-time check that the open history record matches what the machine is
@@ -348,8 +378,9 @@ export class StatusService {
   private async reconcileHistoryOnce(
     factoryId: string, machineId: string, state: string, when: Date,
   ): Promise<void> {
-    if (this.reconciled.has(machineId)) return;
-    this.reconciled.add(machineId);
+    const last = this.reconciled.get(machineId) ?? 0;
+    if (Date.now() - last < StatusService.RECONCILE_TTL_MS) return;
+    this.reconciled.set(machineId, Date.now());
 
     try {
       const open = await this.prisma.machineStateRecord.findFirst({
@@ -357,11 +388,53 @@ export class StatusService {
         orderBy: { startTime: 'desc' },
         select: { id: true, state: true },
       });
-      if (open && String(open.state) === state) return; // history already agrees
-      await this.recordStateChange(factoryId, machineId, state, when);
-      this.logger.log(`machine ${machineId}: state history reconciled to ${state} after restart`);
+      if (!open || String(open.state) !== state) {
+        await this.recordStateChange(factoryId, machineId, state, when);
+        this.logger.log(`machine ${machineId}: state history reconciled to ${state} after restart`);
+      }
+
+      // ── The downtime EVENT has to be reconciled too ─────────────────────────
+      //
+      // This used to stop at the state record, and that gap was the single
+      // biggest source of numbers that could not be reconciled across the app.
+      //
+      // A machine already stopped when the gateway starts — or one whose events
+      // were cleared by a Danger Zone reset while it stayed in the same state —
+      // never CHANGES state, so `apply` returns early here and the code that opens
+      // the event is never reached. Measured on this plant: four machines BLOCKED
+      // or in BREAKDOWN, each with an open state record, and zero open downtime
+      // events between them.
+      //
+      // The consequence is not a missing row. Machine Status reads state records
+      // and reported 0% availability; the fact store reads downtime events, saw no
+      // stop at all, and credited every one of those minutes as run time — 91.8%
+      // on the same machine, on the same screen, at the same moment. The state
+      // timeline and the OEE engine were describing the same minutes and
+      // disagreeing about whether the machine was running.
+      const rule = await this.ruleFor(factoryId, machineId, state);
+      if (!rule.isDowntime) return;
+
+      const openEvent = await this.prisma.downtimeEvent.findFirst({
+        where: { machineId, endTime: null },
+        select: { id: true },
+      });
+      if (openEvent) return; // already accounted for
+
+      // Backdate to when the machine actually entered the state, not to now:
+      // opening it at `when` would silently forgive every minute it has already
+      // been stopped for. The state record is the honest start.
+      const since = await this.prisma.machineStateRecord.findFirst({
+        where: { machineId, endTime: null },
+        orderBy: { startTime: 'desc' },
+        select: { startTime: true },
+      });
+      await this.openEvent(factoryId, machineId, state, rule, since?.startTime ?? when);
+      this.logger.log(
+        `machine ${machineId}: downtime event reopened for ongoing ${state} ` +
+        `(since ${(since?.startTime ?? when).toISOString()}) — state history had no matching event`,
+      );
     } catch (err) {
-      this.reconciled.delete(machineId); // let a later poll try again
+      this.reconciled.delete(machineId); // let the next poll try again, not the next minute
       this.logger.warn(`history reconcile failed for machine ${machineId}: ${(err as Error).message}`);
     }
   }
