@@ -825,6 +825,12 @@ export class KpiService {
     const ms = await this.prisma.machine.findMany({
       where: {
         ...(factoryId ? { factoryId } : {}),
+        // An archived or deactivated machine is not part of the plant any more, and
+        // every other surface already excludes it — machine-status, the line KPI and
+        // the loss tree all filter here. This one did not, so a machine the user had
+        // deleted kept contributing (zeros) to every scope total derived from it.
+        isActive: true,
+        archivedAt: null,
         ...(scope.lineId ? { lineId: scope.lineId } : {}),
         ...(scope.areaId ? { line: { areaId: scope.areaId } } : {}),
       },
@@ -1466,6 +1472,12 @@ export class KpiService {
     const machines = await this.prisma.machine.findMany({
       where: {
         ...factoryFilter,
+        // Same filter as everywhere else. Without it a deleted machine stayed in the
+        // OEE-by-hierarchy tree — reporting 0% A/P/Q forever — while disappearing
+        // from every other page, which is what made the tree look wrong rather than
+        // the machine look deleted.
+        isActive: true,
+        archivedAt: null,
         ...(scope?.machineId ? { id: scope.machineId } : {}),
         ...(scope?.lineId ? { lineId: scope.lineId } : {}),
         ...(scope?.areaId ? { line: { areaId: scope.areaId } } : {}),
