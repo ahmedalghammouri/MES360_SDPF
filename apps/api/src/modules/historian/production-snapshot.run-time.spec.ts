@@ -37,7 +37,7 @@ describe('ProductionSnapshotService — a minute bucket', () => {
   });
 
   /** Runs one capture and returns the row that would be written. */
-  async function capture(events: unknown[]) {
+  async function capture(events: unknown[], states: unknown[] = []) {
     let written: any = null;
     const prisma = {
       productionSnapshot: {
@@ -50,6 +50,10 @@ describe('ProductionSnapshotService — a minute bucket', () => {
         groupBy: jest.fn().mockResolvedValue([{ workOrderId: 'wo-1', _max: { sequenceOrder: 1 } }]),
       },
       downtimeEvent: { findMany: jest.fn().mockResolvedValue(events) },
+      // No state records: the machine reports no status at all, so there is no
+      // measurement to cap run time with and the writer keeps its assumption.
+      // The measured path has its own tests below.
+      machineStateRecord: { findMany: jest.fn().mockResolvedValue(states) },
       shiftTemplate: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const service = new ProductionSnapshotService(prisma as never);
@@ -109,5 +113,68 @@ describe('ProductionSnapshotService — a minute bucket', () => {
     const r = await capture([half]);
     expect(r.plannedMin - r.runMin).toBeCloseTo(r.downMin, 3);
     expect(r.availability).toBeCloseTo(50, 3);
+  });
+
+  // ── Run time measured against what the machine actually reported ──────────
+  /**
+   * The question that exposed this: how can a machine that recorded no running
+   * time at all still show run time?
+   *
+   * Because run time was `elapsed − known stops`, which credits production unless
+   * something proves otherwise. A stop that never became a downtime event — and on
+   * this plant none of them did — left the assumption unchallenged.
+   */
+  describe('when the machine reports its state', () => {
+    const seg = (state: string) => ({
+      machineId: 'm1', state, startTime: bucketStart, endTime: bucketEnd,
+    });
+
+    it('gives no run time to a machine that reported no producing state', async () => {
+      // The exact case on the plant: BLOCKED all bucket, and not one downtime
+      // event to show for it. It used to read a full minute of run.
+      const r = await capture([], [seg('BLOCKED')]);
+      expect(r.runMin).toBeCloseTo(0, 3);
+    });
+
+    it('charges that unexplained minute as downtime, keeping the identity', async () => {
+      // Not producing and not excused is a stop. Folding it into production is
+      // what made availability read 97% for machines that never ran.
+      const r = await capture([], [seg('BREAKDOWN')]);
+      expect(r.downMin).toBeCloseTo(1, 3);
+      expect(r.plannedMin - r.runMin).toBeCloseTo(r.downMin, 3);
+    });
+
+    it('credits a minute the machine reported RUNNING', async () => {
+      const r = await capture([], [seg('RUNNING')]);
+      expect(r.runMin).toBeCloseTo(1, 3);
+      expect(r.downMin).toBeCloseTo(0, 3);
+    });
+
+    it('caps run at the measured producing time, not the elapsed span', async () => {
+      // Reported running for half the bucket and nothing for the other half.
+      const half = {
+        machineId: 'm1', state: 'RUNNING',
+        startTime: bucketStart, endTime: new Date(bucketStart.getTime() + 30_000),
+      };
+      const r = await capture([], [half]);
+      expect(r.runMin).toBeCloseTo(0.5, 3);
+      expect(r.downMin).toBeCloseTo(0.5, 3);
+    });
+
+    it('keeps assuming when the machine has no status signal at all', async () => {
+      // A machine with nothing wired — the Checkweigher — reports no states.
+      // Silence is not evidence of a stop, so it must not be charged for it.
+      const r = await capture([], []);
+      expect(r.runMin).toBeCloseTo(1, 3);
+    });
+
+    it('does not double-charge a stop that DID produce an event', async () => {
+      const r = await capture(
+        [covering({ isPlanned: false, affectsOEE: true })],
+        [seg('BREAKDOWN')],
+      );
+      expect(r.downMin).toBeCloseTo(1, 3);
+      expect(r.runMin).toBeCloseTo(0, 3);
+    });
   });
 });

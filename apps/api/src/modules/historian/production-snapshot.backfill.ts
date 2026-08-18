@@ -2,9 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { toPieces, type SkuPackaging } from '../../common/units.util';
-import { splitStoppedTime } from '../../common/stopped-time.util';
+import { splitStoppedTime, observedTime } from '../../common/stopped-time.util';
 
 const MIN = 60_000;
+
+/** Matches PRODUCING_STATES in production-snapshot.service — one definition of running. */
+const PRODUCING_STATES: ReadonlySet<string> = new Set(['RUNNING']);
 
 /**
  * ProductionSnapshotBackfill — reconstructs the `production_snapshots` fact store
@@ -97,6 +100,17 @@ export class ProductionSnapshotBackfill {
         })
       : [];
 
+    // What the machine SAID it was doing. The live writer caps run time with this,
+    // and a rebuild that skipped it would reconstruct history under the old
+    // fail-open assumption — leaving the past claiming production the machine never
+    // reported, right beside a present that does not.
+    const states = jo.machineId
+      ? await prisma.machineStateRecord.findMany({
+          where: { machineId: jo.machineId, startTime: { lte: new Date(endMs) }, OR: [{ endTime: null }, { endTime: { gte: new Date(startMs) } }] },
+          select: { state: true, startTime: true, endTime: true },
+        })
+      : [];
+
     // Apportion counts evenly across active minutes; last bucket carries remainder.
     const n = buckets.length;
     const goodPer = finalGood / n;
@@ -124,7 +138,16 @@ export class ProductionSnapshotBackfill {
       const psn = jo.plannedStart ? jo.plannedStart.getTime() : null;
       const pen = jo.plannedEnd ? jo.plannedEnd.getTime() : null;
       const excluded = plannedDownMin + externalMin;
-      const runMin = Math.max(0, elapsedMin - downMin - excluded);
+      // Same rule as the live writer: measured when the machine reported anything,
+      // assumed only when it reported nothing at all. See production-snapshot.service.
+      const { coveredMin, producingMin } = observedTime(
+        states, winFrom, winTo, winTo, PRODUCING_STATES,
+      );
+      const assumedRun = Math.max(0, elapsedMin - downMin - excluded);
+      const runMin = coveredMin > 0
+        ? Math.min(assumedRun, Math.max(0, producingMin - excluded))
+        : assumedRun;
+      const unexplainedMin = Math.max(0, assumedRun - runMin);
       const plannedOverlap = (psn != null && pen != null)
         ? Math.max(0, (Math.min(pen, bEnd) - Math.max(psn, bStart)) / MIN)
         : 0;
@@ -159,7 +182,7 @@ export class ProductionSnapshotBackfill {
         outputUnit: unit ?? null, baseUnit: sku?.baseUnit ?? null,
         goodRaw, scrapRaw, reworkRaw: 0, totalRaw, plannedQtyOutRaw: jo.plannedQtyOut ?? null,
         goodBase, scrapBase, reworkBase: 0, totalBase, plannedQtyOutBase: jo.plannedQtyOut != null ? toBase(jo.plannedQtyOut) : null,
-        plannedMin, runMin, downMin, plannedDownMin, externalMin, microStopMin: 0, idealCycleSec: ict, idealRunMin,
+        plannedMin, runMin, downMin: downMin + unexplainedMin, plannedDownMin, externalMin, microStopMin: 0, idealCycleSec: ict, idealRunMin,
         availability, performance, quality, oee, availabilityTb, oeeTb,
       };
       await prisma.productionSnapshot.upsert({

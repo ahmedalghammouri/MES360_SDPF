@@ -123,3 +123,51 @@ export function splitStoppedTime(
     downMin: total(u) / MS_PER_MIN,
   };
 }
+
+/** A machine-state segment as the fact-store writer reads it. */
+export interface StateSegment {
+  state: string;
+  startTime: Date;
+  endTime: Date | null;
+}
+
+/**
+ * How long the machine was OBSERVED, and how long it was observed PRODUCING.
+ *
+ * The fact-store writer used to derive run time as "elapsed minus the stops we
+ * know about", which assumes a machine is running unless something proves it
+ * stopped. That is fail-OPEN: every stop that fails to produce a downtime event —
+ * a missed event, a gateway outage, an unconfigured rule, a dead signal — is
+ * silently credited as production. It is how machines that recorded no running
+ * time at all still reported 97% availability.
+ *
+ * `producingMin` is the measured alternative. `coveredMin` says whether the
+ * machine reported anything at all, which is what separates "it was stopped" from
+ * "nobody asked it" — a machine with no status signal has no state records, and
+ * must not be charged for the silence.
+ */
+export function observedTime(
+  segments: StateSegment[],
+  from: number,
+  to: number,
+  openEnd: number,
+  producingStates: ReadonlySet<string>,
+): { coveredMin: number; producingMin: number } {
+  const MS_PER_MIN = 60_000;
+  if (!(to > from)) return { coveredMin: 0, producingMin: 0 };
+
+  const all: Span[] = [];
+  const producing: Span[] = [];
+  for (const seg of segments) {
+    const s = Math.max(seg.startTime.getTime(), from);
+    const e = Math.min((seg.endTime ?? new Date(openEnd)).getTime(), to);
+    if (e <= s) continue;
+    all.push([s, e]);
+    if (producingStates.has(seg.state)) producing.push([s, e]);
+  }
+  // Merged, not summed: overlapping records must not make a minute count twice.
+  return {
+    coveredMin: total(merge(all)) / MS_PER_MIN,
+    producingMin: total(merge(producing)) / MS_PER_MIN,
+  };
+}

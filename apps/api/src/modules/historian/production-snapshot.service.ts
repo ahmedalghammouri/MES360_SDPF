@@ -4,9 +4,17 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { toPieces, type SkuPackaging } from '../../common/units.util';
 import { resolveShiftAt, type ShiftTemplateWindow, type ResolvedShift } from '../../common/shift-window.util';
-import { splitStoppedTime } from '../../common/stopped-time.util';
+import { splitStoppedTime, observedTime } from '../../common/stopped-time.util';
 
 const MIN = 60_000;
+
+/**
+ * States that count as producing. RUNNING is the only one: SETUP and CHANGEOVER
+ * are work, but they are not output, and the rules already class them as planned
+ * stops. Matches PRODUCING in machine-status.service — the timeline and the fact
+ * store must not disagree about what "running" looks like.
+ */
+const PRODUCING_STATES: ReadonlySet<string> = new Set(['RUNNING']);
 
 /**
  * ProductionSnapshotService — writes the persistent OEE/production FACT store
@@ -102,6 +110,16 @@ export class ProductionSnapshotService {
         })
       : [];
 
+    // 5b) What the machines SAID they were doing in this bucket. Downtime events
+    //     say why a stop was booked; these say whether the machine was running at
+    //     all — the difference between a measurement and an assumption.
+    const states = machineIds.length
+      ? await this.prisma.machineStateRecord.findMany({
+          where: { machineId: { in: machineIds }, startTime: { lte: at }, OR: [{ endTime: null }, { endTime: { gte: bucketStart } }] },
+          select: { machineId: true, state: true, startTime: true, endTime: true },
+        })
+      : [];
+
     // 6) Which SHIFT this bucket belongs to — derived from the templates, not from a
     //    ShiftInstance row. Nothing creates those rows, so shift grouping was
     //    permanently "Unassigned" while the Command Center showed the shift NAME
@@ -121,7 +139,7 @@ export class ProductionSnapshotService {
     let written = 0;
     for (const jo of jos) {
       const row = this.buildRow(
-        jo, maxSeq, prior, events, bucketStart, bucketEnd, at,
+        jo, maxSeq, prior, events, states, bucketStart, bucketEnd, at,
         shiftByFactory.get(jo.factoryId) ?? null,
       );
       if (!row) continue;
@@ -144,6 +162,7 @@ export class ProductionSnapshotService {
     maxSeq: Map<string, number>,
     prior: Map<string, { good: number; scrap: number }>,
     events: { machineId: string | null; startTime: Date; endTime: Date | null; isPlanned: boolean; affectsOEE: boolean }[],
+    states: { machineId: string; state: string; startTime: Date; endTime: Date | null }[],
     bucketStart: Date, bucketEnd: Date, at: Date,
     shift: ResolvedShift | null = null,
   ) {
@@ -198,7 +217,34 @@ export class ProductionSnapshotService {
     const psn = jo.plannedStart ? new Date(jo.plannedStart).getTime() : null;
     const pen = jo.plannedEnd ? new Date(jo.plannedEnd).getTime() : null;
     const excluded = plannedDownMin + externalMin;
-    const runMin = Math.max(0, elapsedMin - downMin - excluded);
+
+    // ── Run time is MEASURED, not assumed ───────────────────────────────────
+    //
+    // `elapsedMin - stops` credits the machine with producing unless something
+    // proves it stopped. That is fail-OPEN, and it is how machines that reported
+    // no running time whatsoever still showed 97% availability: their stops never
+    // produced downtime events, so nothing contradicted the assumption.
+    //
+    // The state history is the measurement. When the machine reported anything at
+    // all in this bucket, run time is capped at the minutes it actually spent in a
+    // producing state; the shortfall is time it was neither producing nor excused,
+    // and it is charged as unplanned downtime so PPT − run still equals downMin.
+    //
+    // When the machine reported NOTHING — no status signal wired, like the
+    // Checkweigher — there is no measurement to cap with, and silence is not
+    // evidence of a stop. That case keeps the old assumption and is the argument
+    // for binding a Run Mode signal to every machine.
+    const { coveredMin, producingMin } = observedTime(
+      states.filter((st) => st.machineId === jo.machineId),
+      winFrom, winTo, at.getTime(), PRODUCING_STATES,
+    );
+    const assumedRun = Math.max(0, elapsedMin - downMin - excluded);
+    const runMin = coveredMin > 0
+      ? Math.min(assumedRun, Math.max(0, producingMin - excluded))
+      : assumedRun;
+    // Anything the machine did not produce in, and no rule excused, is a stop —
+    // named as unexplained rather than quietly folded into production.
+    const unexplainedMin = Math.max(0, assumedRun - runMin);
     const plannedOverlap = (psn != null && pen != null)
       ? Math.max(0, (Math.min(pen, bucketEnd.getTime()) - Math.max(psn, bucketStart.getTime())) / MIN)
       : 0;
@@ -252,7 +298,7 @@ export class ProductionSnapshotService {
       plannedQtyOutRaw: jo.plannedQtyOut ?? null,
       goodBase, scrapBase, reworkBase: 0, totalBase,
       plannedQtyOutBase: jo.plannedQtyOut != null ? toBase(jo.plannedQtyOut) : null,
-      plannedMin, runMin, downMin, plannedDownMin, externalMin, microStopMin: 0,
+      plannedMin, runMin, downMin: downMin + unexplainedMin, plannedDownMin, externalMin, microStopMin: 0,
       idealCycleSec: ict, idealRunMin,
       availability, performance, quality, oee, availabilityTb, oeeTb,
     };
