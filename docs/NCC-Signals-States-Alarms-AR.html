@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الإشارات والحالات والإنذارات</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#14181d; --muted:#5b6672; --line:#dfe4ea; --soft:#f6f8fa;
+    --ok:#0f7b3e; --okbg:#e8f6ee; --warn:#8a5a00; --warnbg:#fdf3e0;
+    --stop:#a51c1c; --stopbg:#fdecec; --accent:#0b5fa5; --accentbg:#e9f2fb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12161a; --fg:#e7ecf1; --muted:#9aa7b4; --line:#2a323b; --soft:#181e24;
+      --ok:#5ad48c; --okbg:#12301f; --warn:#e3b256; --warnbg:#2e2413;
+      --stop:#f08a8a; --stopbg:#331717; --accent:#68b0ee; --accentbg:#122636;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12161a; --fg:#e7ecf1; --muted:#9aa7b4; --line:#2a323b; --soft:#181e24;
+    --ok:#5ad48c; --okbg:#12301f; --warn:#e3b256; --warnbg:#2e2413;
+    --stop:#f08a8a; --stopbg:#331717; --accent:#68b0ee; --accentbg:#122636;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);margin:0;
+       font:16px/1.9 "Segoe UI","Tahoma",system-ui,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:27px;margin:0 0 6px;text-wrap:balance}
+  h2{font-size:20px;margin:46px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line);text-wrap:balance}
+  h3{font-size:17px;margin:28px 0 10px}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .note{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:18px 0}
+  .note.warn{background:var(--warnbg);border-color:transparent}
+  .note.stop{background:var(--stopbg);border-color:transparent}
+  .note.acc{background:var(--accentbg);border-color:transparent}
+  .note.ok{background:var(--okbg);border-color:transparent}
+  .note b{display:block;margin-bottom:5px}
+  .note b.inl{display:inline;margin:0}
+  code,pre{font-family:ui-monospace,Consolas,monospace;font-size:13.5px;direction:ltr;unicode-bidi:embed}
+  code{background:var(--soft);padding:1px 6px;border-radius:4px;border:1px solid var(--line)}
+  pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px 16px;
+      overflow-x:auto;text-align:left;direction:ltr}
+  pre code{background:none;border:0;padding:0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:start;vertical-align:top}
+  th{background:var(--soft);font-weight:600}
+  td.c{font-family:ui-monospace,Consolas,monospace;text-align:center;font-variant-numeric:tabular-nums}
+  ol,ul{padding-inline-start:24px} li{margin:6px 0}
+  .scroll{overflow-x:auto}
+  svg{max-width:100%;height:auto}
+  .bad{color:var(--stop);font-weight:600}
+  .good{color:var(--ok);font-weight:600}
+  .amb{color:var(--warn);font-weight:600}
+  .step{border:1px solid var(--line);border-radius:10px;margin:14px 0;overflow:hidden}
+  .step > header{background:var(--soft);padding:10px 16px;border-bottom:1px solid var(--line);font-weight:700}
+  .step .b{padding:14px 18px}
+  footer{margin-top:46px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+
+  /* Each of the three subsystems keeps ONE colour throughout, so a reader can tell
+     at a glance which layer a block belongs to. The colour encodes the layer; it is
+     not decoration. */
+  .lyr{border-inline-start:4px solid var(--line);padding-inline-start:14px}
+  .lyr.sig{border-color:var(--accent)}
+  .lyr.st{border-color:var(--ok)}
+  .lyr.al{border-color:var(--stop)}
+  .tag{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.06em;
+       padding:2px 9px;border-radius:999px;vertical-align:middle;margin-inline-start:8px}
+  .tag.sig{background:var(--accentbg);color:var(--accent)}
+  .tag.st{background:var(--okbg);color:var(--ok)}
+  .tag.al{background:var(--stopbg);color:var(--stop)}
+  .lead{font-size:17px;background:var(--soft);border-radius:10px;padding:16px 20px;margin:16px 0 24px}
+  .kv{display:grid;grid-template-columns:max-content 1fr;gap:8px 18px;margin:12px 0;font-size:14.5px}
+  .kv dt{font-family:ui-monospace,Consolas,monospace;color:var(--accent);direction:ltr;text-align:start}
+  .kv dd{margin:0}
+  /* Diagram text takes theme tokens rather than baked-in fills. */
+  .d-lbl{fill:var(--fg);font:600 13px "Segoe UI",Tahoma,sans-serif}
+  .d-sm{fill:var(--muted);font:11.5px "Segoe UI",Tahoma,sans-serif}
+  .d-mono{fill:var(--muted);font:11px ui-monospace,Consolas,monospace}
+  @media print{ .wrap{max-width:none;padding:0} h2{break-after:avoid} tr{break-inside:avoid} .step{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>الإشارات والحالات والإنذارات</h1>
+<p class="sub">
+  كيف تتحوّل بتة واحدة من لوحة الماكينة إلى رقم في تقرير OEE — وأين تتحكّم أنت في كل خطوة.<br>
+  خط تعبئة المسحوق 1 · مصنع مسحوق المنظفات السعودي · MES360°
+</p>
+
+<div class="lead">
+  الثلاثة ليست ميزات منفصلة، بل <b class="inl">ثلاث طبقات من سلسلة واحدة</b>.
+  الإشارة المربوطة تقول <em>ماذا تفعل الماكينة</em>. قاعدة الحالة تقول <em>ماذا يعني ذلك للحسابات</em>.
+  قاعدة الإنذار تقول <em>متى يجب أن ينتبه إنسان</em>.
+  وكلها تُضبط من صفحة واحدة: <code>IoT ← Signal Rules</code>.
+</div>
+
+<div class="scroll">
+<svg viewBox="0 0 940 250" role="img" aria-label="سلسلة من الإشارة إلى الحالة إلى النتيجة، مع فرع مستقل للإنذار">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="currentColor"></path>
+    </marker>
+  </defs>
+
+  <rect x="700" y="30" width="220" height="86" rx="10" fill="var(--accentbg)" stroke="var(--accent)"></rect>
+  <text class="d-lbl" x="810" y="58" text-anchor="middle">الإشارة المربوطة</text>
+  <text class="d-sm"  x="810" y="78" text-anchor="middle">أي بتة، وماذا تعني</text>
+  <text class="d-mono" x="810" y="99" text-anchor="middle">DISCRETE 5 → RUN_MODE</text>
+
+  <rect x="390" y="30" width="220" height="86" rx="10" fill="var(--okbg)" stroke="var(--ok)"></rect>
+  <text class="d-lbl" x="500" y="58" text-anchor="middle">قاعدة الحالة</text>
+  <text class="d-sm"  x="500" y="78" text-anchor="middle">ماذا تعني هذه الحالة</text>
+  <text class="d-mono" x="500" y="99" text-anchor="middle">STARVED → OEE excluded</text>
+
+  <rect x="80" y="30" width="220" height="86" rx="10" fill="var(--soft)" stroke="var(--line)"></rect>
+  <text class="d-lbl" x="190" y="58" text-anchor="middle">النتيجة</text>
+  <text class="d-sm"  x="190" y="78" text-anchor="middle">حدث توقّف + دقائق OEE</text>
+  <text class="d-mono" x="190" y="99" text-anchor="middle">downtime_events</text>
+
+  <g color="var(--muted)">
+    <line x1="698" y1="73" x2="620" y2="73" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"></line>
+    <line x1="388" y1="73" x2="310" y2="73" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"></line>
+  </g>
+
+  <rect x="390" y="158" width="220" height="72" rx="10" fill="var(--stopbg)" stroke="var(--stop)"></rect>
+  <text class="d-lbl" x="500" y="186" text-anchor="middle">قاعدة الإنذار</text>
+  <text class="d-sm"  x="500" y="208" text-anchor="middle">متى يُخطَر إنسان</text>
+  <g color="var(--muted)">
+    <path d="M810,116 L810,194 L620,194" fill="none" stroke="currentColor" stroke-width="1.5"
+          stroke-dasharray="4 4" marker-end="url(#ar)"></path>
+  </g>
+  <text class="d-sm" x="700" y="146" text-anchor="middle">فرع مستقل — لا يمرّ بالحالة</text>
+</svg>
+</div>
+
+<div class="note">
+  <b>لماذا فرعان؟</b>
+  الإنذار لا يمرّ بقاعدة الحالة ولا يؤثّر على OEE. الحالة تقيس <em>الإنتاج</em>؛ الإنذار يقيس <em>الانتباه</em>.
+  ماكينة قد تعمل بكامل طاقتها وضغطها مرتفع خطراً — إنذار نعم، توقّف لا.
+</div>
+
+
+<h2><span class="lyr sig">١. الإشارات المربوطة</span><span class="tag sig">BOUND SIGNALS</span></h2>
+
+<p>
+  الـ I/O البعيد في المصنع يعطي ثماني مداخل رقمية ولا شيء غير ذلك. بتة واحدة قيمتها 0 أو 1
+  <b>لا تحمل معناها في قيمتها</b> — لا بدّ من إعلانه. هذا بالضبط ما تفعله الإشارة المربوطة:
+  تربط عنواناً فيزيائياً بدلالة يفهمها النظام.
+</p>
+
+<h3>مثال ملموس: Uni-tech Wrapping (M5)</h3>
+<p>هذه الماكينة تحديداً تحتاج <b>إشارتين</b>، ومنها يتّضح كل شيء:</p>
+
+<div class="scroll">
+<table>
+  <thead>
+    <tr><th>الوسم</th><th>العنوان</th><th>الدور <code>signalRole</code></th><th>يقود الحالة؟</th><th>ماذا يقول فعلاً</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>M5_RUN_MODE</code></td><td class="c">DISCRETE 5</td>
+      <td class="c">RUN_MODE</td><td class="c">نعم</td>
+      <td>الماكينة <b>قادرة</b> على العمل (لا إنذار ولا ضغط طوارئ)</td>
+    </tr>
+    <tr>
+      <td><code>M5_TABLE_ROTATION</code></td><td class="c">DISCRETE 4</td>
+      <td class="c">PROCESSING</td><td class="c">لا</td>
+      <td>الطاولة تدور — أي أن بالتة <b>تُعالَج الآن</b> بالفعل</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note acc">
+  <b>لماذا لا تكفي إشارة واحدة؟</b>
+  وثيقة NCC تنصّ حرفياً على أن Run Mode تبقى <b class="inl">ON</b> في حالة «جاهزة لكن لا يوجد منتج يُعالَج حالياً».
+  أي أن الماكينة الجائعة (Starved) على هذا الخط <b class="inl">لا تبدو متوقّفة أبداً</b>.
+  لو انتظرنا توقّفاً لتصنيفه، لما رصدنا الجوع ولا مرّة واحدة.
+  دوران الطاولة هو ما يكشف الفرق:
+</div>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Run Mode</th><th>Processing</th><th>الحالة المسجَّلة</th><th>المعنى</th></tr></thead>
+  <tbody>
+    <tr><td class="c">ON</td><td class="c">يدور</td><td class="c good">RUNNING</td><td>تنتج فعلاً</td></tr>
+    <tr><td class="c">ON</td><td class="c">ساكن &gt; الحدّ</td><td class="c amb">STARVED / BLOCKED</td><td>جاهزة لكن لا عمل لديها</td></tr>
+    <tr><td class="c">OFF</td><td class="c">—</td><td class="c bad">BREAKDOWN</td><td>إنذار أو ضغط طوارئ</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>الأدوار الخمسة المتاحة</h3>
+<dl class="kv">
+  <dt>RUN_MODE</dt>
+  <dd>ON = جاهزة/تعمل · OFF = إنذار أو طوارئ. الدور الافتراضي والأكثر استخداماً.</dd>
+
+  <dt>RUN_MODE_PULSED</dt>
+  <dd>ثلاث حالات على بتة واحدة: <b>ثابتة ON</b> = تعمل · <b>نابضة</b> = وضع إيقاف متعمَّد (IDLE) ·
+      <b>OFF</b> = إنذار. النبض يُكتشف بعدّ الحوافّ: 4 حوافّ أو أكثر خلال 6 ثوانٍ، وكلاهما قابل للضبط لكل وسم.
+      هذا هو دور <b>Euro-Pack Robot (M4)</b> عندكم.</dd>
+
+  <dt>PROCESSING</dt>
+  <dd>المنتج يُعالَج فعلياً الآن. هو وحده ما يجعل رصد الجوع ممكناً (انظر أعلاه).
+      له حدّ سكون <code>idleThresholdMs</code> — افتراضياً 5 دقائق — لأن الفجوة الطبيعية بين وحدتين ليست جوعاً.
+      الحدّ لكل <em>إشارة</em> لا لكل مصنع: ماكينة تغليف ترتاح دقائق بين بالتة وأخرى، وماكينة تعبئة لا.</dd>
+
+  <dt>INFEED_AVAILABLE</dt>
+  <dd>وجود مادة عند المدخل. حين تكون <b>false</b> والماكينة متوقّفة ⇒ <span class="amb">STARVED</span> مؤكَّد.</dd>
+
+  <dt>OUTFEED_BLOCKED</dt>
+  <dd>المخرج مسدود. حين تكون <b>true</b> والماكينة متوقّفة ⇒ <span class="amb">BLOCKED</span> مؤكَّد.</dd>
+</dl>
+
+<h3>الوسم الذي يقود الحالة</h3>
+<p>
+  علامة <code>isMachineStatus</code> تعني: <b>هذا الوسم هو من يحدّد حالة الماكينة</b> — واحد لكل ماكينة.
+  وطريقة الاشتقاق تعتمد على نوع البيانات:
+</p>
+
+<div class="step">
+  <header>وسم منطقي <code>BOOL</code> — بتة واحدة</header>
+  <div class="b">
+    <p><b>ON</b> ⇒ <span class="good">RUNNING</span></p>
+    <p><b>OFF</b> ⇒ يسأل النظام: هل يوجد أمر عمل قيد التنفيذ على هذه الماكينة؟</p>
+    <ul>
+      <li>نعم ⇒ <span class="bad">BREAKDOWN</span> — كان يُفترض أن تنتج ولم تفعل، فهذا عطل</li>
+      <li>لا ⇒ <span class="amb">IDLE</span> — لا شيء مجدول، فالسكون ليس عطلاً</li>
+    </ul>
+    <p class="sub" style="margin:8px 0 0">
+      هذا الفرق مقصود: نفس البتة تعني «عطل» أثناء أمر إنتاج و«خمول» خارجه.
+    </p>
+  </div>
+</div>
+
+<div class="step">
+  <header>وسم رقمي <code>INT</code> — كلمة حالة من الـ PLC</header>
+  <div class="b">
+    <p>تُترجَم القيمة عبر <code>statusMap</code> الذي تحدّده أنت. والخريطة الافتراضية إن لم تُحدَّد:</p>
+<pre><code>0 → IDLE          5 → CHANGEOVER
+1 → RUNNING       6 → STARVED
+2 → BREAKDOWN     7 → BLOCKED
+3 → PLANNED_STOP  8 → OFFLINE
+4 → SETUP         9 → MAINTENANCE</code></pre>
+    <p>
+      لو كان الـ PLC عندكم يستخدم <code>3</code> للعطل بدل <code>2</code>، تكتب
+      <code>{"3":"BREAKDOWN"}</code> وينتهي الأمر — بلا تعديل برمجي ولا إعادة نشر.
+    </p>
+  </div>
+</div>
+
+<h3>الوضع الحالي في مصنعكم</h3>
+<div class="scroll">
+<table>
+  <thead><tr><th>الماكينة</th><th>الوسم</th><th>النوع</th><th>العنوان</th><th>الدور</th></tr></thead>
+  <tbody>
+    <tr><td>M1 · Big Betti</td><td><code>M1_RUN_MODE</code></td><td class="c">BOOL</td><td class="c">DISCRETE 2</td><td class="c">RUN_MODE</td></tr>
+    <tr><td>M2 · Checkweigher</td><td colspan="4" class="bad" style="text-align:center">لا توجد إشارة حالة مربوطة</td></tr>
+    <tr><td>M3 · Cartomac</td><td><code>M3_RUN_MODE</code></td><td class="c">BOOL</td><td class="c">DISCRETE 3</td><td class="c">RUN_MODE</td></tr>
+    <tr><td>M4 · Euro-Pack Robot</td><td><code>M4_RUN_MODE</code></td><td class="c">BOOL</td><td class="c">DISCRETE 4</td><td class="c">RUN_MODE_PULSED</td></tr>
+    <tr><td>M5 · Uni-tech Wrapping</td><td><code>M5_RUN_MODE</code></td><td class="c">BOOL</td><td class="c">DISCRETE 5</td><td class="c">RUN_MODE</td></tr>
+    <tr><td>M5 · Uni-tech Wrapping</td><td><code>M5_TABLE_ROTATION</code></td><td class="c">BOOL</td><td class="c">DISCRETE 4</td><td class="c">PROCESSING</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note stop">
+  <b>نتيجة مباشرة تفسّر رقماً ربما لاحظتَه</b>
+  <b class="inl">Checkweigher (M2)</b> ليس له وسم حالة، فلا يستطيع الإبلاغ عن توقّف <b class="inl">إطلاقاً</b>.
+  ولهذا يظهر بإتاحية <b class="inl">100%</b> على كل شاشة — ليس لأنه لم يتوقّف، بل لأن لا أحد يسأله.
+  ربط بتة Run Mode له هو ما يجعل رقمه حقيقياً.
+</div>
+
+<h3>كيف يُقرَّر Starved / Blocked — ترتيب الأولوية</h3>
+<p>عندما يتوقّف شيء دون تفسير، يجري النظام ثلاث محاولات بالترتيب، ويتوقّف عند أول إجابة:</p>
+<ol>
+  <li><b>الماكينة قالت السبب بنفسها</b> — كلمة حالة تقول STARVED أو BLOCKED صراحةً. لا يُعلى عليها أبداً.</li>
+  <li><b>إشارة مربوطة</b> — <code>INFEED_AVAILABLE</code> أو <code>OUTFEED_BLOCKED</code>. <b>القياس يسبق التخمين.</b></li>
+  <li><b>استنتاج من الجيران</b> — من ترتيب الماكينات على الخط <code>sortOrder</code>.</li>
+</ol>
+
+<div class="note">
+  <b>ثلاثة قيود تمنع استنتاجاً كاذباً</b>
+  <ul style="margin:6px 0 0">
+    <li><b>الاتجاه</b>: أول ماكينة في الخط لا يمكن أن تكون جائعة (لا يوجد ما قبلها)، وآخرها لا يمكن أن تكون مسدودة.</li>
+    <li><b>الجار العَرَض ليس سبباً</b>: جار متوقّف لأنه هو نفسه جائع ليس سبب جوعك — قراءته كسبب تقلب الخط وتخفي القيد الحقيقي.</li>
+    <li><b>عند الشكّ، تبقى الحالة كما هي</b>: لا إشارة، أو قراءة جودتها BAD، أو سكون أقصر من الحدّ ⇒ لا استنتاج.
+        المبالغة في تسجيل الجوع أسوأ من إغفاله، لأنها تنقل خسائر حقيقية خارج OEE وتُجمّل المعدّات.</li>
+  </ul>
+</div>
+
+
+<h2><span class="lyr st">٢. قواعد الحالة</span><span class="tag st">STATE RULES</span></h2>
+
+<p>
+  الإشارة أعطتنا اسم حالة: <code>BREAKDOWN</code>، <code>STARVED</code>، <code>CHANGEOVER</code>…
+  لكن الاسم وحده لا يعني شيئاً للحسابات. قاعدة الحالة هي التي تقرّر
+  <b>ماذا يفعل هذا الاسم بأرقامك</b>.
+</p>
+
+<h3>ثلاثة مفاتيح — وهي كل شيء</h3>
+<div class="scroll">
+<table>
+  <thead><tr><th style="width:26%">المفتاح</th><th>السؤال الذي يجيب عنه</th></tr></thead>
+  <tbody>
+    <tr><td><code>isDowntime</code></td><td>هل تعني هذه الحالة أن الماكينة <b>لا تنتج</b>؟ إن نعم، يُفتح حدث توقّف تلقائياً.</td></tr>
+    <tr><td><code>isPlanned</code></td><td>هل كان هذا التوقّف <b>مجدولاً</b>؟ المخطّط يخرج من مقام الإتاحية — لم يكن متوقّعاً إنتاج أصلاً.</td></tr>
+    <tr><td><code>affectsOEE</code></td><td>هل يُحاسَب على OEE؟ الجوع والانسداد يُسجَّلان لكن <b>لا يُحاسبان</b> — الماكينة سليمة والخط هو المتوقّف.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>أثر المفاتيح على الحساب — الجدول الحاسم</h3>
+<p>هذا هو الجدول الذي يشرح لماذا يتحرّك رقم أو لا يتحرّك. الدقيقة الواحدة تُعامَل هكذا:</p>
+
+<div class="scroll">
+<table>
+  <thead>
+    <tr>
+      <th>التركيبة</th><th>مثال</th>
+      <th>تخرج من زمن التشغيل؟</th><th>تخرج من الزمن المخطّط؟</th><th>الأثر على الإتاحية</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>downtime · !planned · affectsOEE</code></td><td>BREAKDOWN</td>
+      <td class="c good">نعم</td><td class="c bad">لا</td>
+      <td class="bad">تُخفضها — هذه هي خسارة الإتاحية</td>
+    </tr>
+    <tr>
+      <td><code>downtime · planned</code></td><td>CHANGEOVER · MAINTENANCE</td>
+      <td class="c good">نعم</td><td class="c good">نعم</td>
+      <td>محايدة — لا تُحاسَب</td>
+    </tr>
+    <tr>
+      <td><code>downtime · !planned · !affectsOEE</code></td><td>STARVED · BLOCKED</td>
+      <td class="c good">نعم</td><td class="c good">نعم</td>
+      <td>محايدة — قيد الخط لا ذنب الماكينة</td>
+    </tr>
+    <tr>
+      <td><code>!downtime</code></td><td>RUNNING · IDLE</td>
+      <td class="c bad">لا</td><td class="c bad">لا</td>
+      <td>لا يُفتح حدث توقّف أصلاً</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note ok">
+  <b>المعادلة التي تضمنها هذه القواعد</b>
+  الزمن المخطّط ناقص زمن التشغيل يساوي <b class="inl">التوقّف غير المخطّط تماماً</b>.
+  كل شاشة في النظام تعتمد على هذه المطابقة، ولهذا تُطرح الأنواع الثلاثة بأولوية
+  (مخطّط ← خارجي ← غير مخطّط) بدل أن تُجمع — فالدقيقة الواحدة لا يمكن أن تُحسب مرّتين.
+</div>
+
+<h3>ثلاثة حقول أخرى تُختَم على الحدث</h3>
+<dl class="kv">
+  <dt>reasonCode</dt>
+  <dd>الرمز الذي يظهر في مركز التوقّفات، مثل <code>UNPLANNED_BREAKDOWN</code>.
+      المشغّل يستطيع إعادة تصنيفه لاحقاً — والنظام <b>لا يعيد الكتابة فوق تصنيف بشري أبداً</b>.</dd>
+  <dt>category</dt>
+  <dd>الفئة التي يُجمَّع عليها تحليل باريتو: <code>MECHANICAL</code>، <code>MATERIAL</code>، <code>PROCESS</code>، <code>CHANGEOVER</code>…</dd>
+  <dt>debounceSeconds</dt>
+  <dd>كم ثانية يجب أن تثبت الحالة قبل فتح حدث. بدونها يمتلئ السجلّ بتوقّفات مدّتها ثانية واحدة من إشارة مرتجفة.</dd>
+</dl>
+
+<h3>النطاق: مصنع كامل أم ماكينة واحدة</h3>
+<p>لكل قاعدة نطاق، ويُبحث عنها بالترتيب من الأخصّ إلى الأعمّ:</p>
+<ol>
+  <li><b>قاعدة لهذه الماكينة تحديداً</b> — لماكينة واحدة شاذّة تُعامَل بشكل مختلف</li>
+  <li><b>قاعدة على مستوى المصنع</b> — وهي الوضع الطبيعي، ولهذا تراها «مختارة على كل المصنع»</li>
+  <li><b>القيمة المدمجة</b> — إن لم تُنشأ أي قاعدة، كي يعمل تركيب جديد بشكل سليم لا أن يسجّل صفراً</li>
+</ol>
+
+<div class="note acc">
+  <b>«لماذا هي مختارة على كل المصنع؟»</b>
+  لأن معنى BREAKDOWN لا يتغيّر من ماكينة لأخرى — العطل عطل. النطاق الأعمّ هو الصحيح افتراضياً.
+  أنشئ قاعدة خاصة بماكينة فقط حين يكون لديها سبب حقيقي للاختلاف،
+  مثل حدّ ارتجاف أطول لماكينة إشارتها مزعجة.
+</div>
+
+<h3>القواعد المضبوطة حالياً عندكم</h3>
+<div class="scroll">
+<table>
+  <thead>
+    <tr><th>الحالة</th><th>توقّف</th><th>مخطّط</th><th>يؤثّر على OEE</th><th>الرمز</th><th>الفئة</th><th>الارتجاف</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>RUNNING</td><td class="c">—</td><td class="c">—</td><td class="c">✓</td><td class="c">—</td><td class="c">OTHER</td><td class="c">0s</td></tr>
+    <tr><td>IDLE</td><td class="c">—</td><td class="c">—</td><td class="c">✓</td><td class="c">—</td><td class="c">OTHER</td><td class="c">3s</td></tr>
+    <tr><td class="bad">BREAKDOWN</td><td class="c">✓</td><td class="c">—</td><td class="c">✓</td><td class="c">UNPLANNED_BREAKDOWN</td><td class="c">MECHANICAL</td><td class="c">3s</td></tr>
+    <tr><td class="amb">STARVED</td><td class="c">✓</td><td class="c">—</td><td class="c">—</td><td class="c">STARVED</td><td class="c">MATERIAL</td><td class="c">5s</td></tr>
+    <tr><td class="amb">BLOCKED</td><td class="c">✓</td><td class="c">—</td><td class="c">—</td><td class="c">BLOCKED</td><td class="c">PROCESS</td><td class="c">5s</td></tr>
+    <tr><td>SETUP</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">CHANGEOVER</td><td class="c">CHANGEOVER</td><td class="c">0s</td></tr>
+    <tr><td>CHANGEOVER</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">CHANGEOVER</td><td class="c">CHANGEOVER</td><td class="c">0s</td></tr>
+    <tr><td>PLANNED_STOP</td><td class="c">✓</td><td class="c">✓</td><td class="c">—</td><td class="c">PLANNED_MAINTENANCE</td><td class="c">PLANNED_BREAK</td><td class="c">0s</td></tr>
+    <tr><td>MAINTENANCE</td><td class="c">✓</td><td class="c">✓</td><td class="c">—</td><td class="c">PLANNED_MAINTENANCE</td><td class="c">PLANNED_MAINTENANCE</td><td class="c">0s</td></tr>
+    <tr><td>OFFLINE</td><td class="c">✓</td><td class="c">—</td><td class="c">—</td><td class="c">EXTERNAL</td><td class="c">EXTERNAL</td><td class="c">0s</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note warn">
+  <b>هذه القواعد هي التعريف نفسه — لا مجرّد عرض</b>
+  محرّك OEE لا يعرف أسماء STARVED أو BLOCKED. هو يسأل القواعد:
+  «أيّ الحالات توقّف، غير مخطّط، ولا يؤثّر على OEE؟» وما يعود إليه هو المستثنى.
+  فلو أنشأتَ حالة اسمها <code>AWAITING_FORKLIFT</code> وأشّرتها بهذه التركيبة،
+  تُعامَل معاملة الجوع تماماً — <b class="inl">بلا تعديل برمجي ولا إعادة نشر</b>.
+</div>
+
+
+<h2><span class="lyr al">٣. قواعد الإنذار</span><span class="tag al">ALARM RULES</span></h2>
+
+<p>
+  الإنذار سؤال مختلف تماماً: ليس «هل تنتج؟» بل <b>«هل يجب أن ينتبه أحد؟»</b>.
+  يُقيَّم على أي وسم رقمي — حرارة، ضغط، تيّار، وزن — ولا يمرّ بقاعدة الحالة ولا يمسّ OEE.
+</p>
+
+<h3>حقول القاعدة</h3>
+<dl class="kv">
+  <dt>tag</dt><dd>الوسم الذي تُقاس قيمته.</dd>
+  <dt>condition</dt><dd>المقارنة: <code>GT</code> أكبر · <code>GTE</code> أكبر أو يساوي · <code>LT</code> أصغر · <code>LTE</code> أصغر أو يساوي · <code>EQ</code> يساوي · <code>NEQ</code> لا يساوي.</dd>
+  <dt>threshold</dt><dd>الحدّ الذي تُقارَن به القيمة. <b>قاعدة بلا حدّ لا تُطلق شيئاً</b> — استمارة نصف ممتلئة ليست عطلاً.</dd>
+  <dt>delaySeconds</dt><dd>كم ثانية يجب أن يبقى الشرط <b>محقّقاً بلا انقطاع</b> قبل رفع الإنذار. القفزة اللحظية ليست عطلاً.</dd>
+  <dt>deadband</dt><dd>نطاق ميّت (تخلّف): بعد الإطلاق، كم يجب أن تعود القيمة <b>خلف</b> الحدّ قبل أن ينطفئ الإنذار.</dd>
+  <dt>severity</dt><dd><code>CRITICAL</code> · <code>HIGH</code> · <code>MEDIUM</code> · <code>LOW</code> · <code>INFO</code>.</dd>
+  <dt>autoAck</dt><dd>إنذار إعلامي لا ينتظر إقراراً من أحد — يُختم مُقرّاً لحظة رفعه فلا يزحم قائمة المشغّل.</dd>
+  <dt>notifyRoles</dt><dd>الأدوار التي تُخطَر عند الإطلاق.</dd>
+  <dt>isActive</dt><dd>إيقاف القاعدة دون حذفها — <b>فيبقى تاريخها</b>.</dd>
+</dl>
+
+<h3>لماذا التأخير والنطاق الميّت ضروريان — مثال بالأرقام</h3>
+<p>حسّاس حرارة، الحدّ <code>GT 80</code>. القيمة تتذبذب حول الحدّ كما يفعل أي حسّاس حقيقي:</p>
+<pre><code>الثانية:   1    2    3    4    5    6    7    8
+القيمة:  79.8 80.2 79.9 80.3 80.1 79.7 80.4 79.9</code></pre>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>الإعداد</th><th>عدد الإنذارات في 8 ثوانٍ</th><th>النتيجة</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>بلا تأخير وبلا نطاق ميّت</td><td class="c bad">4 إنذارات</td>
+      <td class="bad">سجلّ لا يُقرأ — والمشغّل يتوقّف عن النظر إليه</td>
+    </tr>
+    <tr>
+      <td><code>deadband = 2</code></td><td class="c">إنذار واحد</td>
+      <td>يُطلق عند 80.2، ولا ينطفئ حتى تنزل تحت <b>78</b></td>
+    </tr>
+    <tr>
+      <td><code>delaySeconds = 10</code></td><td class="c good">صفر</td>
+      <td class="good">لم يثبت الشرط عشر ثوانٍ متّصلة — فهو تذبذب لا عطل</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note stop">
+  <b>عدم التماثل مقصود</b>
+  النطاق الميّت يوسّع حدّ <b class="inl">الانطفاء</b> فقط لا حدّ الإطلاق:
+  إنذار «أكبر من» يُطلق عند 80 وينطفئ تحت 78. أي أنه <b class="inl">سهل الإطلاق وصعب الانطفاء</b> —
+  وهذا هو الاتجاه الصحيح لشيء وُجد كي يُلاحَظ.
+</div>
+
+<h3>ضمانات السلوك</h3>
+<ul>
+  <li><b>حدث مفتوح واحد لكل قاعدة</b> — القاعدة المخالفة لها إنذار واحد غير محلول، يُحلّ مع تسجيل مدّته حين تتعافى القيمة.</li>
+  <li><b>يصمد أمام إعادة التشغيل</b> — الحدث المفتوح يُستعاد من قاعدة البيانات، فلا يُتيَّم ولا يُكرَّر.</li>
+  <li><b>يعمل على الحافّة</b> — التقييم يجري في بوّابة المصنع على <b>كل قراءة</b>، لا في الخادم.
+      تجاوز يحدث بين استطلاعين للـ API هو تجاوز لا يراه أحد. ويعني هذا أيضاً أن الإنذارات
+      <b>تستمرّ أثناء انقطاع الاتصال بالخادم</b>.</li>
+  <li><b>محافظ عمداً</b> — قراءة غير مقروءة، أو جودتها <code>BAD</code>، أو قاعدة بلا حدّ: لا يُرفع شيء.
+      إنذار فائت يمكن استرجاعه من المؤرّخ؛ أما سجلّ مليء بالإنذارات الكاذبة فلا قيمة له أصلاً.</li>
+</ul>
+
+
+<h2>مثال كامل من طرف إلى طرف</h2>
+<p>دقيقة واحدة حقيقية على <b>Uni-tech Wrapping (M5)</b>، من البتة إلى التقرير:</p>
+
+<div class="step">
+  <header>١ — الإشارة <span class="tag sig">BOUND SIGNAL</span></header>
+  <div class="b">
+    <code>M5_RUN_MODE</code> (DISCRETE 5) = <b>ON</b> ⇒ الماكينة قادرة على العمل.<br>
+    <code>M5_TABLE_ROTATION</code> (DISCRETE 4) = <b>ساكن منذ 6 دقائق</b> — تجاوز حدّ السكون البالغ 5 دقائق.
+  </div>
+</div>
+
+<div class="step">
+  <header>٢ — الاستنتاج</header>
+  <div class="b">
+    جاهزة لكنها لا تعالج شيئاً. يُسأل اتجاه الخط: هل ما قبلها يُغذّي؟<br>
+    <b>Euro-Pack Robot (M4)</b> متوقّف، ولم يتوقّف بسبب جوعه هو ⇒ فهو سبب حقيقي لا عَرَض.<br>
+    الحالة المسجَّلة: <span class="amb">STARVED</span>
+  </div>
+</div>
+
+<div class="step">
+  <header>٣ — قاعدة الحالة <span class="tag st">STATE RULE</span></header>
+  <div class="b">
+    تثبت الحالة 5 ثوانٍ أولاً (الارتجاف)، ثم تُطبَّق القاعدة:<br>
+    <code>isDowntime ✓ · isPlanned ✗ · affectsOEE ✗</code><br>
+    ⇒ يُفتح حدث توقّف برمز <code>STARVED</code> وفئة <code>MATERIAL</code>.
+  </div>
+</div>
+
+<div class="step">
+  <header>٤ — الأثر على الأرقام</header>
+  <div class="b">
+    الدقيقة تخرج من <b>زمن التشغيل</b> ومن <b>الزمن المخطّط</b> معاً.<br>
+    <span class="good">إتاحية M5 لا تنخفض</span> — الماكينة سليمة، والخط هو المتوقّف.<br>
+    وتظهر الدقيقة في عمود <b>«خسارة خارجية»</b> فيرى المدير أين القيد الحقيقي: عند M4 لا M5.
+  </div>
+</div>
+
+<div class="note ok">
+  <b>هذا هو الغرض كلّه</b>
+  لو حوسِبت M5 على انتظارها، لبدت المشكلة في ماكينة التغليف وهي سليمة تماماً،
+  ولذهب الإصلاح إلى المكان الخطأ. القواعد الثلاث معاً هي ما يجعل الرقم يشير إلى السبب الصحيح.
+</div>
+
+
+<h2>أين تضبط كل شيء</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th>ما تريد تغييره</th><th>المكان</th></tr></thead>
+  <tbody>
+    <tr><td>ربط إشارة بعنوان ودور</td><td><code>IoT ← Signal Rules ← Bound signals</code></td></tr>
+    <tr><td>معنى حالة وأثرها على OEE</td><td><code>IoT ← Signal Rules ← State rules</code></td></tr>
+    <tr><td>حدود الإنذارات وتأخيرها</td><td><code>IoT ← Signal Rules ← Alarm rules</code></td></tr>
+    <tr><td>العنوان الفيزيائي ونوع السجلّ</td><td><code>IoT ← Tags</code></td></tr>
+    <tr><td>ترتيب الماكينات على الخط — يحدّد اتجاه الجوع والانسداد</td><td><code>Plant Hierarchy ← Production Line</code></td></tr>
+    <tr><td>متابعة الإنذارات المفتوحة</td><td><code>Alarms</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note warn">
+  <b>ما زال مفتوحاً — يحتاج قراراً من NCC</b>
+  <ul style="margin:6px 0 0">
+    <li><b>Checkweigher (M2)</b> بلا إشارة حالة: إتاحيته 100% لأنه لا يُسأل، لا لأنه لا يتوقّف.</li>
+    <li><b>Big Betti</b>: دلالة قيم الإشارة رقم 3 تحتاج تأكيداً منكم قبل ضبط <code>statusMap</code> نهائياً.</li>
+    <li><b>أزمنة الدورة المثالية</b> متناقضة عبر الخط، فمؤشّر الأداء يُقصّ عند 100% ولا يحمل معلومة (البند 27).</li>
+  </ul>
+</div>
+
+<footer>
+  MES360° · مصنع مسحوق المنظفات السعودي · خط تعبئة المسحوق 1<br>
+  كل القيم المذكورة مقروءة من إعدادات النظام الفعلية وقت إصدار هذه الوثيقة — 18 أغسطس 2026.
+</footer>
+
+</div>
+</body>
+</html>
