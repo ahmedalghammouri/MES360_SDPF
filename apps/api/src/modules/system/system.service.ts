@@ -282,6 +282,29 @@ export class SystemService {
     };
   }
 
+  /**
+   * A counting delete that survives a model this deployment does not have.
+   *
+   * The `.catch()` this replaces did not work. `tx.someModel.deleteMany({})`
+   * throws SYNCHRONOUSLY when the delegate is undefined — there is no promise yet
+   * for `.catch` to attach to — so one wrong model name took down the whole scope
+   * with "Cannot read properties of undefined (reading 'deleteMany')" instead of
+   * quietly counting zero. Exactly the failure the guard existed to prevent, and
+   * it went unnoticed because the guard looked like it was there.
+   *
+   * try/catch covers both: a delegate that is absent, and a delete that fails.
+   */
+  private deleter(out: Record<string, number>) {
+    return async (name: string, fn: () => Promise<{ count: number }>) => {
+      try {
+        out[name] = (await fn()).count;
+      } catch (err) {
+        this.logger.warn(`reset: ${name} skipped — ${(err as Error).message}`);
+        out[name] = 0;
+      }
+    };
+  }
+
   // ── Scoped resets ─────────────────────────────────────────────────────────
   // Each clears one self-contained subsystem's HISTORY and leaves its
   // CONFIGURATION alone. They are separate because "reset everything" is almost
@@ -296,9 +319,7 @@ export class SystemService {
   private async resetQuality(): Promise<Record<string, number>> {
     return this.prisma.$transaction(async (tx: any) => {
       const out: Record<string, number> = {};
-      const del = async (name: string, fn: () => Promise<{ count: number }>) => {
-        out[name] = (await fn().catch(() => ({ count: 0 }))).count;
-      };
+      const del = this.deleter(out);
       await del('spcMeasurements', () => tx.sPCMeasurement.deleteMany({}));
       await del('inspectionResults', () => tx.inspectionResult.deleteMany({}));
       await del('capaActions', () => tx.cAPAAction.deleteMany({}));
@@ -308,16 +329,18 @@ export class SystemService {
     }, { timeout: 120_000 });
   }
 
-  /** Maintenance work orders, tasks and requests. Assets and PM plans stay. */
+  /** Maintenance work orders and scheduled PM tasks. Assets and PM plans stay. */
   private async resetMaintenance(): Promise<Record<string, number>> {
     return this.prisma.$transaction(async (tx: any) => {
       const out: Record<string, number> = {};
-      const del = async (name: string, fn: () => Promise<{ count: number }>) => {
-        out[name] = (await fn().catch(() => ({ count: 0 }))).count;
-      };
-      await del('maintenanceTasks', () => tx.maintenanceTask.deleteMany({}));
+      const del = this.deleter(out);
+      // PMTask is a SCHEDULED OCCURRENCE of a PM plan, not part of the plan — the
+      // plan survives and can regenerate them. The delegate is `pMTask`: Prisma
+      // lowercases only the first character, so `PMTask` becomes `pMTask`, and the
+      // `maintenanceTask` this used to call has never existed.
+      await del('pmTasks', () => tx.pMTask.deleteMany({}));
+      // Spare-part lines and failure-mode links cascade from the work order.
       await del('maintenanceOrders', () => tx.maintenanceWO.deleteMany({}));
-      await del('maintenanceRequests', () => tx.maintenanceRequest.deleteMany({}));
       return out;
     }, { timeout: 120_000 });
   }
@@ -352,11 +375,11 @@ export class SystemService {
   private async resetInventory(): Promise<Record<string, number>> {
     return this.prisma.$transaction(async (tx: any) => {
       const out: Record<string, number> = {};
-      const del = async (name: string, fn: () => Promise<{ count: number }>) => {
-        out[name] = (await fn().catch(() => ({ count: 0 }))).count;
-      };
+      const del = this.deleter(out);
+      // StockMovement IS the transaction log — there is no second `InventoryTransaction`
+      // model and there never was, so the call that used to sit here could only ever
+      // throw. Stock LEVELS are master data and are deliberately left alone.
       await del('stockMovements', () => tx.stockMovement.deleteMany({}));
-      await del('inventoryTransactions', () => tx.inventoryTransaction.deleteMany({}));
       return out;
     }, { timeout: 120_000 });
   }
@@ -381,9 +404,7 @@ export class SystemService {
   private async resetNotifications(): Promise<Record<string, number>> {
     return this.prisma.$transaction(async (tx: any) => {
       const out: Record<string, number> = {};
-      const del = async (name: string, fn: () => Promise<{ count: number }>) => {
-        out[name] = (await fn().catch(() => ({ count: 0 }))).count;
-      };
+      const del = this.deleter(out);
       await del('notifications', () => tx.notification.deleteMany({}));
       return out;
     }, { timeout: 120_000 });

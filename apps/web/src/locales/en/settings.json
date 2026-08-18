@@ -197,8 +197,8 @@
       },
       "maintenance": {
         "title": "Reset Maintenance History",
-        "desc": "Deletes maintenance work orders, their tasks and maintenance requests. Assets, preventive-maintenance schedules and spare-part definitions are the maintenance plan, not its history, and are preserved.",
-        "danger": "all maintenance work orders, tasks and requests"
+        "desc": "Deletes maintenance work orders and the PM tasks scheduled from a plan. Assets, preventive-maintenance plans and spare-part definitions are the maintenance plan, not its history, and are preserved.",
+        "danger": "all maintenance work orders and scheduled PM tasks"
       },
       "alarms": {
         "title": "Reset Alarm History",
@@ -212,8 +212,8 @@
       },
       "inventory": {
         "title": "Reset Inventory Movements",
-        "desc": "Deletes the stock movement and transaction log. Items, warehouses, locations and current stock levels are master data and are preserved.",
-        "danger": "all stock movements and inventory transactions"
+        "desc": "Deletes the stock movement log. Items, warehouses, locations and current stock levels are master data and are preserved.",
+        "danger": "the entire stock movement log"
       },
       "notifications": {
         "title": "Reset Notifications",
