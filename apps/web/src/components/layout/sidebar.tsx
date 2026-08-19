@@ -15,6 +15,7 @@ import {
   GitBranch,
   Bell,
   AlarmClock,
+  RadioTower,
   Router,
   Settings,
   Users,
@@ -99,6 +100,25 @@ const navItems: NavItem[] = [
   { label: 'Apps', href: '/apps', icon: Grip },
   { label: 'Plant Live Views', href: '/plant-live-view', icon: Monitor, permission: 'plant_dashboard:view' },
 
+  // ═══════════════ NOW ═══════════════
+  // What the plant is doing at this instant. These pages take NO time filter —
+  // their window is the shift that is running, decided by the server. They were
+  // split out because the same screen used to carry a live card beside a
+  // historical chart, and a reader could not tell which number was which.
+  { section: 'Now', label: 'Now' },
+  {
+    label: 'Operations Now',
+    icon: RadioTower,
+    appHref: '/live/production',
+    children: [
+      { label: 'Live Production', href: '/live/production', icon: Factory,  badge: 'Live', badgeVariant: 'default' },
+      { label: 'Live Machines',   href: '/live/machines',   icon: Activity, badge: 'Live', badgeVariant: 'default' },
+      { label: 'Shop Floor',      href: '/shop-floor',      icon: Monitor },
+      { label: 'Downtime Center', href: '/downtime',        icon: PauseCircle },
+      { label: 'Alarms',          href: '/alarms',          icon: AlarmClock, dynamicKey: 'activeAlarms', badgeVariant: 'destructive' },
+    ],
+  },
+
   // ═══════════════ INSIGHTS ═══════════════
   // Decision-support apps: dashboards, OEE, analytics & reports, AI & benchmarks.
   { section: 'Insights', label: 'Insights' },
@@ -121,7 +141,10 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: 'OEE',
+    // Analytics only. Everything here reads history and takes the full filter set;
+    // the live counterparts live under "Now" so the two can never be confused for
+    // one another on the same screen.
+    label: 'OEE Analytics',
     icon: Gauge,
     appHref: '/production/oee',
     children: [

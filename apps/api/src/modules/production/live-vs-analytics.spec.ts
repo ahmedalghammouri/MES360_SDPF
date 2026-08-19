@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -81,6 +81,48 @@ describe('live and analytics are separate by construction', () => {
 
     it('batches them, so a list of steps is one query not forty', () => {
       expect(production).toMatch(/jobOrderFactors\(\s*[\s\S]{0,120}flatMap/);
+    });
+  });
+
+  describe('the browser cannot reintroduce a time filter either', () => {
+    // The web package has no test runner of its own, and this invariant is worth
+    // more than the tidiness of keeping the check in the same package as the code.
+    // Both live in one repo and ship together.
+    const liveDir = join(__dirname, '../../../../web/src/features/live');
+    // Comments are stripped: live-shared.tsx states the rule in prose, naming the
+    // hook it must never import, and a scan that counted prose as code would fail
+    // on the explanation rather than on the code.
+    const read = (f: string) => readFileSync(join(liveDir, f), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+
+    it('the live feature folder exists where expected', () => {
+      // A moved folder must fail loudly rather than skip silently — a guard that
+      // quietly stops running is worse than no guard.
+      expect(existsSync(liveDir)).toBe(true);
+    });
+
+    it.each(['live-shared.tsx', 'live-production-view.tsx', 'live-machines-view.tsx'])(
+      '%s does not import the time-range hook',
+      (f) => {
+        expect(read(f)).not.toMatch(/use-time-range|useTimeRange/);
+      },
+    );
+
+    it.each(['live-production-view.tsx', 'live-machines-view.tsx'])(
+      '%s goes through the shared hook rather than its own query',
+      (f) => {
+        const src = read(f);
+        expect(src).toContain('useLive(');
+        // A page with its own useQuery could point at a historical endpoint and
+        // drift from its sibling without anyone noticing.
+        expect(src).not.toMatch(/useQuery\(/);
+      },
+    );
+
+    it('sends only a line from the scope tree, never a machine', () => {
+      const src = read('live-shared.tsx');
+      expect(src).toMatch(/type === 'LINE'/);
     });
   });
 
