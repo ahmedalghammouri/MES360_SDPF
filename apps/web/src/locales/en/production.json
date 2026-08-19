@@ -2225,6 +2225,10 @@
     "forDuration": "for {{ago}}",
     "machinesNote": "Sorted by trouble first. Minutes are shift-to-date, from the same fact store every other page reads.",
     "teep": "TEEP now",
-    "machinesWithoutRate": "{{count}} machine(s) have no rated capacity"
+    "machinesWithoutRate": "{{count}} machine(s) have no rated capacity",
+    "oeeTb": "OEE-TB now",
+    "scheduleBasis": "vs planned time",
+    "timeBasis": "vs uptime + downtime",
+    "tbIs": "time-based {{v}}%"
   }
 }

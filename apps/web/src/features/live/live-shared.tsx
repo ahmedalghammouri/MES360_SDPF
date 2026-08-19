@@ -30,6 +30,8 @@ export interface LiveMachine {
   output: number; good: number; scrap: number;
   availability: number | null; performance: number | null;
   quality: number | null; oee: number | null;
+  /** The time-based pair — run ÷ (run + downtime). Both bases always travel. */
+  availabilityTb: number | null; oeeTb: number | null;
 }
 
 export interface LiveJobOrder {
@@ -48,6 +50,8 @@ export interface LiveTotals {
   output: number; good: number; scrap: number;
   availability: number | null; performance: number | null;
   quality: number | null; oee: number | null;
+  /** The time-based pair — run ÷ (run + downtime). Both bases always travel. */
+  availabilityTb: number | null; oeeTb: number | null;
 }
 
 /** Plant-wide readings that are about the whole shift rather than one machine. */
@@ -57,6 +61,7 @@ export interface LivePlant {
   utilization: number | null;
   /** OEE carried the rest of the way to the calendar. */
   teep: number | null;
+  teepTb: number | null;
   scheduleAttainment: number | null;
   scheduledOrders: number;
   capacityUtilization: number | null;

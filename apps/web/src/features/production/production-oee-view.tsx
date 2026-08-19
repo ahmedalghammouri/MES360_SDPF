@@ -7,8 +7,8 @@ import { useTranslation } from 'react-i18next';
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  Download, RefreshCw, TrendingUp, TrendingDown, Cpu, Lightbulb,
-  AlertTriangle, Trophy, Activity, Gauge as GaugeIcon, Layers,
+  TrendingUp, TrendingDown, Cpu, Lightbulb,
+  AlertTriangle, Trophy, Activity, Gauge as GaugeIcon,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { HierarchyOEE } from './hierarchy-oee';
@@ -23,7 +23,6 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { SelectMenu } from '@/components/ui/select-menu';
 import { KPICard } from '@/components/widgets/kpi-card';
 import { OEEGauge } from '@/components/charts/oee-gauge';
 import { api } from '@/services/api.client';
@@ -83,7 +82,6 @@ export function ProductionOEEView() {
   const { filter, key } = useScope();
   const { params: timeParams, key: timeKey, preset: timeframe } = useTimeRange();
   const { atOee, trendType } = useDashboardPrefsStore();
-  const [machineFilter, setMachineFilter] = useState<string>('ALL');
   const [groupBy, setGroupBy] = useState<GroupBy>('time');
 
   const { data: oeeData, isLoading, isFetching } = useQuery({
@@ -102,7 +100,9 @@ export function ProductionOEEView() {
   const groupedRows = (groupedResp as any)?.rows ?? [];
 
   const equipment: EquipmentOee[] = oeeData?.byEquipment ?? [];
-  const filteredEq = machineFilter === 'ALL' ? equipment : equipment.filter(e => e.name === machineFilter);
+  // Scope comes from the filter panel now; this page no longer keeps a second
+  // machine selector of its own.
+  const filteredEq = equipment;
   const trend = oeeData?.trend ?? [];
 
   // ── Smart analysis — computed from the live numbers, no static data ──
@@ -149,21 +149,6 @@ export function ProductionOEEView() {
     return out;
   }, [equipment, oeeData, trend, timeframe, t]);
 
-  const exportCsv = () => {
-    const rows = [
-      ['Machine', 'OEE %', 'Availability %', 'Performance %', 'Quality %', 'Weakest factor'],
-      ...equipment.map(e => {
-        const wf = weakestFactor(e);
-        return [e.name, e.oee.toFixed(1), e.availability.toFixed(1), e.performance.toFixed(1), e.quality.toFixed(1), `${wf.name} ${wf.value.toFixed(1)}%`];
-      }),
-    ];
-    const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `oee-${timeframe}-${toFactoryDayKey(new Date())}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
 
   return (
     <div className="flex flex-col h-full">
@@ -174,36 +159,12 @@ export function ProductionOEEView() {
             {t('headers.oee.subtitle')}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Machine filter */}
-          <SelectMenu
-            value={machineFilter}
-            onValueChange={setMachineFilter}
-            menuLabel={t('oeev.machine')}
-            options={[
-              { value: 'ALL', label: t('oeev.allMachines') },
-              ...equipment.map(e => ({ value: e.name, label: e.name })),
-            ]}
-          />
-          <Link
-            href="/analytics"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-background text-xs font-medium hover:bg-muted/50 transition-colors"
-          >
-            <Layers size={13} className="text-brand-400" />
-            {t('oeev.deepAnalysis')}
-          </Link>
-          <Button
-            variant="outline" size="sm" className="gap-1.5 h-8 text-xs"
-            onClick={() => qc.invalidateQueries({ queryKey: ['production', 'oee'] })}
-          >
-            <RefreshCw size={13} className={cn(isFetching && 'animate-spin')} />
-            {t('po.refresh')}
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={exportCsv} disabled={!equipment.length}>
-            <Download size={13} />
-            {t('oeev.exportCsv')}
-          </Button>
-        </div>
+        {/* The machine filter, Deep analysis, Refresh and Export CSV are gone.
+            The scope tree in the filter panel already selects machines, so the
+            dropdown was a second, competing control for one thing; Deep analysis
+            was a link dressed as an action; Refresh duplicated the automatic
+            refetch; and Export belongs to a reporting surface, not beside a
+            chart. Fewer controls, none of them ambiguous. */}
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">

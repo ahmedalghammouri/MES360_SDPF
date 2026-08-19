@@ -55,6 +55,9 @@ export interface LiveMachine {
   performance: number | null;
   quality: number | null;
   oee: number | null;
+  /** The time-based pair — run ÷ (run + downtime). Both bases always travel. */
+  availabilityTb: number | null;
+  oeeTb: number | null;
 }
 
 export interface LiveJobOrder {
@@ -131,7 +134,7 @@ export class LiveKpiService {
       return {
         window: win, machines: [], jobOrders: [], totals: this.emptyTotals(), shift: null,
         plant: {
-          calendarMin: 0, utilization: null, teep: null,
+          calendarMin: 0, utilization: null, teep: null, teepTb: null,
           scheduleAttainment: null, scheduledOrders: 0,
           capacityUtilization: null, machinesWithoutRate: 0,
         },
@@ -178,6 +181,11 @@ export class LiveKpiService {
     const teep = utilization != null && totals.oee != null
       ? this.r((totals.oee / 100) * (utilization / 100) * 100)
       : null;
+    // TEEP on the time-based basis too, so the toggle reaches every figure rather
+    // than half of them.
+    const teepTb = utilization != null && totals.oeeTb != null
+      ? this.r((totals.oeeTb / 100) * (utilization / 100) * 100)
+      : null;
 
     const [msa, capacity] = await Promise.all([
       this.scheduleKpi
@@ -198,6 +206,7 @@ export class LiveKpiService {
         calendarMin: this.r(calendarMin),
         utilization,
         teep,
+        teepTb,
         // Orders whose planned window overlaps this shift. Null rather than zero
         // when nothing was scheduled — 0% would read as total failure.
         scheduleAttainment: msa && msa.totalScheduledQty > 0 ? msa.msaPct : null,
@@ -272,34 +281,25 @@ export class LiveKpiService {
     return r ? { code: r.code, name: r.name, startedAt: r.shiftStart } : null;
   }
 
-  /** A/P/Q/OEE for one machine's shift-to-date facts. */
+  /**
+   * Minutes and factors for one machine's shift-to-date facts.
+   *
+   * The factors come from KpiService.factorsFromFacts — the one derivation — so
+   * this page cannot grade a machine differently from the analytics page, and it
+   * carries BOTH availability bases because that derivation does.
+   */
   private factorsOf(f: MachineFactTotals | undefined) {
-    const runMin = f?.runMin ?? 0;
-    const plannedMin = f?.plannedMin ?? 0;
-    const idealRunMin = f?.idealRunMin ?? 0;
-    const total = f?.totalBase ?? 0;
-    const good = f?.goodBase ?? 0;
-
-    // Availability is null, never 0, when nothing was planned — 0% accuses a
-    // machine of failing when it was never asked to run. Same rule as every
-    // other surface.
-    const availability = plannedMin > 0 ? this.r((runMin / plannedMin) * 100) : null;
-    const performance = runMin > 0 ? Math.min(100, this.r((idealRunMin / runMin) * 100)) : null;
-    const quality = total > 0 ? this.r((good / total) * 100) : null;
-    const oee = availability != null && performance != null && quality != null
-      ? this.r((availability / 100) * (performance / 100) * (quality / 100) * 100)
-      : null;
-
+    const k = this.kpi.factorsFromFacts(f);
     return {
-      runMin: this.r(runMin),
+      runMin: this.r(f?.runMin ?? 0),
       downMin: this.r(f?.downMin ?? 0),
-      plannedMin: this.r(plannedMin),
+      plannedMin: this.r(f?.plannedMin ?? 0),
       externalMin: this.r(f?.externalMin ?? 0),
       unmeasuredMin: this.r(f?.unmeasuredMin ?? 0),
-      output: this.r(total),
-      good: this.r(good),
+      output: this.r(f?.totalBase ?? 0),
+      good: this.r(f?.goodBase ?? 0),
       scrap: this.r(f?.scrapBase ?? 0),
-      availability, performance, quality, oee,
+      ...k,
     };
   }
 

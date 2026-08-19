@@ -38,10 +38,16 @@ export function LiveProductionView() {
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          {/* Both bases, side by side and labelled. The system supports two ways
+              of measuring availability and a plant needs to see them together —
+              showing one and hiding the other is how OEE-TB quietly disappeared. */}
           <LiveStat label={t('live.oee')} value={x.oee == null ? '—' : `${x.oee}%`} tone="primary"
-                    sub={t('live.thisShift')} />
-          <LiveStat label={t('oeeAn.availability')} value={x.availability == null ? '—' : `${x.availability}%`} />
+                    sub={t('live.scheduleBasis')} />
+          <LiveStat label={t('live.oeeTb')} value={x.oeeTb == null ? '—' : `${x.oeeTb}%`}
+                    sub={t('live.timeBasis')} />
+          <LiveStat label={t('oeeAn.availability')} value={x.availability == null ? '—' : `${x.availability}%`}
+                    sub={x.availabilityTb == null ? undefined : t('live.tbIs', { v: x.availabilityTb })} />
           <LiveStat label={t('oeeAn.performance')} value={x.performance == null ? '—' : `${x.performance}%`} />
           <LiveStat label={t('oeeAn.quality')} value={x.quality == null ? '—' : `${x.quality}%`} />
           <LiveStat label={t('live.goodNow')} value={fmtNum(x.good)} tone="good" sub={t('schedCap.pieces')} />
@@ -56,7 +62,8 @@ export function LiveProductionView() {
             they cannot disagree with it. */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <LiveStat label={t('live.teep')} value={p.teep == null ? '—' : `${p.teep}%`}
-                    tone="warn" sub={t('oeeAn.vsCalendar')} />
+                    tone="warn"
+                    sub={p.teepTb == null ? t('oeeAn.vsCalendar') : t('live.tbIs', { v: p.teepTb })} />
           <LiveStat label={t('oeeAn.utilization')} value={p.utilization == null ? '—' : `${p.utilization}%`}
                     sub={t('oeeAn.ofCalendar')} />
           <LiveStat label={t('schedCap.msa')}

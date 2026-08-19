@@ -2225,6 +2225,10 @@
     "forDuration": "منذ {{ago}}",
     "machinesNote": "مرتّبة بالمشكلة أولاً. الدقائق منذ بداية الوردية، من نفس مخزن الحقائق الذي تقرأ منه كل صفحة أخرى.",
     "teep": "TEEP الآن",
-    "machinesWithoutRate": "{{count}} ماكينة بلا معدّل طاقة"
+    "machinesWithoutRate": "{{count}} ماكينة بلا معدّل طاقة",
+    "oeeTb": "OEE-TB الآن",
+    "scheduleBasis": "مقابل الزمن المخطّط",
+    "timeBasis": "مقابل التشغيل + التوقّف",
+    "tbIs": "زمني {{v}}%"
   }
 }

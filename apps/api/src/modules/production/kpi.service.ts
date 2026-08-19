@@ -105,6 +105,8 @@ function joOverlapsWindow(from: Date, to: Date) {
 export interface DailyFactTotals {
   day: Date;
   plannedMin: number; runMin: number; idealRunMin: number;
+  /** Needed for the time-based basis: run ÷ (run + down). */
+  downMin: number;
   totalBase: number; goodBase: number;
 }
 
@@ -773,8 +775,25 @@ export class KpiService {
   }
 
   /**
-   * A/P/Q/OEE from a fact-store total. One place, so a step badge, a live page and
-   * an analytics table cannot grade the same job order differently.
+   * A/P/Q/OEE from a fact-store total — on BOTH bases. One place, so a step badge,
+   * a live page and an analytics chart cannot grade the same job order
+   * differently.
+   *
+   * ── Two availabilities, deliberately ────────────────────────────────────
+   * They answer different questions and a plant needs both:
+   *
+   *   schedule-based  run ÷ planned production time
+   *                   "of the time we intended to produce, how much did we?"
+   *                   Time scheduled but never started counts against it.
+   *
+   *   time-based      run ÷ (run + unplanned downtime)          — OEE-TB
+   *                   "while the line was up and running, how much of that was
+   *                   productive?" Blind to whether it was scheduled at all.
+   *
+   * Unifying the engine dropped the time-based pair, which was a real loss: a
+   * plant that runs to demand rather than to a fixed schedule reads OEE-TB, and
+   * the system is expected to support both. Both now travel together from here,
+   * so no surface can carry one and not the other.
    *
    * Null rather than zero wherever the denominator is absent: a step with nothing
    * planned has no availability, and 0% would read as failure instead of "never
@@ -784,14 +803,29 @@ export class KpiService {
     const r1 = (n: number) => Math.round(n * 10) / 10;
     const runMin = f?.runMin ?? 0;
     const plannedMin = f?.plannedMin ?? 0;
+    const downMin = f?.downMin ?? 0;
     const total = f?.totalBase ?? 0;
+
     const availability = plannedMin > 0 ? r1((runMin / plannedMin) * 100) : null;
+    // Planned and external minutes are already out of both terms by the writer,
+    // so run + down IS the time the machine was up and accountable.
+    const uptime = runMin + downMin;
+    const availabilityTb = uptime > 0 ? r1((runMin / uptime) * 100) : null;
+
     const performance = runMin > 0 ? Math.min(100, r1(((f?.idealRunMin ?? 0) / runMin) * 100)) : null;
     const quality = total > 0 ? r1(((f?.goodBase ?? 0) / total) * 100) : null;
-    const oee = availability != null && performance != null && quality != null
-      ? r1((availability / 100) * (performance / 100) * (quality / 100) * 100)
-      : null;
-    return { availability, performance, quality, oee };
+
+    const compose = (a: number | null) =>
+      a != null && performance != null && quality != null
+        ? r1((a / 100) * (performance / 100) * (quality / 100) * 100)
+        : null;
+
+    return {
+      availability, performance, quality,
+      oee: compose(availability),
+      // Same P and Q; only the availability basis differs.
+      availabilityTb, oeeTb: compose(availabilityTb),
+    };
   }
 
   /**
@@ -817,6 +851,7 @@ export class KpiService {
       ),
       t AS (
         SELECT d, SUM("plannedMin")::float AS "plannedMin", SUM("runMin")::float AS "runMin",
+               SUM("downMin")::float AS "downMin",
                SUM("idealRunMin")::float AS "idealRunMin"
         FROM scoped GROUP BY d
       ),
@@ -827,7 +862,7 @@ export class KpiService {
         FROM scoped s JOIN fin f ON f.d = s.d AND f."workOrderId" = s."workOrderId" AND f.ms = s."sequenceOrder"
         GROUP BY s.d
       )
-      SELECT t.d AS day, t."plannedMin", t."runMin", t."idealRunMin",
+      SELECT t.d AS day, t."plannedMin", t."runMin", t."downMin", t."idealRunMin",
              COALESCE(q."totalBase", 0) AS "totalBase", COALESCE(q."goodBase", 0) AS "goodBase"
       FROM t LEFT JOIN q ON q.d = t.d ORDER BY t.d
     `);

@@ -213,6 +213,11 @@ export class OeeAnalyticsService {
 
     // Availability compares run time with the time it was supposed to run.
     const availability = this.pct(runMin, plannedProductionMin);
+    // The time-based basis: run against the time the machine was up and
+    // accountable, blind to whether that time was scheduled. Planned and external
+    // minutes are already out of both terms, so run + down IS that time. A plant
+    // that runs to demand rather than to a fixed schedule reads this one.
+    const availabilityTb = this.pct(runMin, runMin + unplannedStopMin);
 
     // Performance is ideal time over actual run time. Capped at 100: beating the
     // ideal means the ideal is wrong (tracker item 27), not that the machine
@@ -229,9 +234,12 @@ export class OeeAnalyticsService {
     const qualityLossMin = Math.max(0, this.r(netOperatingMin - fullyProductiveMin));
 
     const oee = this.r((availability / 100) * (performance / 100) * (quality / 100) * 100);
+    // Same P and Q; only the availability basis differs.
+    const oeeTb = this.r((availabilityTb / 100) * (performance / 100) * (quality / 100) * 100);
     // Utilisation is how much of the clock the plant even planned to use.
     const utilization = this.pct(plannedProductionMin, calendarMin);
     const teep = this.r(oee * (utilization / 100));
+    const teepTb = this.r(oeeTb * (utilization / 100));
 
     return {
       calendarMin, loadingMin, scheduleLossMin,
@@ -241,6 +249,9 @@ export class OeeAnalyticsService {
       fullyProductiveMin, qualityLossMin,
       output: total, goodOutput: good, scrap: this.r(x.scrap),
       availability, performance, quality, oee, utilization, teep,
+      // Both bases travel together, so a chart can plot either without a second
+      // request and the toggle reaches every figure rather than half of them.
+      availabilityTb, oeeTb, teepTb,
     };
   }
 
@@ -287,10 +298,14 @@ export class OeeAnalyticsService {
       const performance = Math.min(100, this.pct(r.idealRunMin, r.runMin));
       const quality = this.pct(r.goodBase, r.totalBase);
       const oee = this.r((availability / 100) * (performance / 100) * (quality / 100) * 100);
+      // The trend must offer both bases or the toggle cannot reach the charts.
+      const availabilityTb = this.pct(r.runMin, r.runMin + (r.downMin ?? 0));
+      const oeeTb = this.r((availabilityTb / 100) * (performance / 100) * (quality / 100) * 100);
       const utilization = this.pct(r.plannedMin, dayMin);
       return {
         date: r.day,
         availability, performance, quality, oee,
+        availabilityTb, oeeTb,
         utilization,
         teep: this.r(oee * (utilization / 100)),
         output: this.r(r.totalBase),

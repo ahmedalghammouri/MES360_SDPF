@@ -131,11 +131,21 @@ describe('live and analytics are separate by construction', () => {
       for (const s of [live, analytics]) expect(s).toContain('machineFactTotals(');
     });
 
-    it('reports no availability rather than 0% when nothing was planned', () => {
-      // Shared rule: 0% accuses a machine of failing when it was never asked to
-      // run. Both surfaces must agree on that, or the same machine reads 0% on
-      // one page and "—" on the other.
-      expect(live).toMatch(/plannedMin > 0 \?/);
+    it('derives its factors from the shared function, not its own formula', () => {
+      // The null-rather-than-zero rule, the two availability bases and the OEE
+      // composition all live in KpiService.factorsFromFacts. This page must call
+      // it rather than restate any of them — a restatement is a second engine
+      // wearing a smaller hat. The rules themselves are covered by
+      // oee-both-bases.spec.ts.
+      expect(live).toContain('factorsFromFacts(');
+      expect(live).not.toMatch(/plannedMin > 0 \?/);
+    });
+
+    it('carries BOTH availability bases through to the live payload', () => {
+      // Unifying the engine once dropped the time-based pair from every surface
+      // and nothing failed, because what remained was still correct.
+      expect(live).toMatch(/availabilityTb/);
+      expect(live).toMatch(/oeeTb/);
     });
   });
 });
