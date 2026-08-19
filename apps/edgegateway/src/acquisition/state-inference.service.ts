@@ -157,29 +157,33 @@ export class StateInferenceService {
 
       if (running && processing === true) return 'RUNNING';
 
-      // No PROCESSING signal wired, or no trustworthy reading. There is nothing
-      // to say whether product is moving THROUGH this machine — but whether any
-      // is ARRIVING is a separate question, and the station in front answers it.
-      // Its recorded state is a measurement; only the missing signal is silence.
+      // ── STARVED and BLOCKED need evidence AT THIS MACHINE ──────────────────
+      // Either the machine stopped (Run Mode off) or its process stopped
+      // (PROCESSING inactive past the gap between units). A neighbour's state
+      // alone is never enough, and may not overrule a machine whose own signals
+      // say it is working.
       //
-      // This matters most exactly where it is missing. NCC's machines hold Run
-      // Mode ON while starved, and the Euro-Pack Robot's bit pulses only in stop
-      // mode — starvation is not stop mode. So a starved M4 sat with a steady ON
-      // bit reading RUNNING, and the starvation that had propagated correctly
-      // from M1 to M3 stopped dead there: M5 asked its feeder, M4 said RUNNING,
-      // and two machines were credited with run time while the line had made
-      // nothing for an hour.
+      // This was briefly implemented the other way — a stopped feeder inferred
+      // starvation for a machine with no PROCESSING signal — and the line
+      // disproved it within the hour. Big Betti went down and the cartoner and
+      // palletiser were immediately reported STARVED, while the wrapper's table
+      // was still rotating. A rotating table means a pallet was being wrapped,
+      // which means the palletiser had just delivered one, which means the
+      // cartoner had fed it: the two machines called starved were demonstrably
+      // working, and the machine after them was consuming their output.
       //
-      // Only the upstream side is inferred here. A stopped feeder means nothing
-      // can be arriving, which is conclusive; a stopped receiver does not mean
-      // this machine cannot discharge, because it may still be filling the buffer
-      // between them. Blockage without a processing signal stays unclaimed.
-      if (running && processing === null) {
-        const { upstream } = await this.neighbours(machineId);
-        const feeder = upstream.length > 0 ? [upstream[upstream.length - 1]] : [];
-        if (feeder.length > 0 && (await this.notFeeding(feeder))) return 'STARVED';
-        return rawState;
-      }
+      // The flaw is that a stopped feeder does not mean nothing is arriving. A
+      // line has product between its stations, and the cartoner keeps working
+      // through what is in front of it long after the filler stops — Big Betti
+      // had been down one minute. Starvation arrives when the buffer drains, at
+      // a delay the topology cannot know. Only the machine itself can report it.
+      //
+      // So with no PROCESSING signal there is nothing to report, and the machine
+      // is left as it reported itself. That is a real gap for M3 and M4 — their
+      // starvation is invisible until a PROCESSING signal is bound to them — but
+      // an invisible loss is better than a fabricated one charged to the wrong
+      // machine at the wrong moment.
+      if (running && processing === null) return rawState;
 
       // Ready-but-idle and stopped ask the same question, so they share the
       // answer: what, outside this machine, would explain it producing nothing?

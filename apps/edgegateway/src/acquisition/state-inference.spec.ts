@@ -130,53 +130,42 @@ describe('StateInferenceService', () => {
     expect(await svc.classify('m3', 'MAINTENANCE')).toBe('MAINTENANCE');
   });
 
-  // ── No PROCESSING signal: the feeder still answers ─────────────────────────
-  // These four replace a single test that expected RUNNING in every one of these
-  // situations. Its reasoning was that without a processing signal there is no way
-  // to tell a busy machine from an idle one, so guessing would invent external
-  // losses. Half of that is right: nothing here says whether product is moving
-  // THROUGH the machine. But whether any is ARRIVING is a different question, and
-  // the station in front has a recorded state that answers it. That state is a
-  // measurement; only the missing signal is silence.
+  // ── STARVED and BLOCKED need evidence AT THIS MACHINE ─────────────────────
+  // Either the machine stopped, or its process stopped. A neighbour's state
+  // alone never is, and may not overrule a machine whose own signals say it is
+  // working.
   //
-  // Seen on the line on 19 Aug 2026: the filler was down and the cartoner
-  // correctly STARVED, but the palletiser — which has no processing signal and
-  // holds Run Mode ON while starved — read RUNNING, and so did the wrapper behind
-  // it, which asked its feeder and was told "RUNNING". Two machines were credited
-  // with run time while the line had produced nothing for an hour.
-  it('calls a machine STARVED when its feeder is stopped and it has no PROCESSING signal', async () => {
+  // These tests exist because the opposite was briefly implemented — a stopped
+  // feeder inferring starvation for a machine with no PROCESSING signal — and
+  // the line disproved it within the hour. Big Betti went down and the cartoner
+  // and palletiser were instantly reported STARVED while the wrapper's table was
+  // still rotating: a rotating table means a pallet was being wrapped, which
+  // means the palletiser had just delivered one, which means the cartoner had fed
+  // it. The machines called starved were visibly working.
+  //
+  // The flaw is that a stopped feeder does not mean nothing is arriving. There is
+  // product between the stations, and the cartoner works through what is in front
+  // of it long after the filler stops — Big Betti had been down one minute.
+  // Starvation arrives when the buffer drains, at a delay no topology can know.
+  it('leaves a running machine alone when it has no PROCESSING signal', async () => {
+    // Everything upstream is down and this machine still says it is running.
+    // Nothing here reports a stop, so nothing may be charged as one.
     const svc = build({ m1: 'BREAKDOWN', m2: 'BREAKDOWN', m3: RUNNING, m4: RUNNING, m5: RUNNING });
-    expect(await svc.classify('m3', RUNNING)).toBe('STARVED');
-  });
-
-  it('leaves it RUNNING when the feeder is running', async () => {
-    // Nothing outside the machine explains anything, and there is no signal to say
-    // it is idle. Claiming starvation here would be the invention the old test
-    // guarded against, and that guard is kept.
-    const svc = build({ m1: 'BREAKDOWN', m2: RUNNING, m3: RUNNING, m4: RUNNING, m5: RUNNING });
     expect(await svc.classify('m3', RUNNING)).toBe(RUNNING);
   });
 
-  it('is not starved by a feeder that is merely BLOCKED', async () => {
-    // A blocked feeder HAS product and cannot pass it on — usually because this
-    // machine stopped taking it. The symptom-versus-cause guard has to survive the
-    // new rule, or a machine's own jam gets filed as somebody else's loss.
-    const svc = build({ m1: RUNNING, m2: 'BLOCKED', m3: RUNNING, m4: RUNNING, m5: RUNNING });
-    expect(await svc.classify('m3', RUNNING)).toBe(RUNNING);
+  it('does not starve a machine whose own signals show it working, at any distance', async () => {
+    // The palletiser one station further down, in the same moment. Its Run Mode
+    // is on and it has no processing signal; there is no stop to classify.
+    const svc = build({ m1: 'BREAKDOWN', m2: 'BREAKDOWN', m3: RUNNING, m4: RUNNING, m5: RUNNING });
+    expect(await svc.classify('m4', RUNNING)).toBe(RUNNING);
   });
 
-  it('never starves the first machine on the line', async () => {
-    // Nothing feeds it, so nothing can fail to.
-    const svc = build({ m1: RUNNING, m2: RUNNING, m3: RUNNING, m4: RUNNING, m5: RUNNING });
-    expect(await svc.classify('m1', RUNNING)).toBe(RUNNING);
-  });
-
-  it('does not claim BLOCKED without a processing signal', async () => {
-    // A stopped receiver does not prove this machine cannot discharge — it may
-    // still be filling the buffer between them. Starvation is conclusive in a way
-    // blockage is not, so only the upstream side is inferred.
-    const svc = build({ m1: RUNNING, m2: RUNNING, m3: RUNNING, m4: 'BREAKDOWN', m5: 'BREAKDOWN' });
-    expect(await svc.classify('m3', RUNNING)).toBe(RUNNING);
+  it('still classifies once the machine itself reports a stop', async () => {
+    // The evidence the rule asks for. Run Mode has gone off, so there IS a stop
+    // here — and now the line decides whose fault it is.
+    const svc = build({ m1: 'BREAKDOWN', m2: 'BREAKDOWN', m3: 'BREAKDOWN', m4: RUNNING, m5: RUNNING });
+    expect(await svc.classify('m3', 'BREAKDOWN')).toBe('STARVED');
   });
 
   // ── NCC's actual case ──────────────────────────────────────────────────────
