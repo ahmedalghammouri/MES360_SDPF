@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import { ProductionOEEView } from '@/features/production/production-oee-view';
+import { OeePage } from '@/features/production/oee-page';
 
-export const metadata: Metadata = { title: 'OEE Analysis | MES360°' };
+export const metadata: Metadata = { title: 'OEE | MES360°' };
 
-export default function OEEPage() {
-  return <ProductionOEEView />;
+export default function Page() {
+  return <OeePage />;
 }

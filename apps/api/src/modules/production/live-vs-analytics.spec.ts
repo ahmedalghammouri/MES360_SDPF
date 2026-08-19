@@ -126,6 +126,42 @@ describe('live and analytics are separate by construction', () => {
     });
   });
 
+  describe('the period control belongs to the analytics half only', () => {
+    const web = join(__dirname, '../../../../web/src');
+    const read = (rel: string) => readFileSync(join(web, rel), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+
+    it('the filter panel renders the period section behind the view mode', () => {
+      // On a live view the window is the running shift and the browser has no say
+      // in it. A visible period selector there invites a change that does nothing,
+      // which is the confusion the whole split exists to end.
+      const panel = read('components/layout/scope-panel.tsx');
+      expect(panel).toContain('useViewModeStore');
+      expect(panel).toMatch(/viewMode === 'analytics' &&[\s\S]{0,200}PeriodSection/);
+    });
+
+    it('the tab component drives that mode rather than each page remembering', () => {
+      const tabs = read('components/layout/live-analytics-tabs.tsx');
+      expect(tabs).toContain('useViewModeStore');
+      expect(tabs).toContain("setMode");
+    });
+
+    it.each([
+      ['features/live/live-production-view.tsx', 'live'],
+      ['features/live/live-machines-view.tsx', 'live'],
+      ['features/production/availability-analytics-view.tsx', 'analytics'],
+      ['features/production/performance-analytics-view.tsx', 'analytics'],
+      ['features/production/quality-analytics-view.tsx', 'analytics'],
+      ['features/production/loss-tree-view.tsx', 'analytics'],
+      ['features/production/schedule-capacity-view.tsx', 'analytics'],
+    ])('%s declares itself as %s', (file, mode) => {
+      // A page that skips this inherits whatever the last page set — which is how
+      // a live screen ends up offering a date range it cannot honour.
+      expect(read(file)).toContain(`useDeclareViewMode('${mode}')`);
+    });
+  });
+
   describe('both answer with the same arithmetic', () => {
     it('routes through the canonical aggregate in kpi.service', () => {
       for (const s of [live, analytics]) expect(s).toContain('machineFactTotals(');

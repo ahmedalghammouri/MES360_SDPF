@@ -26,6 +26,7 @@ import {
 } from 'recharts';
 
 import { api } from '@/services/api.client';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { Badge } from '@/components/ui/badge';
@@ -120,6 +121,7 @@ function Caveat({ title, children }: { title: string; children: React.ReactNode 
 
 export function ScheduleCapacityView() {
   const { t } = useTranslation(['production', 'common']);
+  useDeclareViewMode('analytics');
   const { filter, key: scopeKey, scope } = useScope();
   const { params, dateFrom, dateTo, key: timeKey, preset: timeframe } = useTimeRange();
 

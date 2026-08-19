@@ -148,7 +148,7 @@ const navItems: NavItem[] = [
     icon: Gauge,
     appHref: '/production/oee',
     children: [
-      { label: 'OEE Analytics', href: '/production/oee',    icon: LineChart },
+      { label: 'OEE (Now + Analytics)', href: '/production/oee', icon: LineChart, badge: '2 tabs', badgeVariant: 'outline' },
       { label: 'Machine OEE',   href: '/manufacturing/oee', icon: Activity  },
       { label: 'Machine Status',  href: '/manufacturing/machine-status', icon: Activity },
       { label: 'Availability Analytics', href: '/production/availability-analytics', icon: Clock },

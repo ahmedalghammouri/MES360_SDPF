@@ -2229,6 +2229,11 @@
     "oeeTb": "OEE-TB now",
     "scheduleBasis": "vs planned time",
     "timeBasis": "vs uptime + downtime",
-    "tbIs": "time-based {{v}}%"
+    "tbIs": "time-based {{v}}%",
+    "tabNow": "Now",
+    "tabAnalytics": "Analytics",
+    "tabsLabel": "Live or historical view",
+    "tabNowHelp": "What the plant is doing this shift. No time filter — the window is the running shift.",
+    "tabAnalyticsHelp": "Change and comparison over the period you select in the filter panel."
   }
 }

@@ -17,6 +17,7 @@ import { Factory } from 'lucide-react';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 import {
   useLive, LiveHeader, LiveStat, LivePct, LiveEmpty, LiveFailed,
   StateChip, fmtMin, fmtNum, since,
@@ -24,6 +25,9 @@ import {
 
 export function LiveProductionView() {
   const { t } = useTranslation(['production', 'common']);
+  // Declaring the mode is what hides the period control: this view has no use
+  // for one, and an unusable filter is worse than a missing one.
+  useDeclareViewMode('live');
   const { data, isLoading, error, refetch, scope } = useLive();
 
   const body = () => {

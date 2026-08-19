@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { Activity } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 import {
   useLive, LiveHeader, LiveStat, LivePct, LiveEmpty, LiveFailed,
   StateChip, fmtMin, fmtNum, since, type LiveMachine,
@@ -101,6 +102,9 @@ function MachineCard({ m }: { m: LiveMachine }) {
 
 export function LiveMachinesView() {
   const { t } = useTranslation(['production', 'common']);
+  // Declaring the mode is what hides the period control: this view has no use
+  // for one, and an unusable filter is worse than a missing one.
+  useDeclareViewMode('live');
   const { data, isLoading, error, refetch, scope } = useLive();
 
   const body = () => {

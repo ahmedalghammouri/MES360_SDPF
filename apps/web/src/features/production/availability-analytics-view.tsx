@@ -28,6 +28,7 @@ import {
   Tooltip as RTooltip, Legend, ReferenceLine, BarChart, Bar, Cell,
 } from 'recharts';
 
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 import {
   useOeeAnalytics, PageHeader, Empty, Failed, Note, Chart, AXIS, SEGMENT_GAP,
   fmtMin, fmtDay, CHART_TOOLTIP, FACTOR_COLORS, LOSS_COLORS,
@@ -35,6 +36,7 @@ import {
 
 export function AvailabilityAnalyticsView() {
   const { t } = useTranslation(['production', 'common']);
+  useDeclareViewMode('analytics');
   const { data, isLoading, error, refetch, scope, window: win } = useOeeAnalytics();
 
   const body = () => {

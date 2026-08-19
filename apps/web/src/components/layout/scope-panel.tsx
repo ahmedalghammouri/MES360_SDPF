@@ -28,6 +28,7 @@ import { useScopeStore, type ScopeType } from '@/store/scope-store';
 import { useTimeRangeStore, type TimePreset } from '@/store/time-range-store';
 import { useDashboardPrefsStore, type TrendType } from '@/store/dashboard-prefs-store';
 import { useOrderFilterStore } from '@/store/order-filter-store';
+import { useViewModeStore } from '@/store/view-mode-store';
 import { useScope } from '@/hooks/use-scope';
 import { SelectMenu } from '@/components/ui/select-menu';
 
@@ -254,6 +255,9 @@ function ViewSection() {
 
 export function ScopePanel({ passive = false }: { passive?: boolean }) {
   const { t } = useTranslation('common');
+  // Which half of the page is showing. The period control belongs to the
+  // analytics half only — see where it is rendered below.
+  const viewMode = useViewModeStore((s) => s.mode);
   const pathname = usePathname() ?? '';
   const queryClient = useQueryClient();
   const { scope, setScope, collapsed, toggleCollapsed } = useScopeStore();
@@ -329,9 +333,17 @@ export function ScopePanel({ passive = false }: { passive?: boolean }) {
           ) : tree.map(root => <Node key={root.id} node={root} depth={0} />)}
         </div>
 
-        {/* Period */}
-        <SectionLabel icon={CalendarRange}>{t('filters.period')}</SectionLabel>
-        <PeriodSection />
+        {/* Period — analytics only.
+            On a live view the window is the shift that is running and the browser
+            has no say in it. Leaving the control visible there invites a reader to
+            change it and then wonder why nothing moved, which is precisely the
+            confusion the live/analytics split exists to end. */}
+        {viewMode === 'analytics' && (
+          <>
+            <SectionLabel icon={CalendarRange}>{t('filters.period')}</SectionLabel>
+            <PeriodSection />
+          </>
+        )}
 
         {/* Orders — production / manufacturing analysis routes only */}
         {showOrders && (
