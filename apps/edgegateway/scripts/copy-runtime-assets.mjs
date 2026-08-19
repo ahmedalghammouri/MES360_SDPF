@@ -93,16 +93,27 @@ if (spDir) {
 // Schema + dashboard + env template.
 const copies = [
   ['prisma/schema.prisma', 'schema.prisma'],
-  ['.env.example', '.env'],
+  ['.env.example', '.env.example'],
 ];
 for (const [src, dst] of copies) {
   const s = join(root, src);
   if (existsSync(s)) copyFileSync(s, join(build, dst));
 }
+
+// The .env is CONFIGURATION — database credentials, the broker, the JWT secret,
+// the gateway's identity. Rebuilding must never overwrite it: this folder is the
+// one that gets carried to a plant PC, and a build that quietly replaced a
+// working config with the sample would take the gateway off the line on the next
+// restart, with the cause invisible in the diff. Seeded once, then left alone.
+const envPath = join(build, '.env');
+if (!existsSync(envPath) && existsSync(join(root, '.env.example'))) {
+  copyFileSync(join(root, '.env.example'), envPath);
+  console.log('[copy-runtime-assets] seeded build/.env from .env.example — fill it in before deploying');
+}
 if (existsSync(join(root, 'public'))) cpSync(join(root, 'public'), join(build, 'public'), { recursive: true });
 
 // Service scripts.
-for (const f of ['install-service.bat', 'uninstall-service.bat', 'README.md']) {
+for (const f of ['install-service.bat', 'uninstall-service.bat', 'update-service.bat', 'README.md']) {
   const s = join(here, '..', 'deploy', f);
   if (existsSync(s)) copyFileSync(s, join(build, f));
 }

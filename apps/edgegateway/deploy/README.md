@@ -41,6 +41,31 @@ The service auto-starts on boot and auto-restarts on crash. Local dashboard:
 
 To remove: run `uninstall-service.bat` as administrator.
 
+## Upgrade an installed gateway
+
+Copying a new `build/` over the installed folder does **not** work: the running
+service holds `edgegateway.exe` open, the copy fails part-way, and what is left
+on disk is neither the old build nor the new one.
+
+Drop the new `build/` anywhere on the plant PC, then from the **installed**
+folder, as administrator:
+
+```
+update-service.bat D:\dropuild
+```
+
+It stops the service, keeps the build it is replacing in `previous-build\`,
+copies the exe and dashboard across, and starts the service again. `.env` and
+`gateway-config.json` are left alone — they are the plant's configuration, not
+the build's, and replacing them takes the gateway off the line.
+
+To confirm the new build is the one running, open the dashboard →
+**Signal Rules**. A current build shows a **Pulse detector — live** card; an
+older one does not.
+
+To go back, the script prints the two commands; `previous-build\` holds the
+exe it replaced.
+
 ## How counting works
 
 - Bind a device to a **machine** and add **COUNTER** tags with a Modbus
