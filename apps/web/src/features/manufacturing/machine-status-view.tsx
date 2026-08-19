@@ -25,7 +25,6 @@ import {
 } from 'recharts';
 
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DataModeBadge } from '@/components/ui/data-mode-badge';
 import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
@@ -208,28 +207,6 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        {/* No planned production in the window means no availability to report —
-            "—" rather than 0%, which would read as a failure. */}
-        <Stat label={t('machineStatus.availability')}
-              value={totals.availabilityPct == null ? '—' : `${totals.availabilityPct}%`} tone="primary" />
-        <Stat label={t('machineStatus.uptime')} value={`${totals.uptimePct ?? 0}%`} />
-        {/* The denominator, shown next to the numerator. Availability was a number
-            a reader had to take on faith: 99.3% with 1h 35m running and 0m
-            unplanned, and nothing on the page to divide by. */}
-        <Stat label={t('machineStatus.plannedProduction')} value={fmtMin(totals.plannedMin ?? 0)}
-              sub={t('machineStatus.plannedProductionHelp')} />
-        <Stat label={t('machineStatus.running')} value={fmtMin(totals.runMin ?? 0)} tone="good" />
-        <Stat label={t('machineStatus.unplanned')} value={fmtMin(totals.unplannedMin ?? 0)} tone="bad" />
-        <Stat label={t('machineStatus.external')} value={fmtMin(totals.externalMin ?? 0)} tone="warn" />
-        {/* Only shown when there IS unmeasured time — an extra zero on every screen
-            teaches people to ignore the card that matters when it is not zero. */}
-        {(totals.unmeasuredMin ?? 0) > 0 && (
-          <Stat label={t('machineStatus.unmeasured')} value={fmtMin(totals.unmeasuredMin)}
-                sub={t('machineStatus.unmeasuredHelp')} tone="warn" />
-        )}
-        <Stat label={t('machineStatus.stops')} value={String(totals.stops ?? 0)} />
-      </div>
 
       <div className="rounded-lg border border-border/50 p-4">
         <h2 className="text-sm font-semibold mb-1">{t('machineStatus.timeline')}</h2>
@@ -253,41 +230,6 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
           <div className="px-4 py-3 border-b border-border/50 text-sm font-semibold">
             {t('machineStatus.perMachine')}
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('machineStatus.machine')}</TableHead>
-                <TableHead className="text-right">{t('machineStatus.availability')}</TableHead>
-                <TableHead className="text-right">{t('machineStatus.plannedProduction')}</TableHead>
-                <TableHead className="text-right">{t('machineStatus.running')}</TableHead>
-                <TableHead className="text-right">{t('machineStatus.unplanned')}</TableHead>
-                <TableHead className="text-right">{t('machineStatus.external')}</TableHead>
-                <TableHead className="text-right">{t('machineStatus.unmeasured')}</TableHead>
-                <TableHead className="text-right">{t('machineStatus.stops')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.machines.map((m: any) => (
-                <TableRow key={m.machineId}>
-                  <TableCell className="text-sm">
-                    <div className="font-medium">{m.code}</div>
-                    <div className="text-[11px] text-muted-foreground">{m.name}</div>
-                  </TableCell>
-                  <TableCell className="text-right"><Pct v={m.availabilityPct} /></TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">{fmtMin(m.plannedMin)}</TableCell>
-                  <TableCell className="text-right text-xs">{fmtMin(m.runMin)}</TableCell>
-                  <TableCell className="text-right text-xs text-red-400">{fmtMin(m.unplannedMin)}</TableCell>
-                  <TableCell className="text-right text-xs text-amber-400">{fmtMin(m.externalMin)}</TableCell>
-                  <TableCell className="text-right text-xs">
-                    {(m.unmeasuredMin ?? 0) > 0
-                      ? <span className="text-amber-500" title={t('machineStatus.unmeasuredHelp')}>{fmtMin(m.unmeasuredMin)}</span>
-                      : <span className="text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell className="text-right text-xs">{m.stops}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         </div>
 
         <div className="rounded-lg border border-border/50 p-4">
@@ -335,12 +277,6 @@ function PerformanceTab({ data, isLoading, error, onRetry }: TabProps) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label={t('machineStatus.performance')} value={`${totals.performancePct ?? 0}%`} tone="primary" />
-        <Stat label={t('machineStatus.runTime')} value={fmtMin(totals.runMin ?? 0)} />
-        <Stat label={t('machineStatus.idealTime')} value={fmtMin(totals.idealRunMin ?? 0)} />
-        <Stat label={t('machineStatus.output')} value={Math.round(totals.output ?? 0).toLocaleString()} />
-      </div>
 
       {saturated > 0 && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm flex gap-2">
@@ -373,40 +309,6 @@ function PerformanceTab({ data, isLoading, error, onRetry }: TabProps) {
 
       <div className="rounded-lg border border-border/50 overflow-hidden">
         <div className="px-4 py-3 border-b border-border/50 text-sm font-semibold">{t('machineStatus.perMachine')}</div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('machineStatus.machine')}</TableHead>
-              <TableHead className="text-right">{t('machineStatus.performance')}</TableHead>
-              <TableHead className="text-right">{t('machineStatus.runTime')}</TableHead>
-              <TableHead className="text-right">{t('machineStatus.idealTime')}</TableHead>
-              <TableHead className="text-right">{t('machineStatus.ratePerHour')}</TableHead>
-              <TableHead className="text-right">{t('machineStatus.output')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.machines.map((m: any) => (
-              <TableRow key={m.machineId}>
-                <TableCell className="text-sm">
-                  <div className="font-medium">{m.code}</div>
-                  <div className="text-[11px] text-muted-foreground">{m.name}</div>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Pct v={m.performancePct} />
-                  {m.performancePct >= 100 && (
-                    <Badge variant="outline" className="ms-1.5 text-[9px] border-amber-500/40 text-amber-500">
-                      {t('machineStatus.capped')}
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right text-xs">{fmtMin(m.runMin)}</TableCell>
-                <TableCell className="text-right text-xs">{fmtMin(m.idealRunMin)}</TableCell>
-                <TableCell className="text-right text-xs">{Math.round(m.actualRatePerHour).toLocaleString()}</TableCell>
-                <TableCell className="text-right text-xs">{Math.round(m.output).toLocaleString()}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
       </div>
     </div>
   );
@@ -428,13 +330,6 @@ function QualityTab({ data, isLoading, error, onRetry }: TabProps) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Stat label={t('machineStatus.quality')} value={`${totals.qualityPct ?? 0}%`} tone="primary" />
-        <Stat label={t('machineStatus.good')} value={Math.round(totals.good ?? 0).toLocaleString()} tone="good" />
-        <Stat label={t('machineStatus.scrap')} value={Math.round(totals.scrap ?? 0).toLocaleString()} tone="bad" />
-        <Stat label={t('machineStatus.rework')} value={Math.round(totals.rework ?? 0).toLocaleString()} tone="warn" />
-        <Stat label={t('machineStatus.scrapRate')} value={`${totals.scrapPct ?? 0}%`} />
-      </div>
 
       <p className="text-[11px] text-muted-foreground flex gap-1.5">
         <Info className="h-3.5 w-3.5 shrink-0 mt-px" /> {t('machineStatus.unitHelp')}
@@ -473,33 +368,6 @@ function QualityTab({ data, isLoading, error, onRetry }: TabProps) {
 
       <div className="rounded-lg border border-border/50 overflow-hidden">
         <div className="px-4 py-3 border-b border-border/50 text-sm font-semibold">{t('machineStatus.perMachine')}</div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('machineStatus.machine')}</TableHead>
-              <TableHead className="text-right">{t('machineStatus.quality')}</TableHead>
-              <TableHead className="text-right">{t('machineStatus.good')}</TableHead>
-              <TableHead className="text-right">{t('machineStatus.scrap')}</TableHead>
-              <TableHead className="text-right">{t('machineStatus.rework')}</TableHead>
-              <TableHead className="text-right">{t('machineStatus.scrapRate')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.machines.map((m: any) => (
-              <TableRow key={m.machineId}>
-                <TableCell className="text-sm">
-                  <div className="font-medium">{m.code}</div>
-                  <div className="text-[11px] text-muted-foreground">{m.name}</div>
-                </TableCell>
-                <TableCell className="text-right"><Pct v={m.qualityPct} good={99} /></TableCell>
-                <TableCell className="text-right text-xs">{Math.round(m.good).toLocaleString()}</TableCell>
-                <TableCell className="text-right text-xs text-red-400">{Math.round(m.scrap).toLocaleString()}</TableCell>
-                <TableCell className="text-right text-xs">{Math.round(m.rework).toLocaleString()}</TableCell>
-                <TableCell className="text-right text-xs">{m.scrapPct}%</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
       </div>
     </div>
   );
@@ -507,36 +375,7 @@ function QualityTab({ data, isLoading, error, onRetry }: TabProps) {
 
 // ── Small shared pieces ─────────────────────────────────────
 
-function Stat({ label, value, sub, tone }: {
-  label: string; value: string; sub?: string;
-  tone?: 'good' | 'bad' | 'warn' | 'primary';
-}) {
-  return (
-    <div className="rounded-lg border border-border/50 p-3">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div className={cn(
-        'text-xl font-bold mt-0.5',
-        tone === 'good' && 'text-emerald-500',
-        tone === 'bad' && 'text-red-400',
-        tone === 'warn' && 'text-amber-500',
-      )}>{value}</div>
-      {sub && <div className="text-[10px] text-muted-foreground/70 mt-1 leading-snug">{sub}</div>}
-    </div>
-  );
-}
 
-function Pct({ v, good = 85 }: { v: number | null; good?: number }) {
-  // null is not zero: a machine with no planned production has no availability to
-  // report, and 0% would accuse it of failing when it was never asked to run.
-  if (v == null) {
-    return <span className="text-sm text-muted-foreground" title="No planned production in this window">—</span>;
-  }
-  return (
-    <span className={cn('text-sm font-semibold', v >= good ? 'text-emerald-500' : v >= good * 0.7 ? 'text-amber-500' : 'text-red-400')}>
-      {v}%
-    </span>
-  );
-}
 
 /** A request that failed says so, and offers the way out. */
 function Failed({ onRetry }: { onRetry?: () => void }) {

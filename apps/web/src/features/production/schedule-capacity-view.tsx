@@ -29,10 +29,9 @@ import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import {
-  PageHeader, Stat, Pct, Empty, Failed, Note,
+  PageHeader, Empty, Failed, Note, AXIS,
   fmtMin, fmtNum, CHART_TOOLTIP, FACTOR_COLORS,
 } from './oee-analytics-shared';
 
@@ -192,31 +191,6 @@ export function ScheduleCapacityView() {
     return (
       <div className="space-y-6">
         {/* ── Headline ──────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat
-            label={t('schedCap.lineOee')}
-            value={lo ? `${lo.oee.toFixed(1)}%` : '—'}
-            sub={lo ? `A ${lo.availability.toFixed(1)} · P ${lo.performance.toFixed(1)} · Q ${lo.quality.toFixed(1)}` : t('schedCap.selectLine')}
-            tone="primary"
-          />
-          <Stat
-            label={t('schedCap.oeeTb')}
-            value={lo ? `${lo.oeeTb.toFixed(1)}%` : '—'}
-            sub={lo ? t('schedCap.availTb', { v: lo.availabilityTb.toFixed(1) }) : undefined}
-          />
-          <Stat
-            label={t('schedCap.msa')}
-            value={ms ? `${ms.msaPct.toFixed(1)}%` : '—'}
-            sub={ms ? t('schedCap.ordersCount', { count: ms.orderCount }) : undefined}
-            tone={ms && ms.msaPct >= 95 ? 'good' : 'warn'}
-          />
-          <Stat
-            label={t('schedCap.capacity')}
-            value={cap ? `${cap.utilizationPct.toFixed(1)}%` : '—'}
-            sub={cap ? t('schedCap.overHours', { h: cap.windowHours, m: cap.machineCount }) : undefined}
-            tone={cap && cap.utilizationPct > 100 ? 'bad' : undefined}
-          />
-        </div>
 
         {/* ── Where the numbers disagree, said out loud ─────────────────── */}
         {lo && basisGap >= 5 && (
@@ -255,48 +229,20 @@ export function ScheduleCapacityView() {
               </Badge>
             }
           >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('oeeAn.machine')}</TableHead>
-                  <TableHead className="text-right">{t('oeeAn.oee')}</TableHead>
-                  {/* Named for what it measures. Calling it plain "Availability"
-                      beside a page that measures a different denominator is how the
-                      same machine came to carry two availabilities. */}
-                  <TableHead className="text-right">{t('schedCap.availabilityVsSchedule')}</TableHead>
-                  <TableHead className="text-right">{t('oeeAn.performance')}</TableHead>
-                  <TableHead className="text-right">{t('oeeAn.quality')}</TableHead>
-                  <TableHead className="text-right">{t('schedCap.externalLoss')}</TableHead>
-                  <TableHead className="text-right">{t('oeeAn.output')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lo.machines.map((m) => (
-                  <TableRow key={m.machineId} className={cn(m.isBottleneck && 'bg-amber-500/5')}>
-                    <TableCell className="text-sm">
-                      <div className="font-medium flex items-center gap-1.5">
-                        {m.code ?? m.name}
-                        {m.isBottleneck && (
-                          <Badge variant="outline" className="h-4 px-1 text-[9px] border-amber-500/40 text-amber-500">
-                            {t('schedCap.bottleneck')}
-                          </Badge>
-                        )}
-                        {m.isOutfeed && (
-                          <Badge variant="outline" className="h-4 px-1 text-[9px]">{t('schedCap.outfeed')}</Badge>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">{m.name}</div>
-                    </TableCell>
-                    <TableCell className="text-right"><Pct v={m.oee} good={70} /></TableCell>
-                    <TableCell className="text-right"><Pct v={m.availability} /></TableCell>
-                    <TableCell className="text-right"><Pct v={m.performance} good={95} /></TableCell>
-                    <TableCell className="text-right"><Pct v={m.quality} good={99} /></TableCell>
-                    <TableCell className="text-right text-xs text-amber-400">{fmtMin(m.externalLossMin)}</TableCell>
-                    <TableCell className="text-right text-xs">{fmtNum(m.output)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {/* Replaces the per-machine table. A/P/Q side by side per machine is
+                the comparison a reader was making by eye across six columns. */}
+            <ResponsiveContainer width="100%" height={Math.max(220, lo.machines.length * 52)}>
+              <BarChart data={lo.machines} layout="vertical" margin={{ left: 8, right: 28 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} horizontal={false} />
+                <XAxis type="number" domain={[0, 100]} unit="%" {...AXIS} />
+                <YAxis type="category" dataKey="code" width={54} {...AXIS} />
+                <RTooltip {...CHART_TOOLTIP} formatter={(v: any, n: any) => [`${v}%`, n]} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="availability" name={t('oeeAn.availability')} fill={FACTOR_COLORS.availability} radius={[0, 4, 4, 0]} />
+                <Bar dataKey="performance" name={t('oeeAn.performance')} fill={FACTOR_COLORS.performance} radius={[0, 4, 4, 0]} />
+                <Bar dataKey="quality" name={t('oeeAn.quality')} fill={FACTOR_COLORS.quality} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </Panel>
         ) : (
           <Panel title={t('schedCap.lineComposition')} subtitle={t('schedCap.lineCompositionHelp')}>
@@ -310,18 +256,6 @@ export function ScheduleCapacityView() {
           subtitle={ms?.method.note}
           formula={ms?.method.formula}
         >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            <Stat label={t('schedCap.scheduled')} value={fmtNum(ms?.totalScheduledQty)} />
-            <Stat label={t('schedCap.credited')} value={fmtNum(ms?.totalCreditedQty)} tone="good" />
-            <Stat label={t('schedCap.produced')} value={fmtNum(ms?.totalActualQty)} />
-            <Stat
-              label={t('schedCap.shortfall')}
-              value={fmtNum(Math.max(0, shortfall))}
-              tone={shortfall > 0 ? 'bad' : 'good'}
-              sub={t('schedCap.shortfallHelp')}
-            />
-          </div>
-
           {msaChart.length ? (
             <>
               {/* Credited and over-production stacked against the commitment line:
@@ -341,37 +275,6 @@ export function ScheduleCapacityView() {
                 </BarChart>
               </ResponsiveContainer>
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('schedCap.order')}</TableHead>
-                    <TableHead>{t('schedCap.sku')}</TableHead>
-                    <TableHead className="text-right">{t('schedCap.scheduled')}</TableHead>
-                    <TableHead className="text-right">{t('schedCap.produced')}</TableHead>
-                    <TableHead className="text-right">{t('schedCap.credited')}</TableHead>
-                    <TableHead className="text-right">{t('schedCap.attainment')}</TableHead>
-                    <TableHead>{t('schedCap.status')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ms!.lines.map((l) => (
-                    <TableRow key={l.productionOrderId}>
-                      <TableCell className="text-sm font-medium">{l.orderNumber}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{l.sku ?? '—'}</TableCell>
-                      <TableCell className="text-right text-xs">{fmtNum(l.scheduledQty)}</TableCell>
-                      <TableCell className="text-right text-xs">
-                        {fmtNum(l.actualQty)}
-                        {l.actualQty > l.scheduledQty && (
-                          <span className="ms-1 text-amber-500">+{fmtNum(l.actualQty - l.scheduledQty)}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right text-xs">{fmtNum(l.creditedQty)}</TableCell>
-                      <TableCell className="text-right"><Pct v={l.attainmentPct} good={95} /></TableCell>
-                      <TableCell><Badge variant="outline" className="text-[10px]">{l.status}</Badge></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
 
               {overProduced.length > 0 && (
                 <Note>{t('schedCap.overProducedNote', { count: overProduced.length })}</Note>
@@ -388,18 +291,6 @@ export function ScheduleCapacityView() {
           subtitle={cap?.method.capacityBasis}
           formula={cap?.method.formula}
         >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            <Stat label={t('schedCap.actualUnits')} value={fmtNum(cap?.actualUnits)} sub={t('schedCap.pieces')} />
-            <Stat label={t('schedCap.designedUnits')} value={fmtNum(cap?.maxDesignedUnits)} sub={t('schedCap.pieces')} />
-            <Stat label={t('schedCap.windowHours')} value={`${cap?.windowHours ?? 0}h`} />
-            <Stat
-              label={t('schedCap.unrated')}
-              value={String(missing.length)}
-              tone={missing.length > 0 ? 'warn' : 'good'}
-              sub={t('schedCap.unratedHelp')}
-            />
-          </div>
-
           {capChart.length ? (
             <ResponsiveContainer width="100%" height={Math.max(180, capChart.length * 42)}>
               <BarChart data={capChart} layout="vertical" margin={{ left: 8, right: 32 }}>
@@ -421,43 +312,6 @@ export function ScheduleCapacityView() {
             </ResponsiveContainer>
           ) : <Empty text={t('machineStatus.noMachines')} />}
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('oeeAn.machine')}</TableHead>
-                <TableHead className="text-right">{t('schedCap.ratedRate')}</TableHead>
-                <TableHead>{t('schedCap.ratedFrom')}</TableHead>
-                <TableHead className="text-right">{t('schedCap.designedUnits')}</TableHead>
-                <TableHead className="text-right">{t('schedCap.actualUnits')}</TableHead>
-                <TableHead className="text-right">{t('schedCap.utilization')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(cap?.byMachine ?? []).map((m) => (
-                <TableRow key={m.machineId}>
-                  <TableCell className="text-sm">
-                    <div className="font-medium">{m.code ?? m.name}</div>
-                    <div className="text-[11px] text-muted-foreground">{m.name}</div>
-                  </TableCell>
-                  <TableCell className="text-right text-xs">
-                    {m.ratedUnitsPerHour != null ? `${fmtNum(m.ratedUnitsPerHour)} /h` : '—'}
-                  </TableCell>
-                  <TableCell className="text-[11px] text-muted-foreground">
-                    {m.ratedFrom
-                      ? `${m.ratedFrom.processName} · ${m.ratedFrom.operationName} · ${m.ratedFrom.cycleTimeSec}s`
-                      : t('schedCap.noRouting')}
-                  </TableCell>
-                  <TableCell className="text-right text-xs">{fmtNum(m.maxDesignedUnits)}</TableCell>
-                  <TableCell className="text-right text-xs">{fmtNum(m.actualUnits)}</TableCell>
-                  <TableCell className="text-right">
-                    {m.utilizationPct != null
-                      ? <Pct v={m.utilizationPct} good={60} />
-                      : <span className="text-xs text-muted-foreground">—</span>}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
 
           {missing.length > 0 && (
             <Note>{t('schedCap.unratedNote', { names: missing.map((m) => m.code ?? m.name).join(', ') })}</Note>

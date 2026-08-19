@@ -119,63 +119,6 @@ function getStateBadgeVariant(state: string): 'default' | 'secondary' | 'destruc
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-interface MetricBoxProps {
-  label: string;
-  value: number;
-  trend?: number;
-  isLoading?: boolean;
-}
-
-function MetricBox({ label, value, trend, isLoading }: MetricBoxProps) {
-  const colorClass = getOeeColor(value);
-  const bgClass = getBgColor(value);
-  const trendPositive = (trend ?? 0) >= 0;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
-      className="industrial-card p-4 flex flex-col gap-2"
-    >
-      {isLoading ? (
-        <div className="space-y-2">
-          <div className="shimmer h-8 w-24 rounded" />
-          <div className="shimmer h-3 w-16 rounded" />
-          <div className="shimmer h-2 w-full rounded-full" />
-        </div>
-      ) : (
-        <>
-          <div className="flex items-center justify-between">
-            <span className={cn('text-3xl font-extrabold tabular-nums', colorClass)}>
-              {value.toFixed(1)}%
-            </span>
-            {trend !== undefined && (
-              <span
-                className={cn(
-                  'flex items-center gap-0.5 text-xs font-medium',
-                  trendPositive ? 'text-green-400' : 'text-red-400',
-                )}
-              >
-                {trendPositive ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-                {Math.abs(trend).toFixed(1)}%
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground font-medium tracking-wide uppercase">
-            {label}
-          </p>
-          <div className="w-full h-1.5 bg-muted/30 rounded-full overflow-hidden">
-            <div
-              className={cn('h-full rounded-full transition-all duration-700', bgClass)}
-              style={{ width: `${Math.min(value, 100)}%` }}
-            />
-          </div>
-        </>
-      )}
-    </motion.div>
-  );
-}
 
 // ── Custom recharts tooltip ────────────────────────────────────────────────────
 
@@ -332,17 +275,11 @@ export default function ManufacturingOeeView() {
       {/* ── Body ── */}
       <div className="flex-1 overflow-auto p-6 space-y-6">
 
-        {/* 1. Four metric boxes */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* The headline boxes follow the basis chosen in the filter panel.
-              Performance and Quality are identical under both bases — only
-              Availability (and therefore OEE) is measured differently — so they
-              take no suffix. */}
-          <MetricBox label={oeeMode.label(t('mfgOee.oee'))} value={oeeMode.pick(oeeData?.oee, oeeData?.oeeTb)} isLoading={isAnyLoading} />
-          <MetricBox label={oeeMode.label(t('mfgOee.availability'))} value={oeeMode.pick(oeeData?.availability, oeeData?.availabilityTb)} isLoading={isAnyLoading} />
-          <MetricBox label={t('mfgOee.performance')} value={oeeData?.performance ?? 0} isLoading={isAnyLoading} />
-          <MetricBox label={t('mfgOee.quality')} value={oeeData?.quality ?? 0} isLoading={isAnyLoading} />
-        </div>
+        {/* The four headline boxes that used to open this page are gone. They were
+            the same shape as the live cards and read the same way, so nothing told
+            a reader whether they described this moment or the selected window.
+            The waterfall and the charts below carry the same figures as shape, and
+            Operations Now → Live Production carries them as values. */}
 
         {/* The OTHER basis, always shown alongside — the toggle decides which one
             is the headline, never which one exists. Comparing them is the point. */}

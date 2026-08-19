@@ -25,9 +25,8 @@ import {
   Tooltip as RTooltip, Legend, BarChart, Bar, Cell,
 } from 'recharts';
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  useOeeAnalytics, PageHeader, Stat, Pct, Empty, Failed, Note,
+  useOeeAnalytics, PageHeader, Empty, Failed, Note, Chart, AXIS,
   fmtMin, fmtNum, fmtDay, CHART_TOOLTIP, FACTOR_COLORS,
 } from './oee-analytics-shared';
 import { cn } from '@/lib/utils';
@@ -62,14 +61,6 @@ export function LossTreeView() {
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-          <Stat label={t('oeeAn.oee')} value={`${x.oee}%`} tone="primary" sub={t('oeeAn.vsPlanned')} />
-          <Stat label={t('oeeAn.teep')} value={`${x.teep}%`} tone="warn" sub={t('oeeAn.vsCalendar')} />
-          <Stat label={t('oeeAn.utilization')} value={`${x.utilization}%`} sub={t('oeeAn.ofCalendar')} />
-          <Stat label={t('oeeAn.availability')} value={`${x.availability}%`} />
-          <Stat label={t('oeeAn.performance')} value={`${x.performance}%`} />
-          <Stat label={t('oeeAn.quality')} value={`${x.quality}%`} />
-        </div>
 
         {/* The headline the page exists for — but only when there IS a gap.
             With utilisation at 100% TEEP equals OEE, and a banner announcing a
@@ -176,40 +167,24 @@ export function LossTreeView() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border/50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-border/50 text-sm font-semibold">{t('oeeAn.perMachine')}</div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('oeeAn.machine')}</TableHead>
-                <TableHead className="text-right">{t('oeeAn.oee')}</TableHead>
-                <TableHead className="text-right">{t('oeeAn.teep')}</TableHead>
-                <TableHead className="text-right">A</TableHead>
-                <TableHead className="text-right">P</TableHead>
-                <TableHead className="text-right">Q</TableHead>
-                <TableHead className="text-right">{t('oeeAn.utilization')}</TableHead>
-                <TableHead className="text-right">{t('oeeAn.output')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.machines.map((m) => (
-                <TableRow key={m.machineId}>
-                  <TableCell className="text-sm">
-                    <div className="font-medium">{m.code}</div>
-                    <div className="text-[11px] text-muted-foreground">{m.name}</div>
-                  </TableCell>
-                  <TableCell className="text-right"><Pct v={m.oee} /></TableCell>
-                  <TableCell className="text-right"><Pct v={m.teep} good={50} /></TableCell>
-                  <TableCell className="text-right text-xs">{m.availability}%</TableCell>
-                  <TableCell className="text-right text-xs">{m.performance}%</TableCell>
-                  <TableCell className="text-right text-xs">{m.quality}%</TableCell>
-                  <TableCell className="text-right text-xs">{m.utilization}%</TableCell>
-                  <TableCell className="text-right text-xs">{fmtNum(m.output)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        {/* Replaces the per-machine table. The question a reader had to compute
+            from those eight columns — how much of the calendar each machine
+            actually converted into good product — is the chart itself. */}
+        <Chart title={t('oeeAn.oeeVsTeep')} help={t('oeeAn.oeeVsTeepHelp')}
+               height={Math.max(220, data.machines.length * 48)}>
+          <BarChart data={[...data.machines].sort((a, b) => a.teep - b.teep)}
+                    layout="vertical" margin={{ left: 8, right: 28 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} horizontal={false} />
+            <XAxis type="number" domain={[0, 100]} unit="%" {...AXIS} />
+            <YAxis type="category" dataKey="code" width={54} {...AXIS} />
+            <RTooltip {...CHART_TOOLTIP} formatter={(v: any, n: any) => [`${v}%`, n]} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            {/* Two bars, not a stack: OEE and TEEP measure the same output against
+                different denominators, so one is not part of the other. */}
+            <Bar dataKey="oee" name={t('oeeAn.oee')} fill={FACTOR_COLORS.oee} radius={[0, 4, 4, 0]} />
+            <Bar dataKey="teep" name={t('oeeAn.teep')} fill={FACTOR_COLORS.utilization} radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </Chart>
 
         <Note>{t('oeeAn.lossTreeNote')}</Note>
       </div>

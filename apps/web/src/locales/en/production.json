@@ -2095,7 +2095,7 @@
     "biggestLosses": "Biggest losses",
     "biggestLossesHelp": "Largest first — this is the list to act on.",
     "noLosses": "No losses recorded in this window",
-    "oeeVsTeep": "OEE vs TEEP vs utilisation",
+    "oeeVsTeep": "What each machine converted",
     "teepHeadline": "OEE is {{oee}}% but TEEP is {{teep}}%",
     "teepExplain": "OEE measures the plant against the hours it planned to work. TEEP measures the same output against every hour that exists. The gap is capacity the company already owns and is not using — usually a larger number than anything on the shop floor.",
     "lossTreeNote": "OEE = fully productive ÷ planned production. TEEP = fully productive ÷ calendar. Availability, Performance and Quality here are the same figures the OEE engine reports — these pages read it rather than recomputing it.",
@@ -2134,7 +2134,8 @@
     "outputSplit": "Good against scrap",
     "outputSplitHelp": "The window’s whole output. Good counts the final step only; scrap counts every step.",
     "qualityByMachine": "Quality rate by machine",
-    "qualityByMachineHelp": "Lowest first. Zoomed to the band quality lives in — a 0–100 axis hides every real change."
+    "qualityByMachineHelp": "Lowest first. Zoomed to the band quality lives in — a 0–100 axis hides every real change.",
+    "oeeVsTeepHelp": "OEE measures output against the hours the plant planned to work; TEEP against every hour that exists. The gap between the two bars is capacity already owned and not used."
   },
   "schedCap": {
     "title": "Schedule & Capacity Analytics",
