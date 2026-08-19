@@ -148,6 +148,7 @@
     "description": "Description",
     "historize": "Historize (store time-series in InfluxDB)",
     "machineStatusDriver": "Machine status driver (drives RUNNING / IDLE / stop)",
+    "processingNeverDrivesState": "A processing signal never drives machine state: it measures whether product is flowing, which is what Starved and Blocked are inferred from. Read as a state it would call every gap between units a fault.",
     "emissionControl": "Publishing & historian",
     "mqttPublishMode": "MQTT publish",
     "historizationMode": "Historian",

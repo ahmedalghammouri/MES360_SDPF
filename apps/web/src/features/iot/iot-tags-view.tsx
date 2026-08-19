@@ -239,13 +239,19 @@ export function IotTagsView() {
       historizationMode: form.historizationMode,
       historizationRateSec: form.historizationMode === 'RATE' ? (num(form.historizationRateSec) ?? 0) : undefined,
       deadband: form.mqttPublishMode === 'CHANGE' || form.historizationMode === 'CHANGE' ? num(form.deadband) : undefined,
-      isMachineStatus: form.isMachineStatus,
+      // A PROCESSING signal never drives state — it measures whether product is
+      // flowing, which is what Starved and Blocked are inferred FROM.
+      isMachineStatus: form.signalRole === 'PROCESSING' ? false : form.isMachineStatus,
       statusMap: form.isMachineStatus && form.statusMap.trim()
         ? (() => { try { return JSON.parse(form.statusMap); } catch { return undefined; } })()
         : null,
-      // How the gateway is to READ this signal. NONE clears the role rather than
-      // sending the literal string, so a tag can be demoted back to a plain one.
-      signalRole: form.isMachineStatus && form.signalRole !== 'NONE' ? form.signalRole : null,
+      // How the gateway is to READ this signal — a separate question from whether
+      // it DRIVES the machine's state. Tying the two together made a PROCESSING
+      // binding impossible to express: the only way to reach this field was to
+      // tick "drives machine state" first, which is the one thing a processing
+      // signal must not do. NONE clears the role rather than sending the literal
+      // string, so a tag can be demoted back to a plain one.
+      signalRole: form.signalRole !== 'NONE' ? form.signalRole : null,
       pulseWindowMs: num(form.pulseWindowMs),
       pulseMinEdges: num(form.pulseMinEdges),
       idleThresholdMs: num(form.idleThresholdMs),
@@ -450,7 +456,7 @@ export function IotTagsView() {
               onValueChange={v => setForm(f => ({
                 ...f,
                 tagType: v,
-                isMachineStatus: v === 'STATUS' ? true : f.isMachineStatus,
+                isMachineStatus: v === 'STATUS' && f.signalRole !== 'PROCESSING' ? true : f.isMachineStatus,
               }))}
             >
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
@@ -617,14 +623,21 @@ export function IotTagsView() {
               />
               <span>{t('tform.historize')}</span>
             </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer mt-2">
+            {/* Separate from the signal role below: the role says how the bit is
+                READ, this says whether it DRIVES the machine's state. A
+                processing signal has a role and must not have this. */}
+            <label className={`flex items-center gap-2 text-sm mt-2 ${form.signalRole === 'PROCESSING' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
               <input
                 type="checkbox"
-                checked={form.isMachineStatus}
+                checked={form.signalRole === 'PROCESSING' ? false : form.isMachineStatus}
+                disabled={form.signalRole === 'PROCESSING'}
                 onChange={e => setForm(v => ({ ...v, isMachineStatus: e.target.checked }))}
               />
               <span>{t('tform.machineStatusDriver')}</span>
             </label>
+            {form.signalRole === 'PROCESSING' && (
+              <p className="text-[11px] text-muted-foreground mt-1">{t('tform.processingNeverDrivesState')}</p>
+            )}
           </div>
 
           {/* ── Emission control: MQTT + historian by change / by rate ── */}
@@ -671,7 +684,7 @@ export function IotTagsView() {
             </div>
           )}
 
-          {(form.isMachineStatus || form.tagType === 'STATUS') && (
+          {(form.isMachineStatus || form.tagType === 'STATUS' || form.signalRole !== 'NONE') && (
             <div className="col-span-2 rounded-lg border border-border/40 bg-muted/20 p-3 text-xs text-muted-foreground space-y-3">
               <p>
                 {form.dataType === 'BOOL'
@@ -679,7 +692,7 @@ export function IotTagsView() {
                   : t('tform.intHelp')}
                 {' '}{t('tform.countersRunningOnly')}
               </p>
-              {form.dataType === 'INT' && (
+              {form.dataType === 'INT' && form.isMachineStatus && (
                 <div>
                   <Label className="text-xs">{t('tform.statusMap')}</Label>
                   <Input
@@ -700,7 +713,12 @@ export function IotTagsView() {
                   so it is chosen here rather than compiled in. */}
               <div className="pt-2 border-t border-border/40">
                 <Label className="text-xs">{t('tform.signalRole')}</Label>
-                <Select value={form.signalRole} onValueChange={v => setForm(f => ({ ...f, signalRole: v }))}>
+                <Select value={form.signalRole} onValueChange={v => setForm(f => ({
+                  ...f,
+                  signalRole: v,
+                  // Choosing PROCESSING answers the question the checkbox asks.
+                  isMachineStatus: v === 'PROCESSING' ? false : f.isMachineStatus,
+                }))}>
                   <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="NONE">{t('tform.roleNone')}</SelectItem>

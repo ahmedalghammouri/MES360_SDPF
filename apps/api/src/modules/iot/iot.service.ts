@@ -417,19 +417,41 @@ export class IotService {
    * and the state still looks plausible. So they are refused at the point they
    * are configured rather than diagnosed months later from the downtime log.
    */
-  private async assertStatusSignalSane(
-    factoryId: string, machineId: string | null,
-    isMachineStatus: boolean | undefined, signalRole: string | null | undefined,
+  /**
+   * Whether this tag drives its machine's state — decided here rather than taken
+   * on trust, because the two ways of getting it wrong both go unnoticed.
+   *
+   * PROCESSING is not a state and cannot be one. It measures whether product is
+   * flowing, which is what STARVED and BLOCKED are inferred FROM; read as a state
+   * it calls every gap between units a fault. So the role settles it and the flag
+   * is derived, not asserted. This is a coercion and not a refusal on purpose: a
+   * caller that sends both is not making a choice the user could have made
+   * differently, it is stating a contradiction in terms, and rejecting the save
+   * would leave whoever is binding the signal with no shape that is accepted.
+   */
+  private statusDriverFor(isMachineStatus: boolean | undefined, signalRole: string | null | undefined): boolean {
+    if (signalRole === 'PROCESSING') return false;
+    return !!isMachineStatus;
+  }
+
+  /**
+   * A machine has one state, so one tag may drive it.
+   *
+   * Two of them do not average out: each writes the state on every poll, the
+   * machine flips between them, and the downtime log fills with alternating
+   * events. Live on 19 Aug 2026, M5 had its wrapping-table rotation flagged
+   * alongside its run-mode bit.
+   *
+   * Only a request that ADDS a second one is refused. A tag that is already
+   * flagged stays editable — refusing every edit to it would mean a machine that
+   * has landed in this state cannot be edited out of it, and the field that needs
+   * changing lives on exactly such a tag.
+   */
+  private async assertOneStatusDriverPerMachine(
+    factoryId: string, machineId: string | null, wouldDrive: boolean, alreadyDrove: boolean,
     excludeTagId?: string,
   ): Promise<void> {
-    if (!isMachineStatus) return;
-    if (signalRole === 'PROCESSING') {
-      throw new ConflictException(
-        'A PROCESSING signal cannot drive machine state. It measures whether product is flowing, ' +
-        'which is what Starved and Blocked are inferred from — read as a state it reports every ' +
-        'gap between units as a fault. Bind it as PROCESSING and leave the run-mode bit as the status signal.');
-    }
-    if (!machineId) return;
+    if (!wouldDrive || alreadyDrove || !machineId) return;
     const clash = await this.prisma.tagDefinition.findFirst({
       where: {
         factoryId, machineId, isMachineStatus: true, isActive: true,
@@ -579,7 +601,8 @@ export class IotService {
   }) {
     const resolvedFactoryId = factoryId ?? await this.getDefaultFactoryId();
     await this.assertCounterRoleUnique(resolvedFactoryId, dto.machineId || null, dto.counterRole, dto.tagType);
-    await this.assertStatusSignalSane(resolvedFactoryId, dto.machineId || null, dto.isMachineStatus, dto.signalRole);
+    const drivesState = this.statusDriverFor(dto.isMachineStatus, dto.signalRole);
+    await this.assertOneStatusDriverPerMachine(resolvedFactoryId, dto.machineId || null, drivesState, false);
     const scope = await this.resolveScope({ machineId: dto.machineId, lineId: dto.lineId, areaId: dto.areaId });
     return this.prisma.tagDefinition.create({
       data: {
@@ -613,7 +636,7 @@ export class IotService {
         ...(dto.historizationMode !== undefined && { historizationMode: dto.historizationMode }),
         ...(dto.historizationRateSec !== undefined && { historizationRateSec: dto.historizationRateSec }),
         ...(dto.deadband !== undefined && { deadband: dto.deadband }),
-        isMachineStatus: !!dto.isMachineStatus,
+        isMachineStatus: drivesState,
         statusMap: (dto.statusMap as any) ?? undefined,
         signalRole: dto.signalRole ?? undefined,
         pulseWindowMs: dto.pulseWindowMs ?? undefined,
@@ -647,13 +670,14 @@ export class IotService {
     const effRole = dto.counterRole !== undefined ? dto.counterRole : (tag.counterRole as string | null);
     const effType = dto.tagType !== undefined ? dto.tagType : tag.tagType;
     await this.assertCounterRoleUnique(tag.factoryId, effMachineId, effRole, effType, id);
-    // Same rules on the effective (post-update) values: flipping the flag ON, or
-    // moving an already-flagged tag to a machine that has one, is the same fault.
-    await this.assertStatusSignalSane(
-      tag.factoryId, effMachineId,
-      dto.isMachineStatus !== undefined ? dto.isMachineStatus : tag.isMachineStatus,
-      dto.signalRole !== undefined ? dto.signalRole : (tag.signalRole as string | null),
-      id);
+    // The same rules on the effective (post-update) values. "Already drove" is
+    // read from the record AND the machine it is on, so moving a flagged tag to a
+    // machine that has one still counts as adding a second.
+    const effIsStatus = dto.isMachineStatus !== undefined ? dto.isMachineStatus : tag.isMachineStatus;
+    const effSignalRole = dto.signalRole !== undefined ? dto.signalRole : (tag.signalRole as string | null);
+    const drivesState = this.statusDriverFor(effIsStatus, effSignalRole);
+    const alreadyDrove = tag.isMachineStatus && effMachineId === tag.machineId;
+    await this.assertOneStatusDriverPerMachine(tag.factoryId, effMachineId, drivesState, alreadyDrove, id);
     const scopeTouched = dto.machineId !== undefined || dto.lineId !== undefined || dto.areaId !== undefined;
     const scope = scopeTouched
       ? await this.resolveScope({ machineId: dto.machineId ?? null, lineId: dto.lineId ?? null, areaId: dto.areaId ?? null })
@@ -688,7 +712,7 @@ export class IotService {
         ...(dto.historizationMode !== undefined && { historizationMode: dto.historizationMode }),
         ...(dto.historizationRateSec !== undefined && { historizationRateSec: dto.historizationRateSec }),
         ...(dto.deadband !== undefined && { deadband: dto.deadband }),
-        ...(dto.isMachineStatus !== undefined && { isMachineStatus: dto.isMachineStatus }),
+        ...((dto.isMachineStatus !== undefined || dto.signalRole !== undefined) && { isMachineStatus: drivesState }),
         ...(dto.statusMap !== undefined && { statusMap: (dto.statusMap as any) }),
         ...(dto.signalRole !== undefined && { signalRole: dto.signalRole }),
         ...(dto.pulseWindowMs !== undefined && { pulseWindowMs: dto.pulseWindowMs }),
