@@ -32,6 +32,7 @@ export function LiveProductionView() {
     if (!data) return <LiveEmpty text={t('live.noData')} />;
 
     const x = data.totals;
+    const p = data.plant;
     const stateOf = (machineId: string | null) =>
       data.machines.find((m) => m.machineId === machineId)?.state ?? 'OFFLINE';
 
@@ -46,6 +47,28 @@ export function LiveProductionView() {
           <LiveStat label={t('live.goodNow')} value={fmtNum(x.good)} tone="good" sub={t('schedCap.pieces')} />
           <LiveStat label={t('oeeAn.scrap')} value={fmtNum(x.scrap)} tone={x.scrap > 0 ? 'bad' : undefined}
                     sub={t('schedCap.pieces')} />
+        </div>
+
+        {/* ── Plant readings for this shift ─────────────────────────────
+            These lived on the Loss Tree and Schedule & Capacity pages. They are
+            readings of how the plant stands right now, so they belong here — and
+            they are computed over the same shift window as everything above, so
+            they cannot disagree with it. */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <LiveStat label={t('live.teep')} value={p.teep == null ? '—' : `${p.teep}%`}
+                    tone="warn" sub={t('oeeAn.vsCalendar')} />
+          <LiveStat label={t('oeeAn.utilization')} value={p.utilization == null ? '—' : `${p.utilization}%`}
+                    sub={t('oeeAn.ofCalendar')} />
+          <LiveStat label={t('schedCap.msa')}
+                    value={p.scheduleAttainment == null ? '—' : `${p.scheduleAttainment}%`}
+                    tone={p.scheduleAttainment != null && p.scheduleAttainment >= 95 ? 'good' : 'warn'}
+                    sub={t('schedCap.ordersCount', { count: p.scheduledOrders })} />
+          <LiveStat label={t('schedCap.capacity')}
+                    value={p.capacityUtilization == null ? '—' : `${p.capacityUtilization}%`}
+                    tone={p.capacityUtilization != null && p.capacityUtilization > 100 ? 'bad' : undefined}
+                    sub={p.machinesWithoutRate > 0
+                      ? t('live.machinesWithoutRate', { count: p.machinesWithoutRate })
+                      : t('schedCap.designedUnits')} />
         </div>
 
         {/* ── Orders actually executing ─────────────────────────────────── */}

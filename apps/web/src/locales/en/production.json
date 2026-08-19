@@ -2223,6 +2223,8 @@
     "waitingHelp": "Starved or blocked — not its fault",
     "unmeasuredHelp": "Machines reporting no state",
     "forDuration": "for {{ago}}",
-    "machinesNote": "Sorted by trouble first. Minutes are shift-to-date, from the same fact store every other page reads."
+    "machinesNote": "Sorted by trouble first. Minutes are shift-to-date, from the same fact store every other page reads.",
+    "teep": "TEEP now",
+    "machinesWithoutRate": "{{count}} machine(s) have no rated capacity"
   }
 }

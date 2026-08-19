@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { KpiService, type MachineFactTotals } from './kpi.service';
 import { OEEService } from './oee.service';
+import { ScheduleKpiService } from './schedule-kpi.service';
 import { currentShiftStart } from '../../common/shift-window.util';
 import { toPieces, type SkuPackaging } from '../../common/units.util';
 
@@ -80,6 +81,7 @@ export class LiveKpiService {
     private readonly prisma: PrismaService,
     private readonly kpi: KpiService,
     private readonly oee: OEEService,
+    private readonly scheduleKpi: ScheduleKpiService,
   ) {}
 
   /**
@@ -124,7 +126,16 @@ export class LiveKpiService {
       orderBy: [{ line: { code: 'asc' } }, { sortOrder: 'asc' }],
     });
     if (machines.length === 0) {
-      return { window: win, machines: [], jobOrders: [], totals: this.emptyTotals(), shift: null };
+      // Same shape as the populated path — a caller must never have to branch on
+      // whether a key exists.
+      return {
+        window: win, machines: [], jobOrders: [], totals: this.emptyTotals(), shift: null,
+        plant: {
+          calendarMin: 0, utilization: null, teep: null,
+          scheduleAttainment: null, scheduledOrders: 0,
+          capacityUtilization: null, machinesWithoutRate: 0,
+        },
+      };
     }
     const machineIds = machines.map((m) => m.id);
 
@@ -152,12 +163,49 @@ export class LiveKpiService {
       };
     });
 
+    const totals = this.rollup(facts);
+
+    // ── The three figures that used to live on analytics pages ──────────────
+    // They belong here: each is a reading of how the plant stands right now, and
+    // a reading belongs on a live page. All three are computed over the SAME
+    // shift window as everything else above, so they cannot disagree with it.
+    //
+    // Utilisation is how much of the clock the plant even planned to use, and
+    // TEEP carries OEE the rest of the way to the calendar — the gap between the
+    // two is capacity the company already owns and is not using.
+    const calendarMin = ((win.to.getTime() - win.from.getTime()) / 60_000) * machines.length;
+    const utilization = calendarMin > 0 ? this.r((totals.plannedMin / calendarMin) * 100) : null;
+    const teep = utilization != null && totals.oee != null
+      ? this.r((totals.oee / 100) * (utilization / 100) * 100)
+      : null;
+
+    const [msa, capacity] = await Promise.all([
+      this.scheduleKpi
+        .masterScheduleAttainment(factoryId, win.from, win.to, scope.lineId ? { lineId: scope.lineId } : {})
+        .catch(() => null),
+      this.scheduleKpi
+        .volumeCapacityUtilization(factoryId, win.from, win.to, scope.lineId ? { lineId: scope.lineId } : {})
+        .catch(() => null),
+    ]);
+
     return {
       window: win,
       shift: await this.currentShiftLabel(factoryId),
       machines: rows,
       jobOrders: await this.runningJobOrders(factoryId, machineIds),
-      totals: this.rollup(facts),
+      totals,
+      plant: {
+        calendarMin: this.r(calendarMin),
+        utilization,
+        teep,
+        // Orders whose planned window overlaps this shift. Null rather than zero
+        // when nothing was scheduled — 0% would read as total failure.
+        scheduleAttainment: msa && msa.totalScheduledQty > 0 ? msa.msaPct : null,
+        scheduledOrders: msa?.orderCount ?? 0,
+        // Actual pieces this shift against the designed capacity for its hours.
+        capacityUtilization: capacity && capacity.maxDesignedUnits > 0 ? capacity.utilizationPct : null,
+        machinesWithoutRate: capacity?.machinesMissingCapacity.length ?? 0,
+      },
     };
   }
 

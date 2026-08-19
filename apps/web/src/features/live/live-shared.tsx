@@ -50,12 +50,26 @@ export interface LiveTotals {
   quality: number | null; oee: number | null;
 }
 
+/** Plant-wide readings that are about the whole shift rather than one machine. */
+export interface LivePlant {
+  calendarMin: number;
+  /** How much of the clock the plant even planned to use. */
+  utilization: number | null;
+  /** OEE carried the rest of the way to the calendar. */
+  teep: number | null;
+  scheduleAttainment: number | null;
+  scheduledOrders: number;
+  capacityUtilization: number | null;
+  machinesWithoutRate: number;
+}
+
 export interface LivePayload {
   window: { from: string; to: string; basis: 'SHIFT' | 'DAY' };
   shift: { code: string; name: string; startedAt: string } | null;
   machines: LiveMachine[];
   jobOrders: LiveJobOrder[];
   totals: LiveTotals;
+  plant: LivePlant;
 }
 
 /**
