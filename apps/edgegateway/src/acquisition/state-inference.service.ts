@@ -64,6 +64,13 @@ const NOT_PRODUCING = new Set([
  */
 const UNEXPLAINED_STOPS = new Set(['IDLE', 'STOPPED', 'BREAKDOWN']);
 
+/**
+ * States that mean the machine is up and working, for the purposes of the truth
+ * table. RUNNING only: SETUP and CHANGEOVER are work but not output, and a
+ * machine in either is not feeding the one after it.
+ */
+const PRODUCING_RAW = new Set(['RUNNING']);
+
 /** Signal semantics, validated here rather than in the schema. */
 const PROCESSING = 'PROCESSING';
 const INFEED_AVAILABLE = 'INFEED_AVAILABLE';
@@ -101,42 +108,131 @@ export class StateInferenceService {
    * STARVED / BLOCKED when the context explains it.
    */
   async classify(machineId: string, rawState: string): Promise<string> {
-    // ── The case NCC's signals actually present ─────────────────────────────
-    // Cartomac and Uni-Tech report Run Mode ON while starved — "ready, but no
-    // product currently being processed". A starved machine on this line never
-    // looks stopped, so waiting for a stop to classify would never fire at all.
-    //
-    // When a machine says it is RUNNING, ask its PROCESSING signal whether product
-    // is genuinely flowing. Ready-with-nothing-to-do is an external loss, not
-    // production.
-    if (rawState === 'RUNNING') {
-      const idle = await this.readyButIdle(machineId);
-      return idle ?? rawState;
-    }
+    // Rule 1 — the machine said why itself. A status word that reports STARVED or
+    // BLOCKED outright is a measurement, and nothing inferred may overrule it.
+    if (rawState === 'STARVED' || rawState === 'BLOCKED') return rawState;
 
-    // Rule 1: the machine said why. Nothing to infer.
-    if (!UNEXPLAINED_STOPS.has(rawState)) return rawState;
+    // ...and neither is a stop that already carries an explanation. A CHANGEOVER,
+    // SETUP, PLANNED_STOP or MAINTENANCE is a decision somebody made, not a
+    // symptom to be diagnosed. Reclassifying one as starvation would move a
+    // PLANNED stop into an EXTERNAL loss and change what OEE excludes — the table
+    // below governs states derived from Run Mode, not states that speak for
+    // themselves.
+    if (!UNEXPLAINED_STOPS.has(rawState) && !PRODUCING_RAW.has(rawState)) return rawState;
 
     try {
-      // Rule 2: a bound signal outranks any inference from neighbours.
+      // Rule 2 — a bound material signal. INFEED_AVAILABLE and OUTFEED_BLOCKED
+      // measure the thing the table below infers, so where one exists it wins.
       const fromSignal = await this.fromMaterialSignals(machineId);
       if (fromSignal) return fromSignal;
 
-      // Rule 3: infer from the machines either side.
-      const { upstream, downstream } = await this.neighbours(machineId);
+      // Rule 3 — the truth table.
+      //
+      //   RUN  PROC   upstream        state
+      //   ───  ────   ─────────────   ──────────
+      //    1     1    —               RUNNING
+      //    1     0    stopped         STARVED     nothing is arriving
+      //    1     0    running         BLOCKED     product is arriving and this
+      //                                           machine is not consuming it, so
+      //                                           something ahead is holding it
+      //    0    0/1   stopped         STARVED     it shut down for want of work
+      //    0    0/1   running         BREAKDOWN   work was there and it stopped
+      //
+      // The upstream neighbour decides both halves. That is the whole model: on a
+      // serial line, whether material is arriving is the only question that
+      // separates "waiting" from "at fault", and the machine before you is the
+      // one that answers it.
+      const running = PRODUCING_RAW.has(rawState);
+      const processing = await this.processingNow(machineId);
 
-      // A line end has no neighbour on that side, so it can never be starved by
-      // an upstream that does not exist, nor blocked by a missing downstream.
-      if (upstream.length > 0 && (await this.notFeeding(upstream))) return 'STARVED';
-      if (downstream.length > 0 && (await this.notAccepting(downstream))) return 'BLOCKED';
+      if (running && processing === true) return 'RUNNING';
 
-      return rawState;
+      // No PROCESSING signal wired, or no trustworthy reading: there is nothing
+      // to infer from and a guess here would move real losses out of OEE. Leave
+      // the machine as it reported itself.
+      if (running && processing === null) return rawState;
+
+      const fed = await this.upstreamIsFeeding(machineId);
+      if (fed === null) return running ? rawState : rawState; // head of line, or unknown
+
+      if (running) return fed ? 'BLOCKED' : 'STARVED';
+      // Stopped. Starved only if nothing was coming; otherwise it is its own fault.
+      return fed ? rawState : 'STARVED';
     } catch (err) {
       // Inference is an enrichment. If it fails, record the honest raw state
       // rather than losing the stop entirely.
       this.logger.warn(`state inference failed for machine ${machineId}: ${(err as Error).message}`);
       return rawState;
     }
+  }
+
+  /**
+   * Is the PROCESSING signal active right now?
+   *
+   * `true` product is moving · `false` it is not, and has not been for longer
+   * than the gap between units · `null` there is no signal, no reading, or one
+   * the gateway distrusts.
+   *
+   * Null is not false. A machine with nothing wired must not be declared starved
+   * on the strength of silence — over-reporting starvation moves real losses out
+   * of OEE and flatters the equipment.
+   */
+  private async processingNow(machineId: string): Promise<boolean | null> {
+    const tag = await this.prisma.tagDefinition.findFirst({
+      where: { machineId, isActive: true, signalRole: PROCESSING },
+      select: { id: true, idleThresholdMs: true },
+    });
+    if (!tag) return null;
+
+    const reading = await this.prisma.tagCurrentValue
+      .findUnique({ where: { tagId: tag.id }, select: { value: true, quality: true, timestamp: true } })
+      .catch(() => null);
+    if (!reading || reading.quality === 'BAD') return null;
+
+    if (Number(reading.value) >= 1) return true;
+
+    // Off right now, but a wrapper rests between pallets and a filler does not.
+    // Only a gap longer than that signal's own slowest normal cycle counts.
+    const idleFor = Date.now() - new Date(reading.timestamp).getTime();
+    const limit = tag.idleThresholdMs ?? PROCESSING_IDLE_DEFAULT_MS;
+    return idleFor < limit ? true : false;
+  }
+
+  /**
+   * Is the machine immediately before this one sending product down?
+   *
+   * The IMMEDIATE predecessor, not all of them: on a serial line the machine that
+   * feeds you is the one directly ahead, and whether the first station is running
+   * says nothing about what is reaching the fifth.
+   *
+   * `null` at the head of the line — there is no upstream to be starved by — and
+   * when its state is unknown, which must not be read as either answer.
+   */
+  private async upstreamIsFeeding(machineId: string): Promise<boolean | null> {
+    const { upstream } = await this.neighbours(machineId);
+    if (upstream.length === 0) return null;
+
+    // `neighbours` returns them in sortOrder, so the last is the nearest.
+    const nearest = upstream[upstream.length - 1];
+    const row = await this.prisma.machineCurrentStatus.findUnique({
+      where: { machineId: nearest },
+      select: { state: true },
+    });
+    if (!row) return null;
+    const state = String(row.state);
+    if (PRODUCING_RAW.has(state)) return true;
+
+    // One exception to "upstream stopped means nothing is arriving", and it is not
+    // a detail. A BLOCKED upstream HAS product and cannot get rid of it — usually
+    // because this machine stopped taking it. Reading that as starvation blames
+    // the machine in front for a jam this one caused, files the loss as external,
+    // and removes it from OEE. The machine would be rewarded for its own blockage.
+    //
+    // So a blocked predecessor counts as feeding: there is material waiting, and
+    // whatever is wrong is on this side of it.
+    if (state === 'BLOCKED') return true;
+
+    return false;
   }
 
   /**

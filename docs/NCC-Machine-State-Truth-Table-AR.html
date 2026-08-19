@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>جدول حالات الماكينة</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#14181d; --muted:#5b6672; --line:#dfe4ea; --soft:#f6f8fa;
+    --ok:#0f7b3e; --okbg:#e8f6ee; --warn:#8a5a00; --warnbg:#fdf3e0;
+    --stop:#a51c1c; --stopbg:#fdecec; --accent:#0b5fa5; --accentbg:#e9f2fb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12161a; --fg:#e7ecf1; --muted:#9aa7b4; --line:#2a323b; --soft:#181e24;
+      --ok:#5ad48c; --okbg:#12301f; --warn:#e3b256; --warnbg:#2e2413;
+      --stop:#f08a8a; --stopbg:#331717; --accent:#68b0ee; --accentbg:#122636;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12161a; --fg:#e7ecf1; --muted:#9aa7b4; --line:#2a323b; --soft:#181e24;
+    --ok:#5ad48c; --okbg:#12301f; --warn:#e3b256; --warnbg:#2e2413;
+    --stop:#f08a8a; --stopbg:#331717; --accent:#68b0ee; --accentbg:#122636;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);margin:0;
+       font:16px/1.9 "Segoe UI","Tahoma",system-ui,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:27px;margin:0 0 6px;text-wrap:balance}
+  h2{font-size:20px;margin:46px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line);text-wrap:balance}
+  h3{font-size:17px;margin:28px 0 10px}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .note{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:18px 0}
+  .note.warn{background:var(--warnbg);border-color:transparent}
+  .note.stop{background:var(--stopbg);border-color:transparent}
+  .note.acc{background:var(--accentbg);border-color:transparent}
+  .note.ok{background:var(--okbg);border-color:transparent}
+  .note b{display:block;margin-bottom:5px}
+  .note b.inl{display:inline;margin:0}
+  code{font-family:ui-monospace,Consolas,monospace;font-size:13.5px;direction:ltr;unicode-bidi:embed;
+       background:var(--soft);padding:1px 6px;border-radius:4px;border:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:start;vertical-align:top}
+  th{background:var(--soft);font-weight:600}
+  td.c{font-family:ui-monospace,Consolas,monospace;text-align:center;font-variant-numeric:tabular-nums}
+  ol,ul{padding-inline-start:24px} li{margin:6px 0}
+  .scroll{overflow-x:auto}
+  svg{max-width:100%;height:auto}
+  .bad{color:var(--stop);font-weight:600}
+  .good{color:var(--ok);font-weight:600}
+  .amb{color:var(--warn);font-weight:600}
+  .step{border:1px solid var(--line);border-radius:10px;margin:14px 0;overflow:hidden}
+  .step > header{background:var(--soft);padding:10px 16px;border-bottom:1px solid var(--line);font-weight:700}
+  .step .b{padding:14px 18px}
+  footer{margin-top:46px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+  .row-run td{background:var(--okbg)}
+  .row-starve td{background:var(--warnbg)}
+  .row-block td{background:var(--warnbg)}
+  .row-break td{background:var(--stopbg)}
+  .d-lbl{fill:var(--fg);font:600 13px "Segoe UI",Tahoma,sans-serif}
+  .d-sm{fill:var(--muted);font:11.5px "Segoe UI",Tahoma,sans-serif}
+  .d-mono{fill:var(--muted);font:11px ui-monospace,Consolas,monospace}
+  @media print{ .wrap{max-width:none;padding:0} h2{break-after:avoid} tr{break-inside:avoid} .step{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>جدول حالات الماكينة</h1>
+<p class="sub">
+  إشارتان تقرّران كل شيء: <code>RUN_MODE</code> و<code>PROCESSING</code> — والماكينة التي قبلك.<br>
+  خط تعبئة المسحوق 1 · مصنع مسحوق المنظفات السعودي · MES360°
+</p>
+
+<div class="note acc">
+  <b>الفكرة في سطر واحد</b>
+  على خط متسلسل، السؤال الوحيد الذي يفصل <b class="inl">«تنتظر»</b> عن <b class="inl">«مقصّرة»</b> هو:
+  <b class="inl">هل تصلها المادة؟</b> والماكينة التي قبلها هي التي تجيب عن ذلك.
+</div>
+
+
+<h2>الجدول</h2>
+
+<div class="scroll">
+<table>
+  <thead>
+    <tr>
+      <th style="width:12%">RUN_MODE</th>
+      <th style="width:12%">PROCESSING</th>
+      <th style="width:20%">الماكينة السابقة</th>
+      <th style="width:16%">الحالة</th>
+      <th>لماذا</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="row-run">
+      <td class="c">1</td><td class="c">1</td><td class="c">—</td>
+      <td class="c good">RUNNING</td>
+      <td>جاهزة والمنتج يتحرّك فيها. تنتج فعلاً.</td>
+    </tr>
+    <tr class="row-starve">
+      <td class="c">1</td><td class="c">0</td><td class="c">متوقّفة</td>
+      <td class="c amb">STARVED</td>
+      <td>جاهزة ولا يصلها شيء. تنتظر، وليست مقصّرة.</td>
+    </tr>
+    <tr class="row-block">
+      <td class="c">1</td><td class="c">0</td><td class="c">تعمل</td>
+      <td class="c amb">BLOCKED</td>
+      <td>المادة <b>تصلها</b> وهي لا تستهلكها ⇒ شيء أمامها يحتجزها.</td>
+    </tr>
+    <tr class="row-starve">
+      <td class="c">0</td><td class="c">0 / 1</td><td class="c">متوقّفة</td>
+      <td class="c amb">STARVED</td>
+      <td>توقّفت لعدم وجود عمل. الغياب سببه ما قبلها.</td>
+    </tr>
+    <tr class="row-break">
+      <td class="c">0</td><td class="c">0 / 1</td><td class="c">تعمل</td>
+      <td class="c bad">BREAKDOWN</td>
+      <td>العمل كان متوفّراً وتوقّفت رغم ذلك ⇒ العطل فيها.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <b>لاحظ الصفّين الأوسطين</b>
+  نفس الإشارتين تماماً — <code>RUN=1</code> و<code>PROCESSING=0</code> — وحالتان مختلفتان.
+  الفارق الوحيد هو <b class="inl">ما قبلها</b>. وهذا هو جوهر النموذج كلّه.
+</div>
+
+
+<h2>لماذا يقرّر ما قبلها لا ما بعدها</h2>
+
+<div class="scroll">
+<svg viewBox="0 0 940 220" role="img" aria-label="تدفّق المادة على الخط والماكينة السابقة هي التي تقرّر">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="currentColor"></path>
+    </marker>
+  </defs>
+
+  <text class="d-sm" x="880" y="24" text-anchor="end">اتجاه تدفّق المادة</text>
+  <g color="var(--muted)">
+    <line x1="880" y1="38" x2="70" y2="38" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"></line>
+  </g>
+
+  <rect x="700" y="60" width="180" height="72" rx="10" fill="var(--soft)" stroke="var(--line)"></rect>
+  <text class="d-lbl" x="790" y="88" text-anchor="middle">الماكينة السابقة</text>
+  <text class="d-sm"  x="790" y="110" text-anchor="middle">هي التي تُغذّي</text>
+
+  <rect x="400" y="60" width="180" height="72" rx="10" fill="var(--accentbg)" stroke="var(--accent)"></rect>
+  <text class="d-lbl" x="490" y="88" text-anchor="middle">هذه الماكينة</text>
+  <text class="d-mono" x="490" y="110" text-anchor="middle">RUN + PROCESSING</text>
+
+  <rect x="100" y="60" width="180" height="72" rx="10" fill="var(--soft)" stroke="var(--line)"></rect>
+  <text class="d-lbl" x="190" y="88" text-anchor="middle">الماكينة التالية</text>
+  <text class="d-sm"  x="190" y="110" text-anchor="middle">لا تُستشار</text>
+
+  <g color="var(--ok)">
+    <path d="M700,96 L590,96" stroke="currentColor" stroke-width="2.5" marker-end="url(#ar)"></path>
+  </g>
+  <text class="d-sm" x="645" y="86" text-anchor="middle" style="fill:var(--ok)">تقرّر</text>
+
+  <g color="var(--muted)">
+    <path d="M400,96 L290,96" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 4"></path>
+  </g>
+  <text class="d-sm" x="345" y="86" text-anchor="middle">لا تقرّر</text>
+
+  <text class="d-sm" x="490" y="175" text-anchor="middle">
+    السؤال «هل تصلني مادة؟» يجيب عنه من قبلي — لا من بعدي.
+  </text>
+</svg>
+</div>
+
+<div class="note ok">
+  <b>هذا التغيير أصلح عيباً حقيقياً</b>
+  النموذج السابق كان يستنتج <span class="amb">BLOCKED</span> بسؤال ما <b class="inl">بعد</b> الماكينة:
+  «هل التالي يستطيع الاستقبال؟». وقد أنتج ذلك انعكاساً رُصد على بيانات حيّة —
+  ماكينة أُبلغ عنها <span class="amb">BLOCKED</span> بسبب الماكينة التي <b class="inl">هي نفسها</b> جوّعتها،
+  فاختفى القيد الحقيقي عند رأس الخط.<br><br>
+  القرار من الأعلى <b class="inl">لا يمكن</b> أن يُنتج هذا الانعكاس أصلاً.
+</div>
+
+
+<h2>استثناء واحد — ولماذا هو ضروري</h2>
+
+<div class="note stop">
+  <b>ماكينة سابقة في حالة BLOCKED تُعامَل كأنها «تُغذّي»</b>
+  الماكينة المسدودة <b class="inl">لديها منتج ولا تستطيع تمريره</b> — وغالباً لأن هذه الماكينة توقّفت عن أخذه منها.
+  <br><br>
+  لو طبّقنا القاعدة حرفياً («السابقة ليست RUNNING ⇒ إذن STARVED») لأصبحت هذه الماكينة
+  <span class="amb">STARVED</span> — أي أن النظام <b class="inl">يلوم من أمامها على انحشار سبّبته هي</b>،
+  ثم يُصنّف الخسارة كخارجية <b class="inl">فيرفعها من OEE</b>. الماكينة تُكافَأ على عطلها.
+  <br><br>
+  لذلك: السابقة في <code>BLOCKED</code> ⇒ المادة موجودة ⇒ الخلل في هذا الجانب لا ذاك.
+</div>
+
+
+<h2>ثلاث أولويات قبل الجدول</h2>
+
+<div class="step">
+  <header>١ — الماكينة قالت السبب بنفسها</header>
+  <div class="b">
+    كلمة حالة تقول <code>STARVED</code> أو <code>BLOCKED</code> صراحةً هي <b>قياس</b>،
+    ولا يُعلى عليها شيء مستنتَج.
+  </div>
+</div>
+
+<div class="step">
+  <header>٢ — إشارة مادة مربوطة</header>
+  <div class="b">
+    <code>INFEED_AVAILABLE</code> أو <code>OUTFEED_BLOCKED</code> تقيسان الشيء الذي يستنتجه الجدول.
+    حيث توجد إحداهما، تتقدّم. <b>القياس يسبق الاستنتاج.</b>
+  </div>
+</div>
+
+<div class="step">
+  <header>٣ — الجدول</header>
+  <div class="b">
+    يُطبَّق فقط على الحالات المشتقّة من <code>RUN_MODE</code>.
+  </div>
+</div>
+
+<div class="note warn">
+  <b>وتوقّف مُفسَّر لا يُعاد تصنيفه أبداً</b>
+  <code>CHANGEOVER</code> · <code>SETUP</code> · <code>PLANNED_STOP</code> · <code>MAINTENANCE</code>
+  هي <b class="inl">قرار اتّخذه إنسان</b> لا عَرَضٌ يُشخَّص.
+  إعادة تصنيف تغيير منتج كـ«جوع» تنقل توقّفاً <b class="inl">مخطّطاً</b> إلى خسارة <b class="inl">خارجية</b>
+  فتغيّر ما يستثنيه OEE.
+</div>
+
+
+<h2>حافّتان محافظتان عمداً</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th style="width:34%">الحالة</th><th>ماذا يفعل النظام</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>لا توجد إشارة PROCESSING</b></td>
+      <td>يترك الماكينة كما أبلغت عن نفسها. <b>الصمت ليس دليلاً</b> — وإعلان الجوع هنا
+          ينقل خسارة حقيقية خارج OEE ويُجمّل المعدّات.</td>
+    </tr>
+    <tr>
+      <td><b>فجوة قصيرة بين وحدتين</b></td>
+      <td>تُعدّ «ما زالت تعالج». ماكينة التغليف ترتاح دقائق بين بالتة وأخرى، وماكينة التعبئة لا.
+          الحدّ <code>idleThresholdMs</code> لكل <b>إشارة</b> (افتراضياً 5 دقائق) لا لكل مصنع.</td>
+    </tr>
+    <tr>
+      <td><b>أول ماكينة في الخط</b></td>
+      <td>لا يمكن أن تكون <span class="amb">STARVED</span> — لا يوجد ما قبلها ليُقصّر في تغذيتها.</td>
+    </tr>
+    <tr>
+      <td><b>حالة السابقة غير معروفة</b></td>
+      <td>لا استنتاج. المجهول ليس «متوقّفة» ولا «تعمل».</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+<h2>مثال على خطّكم</h2>
+
+<div class="step">
+  <header>Uni-tech Wrapping (M5) — الطاولة ساكنة</header>
+  <div class="b">
+    <code>M5_RUN_MODE = 1</code> · <code>M5_TABLE_ROTATION = 0</code> منذ 6 دقائق (الحدّ 5).
+    <br><br>
+    <b>السابقة Euro-Pack Robot (M4):</b>
+    <ul style="margin:6px 0">
+      <li>تعمل ⇒ البالتات تصل و M5 لا تأخذها ⇒ <span class="amb">BLOCKED</span></li>
+      <li>متوقّفة ⇒ لا شيء يصل ⇒ <span class="amb">STARVED</span></li>
+    </ul>
+    وفي الحالتين: الدقائق تخرج من زمن التشغيل <b>ومن</b> الزمن المخطّط،
+    فلا تنخفض إتاحية M5 — الماكينة سليمة والخط هو المتوقّف.
+  </div>
+</div>
+
+<div class="note ok">
+  <b>هذا هو الغرض</b>
+  لو حوسِبت M5 على انتظارها، لبدت المشكلة في ماكينة التغليف وهي سليمة تماماً،
+  ولذهب الإصلاح إلى المكان الخطأ.
+</div>
+
+
+<h2>حيث تُضبط هذه الإشارات</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th>ما تريد تغييره</th><th>المكان</th></tr></thead>
+  <tbody>
+    <tr><td>ربط بتة بدور <code>RUN_MODE</code> أو <code>PROCESSING</code></td><td><code>IoT ← Signal Rules ← Bound signals</code></td></tr>
+    <tr><td>حدّ السكون <code>idleThresholdMs</code></td><td><code>IoT ← Tags</code> على وسم الـ PROCESSING</td></tr>
+    <tr><td>ترتيب الماكينات — وهو ما يحدّد «السابقة»</td><td><code>Plant Hierarchy ← Production Line ← sortOrder</code></td></tr>
+    <tr><td>أثر كل حالة على OEE</td><td><code>IoT ← Signal Rules ← State rules</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note warn">
+  <b>تنبيه على الترتيب</b>
+  «السابقة» تُحسب من <code>sortOrder</code> على الخط. ترتيب خاطئ يقلب الاستنتاج كلّه:
+  ماكينة تُعدّ سابقة وهي في الحقيقة تالية ستحوّل كل جوع إلى انسداد والعكس.
+  <b class="inl">راجع الترتيب قبل الاعتماد على هذه الحالات.</b>
+</div>
+
+<footer>
+  MES360° · مصنع مسحوق المنظفات السعودي · خط تعبئة المسحوق 1<br>
+  الجدول مطبَّق في بوّابة الحافّة ومغطّى بـ 84 اختباراً — 19 أغسطس 2026.
+</footer>
+
+</div>
+</body>
+</html>
