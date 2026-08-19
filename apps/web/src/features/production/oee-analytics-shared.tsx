@@ -15,6 +15,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Info } from 'lucide-react';
+import { ResponsiveContainer } from 'recharts';
 
 import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
@@ -96,18 +97,36 @@ export const CHART_TOOLTIP = {
 };
 
 /**
- * Factor colours, taken from the validated status palette.
+ * Factor colours — CSS tokens, not literals, so the hue follows the theme.
  *
- * These are STATUS roles, not a categorical series: availability, performance
- * and quality are the three things that can go wrong, and the same hue means the
- * same factor on every one of the four pages.
+ * These were hex strings taken from the palette's LIGHT column, which meant the
+ * light steps were painted on the dark surface too: violet came out at 2.04:1
+ * there, effectively invisible. The tokens in globals.css carry a separate,
+ * separately validated set of steps for each theme.
+ *
+ * The same hue means the same factor on every page — availability is always
+ * blue, performance always yellow — so a reader never relearns the chart.
  */
 export const FACTOR_COLORS = {
-  availability: '#2a78d6',
-  performance: '#eda100',
-  quality: '#008300',
-  utilization: '#8a8a85',
-  oee: '#4a3aa7',
+  availability: 'var(--viz-1)',  // blue
+  performance: 'var(--viz-4)',   // yellow
+  quality: 'var(--viz-6)',       // green
+  utilization: 'var(--viz-7)',   // violet
+  oee: 'var(--viz-2)',           // orange
+} as const;
+
+/**
+ * Loss colours, by who owns the loss. Same tokens, so a hue means one thing
+ * across every chart in the product.
+ */
+export const LOSS_COLORS = {
+  scheduleLoss: 'var(--viz-7)',
+  plannedStops: 'var(--viz-1)',
+  external: 'var(--viz-4)',
+  breakdowns: 'var(--viz-8)',
+  speedLoss: 'var(--viz-2)',
+  qualityLoss: 'var(--viz-5)',
+  productive: 'var(--viz-6)',
 } as const;
 
 export function PageHeader({
@@ -163,6 +182,45 @@ export function Pct({ v, good = 85 }: { v?: number | null; good?: number }) {
       v >= good ? 'text-emerald-500' : v >= good * 0.7 ? 'text-amber-500' : 'text-red-400')}>
       {v}%
     </span>
+  );
+}
+
+/**
+ * Axis defaults.
+ *
+ * `stroke` colours the axis LINE; the tick TEXT takes its colour from `tick.fill`.
+ * Setting only stroke leaves the labels at Recharts' default near-black, which is
+ * invisible on a dark card — a bug this project has already fixed once across
+ * two dozen axes, so it lives in one place now.
+ */
+export const AXIS = {
+  tick: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' },
+  stroke: 'hsl(var(--muted-foreground))',
+} as const;
+
+/** A 2px surface-coloured outline, so touching stacked segments read as divided. */
+export const SEGMENT_GAP = {
+  stroke: 'hsl(var(--card))',
+  strokeWidth: 2,
+} as const;
+
+/**
+ * A framed chart. The title states the question the chart answers, not the
+ * measure it plots — "Which machine is worst" beats "Availability by machine".
+ */
+export function Chart({
+  title, help, height = 260, children,
+}: {
+  title: string; help?: string; height?: number; children: React.ReactElement;
+}) {
+  return (
+    <section className="rounded-lg border border-border/50 p-4">
+      <h2 className="text-sm font-semibold">{title}</h2>
+      {help && <p className="text-[11px] text-muted-foreground mt-0.5">{help}</p>}
+      <div className="mt-3">
+        <ResponsiveContainer width="100%" height={height}>{children}</ResponsiveContainer>
+      </div>
+    </section>
   );
 }
 

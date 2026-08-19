@@ -2122,7 +2122,19 @@
       "qualityLoss": "Quality loss"
     },
     "fullyLoadedTitle": "The plant is scheduled around the clock",
-    "fullyLoadedBody": "Utilisation is at 100%, so every calendar hour is planned production and TEEP equals OEE. There is no idle-capacity gap to recover here — the losses below are the only ones available."
+    "fullyLoadedBody": "Utilisation is at 100%, so every calendar hour is planned production and TEEP equals OEE. There is no idle-capacity gap to recover here — the losses below are the only ones available.",
+    "trendHelp": "Movement over the selected window. Hover any point for the figure.",
+    "whereTimeWentHelp": "The whole window’s planned time, divided by what it became.",
+    "worstMachinesHelp": "Lowest first — the machine to look at is at the top.",
+    "attribution": "Whose fault was the stop",
+    "attributionHelp": "Red is the machine’s own fault; amber is the line stopping it. Minutes, because minutes are what somebody can act on.",
+    "valuesLiveNote": "This page shows change and composition. For the figures as they stand right now, use Operations Now → Live Machines.",
+    "wherePaceLost": "Where the pace was lost",
+    "wherePaceLostHelp": "Run time per machine, split into the minutes that earned output and the minutes that did not.",
+    "outputSplit": "Good against scrap",
+    "outputSplitHelp": "The window’s whole output. Good counts the final step only; scrap counts every step.",
+    "qualityByMachine": "Quality rate by machine",
+    "qualityByMachineHelp": "Lowest first. Zoomed to the band quality lives in — a 0–100 axis hides every real change."
   },
   "schedCap": {
     "title": "Schedule & Capacity Analytics",

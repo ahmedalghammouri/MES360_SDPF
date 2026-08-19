@@ -119,6 +119,26 @@
     --card: 180 20% 98%;             /* Card #F8FAFA */
     --card-foreground: 0 0% 8%;
 
+    /* ── Chart palette, LIGHT steps ────────────────────────────────────────
+       Validated against this theme's card surface (#F9FBFB) with the dataviz
+       validator: lightness band, chroma floor, adjacent-pair CVD separation,
+       normal-vision floor and contrast all pass. The contrast WARN on the
+       lighter hues is discharged by legends and direct labels, which every
+       chart here carries.
+
+       Charts reference these as var(--viz-N) so the hue follows the THEME.
+       They used to be literal hex strings, which meant the light steps were
+       painted on the dark surface too — violet came out at 2.04:1 there,
+       effectively invisible. */
+    --viz-1: #2a78d6;  /* blue    */
+    --viz-2: #eb6834;  /* orange  */
+    --viz-3: #1baf7a;  /* aqua    */
+    --viz-4: #eda100;  /* yellow  */
+    --viz-5: #e87ba4;  /* magenta */
+    --viz-6: #008300;  /* green   */
+    --viz-7: #4a3aa7;  /* violet  */
+    --viz-8: #e34948;  /* red     */
+
     --popover: 180 20% 98%;
     --popover-foreground: 0 0% 8%;
 
@@ -175,6 +195,19 @@
 
     --card: 174 24% 10%;
     --card-foreground: 180 8% 90%;
+
+    /* ── Chart palette, DARK steps ─────────────────────────────────────────
+       The same eight hues re-stepped for the dark card (#13201E), not an
+       automatic flip. Validated on that surface: every check passes,
+       contrast included. */
+    --viz-1: #3987e5;
+    --viz-2: #d95926;
+    --viz-3: #199e70;
+    --viz-4: #c98500;
+    --viz-5: #d55181;
+    --viz-6: #008300;
+    --viz-7: #9085e9;
+    --viz-8: #e66767;
 
     --popover: 174 24% 10%;
     --popover-foreground: 180 8% 90%;
