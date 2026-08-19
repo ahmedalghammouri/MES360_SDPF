@@ -22,7 +22,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Target } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip as RTooltip, Legend, Cell, ReferenceLine,
+  Tooltip as RTooltip, Legend, Cell, ReferenceLine, LineChart, Line,
 } from 'recharts';
 
 import { api } from '@/services/api.client';
@@ -33,7 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
   PageHeader, Empty, Failed, Note, AXIS,
-  fmtMin, fmtNum, CHART_TOOLTIP, FACTOR_COLORS,
+  fmtMin, fmtNum, fmtDay, CHART_TOOLTIP, FACTOR_COLORS,
 } from './oee-analytics-shared';
 
 // ── API shapes ─────────────────────────────────────────────────────────────
@@ -67,6 +67,8 @@ interface Msa {
     attainmentPct: number; status: string;
   }>;
   method: { formula: string; note: string };
+  /** Attainment as it stood at the end of each day — derived, not stored. */
+  trend?: Array<{ date: string; msaPct: number; credited: number; scheduled: number }>;
 }
 
 interface Capacity {
@@ -80,6 +82,7 @@ interface Capacity {
     maxDesignedUnits: number; actualUnits: number; utilizationPct: number | null;
   }>;
   method: { formula: string; capacityBasis: string; note: string };
+  trend?: Array<{ date: string; utilizationPct: number; actualUnits: number; designedUnits: number }>;
 }
 
 /** A framed block with a title and an optional formula line under it. */
@@ -286,6 +289,44 @@ export function ScheduleCapacityView() {
             <Empty text={t('schedCap.noOrders')} />
           )}
         </Panel>
+
+        {/* Attainment over time. It could not exist before: the figure was read
+            from a cumulative counter that only ever knows today. Derived from the
+            fact store, which was written a minute at a time and so knows every
+            day. */}
+        {(ms?.trend?.length ?? 0) > 1 && (
+          <Panel title={t('schedCap.attainmentTrend')} subtitle={t('schedCap.attainmentTrendHelp')}>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={(ms!.trend ?? []).map((d) => ({ ...d, label: fmtDay(d.date) }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                <XAxis dataKey="label" {...AXIS} />
+                <YAxis domain={[0, 100]} unit="%" {...AXIS} />
+                <RTooltip {...CHART_TOOLTIP} formatter={(v: any) => [`${v}%`, t('schedCap.msa')]} />
+                <ReferenceLine y={95} stroke={FACTOR_COLORS.quality} strokeDasharray="4 4" />
+                <Line type="monotone" dataKey="msaPct" name={t('schedCap.msa')}
+                  stroke={FACTOR_COLORS.availability} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Panel>
+        )}
+
+        {(cap?.trend?.length ?? 0) > 1 && (
+          <Panel title={t('schedCap.capacityTrend')} subtitle={t('schedCap.capacityTrendHelp')}>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={(cap!.trend ?? []).map((d) => ({ ...d, label: fmtDay(d.date) }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                <XAxis dataKey="label" {...AXIS} />
+                <YAxis unit="%" {...AXIS} />
+                <RTooltip {...CHART_TOOLTIP} formatter={(v: any) => [`${v}%`, t('schedCap.capacity')]} />
+                {/* 100% is the designed ceiling, not a target — crossing it means
+                    the rated cycle time is wrong. */}
+                <ReferenceLine y={100} stroke={FACTOR_COLORS.performance} strokeDasharray="4 4" />
+                <Line type="monotone" dataKey="utilizationPct" name={t('schedCap.capacity')}
+                  stroke={FACTOR_COLORS.utilization} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Panel>
+        )}
 
         {/* ── Capacity utilization ─────────────────────────────────────── */}
         <Panel

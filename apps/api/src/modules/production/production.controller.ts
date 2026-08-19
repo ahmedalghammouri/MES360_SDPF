@@ -235,7 +235,14 @@ export class ProductionController {
     @Query('skuId') skuId?: string,
   ) {
     const { from, to } = await resolveRange(this.prisma, user.factoryId, timeframe, dateFrom, dateTo, 30);
-    return this.scheduleKpi.masterScheduleAttainment(user.factoryId, from, to, { lineId, skuId });
+    // The trend travels with the headline. It is derived from the fact store, not
+    // stored, so it costs a query rather than a nightly job — and it can never
+    // drift from the figure it sits under.
+    const [headline, trend] = await Promise.all([
+      this.scheduleKpi.masterScheduleAttainment(user.factoryId, from, to, { lineId, skuId }),
+      this.scheduleKpi.attainmentTrend(user.factoryId, from, to, { lineId, skuId }).catch(() => []),
+    ]);
+    return { ...headline, trend };
   }
 
   @Get('kpi/capacity-utilization')
@@ -261,7 +268,11 @@ export class ProductionController {
     @Query('machineId') machineId?: string,
   ) {
     const { from, to } = await resolveRange(this.prisma, user.factoryId, timeframe, dateFrom, dateTo, 30);
-    return this.scheduleKpi.volumeCapacityUtilization(user.factoryId, from, to, { areaId, lineId, machineId });
+    const [headline, trend] = await Promise.all([
+      this.scheduleKpi.volumeCapacityUtilization(user.factoryId, from, to, { areaId, lineId, machineId }),
+      this.scheduleKpi.capacityTrend(user.factoryId, from, to, { areaId, lineId, machineId }).catch(() => []),
+    ]);
+    return { ...headline, trend };
   }
 
   @Get('oee-records')

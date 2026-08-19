@@ -397,4 +397,163 @@ export class ScheduleKpiService {
       },
     };
   }
+
+  // ── Historical trends, derived rather than stored ─────────────────────────
+  /**
+   * Attainment as it stood at the end of each day in the window.
+   *
+   * ── Why this is derived and not a new table ─────────────────────────────
+   * The obvious move was to snapshot MSA nightly into its own store. It is the
+   * wrong move: `production_snapshots` already carries productionOrderId and the
+   * good output that produced it, so the attainment of any past day is a query,
+   * not a record. Writing a second store for a fact already recorded is exactly
+   * how one number came to have several sources in this system.
+   *
+   * `ProductionOrder.completedQty` cannot answer this — it is a CUMULATIVE
+   * counter with no history, so it only ever knows today. The fact store knows
+   * every day, because it was written a minute at a time.
+   *
+   * Credited is capped at the target per order, as in the headline figure:
+   * over-producing one order must not mask a shortfall on another.
+   */
+  async attainmentTrend(
+    factoryId: string | null,
+    from: Date,
+    to: Date,
+    opts: { lineId?: string; skuId?: string } = {},
+  ): Promise<Array<{ date: Date; msaPct: number; credited: number; scheduled: number; orders: number }>> {
+    const orders = await this.prisma.productionOrder.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        ...(opts.skuId ? { skuId: opts.skuId } : {}),
+        ...(opts.lineId ? { workOrders: { some: { lineId: opts.lineId } } } : {}),
+        status: { not: 'CANCELLED' },
+        plannedStart: { lte: to },
+        plannedEnd: { gte: from },
+      },
+      select: {
+        id: true, targetQty: true, unit: true,
+        sku: { select: { unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } },
+      },
+    });
+    if (orders.length === 0) return [];
+
+    // Targets in PIECES, so they can be compared with the fact store's output.
+    const targetPieces = new Map(
+      orders.map((o) => [o.id, toPieces(o.targetQty ?? 0, o.unit, o.sku)]),
+    );
+    const ids = orders.map((o) => o.id);
+
+    // Cumulative good per order per plant-calendar day. The final-step filter is
+    // the same rule the headline uses: a unit that crossed five stations is one
+    // unit, not five.
+    const rows = await this.prisma.$queryRaw<Array<{ day: Date; productionOrderId: string; cumGood: number }>>(Prisma.sql`
+      WITH scoped AS (
+        SELECT *, date_trunc('day', "bucketStart" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Riyadh') AS d
+        FROM production_snapshots
+        WHERE granularity = 'MINUTE'
+          AND "productionOrderId" IN (${Prisma.join(ids)})
+          AND "bucketStart" < ${to}
+      ),
+      fin AS (
+        SELECT "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY "workOrderId"
+      ),
+      daily AS (
+        SELECT s.d, s."productionOrderId",
+               SUM(s."goodBase") FILTER (WHERE s."sequenceOrder" = f.ms)::float8 AS good
+        FROM scoped s JOIN fin f ON f."workOrderId" = s."workOrderId"
+        GROUP BY s.d, s."productionOrderId"
+      )
+      SELECT d AS day, "productionOrderId",
+             SUM(COALESCE(good, 0)) OVER (
+               PARTITION BY "productionOrderId" ORDER BY d
+               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+             )::float8 AS "cumGood"
+      FROM daily ORDER BY d
+    `);
+
+    // Fold into one point per day: every order's credited total as of that day.
+    const byDay = new Map<number, Map<string, number>>();
+    for (const r of rows) {
+      const key = new Date(r.day).getTime();
+      if (!byDay.has(key)) byDay.set(key, new Map());
+      byDay.get(key)!.set(r.productionOrderId, r.cumGood);
+    }
+
+    const scheduled = [...targetPieces.values()].reduce((a, b) => a + b, 0);
+    const carried = new Map<string, number>();
+    const out: Array<{ date: Date; msaPct: number; credited: number; scheduled: number; orders: number }> = [];
+
+    for (const key of [...byDay.keys()].sort((a, b) => a - b)) {
+      if (new Date(key) < new Date(new Date(from).setHours(0, 0, 0, 0))) {
+        // Before the window, but still needed: an order's cumulative total on day
+        // one includes everything it made earlier. Carry it without emitting.
+        for (const [id, v] of byDay.get(key)!) carried.set(id, v);
+        continue;
+      }
+      for (const [id, v] of byDay.get(key)!) carried.set(id, v);
+      let credited = 0;
+      for (const id of ids) credited += Math.min(carried.get(id) ?? 0, targetPieces.get(id) ?? 0);
+      out.push({
+        date: new Date(key),
+        msaPct: scheduled > 0 ? r1((credited / scheduled) * 100) : 0,
+        credited: r1(credited),
+        scheduled: r1(scheduled),
+        orders: ids.length,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Capacity utilisation per plant-calendar day.
+   *
+   * Also derived: the numerator is the fact store's good output for that day, and
+   * the denominator is the routing's rated throughput over that day's hours. The
+   * rate comes from master data that changes a few times a year, so recomputing
+   * it is honest — a stored figure would silently keep quoting a cycle time that
+   * has since been corrected.
+   */
+  async capacityTrend(
+    factoryId: string | null,
+    from: Date,
+    to: Date,
+    opts: { areaId?: string; lineId?: string; machineId?: string; skuId?: string } = {},
+  ): Promise<Array<{ date: Date; utilizationPct: number; actualUnits: number; designedUnits: number }>> {
+    const machines = await this.prisma.machine.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        isActive: true, archivedAt: null,
+        ...(opts.machineId ? { id: opts.machineId } : {}),
+        ...(opts.lineId ? { lineId: opts.lineId } : {}),
+        ...(opts.areaId ? { OR: [{ areaId: opts.areaId }, { line: { areaId: opts.areaId } }] } : {}),
+      },
+      select: { id: true },
+    });
+    if (machines.length === 0) return [];
+
+    const rated = await this.ratedCapacityByMachine(factoryId, machines.map((m) => m.id), { skuId: opts.skuId });
+    // Designed pieces for a full day, summed across the machines that have a rate.
+    const designedPerDay = [...rated.values()].reduce((sum, r) => sum + r.unitsPerHour * 24, 0);
+    if (designedPerDay <= 0) return [];
+
+    const rows = await this.prisma.$queryRaw<Array<{ day: Date; actual: number }>>(Prisma.sql`
+      WITH scoped AS (
+        SELECT *, date_trunc('day', "bucketStart" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Riyadh') AS d
+        FROM production_snapshots
+        WHERE granularity = 'MINUTE'
+          AND "machineId" IN (${Prisma.join(machines.map((m) => m.id))})
+          AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
+      )
+      SELECT d AS day, COALESCE(SUM("goodBase"), 0)::float8 AS actual
+      FROM scoped GROUP BY d ORDER BY d
+    `);
+
+    return rows.map((r) => ({
+      date: r.day,
+      actualUnits: r1(r.actual),
+      designedUnits: r1(designedPerDay),
+      utilizationPct: r1((r.actual / designedPerDay) * 100),
+    }));
+  }
 }

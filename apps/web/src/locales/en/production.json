@@ -2188,7 +2188,11 @@
     "unratedNote": "These machines resolve no rated capacity and therefore add nothing to the denominator: {{names}}. Assign them to an active routing step with a cycle time for a complete figure.",
     "windowNote": "Actual units are summed from the per-minute fact store, so output and designed capacity cover exactly the same window.",
     "availabilityVsSchedule": "Availability vs schedule",
-    "scheduleBasisNote": "This page measures the order against the window it was SCHEDULED for, so time between the planned start and the actual start counts against it. Machine Status and the Availability pages measure the machine against the time it was actually asked to produce. Different questions, both from the same fact store — a lower figure here means the order started late, not that the machine ran worse."
+    "scheduleBasisNote": "This page measures the order against the window it was SCHEDULED for, so time between the planned start and the actual start counts against it. Machine Status and the Availability pages measure the machine against the time it was actually asked to produce. Different questions, both from the same fact store — a lower figure here means the order started late, not that the machine ran worse.",
+    "attainmentTrend": "Attainment over time",
+    "attainmentTrendHelp": "Where each order stood at the end of each day. Derived from the per-minute fact store — the order counter itself only knows today.",
+    "capacityTrend": "Capacity use over time",
+    "capacityTrendHelp": "Daily good output against the routing’s designed throughput for those hours."
   },
   "live": {
     "badge": "LIVE",
