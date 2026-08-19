@@ -112,6 +112,11 @@ export class ModbusPollerService implements OnModuleDestroy {
     const seen = new Set<string>();
     const defaultInterval = this.config.get<number>('defaultPollIntervalMs') ?? 1000;
 
+    // Which tags may drive machine state, decided across ALL devices before any
+    // is rebuilt — the rules are about a MACHINE, and a machine's signals can be
+    // spread over more than one I/O module.
+    const statusDrivers = this.auditStatusTags(configured, defaultInterval);
+
     for (const dev of configured) {
       seen.add(dev.id);
 
@@ -187,7 +192,7 @@ export class ModbusPollerService implements OnModuleDestroy {
           historizationMode: ((t as any).historizationMode as string) ?? 'CHANGE',
           historizationRateSec: ((t as any).historizationRateSec as number) ?? 60,
           deadband: ((t as any).deadband as number | null) ?? null,
-          isMachineStatus: !!(t as any).isMachineStatus,
+          isMachineStatus: statusDrivers.has(t.id),
           statusTag: {
             tagId: t.id,
             factoryId: t.factoryId,
@@ -245,6 +250,105 @@ export class ModbusPollerService implements OnModuleDestroy {
       await d.client.disconnect().catch(() => undefined);
       this.devices.delete(id);
     }
+  }
+
+  /** Warnings already logged, so a reload every few seconds is not a log flood. */
+  private lastAudit = '';
+
+  /**
+   * Decide which tags are allowed to drive machine state, and say plainly when a
+   * signal is configured in a way that cannot work.
+   *
+   * Three configuration faults are silent today. Each one leaves the machine
+   * reading RUNNING, which is indistinguishable from a machine that IS running,
+   * so the plant discovers them only by noticing that availability looks too
+   * good — months later, if at all.
+   */
+  private auditStatusTags(
+    configured: Array<{ name: string; pollIntervalMs: number | null; tagDefinitions: any[] }>,
+    defaultInterval: number,
+  ): Set<string> {
+    const drivers = new Set<string>();
+    const warnings: string[] = [];
+    const perMachine = new Map<string, Array<{ id: string; code: string; role: string | null }>>();
+
+    for (const dev of configured) {
+      const sampleMs = dev.pollIntervalMs ?? defaultInterval;
+      for (const t of dev.tagDefinitions) {
+        const role = (t.signalRole as string | null) ?? null;
+
+        // ── A PROCESSING signal is not a machine state ──────────────────────
+        // "The wrapping table is not turning" means no product is passing, which
+        // is what STARVED is inferred FROM. Letting it set the state directly
+        // makes a starved machine report itself broken, and — where the machine
+        // also has a RUN_MODE bit — puts two writers on one machine's state,
+        // each overwriting the other on every poll.
+        if (t.isMachineStatus && role === 'PROCESSING') {
+          warnings.push(
+            `${t.code}: PROCESSING signals cannot drive machine state — ignored as a status driver. ` +
+            `It remains available to Starved/Blocked detection.`);
+          continue;
+        }
+        if (!t.isMachineStatus) continue;
+        if (!t.machineId) {
+          warnings.push(`${t.code}: marked as the machine-status signal but assigned to no machine — ignored.`);
+          continue;
+        }
+
+        // ── A pulse nobody can see ──────────────────────────────────────────
+        // Nyquist: a square wave is only resolvable when its half-period exceeds
+        // the sample interval, and dependably so at twice it. A lamp flashing at
+        // 1 Hz has a 500 ms half-period and needs sampling at 250 ms or faster.
+        // Below that the bit reads as a steady level — high half the time — and
+        // the machine reports RUNNING however the pulse window is configured.
+        if (role === 'RUN_MODE_PULSED') {
+          const resolvableHz = Math.round(1000 / (4 * sampleMs) * 10) / 10;
+          if (resolvableHz < 1) {
+            warnings.push(
+              `${t.code}: sampled every ${sampleMs} ms on "${dev.name}", which can only resolve a flash ` +
+              `up to ${resolvableHz} Hz. A tower lamp flashes at about 1 Hz and will read as steady. ` +
+              `Set the device poll interval to 250 ms or faster.`);
+          }
+          const windowMs = (t.pulseWindowMs as number | null) ?? 6000;
+          const minEdges = (t.pulseMinEdges as number | null) ?? 4;
+          if (windowMs < minEdges * sampleMs * 2) {
+            warnings.push(
+              `${t.code}: a ${windowMs} ms window cannot hold ${minEdges} edges at a ${sampleMs} ms sample rate.`);
+          }
+        }
+
+        const list = perMachine.get(t.machineId) ?? [];
+        list.push({ id: t.id, code: t.code, role });
+        perMachine.set(t.machineId, list);
+      }
+    }
+
+    // ── One machine, one state signal ─────────────────────────────────────────
+    // Two status tags on a machine do not average out: each writes the state on
+    // every poll, so the machine flips between them and the downtime log fills
+    // with alternating events. Rather than let that continue, one is chosen
+    // deterministically — a run-mode bit over anything else, then by code — and
+    // the conflict is reported instead of being silently resolved differently on
+    // each restart.
+    for (const [machineId, list] of perMachine) {
+      const ordered = [...list].sort((a, b) => {
+        const rank = (r: string | null) => (r === 'RUN_MODE' || r === 'RUN_MODE_PULSED' ? 0 : 1);
+        return rank(a.role) - rank(b.role) || a.code.localeCompare(b.code);
+      });
+      drivers.add(ordered[0].id);
+      if (ordered.length > 1) {
+        warnings.push(
+          `machine ${machineId}: ${ordered.length} tags claim to drive its state ` +
+          `(${ordered.map((o) => o.code).join(', ')}). Using ${ordered[0].code}; the rest are ignored.`);
+      }
+    }
+
+    const digest = warnings.join('|');
+    if (digest !== this.lastAudit) {
+      for (const w of warnings) this.logger.warn(`signal config — ${w}`);
+      this.lastAudit = digest;
+    }
+    return drivers;
   }
 
   private async pollDevice(dev: DeviceRuntime) {

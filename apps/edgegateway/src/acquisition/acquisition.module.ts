@@ -11,6 +11,6 @@ import { ModbusLogService } from './modbus-log.service';
 
 @Module({
   providers: [BufferService, IngestService, CounterService, EnergyReadingService, StatusService, StateInferenceService, AlarmService, ModbusPollerService, ModbusLogService],
-  exports: [ModbusPollerService, IngestService, CounterService, BufferService, ModbusLogService],
+  exports: [ModbusPollerService, IngestService, CounterService, BufferService, ModbusLogService, StatusService],
 })
 export class AcquisitionModule {}

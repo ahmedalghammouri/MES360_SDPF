@@ -210,7 +210,10 @@
         </section>
 
         <section id="tab-signals" class="hidden">
-          <div class="card"><div class="card-h"><span class="ttl">Bound signals</span></div>
+          <div class="card" id="pulseCard" style="display:none"><div class="card-h"><span class="ttl">Pulse detector — live</span><span class="pill"><span class="dot live"></span> updating</span></div>
+            <div class="tbl-wrap"><table><thead><tr><th>Signal</th><th>Machine</th><th>Reading</th><th>Edges in window</th><th>Sample rate</th><th>Verdict</th></tr></thead><tbody id="pulseRows"></tbody></table></div>
+            <div class="hint">Flash the lamp at the machine and watch the edge count here. A pulsing signal reads high half the time, so the level alone always looks like &ldquo;running&rdquo; &mdash; only the edges tell you the signal is arriving.</div></div>
+          <div class="card" style="margin-top:14px"><div class="card-h"><span class="ttl">Bound signals</span></div>
             <div class="tbl-wrap"><table><thead><tr><th>Tag</th><th>Machine</th><th>Address</th><th>Role</th><th>Thresholds</th></tr></thead><tbody id="sigRows"></tbody></table></div></div>
           <div class="card" style="margin-top:14px"><div class="card-h"><span class="ttl">State rules — what a state costs in downtime and OEE</span><button class="sm" onclick="openStateRuleForm()">+ Add Rule</button></div>
             <div class="tbl-wrap"><table><thead><tr><th>State</th><th>Scope</th><th>Downtime</th><th>Planned</th><th>Charged to OEE</th><th>Reason</th><th>Category</th><th>Debounce</th><th></th></tr></thead><tbody id="ruleRows"></tbody></table></div>
@@ -298,6 +301,9 @@
       if(tab==='overview')refreshOverview();
       else if(tab==='tags')pollTagValues();
       else if(tab==='devices')pollDeviceStatus();
+      // Refreshed on the same 1.5 s tick: someone flashing a lamp at the machine
+      // needs to see the edge count move while they are still standing there.
+      else if(tab==='signals')loadPulse();
     }catch{}
   }
 
@@ -415,8 +421,47 @@
   const SEVS=["CRITICAL","HIGH","MEDIUM","LOW","INFO"];
   const CONDS=["GT","GTE","LT","LTE","EQ","NEQ"];
   async function loadSignals(){try{const[tags,rules,alarms,machines]=await Promise.all([api('/tags'),api('/state-rules'),api('/alarm-definitions'),api('/machines')]);
-    cache.tags=tags||[];cache.rules=rules||[];cache.alarms=alarms||[];cache.machines=machines||[];renderSignals()}
+    cache.tags=tags||[];cache.rules=rules||[];cache.alarms=alarms||[];cache.machines=machines||[];renderSignals();loadPulse()}
     catch(e){document.getElementById('ruleRows').innerHTML=emptyRow(9,e.message)}}
+
+  // ── Pulse detector ────────────────────────────────────────────────────────
+  // A RUN_MODE_PULSED signal that never fires and one that is genuinely steady
+  // are identical everywhere else in the system: the machine reads RUNNING both
+  // ways. Standing at the machine and flashing the lamp therefore produced no
+  // feedback at all, which left a wiring fault, a stale gateway build and a poll
+  // too slow to see the flash impossible to tell apart. This card separates them.
+  async function loadPulse(){
+    const card=document.getElementById('pulseCard');
+    try{
+      const rows=await api('/signals/pulse');
+      if(!rows||!rows.length){card.style.display='none';return}
+      card.style.display='';
+      document.getElementById('pulseRows').innerHTML=rows.map(r=>{
+        const d=r.detector;
+        // Ordered so the first true statement is the one worth acting on.
+        let verdict,cls;
+        if(!r.isActive){verdict='Tag is inactive — nothing reads it';cls='off'}
+        else if(!r.drivesMachineState){verdict='Not set as the machine-status signal — read, but nothing acts on it';cls='off'}
+        else if(!d){verdict='Never sampled since start-up — check the device and that this build supports pulsed signals';cls='off'}
+        else if(d.fastestResolvableFlashHz!==null&&d.fastestResolvableFlashHz<1){
+          verdict='Sampled every '+d.observedSampleMs+' ms — too slow to see a 1 Hz lamp. Poll at 250 ms or faster.';cls='off'}
+        else if(!d.everSawAnEdge){verdict='Bit has never changed — the signal is not reaching this input';cls='off'}
+        else if(d.pulsing){verdict='Pulsing — machine reported as stopped';cls='on'}
+        else{verdict='Steady — machine reported as '+(d.level?'running':'alarm / e-stop');cls='neutral'}
+        const reading=d?(d.level?'HIGH':'LOW'):'—';
+        const edges=d?d.edgesInWindow+' / '+d.minEdges+' in '+d.windowMs+' ms':'—';
+        const rate=d&&d.observedSampleMs!==null
+          ?d.observedSampleMs+' ms <span style="color:hsl(var(--muted-fg))">(sees up to '+d.fastestResolvableFlashHz+' Hz)</span>'
+          :(r.devicePollIntervalMs?r.devicePollIntervalMs+' ms configured':'—');
+        return '<tr><td class="mono" style="color:#8fb3ae;font-weight:600">'+esc(r.code)+'</td>'
+          +'<td>'+esc(r.machine||'—')+'</td>'
+          +'<td class="mono val">'+reading+'</td>'
+          +'<td class="mono">'+edges+'</td>'
+          +'<td class="mono">'+rate+'</td>'
+          +'<td><span class="tg '+cls+'">'+esc(verdict)+'</span></td></tr>'
+      }).join('')
+    }catch{card.style.display='none'}
+  }
   function renderSignals(){
     const sig=cache.tags.filter(x=>x.isMachineStatus||x.signalRole);
     document.getElementById('sigRows').innerHTML=sig.map(x=>`<tr>

@@ -15,6 +15,14 @@ import { join } from 'node:path';
  * archive discovered then leaves the plant with nothing.
  */
 describe('BackupService.importArchive', () => {
+  // Several of these reach pg_restore, which is a process spawn. Under a full
+  // parallel run that has exceeded jest's 5 s default and failed the suite for a
+  // reason that had nothing to do with the code — a flaky test is worse than no
+  // test, because it teaches people to re-run instead of read. The allowance is
+  // set for the whole suite rather than per test, so a new case that also spawns
+  // does not inherit the flake.
+  jest.setTimeout(30_000);
+
   let dir: string;
   let BackupService: any;
 
@@ -63,10 +71,6 @@ describe('BackupService.importArchive', () => {
     await expect(svc().importArchive(user, {} as never)).rejects.toThrow(/No file was uploaded/i);
   });
 
-  // This one reaches pg_restore, which is a process spawn. Under a full parallel
-  // run that has exceeded jest's 5s default and failed the suite for a reason that
-  // had nothing to do with the code — a flaky test is worse than no test, because
-  // it teaches people to re-run instead of read.
   it('does not write a sidecar for a rejected archive', async () => {
     // A sidecar is what makes a backup appear in the list. One written for an
     // archive that failed validation would offer a restore that cannot work.
@@ -75,7 +79,7 @@ describe('BackupService.importArchive', () => {
 
     const left = await readdir(dir);
     expect(left.filter((f) => f.endsWith('.json'))).toEqual([]);
-  }, 30_000);
+  });
 
   it('generates its own id and never trusts the uploaded filename', async () => {
     // The id becomes a path. "../../etc/passwd.dump" as a filename must not be able

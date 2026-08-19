@@ -93,6 +93,42 @@ const PULSE_WINDOW_DEFAULT_MS = 6_000;
 /** Two full cycles inside the window — one edge could be an ordinary start/stop. */
 const PULSE_MIN_EDGES_DEFAULT = 4;
 
+/** How many sample intervals to average when reporting the observed poll rate. */
+const SAMPLE_GAPS_KEPT = 50;
+
+interface PulseState {
+  last: boolean;
+  at: number[];
+  samples: number;
+  lastSampleAt: number;
+  gaps: number[];
+  windowMs: number;
+  minEdges: number;
+  machineId: string | null;
+  sawEdgeOnce?: boolean;
+}
+
+/** One pulsed signal as the detector currently sees it — see pulseDiagnostics(). */
+export interface PulseDiagnostic {
+  tagId: string;
+  machineId: string | null;
+  pulsing: boolean;
+  edgesInWindow: number;
+  minEdges: number;
+  windowMs: number;
+  /** The level of the last sample. On its own this is what misleads: a pulsing
+   *  signal reads high half the time, so a single look says "running". */
+  level: boolean;
+  samples: number;
+  /** Measured, not configured. null until two samples have arrived. */
+  observedSampleMs: number | null;
+  /** The fastest flash this sample rate can be trusted to resolve. */
+  fastestResolvableFlashHz: number | null;
+  lastSampleAgoMs: number | null;
+  lastEdgeAgoMs: number | null;
+  everSawAnEdge: boolean;
+}
+
 /**
  * Drives a machine's live state from its designated status tag:
  *   • BOOL → true = RUNNING; false = BREAKDOWN (unplanned stop) when a JO is in
@@ -123,7 +159,7 @@ export class StatusService {
   }
 
   /** Recent transitions per tag, for signals whose meaning is in their rhythm. */
-  private readonly edges = new Map<string, { last: boolean; at: number[] }>();
+  private readonly edges = new Map<string, PulseState>();
 
   /** Configured rules, cached briefly so a poll loop is not a query storm. */
   private ruleCache = new Map<string, { at: number; rule: StateRule }>();
@@ -184,14 +220,73 @@ export class StatusService {
     const windowMs = tag.pulseWindowMs ?? PULSE_WINDOW_DEFAULT_MS;
     const minEdges = tag.pulseMinEdges ?? PULSE_MIN_EDGES_DEFAULT;
     const now = Date.now();
-    const e = this.edges.get(tagId) ?? { last: on, at: [] };
+    const e = this.edges.get(tagId) ?? {
+      last: on, at: [], samples: 0, lastSampleAt: 0, gaps: [],
+      windowMs, minEdges, machineId: tag.machineId,
+    };
+    // The OBSERVED interval between samples, not the configured one. A device
+    // set to 100 ms whose block read takes 400 ms is sampling at 400 ms, and a
+    // lamp flashing faster than twice that is invisible however the pulse window
+    // is configured. Nothing else in the gateway reports this, which is why a
+    // signal can be correct everywhere on screen and still never be seen.
+    if (e.lastSampleAt > 0) {
+      e.gaps.push(now - e.lastSampleAt);
+      if (e.gaps.length > SAMPLE_GAPS_KEPT) e.gaps.shift();
+    }
+    e.lastSampleAt = now;
+    e.samples += 1;
+    e.windowMs = windowMs;
+    e.minEdges = minEdges;
+    e.machineId = tag.machineId;
+
     if (on !== e.last) {
       e.at.push(now);
       e.last = on;
+      e.sawEdgeOnce = true;
     }
     e.at = e.at.filter((t) => now - t <= windowMs);
     this.edges.set(tagId, e);
     return e.at.length >= minEdges;
+  }
+
+  /**
+   * What the pulse detector is actually seeing, per tag.
+   *
+   * A pulsed signal that does not work looks identical from every screen in the
+   * system to one that is simply steady: the machine reads RUNNING either way.
+   * The difference is only visible here — whether edges are arriving at all, and
+   * whether the sampler is fast enough to have seen them if they were.
+   */
+  pulseDiagnostics(): PulseDiagnostic[] {
+    const now = Date.now();
+    return [...this.edges.entries()].map(([tagId, e]) => {
+      const recent = e.at.filter((t) => now - t <= e.windowMs);
+      const sampleMs = e.gaps.length > 0
+        ? Math.round(e.gaps.reduce((a, b) => a + b, 0) / e.gaps.length)
+        : null;
+      // Nyquist: a square wave is only resolvable when its half-period exceeds
+      // the sample interval, and reliably so at twice it. Expressed as the
+      // fastest flash this sampler can be trusted to see.
+      const fastestFlashHz = sampleMs && sampleMs > 0 ? Math.round(1000 / (4 * sampleMs) * 10) / 10 : null;
+      return {
+        tagId,
+        machineId: e.machineId,
+        pulsing: recent.length >= e.minEdges,
+        edgesInWindow: recent.length,
+        minEdges: e.minEdges,
+        windowMs: e.windowMs,
+        level: e.last,
+        samples: e.samples,
+        observedSampleMs: sampleMs,
+        fastestResolvableFlashHz: fastestFlashHz,
+        lastSampleAgoMs: e.lastSampleAt > 0 ? now - e.lastSampleAt : null,
+        lastEdgeAgoMs: e.at.length > 0 ? now - e.at[e.at.length - 1] : null,
+        // The window holds only recent edges, so a signal that has never changed
+        // since the gateway started is indistinguishable from one that stopped
+        // changing an hour ago — except by this.
+        everSawAnEdge: e.samples > 1 && (e.at.length > 0 || e.sawEdgeOnce === true),
+      };
+    });
   }
 
   private async derive(tag: StatusTag, numeric: number): Promise<string | null> {

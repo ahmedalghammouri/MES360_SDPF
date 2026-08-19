@@ -10,6 +10,7 @@ import { GatewayContextService } from '../context/gateway-context.service';
 import { ModbusPollerService } from '../acquisition/modbus-poller.service';
 import { BufferService } from '../acquisition/buffer.service';
 import { ModbusLogService } from '../acquisition/modbus-log.service';
+import { StatusService } from '../acquisition/status.service';
 import { METER_TEMPLATES, instantiateMeterTags, instantiateEdgeCounterTags, type EdgeCounterBlocks } from '@mes360/industrial-drivers';
 import { readConfigFile, writeConfigFile } from '../config/config-store';
 import { AuthService } from './auth.service';
@@ -31,6 +32,7 @@ export class LocalApiController {
     private readonly mlog: ModbusLogService,
     private readonly auth: AuthService,
     private readonly config: ConfigService,
+    private readonly statusSvc: StatusService,
   ) {}
 
   @Post('auth/login')
@@ -483,6 +485,55 @@ export class LocalApiController {
       orderBy: { timestamp: 'desc' },
       take: 200,
     });
+  }
+
+  /**
+   * What the pulse detector sees, live.
+   *
+   * A RUN_MODE_PULSED signal that never fires and one that is genuinely steady
+   * look the same from every screen: the machine reads RUNNING. Standing at the
+   * machine and flashing the lamp therefore produces no feedback at all, which
+   * is how a wiring fault, a stale gateway build and a too-slow poll became
+   * indistinguishable in the field.
+   *
+   * Each row answers the three questions separately:
+   *   • `everSawAnEdge` false  → the bit is not changing. The signal is not
+   *     reaching this input; look at the tap, not at the software.
+   *   • edges arriving but `edgesInWindow` below `minEdges` → it is changing too
+   *     slowly, or the window is too short for this lamp.
+   *   • `fastestResolvableFlashHz` below the lamp's rate → the sampler cannot
+   *     see it whatever it does. Poll faster; no other setting will help.
+   *
+   * An empty array means no pulsed tag is configured; a row whose `detector` is
+   * null means the tag has never been sampled — it is inactive, unassigned to a
+   * device, or this build predates RUN_MODE_PULSED.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('signals/pulse')
+  async pulseSignals() {
+    const factoryId = this.ctx.getFactoryId();
+    const configured = await this.prisma.tagDefinition.findMany({
+      where: { ...(factoryId ? { factoryId } : {}), signalRole: 'RUN_MODE_PULSED' },
+      select: {
+        id: true, code: true, name: true, isActive: true, isMachineStatus: true,
+        pulseWindowMs: true, pulseMinEdges: true,
+        machine: { select: { code: true } }, device: { select: { name: true, pollIntervalMs: true } },
+      },
+    });
+    const seen = new Map(this.statusSvc.pulseDiagnostics().map((d) => [d.tagId, d]));
+    return configured.map((t) => ({
+      code: t.code,
+      name: t.name,
+      machine: t.machine?.code ?? null,
+      device: t.device?.name ?? null,
+      devicePollIntervalMs: t.device?.pollIntervalMs ?? null,
+      isActive: t.isActive,
+      // A pulsed signal that does not drive the machine's state is inert: it is
+      // read and historized, and nothing acts on it.
+      drivesMachineState: t.isMachineStatus,
+      configured: { windowMs: t.pulseWindowMs, minEdges: t.pulseMinEdges },
+      detector: seen.get(t.id) ?? null,
+    }));
   }
 
   /** Tail of the Modbus error log (timeouts, CRC/port errors) for the dashboard. */

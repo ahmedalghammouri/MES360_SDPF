@@ -32,7 +32,7 @@ describe('StatusService — three states on one bit', () => {
     const derive = (tag: StatusTag, v: number) => (svc as never as {
       derive(t: StatusTag, n: number): Promise<string | null>;
     }).derive(tag, v);
-    return { derive };
+    return { derive, svc };
   }
 
   const pulsedTag: StatusTag = {
@@ -110,5 +110,127 @@ describe('StatusService — three states on one bit', () => {
     // is decided later, by the PROCESSING signal.
     const { derive } = build();
     expect(await derive(plainTag, 1)).toBe('RUNNING');
+  });
+});
+
+/**
+ * The gap every test above leaves open.
+ *
+ * Each of them calls `derive` once per LEVEL CHANGE, which quietly assumes the
+ * gateway sees every edge. In the field `derive` is called once per POLL, and an
+ * edge that falls between two polls did not happen as far as the detector is
+ * concerned. A signal can therefore be wired correctly, configured correctly and
+ * pulsing correctly, and still report RUNNING for ever.
+ *
+ * That is what was reported from the line on 19 Aug 2026: the lamp was flashed,
+ * and the machine never left RUNNING.
+ */
+describe('StatusService — sampling a flashing lamp', () => {
+  function build() {
+    const prisma = {
+      jobOrder: { count: jest.fn().mockResolvedValue(1) },
+      machineCurrentStatus: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
+      downtimeEvent: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
+      workOrder: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
+    };
+    const inference = { classify: jest.fn(async (_m: string, s: string) => s) };
+    const svc = new StatusService(prisma as never, inference as never);
+    const derive = (tag: StatusTag, v: number) => (svc as never as {
+      derive(t: StatusTag, n: number): Promise<string | null>;
+    }).derive(tag, v);
+    return { derive, svc };
+  }
+
+  const pulsed: StatusTag = {
+    tagId: 'm4-run', factoryId: 'f1', machineId: 'm4',
+    dataType: 'BOOL', statusMap: null, signalRole: 'RUN_MODE_PULSED',
+    pulseWindowMs: 6000, pulseMinEdges: 4,
+  };
+
+  /**
+   * Poll a 1 Hz lamp — 500 ms high, 500 ms low — at a given sample interval,
+   * with the clock advancing exactly as it would on the line.
+   */
+  async function poll(
+    derive: (t: StatusTag, v: number) => Promise<string | null>,
+    sampleMs: number, forMs: number,
+  ): Promise<string | null> {
+    const HALF_PERIOD_MS = 500;
+    const realNow = Date.now;
+    const t0 = realNow();
+    let last: string | null = null;
+    try {
+      for (let elapsed = 0; elapsed <= forMs; elapsed += sampleMs) {
+        Date.now = () => t0 + elapsed;
+        const high = Math.floor(elapsed / HALF_PERIOD_MS) % 2 === 0;
+        last = await derive(pulsed, high ? 1 : 0);
+      }
+    } finally {
+      Date.now = realNow;
+    }
+    return last;
+  }
+
+  it('sees the flash when sampled fast enough', async () => {
+    // 100 ms — five samples per half-cycle. This is what an EdgeCounter device
+    // polls at by default, and it resolves the lamp comfortably.
+    const { derive } = build();
+    expect(await poll(derive, 100, 10_000)).toBe('IDLE');
+  });
+
+  it('reports RUNNING for ever when sampled at the flash rate', async () => {
+    // 1000 ms against a 1 Hz lamp lands on the same phase of every cycle. The bit
+    // reads as a constant — and a pulsing signal is high half the time, so the
+    // constant it reads is "on". No pulse window or edge count can recover an
+    // edge that was never sampled; this is a property of the sample rate alone.
+    const { derive } = build();
+    expect(await poll(derive, 1000, 60_000)).toBe('RUNNING');
+  });
+
+  it('is unreliable at exactly Nyquist', async () => {
+    // 500 ms is precisely the half-period — the boundary case that looks
+    // reasonable on paper and cannot be depended on. Whatever it reports, it is
+    // not a rate anyone should configure.
+    const { derive } = build();
+    const state = await poll(derive, 500, 60_000);
+    expect(['RUNNING', 'IDLE']).toContain(state);
+  });
+
+  // ── Making the failure visible ──────────────────────────────────────────────
+  it('reports the sample rate it actually achieved, not the one configured', async () => {
+    // The number that matters is measured: a device set to 100 ms whose block
+    // read takes 400 ms is sampling at 400 ms, and nothing else in the gateway
+    // says so.
+    const { derive, svc } = build();
+    await poll(derive, 1000, 10_000);
+
+    const [d] = svc.pulseDiagnostics();
+    expect(d.observedSampleMs).toBe(1000);
+    expect(d.fastestResolvableFlashHz).toBeLessThan(1); // cannot see a 1 Hz lamp
+  });
+
+  it('separates "no signal arriving" from "signal too fast to see"', async () => {
+    // The two field faults that look identical from every screen. A stuck bit
+    // never changes; an aliased one changes and is never sampled changing. Only
+    // the edge count tells them apart, and the operator needs that distinction
+    // to know whether to look at the wiring or at the poll rate.
+    const stuck = build();
+    for (let i = 0; i < 20; i++) await stuck.derive(pulsed, 1);
+    expect(stuck.svc.pulseDiagnostics()[0].everSawAnEdge).toBe(false);
+
+    const aliased = build();
+    await poll(aliased.derive, 1000, 60_000);
+    expect(aliased.svc.pulseDiagnostics()[0].everSawAnEdge).toBe(false);
+    expect(aliased.svc.pulseDiagnostics()[0].observedSampleMs).toBe(1000);
+  });
+
+  it('shows a healthy signal as pulsing, with the edges it counted', async () => {
+    const { derive, svc } = build();
+    await poll(derive, 100, 10_000);
+
+    const [d] = svc.pulseDiagnostics();
+    expect(d.pulsing).toBe(true);
+    expect(d.edgesInWindow).toBeGreaterThanOrEqual(d.minEdges);
+    expect(d.machineId).toBe('m4');
   });
 });

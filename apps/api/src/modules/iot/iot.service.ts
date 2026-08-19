@@ -404,6 +404,46 @@ export class IotService {
     }
   }
 
+  /**
+   * A machine has exactly one state, and a PROCESSING signal is not it.
+   *
+   * Both faults were live on 19 Aug 2026: the Uni-Tech wrapping table's rotation
+   * bit was flagged as M5's status signal alongside its run-mode bit. Each wrote
+   * the machine's state on every 100 ms poll, so M5 flipped between them, and
+   * "the table is not turning" — which is what STARVED is inferred FROM — was
+   * being read as "the machine is broken".
+   *
+   * Neither shows up as an error anywhere: the machine still displays a state,
+   * and the state still looks plausible. So they are refused at the point they
+   * are configured rather than diagnosed months later from the downtime log.
+   */
+  private async assertStatusSignalSane(
+    factoryId: string, machineId: string | null,
+    isMachineStatus: boolean | undefined, signalRole: string | null | undefined,
+    excludeTagId?: string,
+  ): Promise<void> {
+    if (!isMachineStatus) return;
+    if (signalRole === 'PROCESSING') {
+      throw new ConflictException(
+        'A PROCESSING signal cannot drive machine state. It measures whether product is flowing, ' +
+        'which is what Starved and Blocked are inferred from — read as a state it reports every ' +
+        'gap between units as a fault. Bind it as PROCESSING and leave the run-mode bit as the status signal.');
+    }
+    if (!machineId) return;
+    const clash = await this.prisma.tagDefinition.findFirst({
+      where: {
+        factoryId, machineId, isMachineStatus: true, isActive: true,
+        ...(excludeTagId ? { NOT: { id: excludeTagId } } : {}),
+      },
+      select: { code: true, machine: { select: { code: true } } },
+    });
+    if (clash) {
+      throw new ConflictException(
+        `${clash.machine?.code ?? 'This machine'} already takes its state from ${clash.code}. ` +
+        'Two status signals overwrite each other on every poll. Clear the flag on that tag first.');
+    }
+  }
+
   async createDevice(factoryId: string | null, dto: {
     name: string; deviceCode: string; type: string; protocol: string;
     ipAddress?: string; port?: number; machineId?: string; firmware?: string;
@@ -539,6 +579,7 @@ export class IotService {
   }) {
     const resolvedFactoryId = factoryId ?? await this.getDefaultFactoryId();
     await this.assertCounterRoleUnique(resolvedFactoryId, dto.machineId || null, dto.counterRole, dto.tagType);
+    await this.assertStatusSignalSane(resolvedFactoryId, dto.machineId || null, dto.isMachineStatus, dto.signalRole);
     const scope = await this.resolveScope({ machineId: dto.machineId, lineId: dto.lineId, areaId: dto.areaId });
     return this.prisma.tagDefinition.create({
       data: {
@@ -606,6 +647,13 @@ export class IotService {
     const effRole = dto.counterRole !== undefined ? dto.counterRole : (tag.counterRole as string | null);
     const effType = dto.tagType !== undefined ? dto.tagType : tag.tagType;
     await this.assertCounterRoleUnique(tag.factoryId, effMachineId, effRole, effType, id);
+    // Same rules on the effective (post-update) values: flipping the flag ON, or
+    // moving an already-flagged tag to a machine that has one, is the same fault.
+    await this.assertStatusSignalSane(
+      tag.factoryId, effMachineId,
+      dto.isMachineStatus !== undefined ? dto.isMachineStatus : tag.isMachineStatus,
+      dto.signalRole !== undefined ? dto.signalRole : (tag.signalRole as string | null),
+      id);
     const scopeTouched = dto.machineId !== undefined || dto.lineId !== undefined || dto.areaId !== undefined;
     const scope = scopeTouched
       ? await this.resolveScope({ machineId: dto.machineId ?? null, lineId: dto.lineId ?? null, areaId: dto.areaId ?? null })
