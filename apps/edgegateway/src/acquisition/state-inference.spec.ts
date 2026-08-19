@@ -91,12 +91,11 @@ describe('StateInferenceService', () => {
     expect(await svc.classify('m3', 'BREAKDOWN')).toBe('STARVED');
   });
 
-  it('keeps a stop as BREAKDOWN when the machine before it was still feeding', async () => {
-    // The model changed at the plant's request: BLOCKED is now inferred from the
-    // machine BEFORE, not the machines after. Work was arriving and this one
-    // stopped anyway, so the stop is its own and must be charged to availability.
+  it('calls a stop BLOCKED when everything downstream has stopped', async () => {
+    // The wrapper is down and the pallets have backed up to the cartoner. BLOCKED
+    // means "nowhere to discharge", so it is the machines AFTER that decide it.
     const svc = build({ m1: RUNNING, m2: RUNNING, m3: 'BREAKDOWN', m4: 'BREAKDOWN', m5: 'BREAKDOWN' });
-    expect(await svc.classify('m3', 'BREAKDOWN')).toBe('BREAKDOWN');
+    expect(await svc.classify('m3', 'BREAKDOWN')).toBe('BLOCKED');
   });
 
   it('leaves the stop alone when the neighbours are running — the fault is here', async () => {
@@ -107,8 +106,7 @@ describe('StateInferenceService', () => {
   it('never starves the FIRST machine on the line — nothing feeds it', async () => {
     // Whole line down. m1 has no upstream, so its stop stays its own.
     const svc = build({ m1: 'BREAKDOWN', m2: 'BREAKDOWN', m3: 'BREAKDOWN', m4: 'BREAKDOWN', m5: 'BREAKDOWN' });
-    // Nothing feeds it and nothing can excuse it: the stop stays its own.
-    expect(await svc.classify('m1', 'BREAKDOWN')).toBe('BREAKDOWN');
+    expect(await svc.classify('m1', 'BREAKDOWN')).toBe('BLOCKED'); // downstream is stopped
   });
 
   it('never blocks the LAST machine on the line — nothing follows it', async () => {
@@ -145,24 +143,24 @@ describe('StateInferenceService', () => {
   // wrapping table's rotation is the only thing that distinguishes working from
   // waiting. These are the tests that matter for tracker IDs 10 and 11.
   describe('ready but not processing (NCC signal semantics)', () => {
-    it('calls the wrapper BLOCKED when Run Mode is ON, the table is still, and the line is feeding', async () => {
-      // Product IS arriving from the machine before, and this one is not consuming
-      // it — so something ahead of it is holding it. Under the earlier model this
-      // read STARVED, which was wrong whenever the feeder was demonstrably running.
-      const svc = build(
-        { m1: RUNNING, m2: RUNNING, m3: RUNNING, m4: RUNNING, m5: RUNNING },
-        [{ machineId: 'm5', signalRole: 'PROCESSING', value: 0 }],
-      );
-      expect(await svc.classify('m5', RUNNING)).toBe('BLOCKED');
-    });
-
-    it('calls it STARVED when the machine before it has stopped', async () => {
-      // Nothing is arriving, so the wrapper is waiting rather than jammed.
+    it('calls the wrapper STARVED when the table is still and nothing is arriving', async () => {
+      // The wrapper is last on the line, so it can never be blocked. Its feeder
+      // has stopped, so it simply has no pallet.
       const svc = build(
         { m1: RUNNING, m2: RUNNING, m3: RUNNING, m4: 'BREAKDOWN', m5: RUNNING },
         [{ machineId: 'm5', signalRole: 'PROCESSING', value: 0 }],
       );
       expect(await svc.classify('m5', RUNNING)).toBe('STARVED');
+    });
+
+    it('leaves it RUNNING when the table is still but the line is healthy', async () => {
+      // Fed, able to discharge, and not processing: nothing OUTSIDE the machine
+      // explains it, and inventing an excuse would move a real loss out of OEE.
+      const svc = build(
+        { m1: RUNNING, m2: RUNNING, m3: RUNNING, m4: RUNNING, m5: RUNNING },
+        [{ machineId: 'm5', signalRole: 'PROCESSING', value: 0 }],
+      );
+      expect(await svc.classify('m5', RUNNING)).toBe(RUNNING);
     });
 
     it('leaves the wrapper RUNNING while the table IS rotating', async () => {
@@ -173,10 +171,8 @@ describe('StateInferenceService', () => {
       expect(await svc.classify('m5', RUNNING)).toBe(RUNNING);
     });
 
-    it('is BLOCKED while its feeder runs, whatever is happening downstream', async () => {
-      // Downstream is no longer consulted. The feeder is running, so material is
-      // arriving and this machine is not taking it — that is a blockage, and it
-      // reads the same whether the machines after it are up or down.
+    it('calls it BLOCKED when it is the downstream that has stopped', async () => {
+      // Not processing, and nothing downstream can accept: backed up, not starved.
       const svc = build(
         { m1: RUNNING, m2: RUNNING, m3: RUNNING, m4: 'BREAKDOWN', m5: 'BREAKDOWN' },
         [{ machineId: 'm3', signalRole: 'PROCESSING', value: 0 }],
@@ -202,10 +198,21 @@ describe('StateInferenceService', () => {
     });
   });
 
-  it('requires ALL upstream machines to be stopped, not just one', async () => {
-    // m1 is down but m2 is still running, so material is still arriving.
+  it('asks the machine directly before it, not every machine up the line', async () => {
+    // m1 is down two places back, but m2 — the station that actually feeds m3 —
+    // is still running and passing on what it already has. So m3 is not starved
+    // yet; it will be when m2 runs dry, and m2's own state will say so then.
     const svc = build({ m1: 'BREAKDOWN', m2: RUNNING, m3: 'BREAKDOWN', m4: RUNNING, m5: RUNNING });
     expect(await svc.classify('m3', 'BREAKDOWN')).toBe('BREAKDOWN');
+  });
+
+  it('starves from its immediate feeder alone, even with the rest of the line up', async () => {
+    // The opposite case, and the common one: only m2 is down. Material reaches m3
+    // through m2 and nowhere else, so m3 starves whatever m1 is doing. Requiring
+    // every upstream machine to be stopped missed exactly this — a single-station
+    // failure, which is most of them.
+    const svc = build({ m1: RUNNING, m2: 'BREAKDOWN', m3: 'BREAKDOWN', m4: RUNNING, m5: RUNNING });
+    expect(await svc.classify('m3', 'BREAKDOWN')).toBe('STARVED');
   });
 
   it('prefers a bound material signal over inference from neighbours', async () => {
@@ -255,12 +262,11 @@ describe('StateInferenceService', () => {
       expect(await svc.classify('m4', 'BREAKDOWN')).toBe('BREAKDOWN');
     });
 
-    it('stays BREAKDOWN when its feeder was running, whatever is behind it', async () => {
-      // Downstream no longer classifies anything, so the cascade this section
-      // guards against cannot arise on that side at all. What remains is the rule
-      // that matters: m3 was feeding m4, so m4's stop is m4's own.
+    it('is still BLOCKED by a downstream machine stopped for its own reason', async () => {
+      // The guard excuses a downstream that is STARVED, not one that is genuinely
+      // broken. m5 is down on its own account, so m4 really has nowhere to send.
       const svc = build({ m1: RUNNING, m2: RUNNING, m3: RUNNING, m4: 'BREAKDOWN', m5: 'BREAKDOWN' });
-      expect(await svc.classify('m4', 'BREAKDOWN')).toBe('BREAKDOWN');
+      expect(await svc.classify('m4', 'BREAKDOWN')).toBe('BLOCKED');
     });
 
     it('is not STARVED by an upstream machine that is merely BLOCKED', async () => {

@@ -126,22 +126,32 @@ export class StateInferenceService {
       const fromSignal = await this.fromMaterialSignals(machineId);
       if (fromSignal) return fromSignal;
 
-      // Rule 3 — the truth table.
+      // Rule 3 — why is this machine not producing?
       //
-      //   RUN  PROC   upstream        state
-      //   ───  ────   ─────────────   ──────────
-      //    1     1    —               RUNNING
-      //    1     0    stopped         STARVED     nothing is arriving
-      //    1     0    running         BLOCKED     product is arriving and this
-      //                                           machine is not consuming it, so
-      //                                           something ahead is holding it
-      //    0    0/1   stopped         STARVED     it shut down for want of work
-      //    0    0/1   running         BREAKDOWN   work was there and it stopped
+      //   RUN  PROC   cause                    state
+      //   ───  ────   ──────────────────────   ──────────
+      //    1     1    —                        RUNNING
+      //    1     0    nothing arriving         STARVED
+      //    1     0    cannot discharge         BLOCKED
+      //    0    0/1   nothing arriving         STARVED
+      //    0    0/1   cannot discharge         BLOCKED
+      //    0    0/1   neither                  BREAKDOWN
       //
-      // The upstream neighbour decides both halves. That is the whole model: on a
-      // serial line, whether material is arriving is the only question that
-      // separates "waiting" from "at fault", and the machine before you is the
-      // one that answers it.
+      // STARVED and BLOCKED name WHERE the cause is, and the two point in opposite
+      // directions along the line:
+      //
+      //   STARVED  nothing is arriving  → the machine BEFORE  (upstream)
+      //   BLOCKED  nowhere to discharge → the machine AFTER   (downstream)
+      //
+      // So each is asked of its own side. An earlier version inferred BLOCKED
+      // from "the machine before is running" — arguing that if material arrives
+      // and is not consumed, something ahead must be holding it. That is a proxy,
+      // not the thing itself: a machine can be fed, idle, and simply faulty, and
+      // the proxy would file its breakdown as an external loss.
+      //
+      // Upstream is asked first. When nothing is arriving AND nothing can be
+      // discharged, the true constraint is the one starving the line — that is
+      // where a fix has to go.
       const running = PRODUCING_RAW.has(rawState);
       const processing = await this.processingNow(machineId);
 
@@ -152,12 +162,27 @@ export class StateInferenceService {
       // the machine as it reported itself.
       if (running && processing === null) return rawState;
 
-      const fed = await this.upstreamIsFeeding(machineId);
-      if (fed === null) return running ? rawState : rawState; // head of line, or unknown
+      // Ready-but-idle and stopped ask the same question, so they share the
+      // answer: what, outside this machine, would explain it producing nothing?
+      const { upstream, downstream } = await this.neighbours(machineId);
 
-      if (running) return fed ? 'BLOCKED' : 'STARVED';
-      // Stopped. Starved only if nothing was coming; otherwise it is its own fault.
-      return fed ? rawState : 'STARVED';
+      // The IMMEDIATE neighbour on each side, not every machine on that side.
+      // This is a serial line: material reaches you through the station directly
+      // before you, so if that one is down you starve whether or not the filler
+      // three places back is running — it is simply backing up behind the gap.
+      // Requiring ALL of them to be stopped missed every single-station failure,
+      // which is the common case.
+      const feeder = upstream.length > 0 ? [upstream[upstream.length - 1]] : [];
+      const receiver = downstream.length > 0 ? [downstream[0]] : [];
+
+      // A line end has no neighbour on that side: the first machine can never be
+      // starved by an upstream that does not exist, nor the last one blocked by a
+      // missing downstream.
+      if (feeder.length > 0 && (await this.notFeeding(feeder))) return 'STARVED';
+      if (receiver.length > 0 && (await this.notAccepting(receiver))) return 'BLOCKED';
+
+      // Fed, able to discharge, and still not producing — that is its own.
+      return rawState;
     } catch (err) {
       // Inference is an enrichment. If it fails, record the honest raw state
       // rather than losing the stop entirely.
@@ -198,42 +223,6 @@ export class StateInferenceService {
     return idleFor < limit ? true : false;
   }
 
-  /**
-   * Is the machine immediately before this one sending product down?
-   *
-   * The IMMEDIATE predecessor, not all of them: on a serial line the machine that
-   * feeds you is the one directly ahead, and whether the first station is running
-   * says nothing about what is reaching the fifth.
-   *
-   * `null` at the head of the line — there is no upstream to be starved by — and
-   * when its state is unknown, which must not be read as either answer.
-   */
-  private async upstreamIsFeeding(machineId: string): Promise<boolean | null> {
-    const { upstream } = await this.neighbours(machineId);
-    if (upstream.length === 0) return null;
-
-    // `neighbours` returns them in sortOrder, so the last is the nearest.
-    const nearest = upstream[upstream.length - 1];
-    const row = await this.prisma.machineCurrentStatus.findUnique({
-      where: { machineId: nearest },
-      select: { state: true },
-    });
-    if (!row) return null;
-    const state = String(row.state);
-    if (PRODUCING_RAW.has(state)) return true;
-
-    // One exception to "upstream stopped means nothing is arriving", and it is not
-    // a detail. A BLOCKED upstream HAS product and cannot get rid of it — usually
-    // because this machine stopped taking it. Reading that as starvation blames
-    // the machine in front for a jam this one caused, files the loss as external,
-    // and removes it from OEE. The machine would be rewarded for its own blockage.
-    //
-    // So a blocked predecessor counts as feeding: there is material waiting, and
-    // whatever is wrong is on this side of it.
-    if (state === 'BLOCKED') return true;
-
-    return false;
-  }
 
   /**
    * A machine reporting RUNNING that is not actually processing anything.
