@@ -101,7 +101,37 @@ export class IngestService {
     return emit;
   }
 
+  /**
+   * The live value of a tag, plus the last moment it was known to be ACTIVE.
+   *
+   * Those are two different facts and they used to be one column. `timestamp`
+   * says when the value was last WRITTEN; starvation detection needs to know when
+   * the signal was last ON. Under CHANGE publishing a write only happens on a
+   * change, so the two agreed and the confusion went unnoticed — until a gateway
+   * restart, where the first reading of every tag is written unconditionally and
+   * a signal that had been dead for an hour was stamped "now".
+   *
+   * `lastActiveAt` moves on exactly two occasions: while the signal reads active,
+   * and on the edge where it stops being active — that edge is the instant
+   * idleness begins. On any other write it is left alone, which is what makes an
+   * hour of stillness survive a restart.
+   */
   private async writeCurrentValue(rec: TagReadingRecord): Promise<void> {
+    const at = new Date(rec.timestamp);
+    const active = (rec.numeric ?? 0) >= 1;
+
+    // Read before write so the falling edge can be recognised. This path is
+    // change-gated, so it runs on transitions rather than on every poll.
+    const prev = await this.prisma.tagCurrentValue
+      .findUnique({ where: { tagId: rec.tagId }, select: { value: true, lastActiveAt: true } })
+      .catch(() => null);
+    const wasActive = prev ? Number(prev.value) >= 1 || prev.value === 'true' : false;
+
+    // Active now, or active until this very reading. Anything else keeps what is
+    // already recorded — including the "no change, just restarted" write that
+    // caused this.
+    const lastActiveAt = active || wasActive ? at : (prev?.lastActiveAt ?? null);
+
     await this.prisma.tagCurrentValue.upsert({
       where: { tagId: rec.tagId },
       create: {
@@ -109,12 +139,14 @@ export class IngestService {
         factoryId: rec.factoryId,
         value: rec.value,
         quality: rec.quality as any,
-        timestamp: new Date(rec.timestamp),
+        timestamp: at,
+        lastActiveAt,
       },
       update: {
         value: rec.value,
         quality: rec.quality as any,
-        timestamp: new Date(rec.timestamp),
+        timestamp: at,
+        lastActiveAt,
       },
     });
   }

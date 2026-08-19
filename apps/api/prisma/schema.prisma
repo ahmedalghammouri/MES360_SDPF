@@ -2437,6 +2437,19 @@ model TagCurrentValue {
   quality   TagQuality @default(GOOD)
   timestamp DateTime   @default(now())
 
+  /// The last moment this signal was known to be ACTIVE — separate from
+  /// `timestamp`, which records when the value was last WRITTEN.
+  ///
+  /// Starvation detection asks "how long has the wrapping table been still?" and
+  /// used to answer it with `timestamp`. Under CHANGE publishing the two agree in
+  /// the steady state, which is why it tested green; they part company on a
+  /// gateway restart, where every tag's first reading is written and a signal
+  /// dead for an hour is stamped "now". The machine then reported RUNNING — and
+  /// was credited with run time it did not do — for a full idle window after
+  /// every restart. Kept as its own column so the two questions can never be
+  /// confused again.
+  lastActiveAt DateTime?
+
   tag TagDefinition @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@map("tag_current_values")

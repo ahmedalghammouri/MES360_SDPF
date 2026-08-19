@@ -157,10 +157,29 @@ export class StateInferenceService {
 
       if (running && processing === true) return 'RUNNING';
 
-      // No PROCESSING signal wired, or no trustworthy reading: there is nothing
-      // to infer from and a guess here would move real losses out of OEE. Leave
-      // the machine as it reported itself.
-      if (running && processing === null) return rawState;
+      // No PROCESSING signal wired, or no trustworthy reading. There is nothing
+      // to say whether product is moving THROUGH this machine — but whether any
+      // is ARRIVING is a separate question, and the station in front answers it.
+      // Its recorded state is a measurement; only the missing signal is silence.
+      //
+      // This matters most exactly where it is missing. NCC's machines hold Run
+      // Mode ON while starved, and the Euro-Pack Robot's bit pulses only in stop
+      // mode — starvation is not stop mode. So a starved M4 sat with a steady ON
+      // bit reading RUNNING, and the starvation that had propagated correctly
+      // from M1 to M3 stopped dead there: M5 asked its feeder, M4 said RUNNING,
+      // and two machines were credited with run time while the line had made
+      // nothing for an hour.
+      //
+      // Only the upstream side is inferred here. A stopped feeder means nothing
+      // can be arriving, which is conclusive; a stopped receiver does not mean
+      // this machine cannot discharge, because it may still be filling the buffer
+      // between them. Blockage without a processing signal stays unclaimed.
+      if (running && processing === null) {
+        const { upstream } = await this.neighbours(machineId);
+        const feeder = upstream.length > 0 ? [upstream[upstream.length - 1]] : [];
+        if (feeder.length > 0 && (await this.notFeeding(feeder))) return 'STARVED';
+        return rawState;
+      }
 
       // Ready-but-idle and stopped ask the same question, so they share the
       // answer: what, outside this machine, would explain it producing nothing?
@@ -210,7 +229,10 @@ export class StateInferenceService {
     if (!tag) return null;
 
     const reading = await this.prisma.tagCurrentValue
-      .findUnique({ where: { tagId: tag.id }, select: { value: true, quality: true, timestamp: true } })
+      .findUnique({
+        where: { tagId: tag.id },
+        select: { value: true, quality: true, timestamp: true, lastActiveAt: true },
+      })
       .catch(() => null);
     if (!reading || reading.quality === 'BAD') return null;
 
@@ -218,53 +240,22 @@ export class StateInferenceService {
 
     // Off right now, but a wrapper rests between pallets and a filler does not.
     // Only a gap longer than that signal's own slowest normal cycle counts.
-    const idleFor = Date.now() - new Date(reading.timestamp).getTime();
+    //
+    // Measured from when the signal was last ACTIVE, not from when its value was
+    // last WRITTEN. The two agree while the gateway runs; they part company on a
+    // restart, which writes every tag's first reading and so used to stamp a
+    // signal dead for an hour as "just now" — reporting the machine RUNNING, and
+    // crediting it with run time, for a full idle window after every restart.
+    //
+    // `timestamp` remains the fallback for a row written before this column
+    // existed: that is the old behaviour, and it corrects itself the moment the
+    // signal is next seen active.
+    const since = reading.lastActiveAt ?? reading.timestamp;
+    const idleFor = Date.now() - new Date(since).getTime();
     const limit = tag.idleThresholdMs ?? PROCESSING_IDLE_DEFAULT_MS;
     return idleFor < limit ? true : false;
   }
 
-
-  /**
-   * A machine reporting RUNNING that is not actually processing anything.
-   *
-   * Returns STARVED or BLOCKED when its PROCESSING signal has been inactive long
-   * enough to rule out the normal gap between units, and null otherwise — null
-   * meaning "leave it as RUNNING", which is the safe answer whenever there is no
-   * PROCESSING signal, no reading, or a reading the gateway distrusts.
-   *
-   * Direction is decided by the line: nothing arriving from upstream is
-   * starvation; nowhere to send it downstream is blockage. A machine at the end of
-   * the line cannot be blocked, and one at the head cannot be starved.
-   */
-  private async readyButIdle(machineId: string): Promise<string | null> {
-    const tag = await this.prisma.tagDefinition.findFirst({
-      where: { machineId, isActive: true, signalRole: PROCESSING },
-      select: { id: true, idleThresholdMs: true },
-    });
-    if (!tag) return null; // no way to tell — do not guess
-
-    const reading = await this.prisma.tagCurrentValue
-      .findUnique({ where: { tagId: tag.id }, select: { value: true, quality: true, timestamp: true } })
-      .catch(() => null);
-    if (!reading || reading.quality === 'BAD') return null;
-
-    // Active right now, or active recently enough to be mid-cycle.
-    if (Number(reading.value) >= 1) return null;
-    const idleFor = Date.now() - new Date(reading.timestamp).getTime();
-    // Per-SIGNAL, because the right value is that signal's slowest normal cycle:
-    // a wrapper table rests for minutes between pallets, a filler does not.
-    const idleLimit = tag.idleThresholdMs ?? PROCESSING_IDLE_DEFAULT_MS;
-    if (idleFor < idleLimit) return null;
-
-    const { upstream, downstream } = await this.neighbours(machineId);
-    if (upstream.length > 0 && (await this.notFeeding(upstream))) return 'STARVED';
-    if (downstream.length > 0 && (await this.notAccepting(downstream))) return 'BLOCKED';
-
-    // Idle with the line apparently running around it. On a serial line the
-    // commonest cause is still nothing arriving, and the head of the line is the
-    // one place that cannot be true.
-    return upstream.length > 0 ? 'STARVED' : null;
-  }
 
   /**
    * A material-flow signal bound to this machine, if one is configured.
