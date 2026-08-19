@@ -162,6 +162,42 @@ describe('live and analytics are separate by construction', () => {
     });
   });
 
+  describe('every dashboard subject carries both readings', () => {
+    const web = join(__dirname, '../../../../web/src');
+    const read = (rel: string) => readFileSync(join(web, rel), 'utf8');
+
+    it.each([
+      'features/production/oee-page.tsx',
+      'features/production/availability-page.tsx',
+      'features/production/performance-page.tsx',
+      'features/production/quality-page.tsx',
+      'features/production/loss-tree-page.tsx',
+      'features/production/schedule-capacity-page.tsx',
+      'features/manufacturing/machine-status-page.tsx',
+    ])('%s pairs a live half with an analytics half', (file) => {
+      // A subject with only one reading is the arrangement that started this: a
+      // reader had to know in advance which menu entry held the figure they
+      // wanted, and could not compare the two.
+      const src = read(file);
+      expect(src).toContain('LiveAnalyticsTabs');
+      expect(src).toMatch(/live=\{</);
+      expect(src).toMatch(/analytics=\{</);
+    });
+
+    it('routes those pages at the subject URL, not a second one', () => {
+      // The tabbed page replaces the old analytics-only route rather than adding
+      // a sibling — two URLs for one subject is the split all over again.
+      const app = join(web, 'app/(platform)');
+      for (const [route, comp] of [
+        ['production/oee/page.tsx', 'OeePage'],
+        ['production/availability-analytics/page.tsx', 'AvailabilityPage'],
+        ['manufacturing/machine-status/page.tsx', 'MachineStatusPage'],
+      ] as const) {
+        expect(readFileSync(join(app, route), 'utf8')).toContain(comp);
+      }
+    });
+  });
+
   describe('both answer with the same arithmetic', () => {
     it('routes through the canonical aggregate in kpi.service', () => {
       for (const s of [live, analytics]) expect(s).toContain('machineFactTotals(');

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { PerformanceAnalyticsView } from '@/features/production/performance-analytics-view';
+import { PerformancePage } from '@/features/production/performance-page';
 
-export const metadata: Metadata = { title: 'Performance Analytics | MES360°' };
+export const metadata: Metadata = { title: 'Performance | MES360°' };
 
-export default function Page() { return <PerformanceAnalyticsView />; }
+export default function Page() { return <PerformancePage />; }

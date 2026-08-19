@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
-import { MachineStatusView } from '@/features/manufacturing/machine-status-view';
+import { MachineStatusPage } from '@/features/manufacturing/machine-status-page';
 
 export const metadata: Metadata = { title: 'Machine Status | MES360°' };
 
-export default function MachineStatusPage() {
-  return <MachineStatusView />;
-}
+export default function Page() { return <MachineStatusPage />; }

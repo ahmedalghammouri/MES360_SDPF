@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { AvailabilityAnalyticsView } from '@/features/production/availability-analytics-view';
+import { AvailabilityPage } from '@/features/production/availability-page';
 
-export const metadata: Metadata = { title: 'Availability Analytics | MES360°' };
+export const metadata: Metadata = { title: 'Availability | MES360°' };
 
-export default function Page() { return <AvailabilityAnalyticsView />; }
+export default function Page() { return <AvailabilityPage />; }

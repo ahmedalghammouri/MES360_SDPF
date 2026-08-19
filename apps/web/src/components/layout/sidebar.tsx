@@ -141,21 +141,25 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    // Analytics only. Everything here reads history and takes the full filter set;
-    // the live counterparts live under "Now" so the two can never be confused for
-    // one another on the same screen.
-    label: 'OEE Analytics',
+    // Each subject carries both readings on its own page now. The dedicated live
+    // screens under "Now" remain for wall displays, where a tab nobody is standing
+    // next to is a tab nobody can switch.
+    label: 'OEE',
     icon: Gauge,
     appHref: '/production/oee',
     children: [
-      { label: 'OEE (Now + Analytics)', href: '/production/oee', icon: LineChart, badge: '2 tabs', badgeVariant: 'outline' },
-      { label: 'Machine OEE',   href: '/manufacturing/oee', icon: Activity  },
-      { label: 'Machine Status',  href: '/manufacturing/machine-status', icon: Activity },
-      { label: 'Availability Analytics', href: '/production/availability-analytics', icon: Clock },
-      { label: 'Performance Analytics',  href: '/production/performance-analytics',  icon: Gauge },
-      { label: 'Quality Analytics',      href: '/production/quality-analytics',      icon: ShieldCheck },
-      { label: 'Loss Tree & TEEP',       href: '/production/loss-tree',              icon: Layers, badge: 'New', badgeVariant: 'default' },
-      { label: 'Schedule & Capacity',    href: '/production/schedule-capacity',      icon: Target, badge: 'New', badgeVariant: 'default' },
+      // Every entry here opens on two tabs — Now and Analytics — so a reader
+      // asking about a subject no longer has to know in advance which of two
+      // menu items holds the reading they want. The names are the subject, not
+      // the reading: "Availability", not "Availability Analytics".
+      { label: 'OEE',          href: '/production/oee',                    icon: LineChart },
+      { label: 'Machine OEE',  href: '/manufacturing/oee',                 icon: Activity  },
+      { label: 'Machine Status', href: '/manufacturing/machine-status',    icon: Activity },
+      { label: 'Availability', href: '/production/availability-analytics', icon: Clock },
+      { label: 'Performance',  href: '/production/performance-analytics',  icon: Gauge },
+      { label: 'Quality',      href: '/production/quality-analytics',      icon: ShieldCheck },
+      { label: 'Loss Tree & TEEP',    href: '/production/loss-tree',       icon: Layers },
+      { label: 'Schedule & Capacity', href: '/production/schedule-capacity', icon: Target },
     ],
   },
   {

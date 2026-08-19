@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { ScheduleCapacityView } from '@/features/production/schedule-capacity-view';
+import { ScheduleCapacityPage } from '@/features/production/schedule-capacity-page';
 
-export const metadata: Metadata = { title: 'Schedule & Capacity Analytics | MES360°' };
+export const metadata: Metadata = { title: 'Schedule & Capacity | MES360°' };
 
-export default function Page() { return <ScheduleCapacityView />; }
+export default function Page() { return <ScheduleCapacityPage />; }

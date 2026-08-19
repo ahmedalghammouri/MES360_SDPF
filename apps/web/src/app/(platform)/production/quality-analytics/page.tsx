@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { QualityAnalyticsView } from '@/features/production/quality-analytics-view';
+import { QualityPage } from '@/features/production/quality-page';
 
-export const metadata: Metadata = { title: 'Quality Analytics | MES360°' };
+export const metadata: Metadata = { title: 'Quality | MES360°' };
 
-export default function Page() { return <QualityAnalyticsView />; }
+export default function Page() { return <QualityPage />; }
