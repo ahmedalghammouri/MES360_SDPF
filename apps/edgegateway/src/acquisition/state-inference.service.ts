@@ -204,7 +204,26 @@ export class StateInferenceService {
       if (feeder.length > 0 && (await this.notFeeding(feeder))) return 'STARVED';
       if (receiver.length > 0 && (await this.notAccepting(receiver))) return 'BLOCKED';
 
-      // Fed, able to discharge, and still not producing — that is its own.
+      // ── Ready, and not processing: it is WAITING ───────────────────────────
+      // Its own process signal says no product is moving through it, and its Run
+      // Mode says it is able to work. A machine in that condition is not at
+      // fault, it is waiting for something to arrive — and on a serial line the
+      // only thing to wait for is the station in front.
+      //
+      // The neighbour checks above did not explain it, but they only see whether
+      // a neighbour is STOPPED. A feeder that is running slower than this machine
+      // starves it just as surely: the wrapper takes 115 s a pallet and the
+      // palletiser 255 s, so the wrapper waits over two minutes of every cycle
+      // with the whole line reporting healthy. That gap is invisible to topology
+      // and plain in the machine's own signal.
+      //
+      // The head of the line is the one place this cannot be true — nothing feeds
+      // it, so it cannot be waiting on anything.
+      if (running && upstream.length > 0) return 'STARVED';
+
+      // A machine that actually STOPPED, with work arriving and somewhere to send
+      // it, stopped for its own reasons. That is a breakdown and it stays one:
+      // this branch is reached only when Run Mode itself went off.
       return rawState;
     } catch (err) {
       // Inference is an enrichment. If it fails, record the honest raw state

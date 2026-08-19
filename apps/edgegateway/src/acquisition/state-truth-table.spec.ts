@@ -94,11 +94,21 @@ describe('StateInferenceService — the truth table', () => {
     await expect(s.classify(ME, RUN)).resolves.toBe('BLOCKED');
   });
 
-  it('RUN 1 + PROC 0 + fed and able to discharge → stays RUNNING', async () => {
-    // Nothing outside the machine explains it. Calling this STARVED or BLOCKED
-    // would excuse an internal problem as somebody else's.
+  it('RUN 1 + PROC 0 + neighbours running → STARVED, because it is waiting', async () => {
+    // Ready and not processing is not a fault, it is a wait — and the only thing
+    // to wait for is the station in front. The neighbour checks above see only
+    // whether a neighbour is STOPPED; a feeder that is simply slower starves this
+    // machine every cycle while the whole line reports healthy.
     const s = build({ states: allRunning, processing: 0 });
-    await expect(s.classify(ME, RUN)).resolves.toBe(RUN);
+    await expect(s.classify(ME, RUN)).resolves.toBe('STARVED');
+  });
+
+  it('RUN 0 + neighbours running → BREAKDOWN, because it stopped', async () => {
+    // The distinction that keeps the rule above honest. Waiting and stopping are
+    // different things: work was arriving and could be passed on, and Run Mode
+    // went off anyway. That is its own, and it is charged to its availability.
+    const s = build({ states: { ...allRunning, m3: 'BREAKDOWN' }, processing: 0 });
+    await expect(s.classify(ME, 'BREAKDOWN')).resolves.toBe('BREAKDOWN');
   });
 
   // ── RUN = 0 ───────────────────────────────────────────────────────────────

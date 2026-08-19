@@ -184,14 +184,18 @@ describe('StateInferenceService', () => {
       expect(await svc.classify('m5', RUNNING)).toBe('STARVED');
     });
 
-    it('leaves it RUNNING when the table is still but the line is healthy', async () => {
-      // Fed, able to discharge, and not processing: nothing OUTSIDE the machine
-      // explains it, and inventing an excuse would move a real loss out of OEE.
+    it('calls it STARVED when the table is still, even with the line healthy', async () => {
+      // Ready and not processing means WAITING, and on a serial line the only
+      // thing to wait for is the station in front. "Healthy" here only means no
+      // neighbour is STOPPED — a feeder that is merely SLOWER starves this
+      // machine just as surely. The wrapper takes 115 s a pallet and the
+      // palletiser 255 s, so it waits over two minutes of every normal cycle
+      // with every machine on the line reporting fine.
       const svc = build(
         { m1: RUNNING, m2: RUNNING, m3: RUNNING, m4: RUNNING, m5: RUNNING },
         [{ machineId: 'm5', signalRole: 'PROCESSING', value: 0 }],
       );
-      expect(await svc.classify('m5', RUNNING)).toBe(RUNNING);
+      expect(await svc.classify('m5', RUNNING)).toBe('STARVED');
     });
 
     it('leaves the wrapper RUNNING while the table IS rotating', async () => {
