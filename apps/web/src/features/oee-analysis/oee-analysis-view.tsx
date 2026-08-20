@@ -31,6 +31,10 @@ import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { useOeeMode } from '@/hooks/use-oee-mode';
 import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
+import {
+  OverviewPanel,
+  type TrendPoint, type TimelineSegment, type ProductionDetails,
+} from './overview-panel';
 
 interface Bar { key: string; minutes: number; pct: number; kind: 'base' | 'loss' | 'result' }
 interface Slice {
@@ -49,7 +53,26 @@ interface Payload extends Slice {
   jobOrders: Slice[];
   shifts: Slice[];
   states: Array<{ state: string | null; minutes: number; rows: number }>;
+  trend: TrendPoint[];
+  timeline: TimelineSegment[];
+  production: ProductionDetails;
 }
+
+/**
+ * The analyses this page will hold, in the reference's own order.
+ *
+ * Listed in full from the start, with the ones not yet built visibly disabled.
+ * A menu that grows an item at a time tells a reader nothing about what is
+ * coming; one that shows the whole shape says exactly how far along it is.
+ */
+const ANALYSES = [
+  { key: 'overview', label: 'Overview', blurb: 'Comprehensive overview of the machine KPIs and status.', ready: true },
+  { key: 'availability', label: 'Availability', blurb: 'Detailed overview of availability and its most relevant KPIs.', ready: false },
+  { key: 'performance', label: 'Performance', blurb: 'Detailed overview of performance and its most relevant KPIs.', ready: false },
+  { key: 'quality', label: 'Quality', blurb: 'Detailed overview of quality and its most relevant KPIs.', ready: false },
+  { key: 'loss', label: 'Loss overview', blurb: 'Investigate TEEP and the different losses.', ready: false },
+  { key: 'downtime', label: 'Downtime analysis', blurb: 'Detailed analysis of downtime reasons.', ready: false },
+] as const;
 
 /**
  * Both engines' bar keys in one map. The schedule basis adds two levels the
@@ -99,6 +122,8 @@ export function OeeAnalysisView() {
     refetchInterval: 30_000,
   });
 
+  const [analysis, setAnalysis] = React.useState<(typeof ANALYSES)[number]['key']>('overview');
+
   const d = q.data;
   const isSchedule = engine === 'schedule';
   const topMin = isSchedule ? d?.time.committedMin : d?.time.totalMin;
@@ -135,6 +160,27 @@ export function OeeAnalysisView() {
           panel. The two are not meant to agree; the gap between them is the schedule adherence.
         </p>
       </header>
+
+      {/* ── Which analysis ── */}
+      <div className="flex flex-wrap gap-2">
+        {ANALYSES.map((a) => (
+          <button
+            key={a.key}
+            onClick={() => a.ready && setAnalysis(a.key)}
+            disabled={!a.ready}
+            title={a.ready ? a.blurb : `${a.blurb} — not built yet`}
+            className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
+              analysis === a.key
+                ? 'border-primary/40 bg-primary/15 font-semibold text-primary'
+                : a.ready
+                  ? 'border-border/60 text-muted-foreground hover:text-foreground'
+                  : 'cursor-not-allowed border-dashed border-border/40 text-muted-foreground/50'
+            }`}
+          >
+            {a.label}{!a.ready && ' ·'}
+          </button>
+        ))}
+      </div>
 
       {q.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
       {q.isError && <p className="text-sm text-destructive">Could not load this window.</p>}
@@ -181,6 +227,18 @@ export function OeeAnalysisView() {
               <b>{mins(d.time.notYetReachedMin)}</b> of it is time the orders have not reached yet
               and is counted against them. Mid-slot this is a progress figure, not a verdict.
             </p>
+          )}
+
+          {analysis === 'overview' && (
+            <OverviewPanel
+              oee={d.oee} availability={d.availability}
+              performance={d.performance} quality={d.quality}
+              trend={d.trend ?? []}
+              production={d.production}
+              timeline={d.timeline ?? []}
+              operationalMin={d.time.operationalMin}
+              usedOperationalMin={d.time.usedOperationalMin}
+            />
           )}
 
           <section className="rounded-lg border border-border/60 bg-card p-4">

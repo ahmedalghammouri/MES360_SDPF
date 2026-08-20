@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 
 import { OeeScheduleService, type ScheduleScope } from './oee-schedule.service';
 import { OeeScheduleWriter } from './oee-schedule.writer';
+import { StateTimelineService } from '../oee-standard/state-timeline.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { resolveLocalRange } from '../../common/plant-time.util';
@@ -31,6 +32,7 @@ export class OeeScheduleController {
   constructor(
     private readonly service: OeeScheduleService,
     private readonly writer: OeeScheduleWriter,
+    private readonly timeline: StateTimelineService,
   ) {}
 
   @Get()
@@ -38,6 +40,7 @@ export class OeeScheduleController {
   @ApiOperation({ summary: 'The committed-slot time model, per machine, job order and shift' })
   @ApiQuery({ name: 'dateFrom', required: false, description: 'YYYY-MM-DD, plant-local' })
   @ApiQuery({ name: 'dateTo', required: false, description: 'YYYY-MM-DD, plant-local' })
+  @ApiQuery({ name: 'granularity', required: false, description: 'hour | day' })
   @ApiQuery({ name: 'areaId', required: false })
   @ApiQuery({ name: 'machineId', required: false })
   @ApiQuery({ name: 'lineId', required: false })
@@ -47,6 +50,7 @@ export class OeeScheduleController {
     @CurrentUser() user: RequestUser,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('granularity') granularity?: string,
     @Query('areaId') areaId?: string,
     @Query('machineId') machineId?: string,
     @Query('lineId') lineId?: string,
@@ -67,14 +71,20 @@ export class OeeScheduleController {
     };
     const f = user.factoryId;
 
-    const [overview, machines, jobOrders, shifts, states] = await Promise.all([
+    const g = granularity === 'day' ? 'day' : 'hour';
+    const [overview, machines, jobOrders, shifts, trend, states, segments] = await Promise.all([
       this.service.overview(f, from, to, slotTo, scope),
       this.service.byMachine(f, from, to, slotTo, scope),
       this.service.byJobOrder(f, from, to, slotTo, scope),
       this.service.byShift(f, from, to, slotTo, scope),
+      this.service.trend(f, from, to, slotTo, g, scope),
       this.service.stateBreakdown(f, from, to, scope),
+      this.timeline.segments(f, from, to, { areaId, lineId, machineId }),
     ]);
-    return { ...overview, machines, jobOrders, shifts, states };
+    return {
+      ...overview, machines, jobOrders, shifts, trend, states, granularity: g,
+      timeline: segments, production: this.timeline.details(segments),
+    };
   }
 
   /** Capture one minute on demand, for a compressed verification run. */

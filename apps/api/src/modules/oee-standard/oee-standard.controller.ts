@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 
 import { OeeStandardService, type OeeScope } from './oee-standard.service';
 import { OeeStandardWriter } from './oee-standard.writer';
+import { StateTimelineService } from './state-timeline.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { resolveLocalRange } from '../../common/plant-time.util';
@@ -24,6 +25,7 @@ export class OeeStandardController {
   constructor(
     private readonly service: OeeStandardService,
     private readonly writer: OeeStandardWriter,
+    private readonly timeline: StateTimelineService,
   ) {}
 
   private scope(q: Record<string, string | undefined>): OeeScope {
@@ -65,15 +67,21 @@ export class OeeStandardController {
     const f = user.factoryId;
     const g = granularity === 'day' ? 'day' : 'hour';
 
-    const [overview, machines, jobOrders, shifts, trend, states] = await Promise.all([
+    const [overview, machines, jobOrders, shifts, trend, states, segments] = await Promise.all([
       this.service.overview(f, from, to, scope),
       this.service.byMachine(f, from, to, scope),
       this.service.byJobOrder(f, from, to, scope),
       this.service.byShift(f, from, to, scope),
       this.service.trend(f, from, to, g, scope),
       this.service.stateBreakdown(f, from, to, scope),
+      this.timeline.segments(f, from, to, { areaId, lineId, machineId }),
     ]);
-    return { ...overview, machines, jobOrders, shifts, trend, states, granularity: g };
+    // The episode counts come from the same segments the chart draws, so the
+    // number under the bar and the blocks in it can never tell two stories.
+    return {
+      ...overview, machines, jobOrders, shifts, trend, states, granularity: g,
+      timeline: segments, production: this.timeline.details(segments),
+    };
   }
 
   /**

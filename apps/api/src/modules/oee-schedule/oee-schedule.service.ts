@@ -237,6 +237,79 @@ export class OeeScheduleService {
     }));
   }
 
+  /**
+   * A trend, bucketed by hour or day.
+   *
+   * The slot is collapsed per job order INSIDE each bucket, not across the
+   * window: an order spanning six hours belongs to six buckets, and its slot has
+   * to be clipped into each of them or one bucket claims the whole thing.
+   */
+  async trend(
+    factoryId: string | null, from: Date, to: Date, slotTo: Date,
+    granularity: 'hour' | 'day' = 'hour',
+    scope: ScheduleScope = {},
+  ): Promise<Array<ScheduleSlice & { at: Date }>> {
+    // The unit is chosen from a closed set in code and emitted as SQL text, not
+    // bound as a parameter. Two reasons, both learned here: Postgres cannot prove
+    // two PARAMETERISED date_trunc calls are the same expression, so grouping by
+    // one and reusing the other fails with 42803; and `'1 ' || $1` has to be cast
+    // at runtime. Neither is an injection risk when the only two values are
+    // written out below.
+    const unitSql = granularity === 'day' ? Prisma.sql`'day'` : Prisma.sql`'hour'`;
+    const oneBucket = granularity === 'day' ? Prisma.sql`interval '1 day'` : Prisma.sql`interval '1 hour'`;
+
+    const rows = await this.prisma.$queryRaw<Array<ScheduleTotals & { at: Date }>>(Prisma.sql`
+      WITH minute_rows AS (
+        SELECT date_trunc(${unitSql}, o."bucketStart") AS at,
+               o."jobOrderId", o."committedFrom", o."committedTo",
+               o."totalMin", o."plannedStopMin", o."availabilityLossMin", o."externalLossMin",
+               o."unmeasuredMin", o."operatingMin", o."goodParts", o."rejectedParts", o."theoreticalParts",
+               j."actualStart"
+        FROM oee_schedule_minutes o
+        JOIN job_orders j ON j.id = o."jobOrderId"
+        WHERE ${this.where(factoryId, from, to, scope)}
+      ),
+      per_bucket AS (
+        SELECT at, "jobOrderId",
+               -- The slot is clipped INTO each bucket, not across the window: an
+               -- order spanning six hours belongs to six of them, and without the
+               -- clip one bucket claims the whole slot.
+               GREATEST(MIN("committedFrom"), at)             AS "slotFrom",
+               LEAST(MAX("committedTo"), at + ${oneBucket})   AS "slotTo",
+               MIN("actualStart") AS "actualStart",
+               COALESCE(SUM("totalMin"), 0)::float8            AS "elapsedMin",
+               COALESCE(SUM("plannedStopMin"), 0)::float8      AS "plannedStopMin",
+               COALESCE(SUM("availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
+               COALESCE(SUM("externalLossMin"), 0)::float8     AS "externalLossMin",
+               COALESCE(SUM("unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
+               COALESCE(SUM("operatingMin"), 0)::float8        AS "operatingMin",
+               COALESCE(SUM("goodParts"), 0)::float8           AS "goodParts",
+               COALESCE(SUM("rejectedParts"), 0)::float8       AS "rejectedParts",
+               COALESCE(SUM("theoreticalParts"), 0)::float8    AS "theoreticalParts"
+        FROM minute_rows GROUP BY at, "jobOrderId"
+      )
+      SELECT at,
+        COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (p."slotTo" - p."slotFrom")) / 60)), 0)::float8 AS "committedMin",
+        COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (
+          LEAST(COALESCE(p."actualStart", p."slotFrom"), p."slotTo") - p."slotFrom"
+        )) / 60)), 0)::float8 AS "notStartedMin",
+        COALESCE(SUM(p."elapsedMin"), 0)::float8          AS "elapsedMin",
+        COALESCE(SUM(p."plannedStopMin"), 0)::float8      AS "plannedStopMin",
+        COALESCE(SUM(p."availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
+        COALESCE(SUM(p."externalLossMin"), 0)::float8     AS "externalLossMin",
+        COALESCE(SUM(p."unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
+        COALESCE(SUM(p."operatingMin"), 0)::float8        AS "operatingMin",
+        COALESCE(SUM(p."goodParts"), 0)::float8           AS "goodParts",
+        COALESCE(SUM(p."rejectedParts"), 0)::float8       AS "rejectedParts",
+        COALESCE(SUM(p."theoreticalParts"), 0)::float8    AS "theoreticalParts"
+      FROM per_bucket p
+      GROUP BY at ORDER BY at
+    `);
+    return rows.map((r) => ({
+      at: r.at, key: r.at.toISOString(), label: r.at.toISOString(), ...computeSchedule(r),
+    }));
+  }
+
   /** Why the minutes went where they did. */
   async stateBreakdown(factoryId: string | null, from: Date, to: Date, scope: ScheduleScope = {}) {
     return this.prisma.$queryRaw<Array<{ state: string | null; minutes: number; rows: number }>>(Prisma.sql`

@@ -4,6 +4,7 @@ import { DatabaseModule } from '../../database/database.module';
 import { OeeStandardService } from './oee-standard.service';
 import { OeeStandardWriter } from './oee-standard.writer';
 import { OeeStandardController } from './oee-standard.controller';
+import { StateTimelineService } from './state-timeline.service';
 
 /**
  * The standard OEE engine — self-contained on purpose.
@@ -15,7 +16,7 @@ import { OeeStandardController } from './oee-standard.controller';
 @Module({
   imports: [DatabaseModule],
   controllers: [OeeStandardController],
-  providers: [OeeStandardService, OeeStandardWriter],
-  exports: [OeeStandardService],
+  providers: [OeeStandardService, OeeStandardWriter, StateTimelineService],
+  exports: [OeeStandardService, StateTimelineService],
 })
 export class OeeStandardModule {}
