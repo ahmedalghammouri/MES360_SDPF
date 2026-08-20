@@ -29,7 +29,10 @@ const API = (process.env.API_URL || 'http://localhost:8080/api/v1').replace(/\/$
 const EMAIL = process.env.API_EMAIL || 'admin@mes360.sa';
 const PASSWORD = process.env.API_PASSWORD || 'Password@123';
 const KEEP = process.argv.includes('--keep');
-const WANTED = (process.argv[process.argv.indexOf('--scenario') + 1] || 'default').replace(/^--.*/, 'default');
+// indexOf returns -1 when the flag is absent, and argv[0] is the node binary —
+// so the naive `argv[indexOf(flag) + 1]` reports the interpreter as a scenario name.
+const scenarioAt = process.argv.indexOf('--scenario');
+const WANTED = scenarioAt >= 0 ? (process.argv[scenarioAt + 1] || 'default') : 'default';
 
 const MIN = 60_000;
 const prisma = new PrismaClient();
@@ -93,8 +96,17 @@ const SCENARIOS = {
   },
 };
 
-/** What the reference formulas say this scenario must produce. */
-function expected(scenario) {
+/**
+ * What the reference formulas say this scenario must produce.
+ *
+ * @param piecesPerPart how many PIECES one counted part is worth. The engine
+ *   stores every quantity on the packaging ladder's bottom rung so machines
+ *   counting inners, cartons and pallets can be added together. A scenario that
+ *   counts "parts" therefore has to say which rung it means, or a wrapper making
+ *   180 pallets is compared against 180 pieces and the engine looks 160x wrong
+ *   while being exactly right. That is what the first run of this script did.
+ */
+function expected(scenario, piecesPerPart = 1) {
   const producing = new Set(['RUNNING']);
   // Mirrors the fallback State Rules the writer uses when the plant has none.
   const planned = new Set(['CHANGEOVER', 'SETUP', 'PLANNED_STOP', 'MAINTENANCE']);
@@ -112,13 +124,14 @@ function expected(scenario) {
     else if (external.has(s.state)) externalLossMin += s.minutes;
     else availabilityLossMin += s.minutes;
 
-    const parts = s.minutes * s.partsPerMin;
+    const parts = s.minutes * s.partsPerMin * piecesPerPart;
     const bad = parts * (s.rejectPct / 100);
     good += parts - bad;
     rejected += bad;
   }
 
-  const designSpeedPph = 3600 / scenario.designCycleSec;
+  // Design speed is seconds per OUTPUT unit, so it climbs the same ladder.
+  const designSpeedPph = (3600 / scenario.designCycleSec) * piecesPerPart;
   const theoretical = (operatingMin / 60) * designSpeedPph;
 
   const operationalMin = Math.max(0, totalMin - plannedStopMin - externalLossMin - unmeasuredMin);
@@ -141,6 +154,18 @@ function expected(scenario) {
   };
 }
 
+/** Pieces in one unit of `unit`, for this SKU's packaging ladder. */
+function ladderFactor(unit, sku) {
+  const inner = Math.max(1, sku?.unitsPerInner || 1);
+  const carton = Math.max(1, sku?.innersPerCarton || 1) * inner;
+  const pallet = Math.max(1, sku?.cartonsPerPallet || 1) * carton;
+  const rung = String(unit || 'PIECE').toUpperCase();
+  if (rung.startsWith('INNER') || rung === 'BAG' || rung === 'POUCH') return inner;
+  if (rung.startsWith('CARTON') || rung === 'CTN' || rung === 'BOX' || rung === 'CASE') return carton;
+  if (rung.startsWith('PALLET') || rung === 'PLT') return pallet;
+  return 1;
+}
+
 const r1 = (n) => (n == null ? null : Math.round(n * 10) / 10);
 const fmt = (n) => (n == null ? '  —  ' : `${r1(n).toFixed(1)}`.padStart(6));
 
@@ -151,10 +176,20 @@ async function login() {
     body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
   });
   if (!res.ok) throw new Error(`login failed (${res.status}) — is the API up at ${API}?`);
-  const body = await res.json();
+  const body = unwrap(await res.json());
   const token = body.accessToken || body.access_token || body.token;
   if (!token) throw new Error('login returned no token');
   return token;
+}
+
+/**
+ * The API wraps every response as { success, data, timestamp }. Unwrapping in
+ * one place keeps the envelope from being half-handled — which is how this
+ * script first reported "login returned no token" against a login that had
+ * plainly succeeded.
+ */
+function unwrap(body) {
+  return body && typeof body === 'object' && 'data' in body && 'success' in body ? body.data : body;
 }
 
 async function main() {
@@ -173,9 +208,18 @@ async function main() {
   const jo = await prisma.jobOrder.findFirst({
     where: { machineId: { not: null } },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, machineId: true, factoryId: true, workOrderId: true, operationName: true },
+    select: {
+      id: true, machineId: true, factoryId: true, workOrderId: true,
+      operationName: true, outputUnit: true,
+      machine: { select: { code: true } },
+      workOrder: { select: { sku: { select: { unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true } } } },
+    },
   });
   if (!jo) throw new Error('no job order in the database to run the scenario against');
+
+  // The rung this job order counts on, in pieces. Read from the SKU rather than
+  // assumed, because it is the difference between 180 and 28,880.
+  const piecesPerPart = ladderFactor(jo.outputUnit, jo.workOrder?.sku);
 
   const totalMinutes = scenario.steps.reduce((a, s) => a + s.minutes, 0);
   // Anchor far enough back that the run cannot collide with live data, and on a
@@ -184,10 +228,13 @@ async function main() {
   const tEnd = new Date(t0.getTime() + totalMinutes * MIN);
 
   console.log(`\n  OEE verification run — ${scenario.label}`);
-  console.log(`  job order ${jo.operationName ?? jo.id} on machine ${jo.machineId}`);
+  console.log(`  job order ${jo.operationName ?? jo.id} on machine ${jo.machine?.code ?? jo.machineId}`);
+  console.log(`  counting in ${jo.outputUnit ?? 'PIECE'} — 1 part = ${piecesPerPart} piece(s)`);
   console.log(`  ${totalMinutes} synthetic minutes from ${t0.toLocaleString()}\n`);
 
   // ── Save what we are about to overwrite ─────────────────────────────────
+  /** State records stood aside for the run, put back in the finally block. */
+  let savedStates = [];
   const saved = await prisma.jobOrder.findUnique({
     where: { id: jo.id },
     select: { status: true, actualStart: true, actualEnd: true, idealCycleTimeSec: true, actualQtyGood: true, actualQtyRejected: true },
@@ -195,7 +242,22 @@ async function main() {
 
   try {
     await prisma.oeeMinute.deleteMany({ where: { jobOrderId: jo.id, bucketStart: { gte: t0, lt: tEnd } } });
-    await prisma.machineStateRecord.deleteMany({ where: { machineId: jo.machineId, startTime: { gte: t0, lt: tEnd } } });
+
+    // Every state record that OVERLAPS the window, not merely those that START
+    // inside it. A record opened before t0 and still open covers the whole run,
+    // so the machine goes on reporting a state the scenario never scripted.
+    // That is how "a machine that reports nothing" came back as sixty minutes of
+    // availability loss and looked like an engine defect — it was the live
+    // gateway writing states underneath the replay. The amount moved between
+    // runs, which is the signature of a race rather than of a defect.
+    savedStates = await prisma.machineStateRecord.findMany({
+      where: {
+        machineId: jo.machineId,
+        startTime: { lt: tEnd },
+        OR: [{ endTime: null }, { endTime: { gt: t0 } }],
+      },
+    });
+    await prisma.machineStateRecord.deleteMany({ where: { id: { in: savedStates.map((r) => r.id) } } });
 
     await prisma.jobOrder.update({
       where: { id: jo.id },
@@ -246,6 +308,18 @@ async function main() {
       process.stdout.write(`  ${String(step.state ?? 'no state').padEnd(12)} ${String(step.minutes).padStart(4)} min  ✓\n`);
     }
 
+    // ── Close the order before reading ────────────────────────────────────
+    // The writer's own cron is still running once a minute. With the order left
+    // open it keeps capturing LIVE minutes against the same job order, and those
+    // land in today's window alongside the replay — one extra minute of total
+    // time, and counts from whatever the gateway happens to be feeding it.
+    // Setting actualEnd clips every later bucket to nothing, so the cron writes
+    // no row rather than being raced against.
+    await prisma.jobOrder.update({ where: { id: jo.id }, data: { actualEnd: tEnd } });
+    await prisma.oeeMinute.deleteMany({
+      where: { jobOrderId: jo.id, OR: [{ bucketStart: { lt: t0 } }, { bucketStart: { gte: tEnd } }] },
+    });
+
     // ── Ask the engine ────────────────────────────────────────────────────
     const url = new URL(`${API}/oee-standard`);
     url.searchParams.set('jobOrderId', jo.id);
@@ -253,18 +327,22 @@ async function main() {
     url.searchParams.set('dateTo', ymd(tEnd));
     const res = await fetch(url, { headers: auth });
     if (!res.ok) throw new Error(`read failed (${res.status})`);
-    const actual = await res.json();
-    const exp = expected(scenario);
+    const actual = unwrap(await res.json());
+    const exp = expected(scenario, piecesPerPart);
 
-    report(exp, actual);
+    report(exp, actual, jo.outputUnit, piecesPerPart);
   } finally {
     if (KEEP) {
       console.log(`\n  --keep: rows left in place. Open /oee-standard and pick ${ymd(t0)}.`);
     } else {
       await prisma.oeeMinute.deleteMany({ where: { jobOrderId: jo.id, bucketStart: { gte: t0, lt: tEnd } } });
       await prisma.machineStateRecord.deleteMany({ where: { machineId: jo.machineId, startTime: { gte: t0, lt: tEnd } } });
+      // Put the real history back exactly as it was found.
+      if (savedStates.length) {
+        await prisma.machineStateRecord.createMany({ data: savedStates, skipDuplicates: true });
+      }
       await prisma.jobOrder.update({ where: { id: jo.id }, data: saved });
-      console.log('\n  scenario rows removed, job order restored');
+      console.log(`\n  scenario rows removed, job order and ${savedStates.length} state record(s) restored`);
     }
     await prisma.$disconnect();
   }
@@ -273,7 +351,7 @@ async function main() {
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /** Side by side, with the verdict computed rather than eyeballed. */
-function report(exp, got) {
+function report(exp, got, outputUnit, piecesPerPart) {
   const rows = [
     ['Total time', exp.totalMin, got.time.totalMin, 'min'],
     ['Planned stops', exp.plannedStopMin, got.time.plannedStopMin, 'min'],
@@ -282,15 +360,16 @@ function report(exp, got) {
     ['Operational time', exp.operationalMin, got.time.operationalMin, 'min'],
     ['Availability losses', exp.availabilityLossMin, got.time.availabilityLossMin, 'min'],
     ['Net production time', exp.operatingMin, got.time.netProductionMin, 'min'],
-    ['Good parts', exp.good, got.counts.good, ''],
-    ['Rejected parts', exp.rejected, got.counts.rejected, ''],
-    ['Theoretical parts', exp.theoretical, got.counts.theoretical, ''],
+    ['Good parts', exp.good, got.counts.good, 'pcs'],
+    ['Rejected parts', exp.rejected, got.counts.rejected, 'pcs'],
+    ['Theoretical parts', exp.theoretical, got.counts.theoretical, 'pcs'],
     ['Availability', exp.availability, got.availability, '%'],
     ['Performance', exp.performance, got.performance, '%'],
     ['Quality', exp.quality, got.quality, '%'],
     ['OEE', exp.oee, got.oee, '%'],
   ];
 
+  console.log(`\n  quantities in PIECES (1 ${outputUnit ?? 'PIECE'} = ${piecesPerPart} pcs)`);
   console.log('\n  ┌────────────────────────┬────────┬────────┬──────┐');
   console.log('  │                        │ expect │ engine │      │');
   console.log('  ├────────────────────────┼────────┼────────┼──────┤');
@@ -298,7 +377,10 @@ function report(exp, got) {
   for (const [label, e, a, unit] of rows) {
     // A tenth of a unit is float noise over a few hundred minutes; anything
     // larger is a disagreement worth reading.
-    const ok = e == null && a == null ? true : e != null && a != null && Math.abs(e - a) <= 0.1;
+    // Tolerance scales with the unit: a tenth of a minute is noise, but so is a
+    // tenth of a piece when one counted part is worth 160 of them.
+    const tol = unit === 'pcs' ? Math.max(0.1, Math.abs(e ?? 0) * 1e-6) : 0.1;
+    const ok = e == null && a == null ? true : e != null && a != null && Math.abs(e - a) <= tol;
     if (!ok) failures++;
     console.log(`  │ ${label.padEnd(22)} │ ${fmt(e)} │ ${fmt(a)} │ ${ok ? ' ok ' : 'FAIL'} │${unit ? ` ${unit}` : ''}`);
   }

@@ -377,16 +377,19 @@ OEE          = 0.886 × 0.954 × 0.970 = 82.0%</pre>
     <div class="kpi"><span class="t">OEE</span><span class="v">82.0%</span><span class="h">A × P × Q</span></div>
   </div>
 
-  <h3>ما يطبعه التشغيل</h3>
+  <h3>ناتج التشغيل الفعلى — ٢٠ أغسطس ٢٠٢٦</h3>
   <pre>  OEE verification run — A four-hour shift with one breakdown and one changeover
-  job order Cartoning on machine M3
-  240 synthetic minutes from 19/08/2026, 17:12:00
+  job order Wrapping on machine M5
+  counting in PALLET — 1 part = 160 piece(s)
+  240 synthetic minutes from 8/20/2026, 8:50:00 AM
 
   RUNNING        90 min  ✓
   BREAKDOWN      25 min  ✓
   RUNNING        45 min  ✓
   CHANGEOVER     20 min  ✓
   RUNNING        60 min  ✓
+
+  quantities in PIECES (1 PALLET = 160 pcs)
 
   ┌────────────────────────┬────────┬────────┬──────┐
   │                        │ expect │ engine │      │
@@ -398,9 +401,9 @@ OEE          = 0.886 × 0.954 × 0.970 = 82.0%</pre>
   │ Operational time       │  220.0 │  220.0 │  ok  │ min
   │ Availability losses    │   25.0 │   25.0 │  ok  │ min
   │ Net production time    │  195.0 │  195.0 │  ok  │ min
-  │ Good parts             │  180.5 │  180.5 │  ok  │
-  │ Rejected parts         │    5.5 │    5.5 │  ok  │
-  │ Theoretical parts      │  195.0 │  195.0 │  ok  │
+  │ Good parts             │ 28876.8 │ 28876.8 │  ok  │ pcs
+  │ Rejected parts         │  883.2 │  883.2 │  ok  │ pcs
+  │ Theoretical parts      │ 31200.0 │ 31200.0 │  ok  │ pcs
   │ Availability           │   88.6 │   88.6 │  ok  │ %
   │ Performance            │   95.4 │   95.4 │  ok  │ %
   │ Quality                │   97.0 │   97.0 │  ok  │ %
@@ -410,6 +413,13 @@ OEE          = 0.886 × 0.954 × 0.970 = 82.0%</pre>
   engine self-audit: every minute accounted for  (bucket drift 0m, identity drift 0m)
 
   ✓ the engine reproduced the scenario exactly</pre>
+
+  <div class="note n-g">
+    <b>الثلاثة نجحت — ٤٢ قيمة من ٤٢</b>
+    <code>default</code> ⇒ OEE ٨٢٫٠٪ · <code>starved</code> ⇒ إتاحية <b class="i">١٠٠٪</b> رغم ٩٠ دقيقة جوع ·
+    <code>silent</code> ⇒ ٦٠ دقيقة غير مقيسة وإتاحية <code>—</code> لا صفر.
+    وتدقيق المحرّك الذاتى: انحراف الدلاء صفر، وانحراف الهويّة صفر، فى الثلاثة.
+  </div>
 
   <div class="note n-p">
     <b>ولماذا سيناريوهان آخران</b>
@@ -444,12 +454,12 @@ OEE          = 0.886 × 0.954 × 0.970 = 82.0%</pre>
 <section>
   <div class="lhead"><span class="lnum">07</span><h2>ما يتبقّى قبل الاعتماد</h2></div>
   <ul>
-    <li><b>لم يُختبَر على قاعدة حيّة بعد.</b> Docker كان متوقّفاً عندى، فالجدول أُنشئ كـ migration
-      ولم يُطبَّق ولم يُشغَّل سيناريو التحقّق فعلياً. الأرقام أعلاه من الحساب اليدوى ومن
-      ٤٢ اختباراً وحدياً — <b>لا</b> من تشغيل حقيقى. شغّله أوّل ما يقوم الاستاك.</li>
-    <li><b>المحاكى أُعيد توجيهه</b> إلى المنفذين <code>20101 / 20102</code> بدل <code>502 / 503</code>،
-      لأن صفوف الأجهزة تشير إليهما. لكن العنوان <code>192.168.0.x</code> لا بدّ أن يصل لهذا الجهاز:
-      إمّا توجّه الصفوف إلى <code>127.0.0.1</code>، أو تضيف العنوانين كـ loopback aliases.</li>
+    <li><b>نُشر وتحقّق فعلياً.</b> الجدول مُنشأ على <code>mes360</code>، والحاوية أُعيد بناؤها،
+      والسيناريوهات الثلاثة شُغّلت على القاعدة الحيّة عبر واجهة النظام — لا محاكاة داخلية.
+      والصفحة <code>/oee-standard</code> تقرأ الآن بيانات المحاكى الجارية:
+      تدقيق سليم على <b class="i">٧٥٦ دقيقة</b>، انحراف صفر.</li>
+    <li><b>عناوين الأجهزة</b> صارت <code>127.0.0.1:20101</code> و<code>:20102</code> لتطابق المحاكى،
+      والبوّابة تتّصل بالاثنين وتقرأ التاجات وتشتقّ الحالات وتغذّى العدّادات — السلسلة كاملة.</li>
     <li><b>التوقّفات الدقيقة</b> مستوى مسمّى فى المرجع، ولا شىء عندنا يقيسه —
       يظهر صفراً صريحاً لا محذوفاً، حتى تقرّر تعريفه (كم ثانية؟).</li>
     <li>المحرّك القديم <b>لم يُمَسّ</b>. الصفحتان تعملان معاً، وهذا هو المقصود:
@@ -460,7 +470,8 @@ OEE          = 0.886 × 0.954 × 0.970 = 82.0%</pre>
 <footer>
   MES360° · مصنع مسحوق المنظفات السعودى · خط تعبئة المسحوق ١<br>
   الصفحة: <code>/oee-standard</code> · الواجهة: <code>GET /api/v1/oee-standard</code> ·
-  ٣٣٩ اختبار API و١١٧ اختبار بوّابة، منها ٤٢ للمحرّك الجديد — ١٩ أغسطس ٢٠٢٦.
+  ٣٣٩ اختبار API و١١٧ اختبار بوّابة، منها ٤٢ للمحرّك الجديد،
+  وثلاثة سيناريوهات تحقّق على قاعدة حيّة — ٢٠ أغسطس ٢٠٢٦.
 </footer>
 
 </div>
