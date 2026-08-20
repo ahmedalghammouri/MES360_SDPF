@@ -60,6 +60,54 @@ export interface ScheduleSlice extends ScheduleResult {
  * closing this evening is counted in full; ask for a narrow window and the slot
  * is still clipped to it.
  */
+/**
+ * How a trend divides time: how to snap an instant to the grid, and how wide one
+ * step is.
+ *
+ * ── Why the size is emitted as SQL text, never bound ────────────────────────
+ * Postgres cannot prove that two PARAMETERISED `date_trunc` calls are the same
+ * expression, so grouping by one and reusing the other fails with 42803 — a
+ * lesson this file already paid for. The same applies to an interval built from
+ * a parameter. Every value below comes from a closed set validated in code, so
+ * emitting it as text is not an injection surface; `bucketOf` is the only door
+ * in, and it rejects anything not on the list.
+ */
+interface Bucket {
+  trunc: (expr: Prisma.Sql) => Prisma.Sql;
+  step: Prisma.Sql;
+}
+
+/** Minute sizes that divide an hour exactly, so buckets tile without a ragged one. */
+const MINUTE_BUCKETS = [1, 2, 5, 10, 15, 20, 30] as const;
+
+function bucketOf(spec: 'hour' | 'day' | number): Bucket {
+  if (spec === 'day') {
+    return {
+      trunc: (e) => Prisma.sql`date_trunc('day', ${e})`,
+      step: Prisma.sql`interval '1 day'`,
+    };
+  }
+  if (spec === 'hour' || typeof spec !== 'number') {
+    return {
+      trunc: (e) => Prisma.sql`date_trunc('hour', ${e})`,
+      step: Prisma.sql`interval '1 hour'`,
+    };
+  }
+  const n = Math.round(spec);
+  if (n >= 60 || !MINUTE_BUCKETS.includes(n as (typeof MINUTE_BUCKETS)[number])) {
+    return bucketOf('hour');
+  }
+  const raw = Prisma.raw(String(n)); // validated against the list above
+  return {
+    trunc: (e) => Prisma.sql`(date_trunc('hour', ${e})
+      + ((EXTRACT(MINUTE FROM ${e})::int / ${raw}) * ${raw}) * INTERVAL '1 minute')`,
+    // `${raw} * INTERVAL '1 minute'` rather than `interval '${raw} minutes'`:
+    // interpolating into a quoted literal depends on how the builder splices
+    // raw text, and a multiplication does not.
+    step: Prisma.sql`(${raw} * INTERVAL '1 minute')`,
+  };
+}
+
 @Injectable()
 export class OeeScheduleService {
   constructor(private readonly prisma: PrismaService) {}
@@ -301,14 +349,38 @@ export class OeeScheduleService {
     granularity: 'hour' | 'day' = 'hour',
     scope: ScheduleScope = {},
   ): Promise<Array<ScheduleSlice & { at: Date }>> {
-    // The unit is chosen from a closed set in code and emitted as SQL text, not
-    // bound as a parameter. Two reasons, both learned here: Postgres cannot prove
-    // two PARAMETERISED date_trunc calls are the same expression, so grouping by
-    // one and reusing the other fails with 42803; and `'1 ' || $1` has to be cast
-    // at runtime. Neither is an injection risk when the only two values are
-    // written out below.
-    const unitSql = granularity === 'day' ? Prisma.sql`'day'` : Prisma.sql`'hour'`;
-    const oneBucket = granularity === 'day' ? Prisma.sql`interval '1 day'` : Prisma.sql`interval '1 hour'`;
+    return this.trendOn(factoryId, from, to, slotTo, scope, bucketOf(granularity));
+  }
+
+  /**
+   * The same trend, bucketed by an arbitrary number of MINUTES.
+   *
+   * The live screen looks at the last fifteen minutes, and an hourly bucket
+   * renders that as a single bar. Deliberately the same query as `trend()`
+   * rather than a second one — this engine has already been corrected twice in
+   * places that turned out to exist in duplicate.
+   */
+  async trendByMinutes(
+    factoryId: string | null, from: Date, to: Date, slotTo: Date,
+    bucketMin: number, scope: ScheduleScope = {},
+  ): Promise<Array<ScheduleSlice & { at: Date }>> {
+    return this.trendOn(factoryId, from, to, slotTo, scope, bucketOf(bucketMin));
+  }
+
+  /**
+   * One trend query, two bucket sizes.
+   *
+   * `bucket` supplies the two fragments that differ: how to snap an instant to
+   * the grid, and how wide one step is. Everything else — the slot clipping, the
+   * generated bucket series, the left join onto what was recorded — is identical
+   * and must stay identical, because a fix applied to one copy and not the other
+   * is how the 244-minute gap survived as long as it did.
+   */
+  private async trendOn(
+    factoryId: string | null, from: Date, to: Date, slotTo: Date,
+    scope: ScheduleScope, bucket: Bucket,
+  ): Promise<Array<ScheduleSlice & { at: Date }>> {
+    const { trunc, step: oneBucket } = bucket;
 
     const rows = await this.prisma.$queryRaw<Array<ScheduleTotals & { at: Date }>>(Prisma.sql`
       -- Each job order's slot, clipped to the window exactly as the headline
@@ -327,7 +399,7 @@ export class OeeScheduleService {
       -- What was actually RECORDED, per bucket. Absent for a bucket in which
       -- nothing was written, which is the whole point of the left join below.
       metrics AS (
-        SELECT date_trunc(${unitSql}, o."bucketStart") AS at, o."jobOrderId",
+        SELECT ${trunc(Prisma.sql`o."bucketStart"`)} AS at, o."jobOrderId",
                COALESCE(SUM(o."totalMin"), 0)::float8            AS "elapsedMin",
                COALESCE(SUM(o."plannedStopMin"), 0)::float8      AS "plannedStopMin",
                COALESCE(SUM(o."availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
@@ -352,8 +424,8 @@ export class OeeScheduleService {
       bounds AS (SELECT MIN("slotFrom") AS lo, MAX("slotTo") AS hi FROM jo),
       buckets AS (
         SELECT generate_series(
-          date_trunc(${unitSql}, b.lo),
-          date_trunc(${unitSql}, b.hi),
+          ${trunc(Prisma.sql`b.lo`)},
+          ${trunc(Prisma.sql`b.hi`)},
           ${oneBucket}
         ) AS at
         FROM bounds b WHERE b.lo IS NOT NULL AND b.hi IS NOT NULL

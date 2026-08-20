@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 
 import { LiveShiftService, LIVE_WINDOWS, isLiveWindow } from './live-shift.service';
 import { OeeStandardService, type OeeScope } from '../oee-standard/oee-standard.service';
+import { OeeScheduleService } from '../oee-schedule/oee-schedule.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
@@ -28,6 +29,7 @@ export class LiveShiftController {
   constructor(
     private readonly live: LiveShiftService,
     private readonly oee: OeeStandardService,
+    private readonly schedule: OeeScheduleService,
   ) {}
 
   private scope(q: Record<string, string | undefined>): OeeScope {
@@ -57,6 +59,11 @@ export class LiveShiftController {
     name: 'window', required: false,
     description: `Tail of the shift to show: ${Object.keys(LIVE_WINDOWS).join(' | ')}`,
   })
+  @ApiQuery({
+    name: 'basis', required: false,
+    description: 'standard (OEE-TB, time that went by) | schedule (OEE, the committed slot). '
+      + 'The same switch the analysis page honours.',
+  })
   @ApiQuery({ name: 'areaId', required: false })
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'machineId', required: false })
@@ -67,6 +74,7 @@ export class LiveShiftController {
   async overview(
     @CurrentUser() user: RequestUser,
     @Query('window') windowKey?: string,
+    @Query('basis') basisKey?: string,
     @Query('areaId') areaId?: string,
     @Query('lineId') lineId?: string,
     @Query('machineId') machineId?: string,
@@ -81,6 +89,11 @@ export class LiveShiftController {
     // stale bookmark should show the shift, not an error page.
     const w = isLiveWindow(windowKey) ? (windowKey as string) : 'shift';
 
+    // Anything other than an explicit 'schedule' is the standard basis. The two
+    // are not interchangeable readings of one number, so an unrecognised value
+    // has to land somewhere definite rather than being guessed at.
+    const basis: 'standard' | 'schedule' = basisKey === 'schedule' ? 'schedule' : 'standard';
+
     const shift = await this.live.currentShift(f);
     const win = this.live.windowOf(shift, w);
     // The shift is also a scope dimension — without it the totals would cover
@@ -94,21 +107,45 @@ export class LiveShiftController {
     // six aggregates over an empty range to print zeros is not.
     if (win.minutes <= 0) {
       return {
-        shift, window: win, bucketMin, empty: true,
+        shift, window: win, bucketMin, basis, empty: true,
         totals: null, machines: [], jobOrders: [], machineNow: [],
         trend: [], timeline: [], states: [], rejectReasons: null,
         production: null, windows: LIVE_WINDOWS,
       };
     }
 
+    /**
+     * How far the committed slot reaches, on the schedule basis.
+     *
+     * The rule is the same one the analysis page uses — the slot is clipped to
+     * the window being shown — applied to what "the window" means here. For the
+     * whole shift that is the whole shift, INCLUDING the part still ahead: the
+     * unreached remainder is the term that makes a schedule reading climb from
+     * low to true as the shift runs, and dropping it would turn this basis into
+     * the standard one wearing a different name. For a tail there is no ahead,
+     * so the slot stops where the tail does.
+     */
+    const slotTo = w === 'shift' ? shift.end : win.to;
+
     const [totals, machines, jobOrders, machineNow, trend, states, timeline, rejectReasons] =
       await Promise.all([
-        this.oee.overview(f, win.from, win.to, scoped),
-        this.oee.byMachine(f, win.from, win.to, scoped),
+        basis === 'schedule'
+          ? this.schedule.overview(f, win.from, win.to, slotTo, scoped)
+          : this.oee.overview(f, win.from, win.to, scoped),
+        basis === 'schedule'
+          ? this.schedule.byMachine(f, win.from, win.to, slotTo, scoped)
+          : this.oee.byMachine(f, win.from, win.to, scoped),
         this.live.jobOrders(f, win.from, win.to, scope),
         this.live.machineNow(f, scope),
-        this.oee.trendByMinutes(f, win.from, win.to, bucketMin, scoped),
-        this.oee.stateBreakdown(f, win.from, win.to, scoped),
+        basis === 'schedule'
+          ? this.schedule.trendByMinutes(f, win.from, win.to, slotTo, bucketMin, scoped)
+          : this.oee.trendByMinutes(f, win.from, win.to, bucketMin, scoped),
+        basis === 'schedule'
+          ? this.schedule.stateBreakdown(f, win.from, win.to, scoped)
+          : this.oee.stateBreakdown(f, win.from, win.to, scoped),
+        // The timeline and the reject reasons read machine states and scrap
+        // logs, not either minute store, so they are the same on both bases —
+        // and must be, or switching the toggle would appear to rewrite history.
         this.live.timelineSegments(f, win.from, win.to, scope),
         this.live.rejectReasons(f, win.from, win.to, scope),
       ]);
@@ -119,7 +156,8 @@ export class LiveShiftController {
     // truncated to 20 min" rather than just showing two timestamps.
     return {
       ...totals,
-      shift, window: win, bucketMin, empty: false,
+      shift, window: win, bucketMin, basis, empty: false,
+      slotTo,
       machines, jobOrders, machineNow, trend, states, timeline, rejectReasons,
       windows: LIVE_WINDOWS,
     };

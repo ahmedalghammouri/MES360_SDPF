@@ -32,7 +32,10 @@ import { cn } from '@/lib/utils';
 
 import { Panel, type RangeKey } from './range-control';
 import { ShiftBand } from './shift-header';
-import { useLiveShift, type LiveShiftPayload, type LiveJobOrder } from './use-live-shift';
+import {
+  useLiveShift, topMin, TOP_LABEL,
+  type LiveShiftPayload, type LiveJobOrder, type Basis,
+} from './use-live-shift';
 
 const num = (n: number | null | undefined, digits = 0) =>
   n == null ? '—' : n.toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -64,13 +67,35 @@ export function LiveShiftView() {
 
   const scopeLabel = scope && scope.type !== 'FACTORY' ? `${scope.name ?? scope.id}` : 'Whole factory';
 
+  const basis: Basis = data?.basis ?? 'standard';
+  const isSchedule = basis === 'schedule';
+
   return (
     <div className="space-y-3 p-3">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">Live Shift</h1>
-        <p className="text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-lg font-semibold text-foreground">Live Shift</h1>
+          <span className={cn('rounded px-2 py-0.5 text-[11px] font-semibold',
+            isSchedule ? 'bg-sky-500/15 text-sky-500' : 'bg-violet-500/15 text-violet-400')}>
+            {isSchedule ? 'Schedule basis' : 'Standard basis'}
+          </span>
+        </div>
+        <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground">
           The shift running now. No date filter — each panel shows the whole shift or a tail of it,
-          and says which. The same minutes, the same engine and the same rules as OEE Analysis.
+          and says which.{' '}
+          {isSchedule ? (
+            <>
+              Dividing by the slot each order was <b>committed</b> to, so the remainder of the shift
+              is charged before it happens and this reading climbs as the shift runs. Switch to{' '}
+              <b>OEE-TB</b> in the filter panel for the time that has actually gone by.
+            </>
+          ) : (
+            <>
+              Dividing by the time that has actually gone by, so the reading is complete for every
+              minute elapsed. Switch to <b>OEE</b> in the filter panel to divide by the promised
+              slot instead.
+            </>
+          )}
         </p>
       </div>
 
@@ -104,8 +129,9 @@ export function LiveShiftView() {
       <MachinesPanel />
 
       <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
-        Every panel reads <code>oee_minutes</code> through the standard engine, scoped to this
-        shift. Good and theoretical counts come from each work order&apos;s FINAL routing step, so
+        Every panel reads <code>{isSchedule ? 'oee_schedule_minutes' : 'oee_minutes'}</code> through
+        the {isSchedule ? 'schedule' : 'standard'} engine — the same store and the same rules the
+        OEE Analysis page uses on this basis — scoped to this shift. Good and theoretical counts come from each work order&apos;s FINAL routing step, so
         the shift total is deliberately not the sum of the machine rows — one pallet leaving the
         wrapper is one pallet, not four units counted once per station. Scrap is counted at every
         step, because a unit thrown away at the filler is a real loss the wrapper never saw.
@@ -145,6 +171,7 @@ function OutputPanel() {
   const { range, setRange, data, isFetching } = useRange('shift');
   const c = data?.counts;
   const t = data?.time ?? {};
+  const basis: Basis = data?.basis ?? 'standard';
 
   /**
    * The last station made nothing, but stations before it did.
@@ -184,10 +211,38 @@ function OutputPanel() {
         <Stat label="Theoretical" value={num(c?.theoretical)} unit="last station, design speed" />
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label={TOP_LABEL[basis]} value={dur(topMin(data?.time))} />
         <Stat label="Running" value={dur(t.netProductionMin)} tone="good" />
         <Stat label="Unplanned down" value={dur(t.availabilityLossMin)} tone={t.availabilityLossMin > 0 ? 'bad' : 'none'} />
         <Stat label="Starved / blocked" value={dur(t.externalLossMin)} tone={t.externalLossMin > 0 ? 'warn' : 'none'} />
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Planned stops" value={dur(t.plannedStopMin)} />
+        {/* The two terms that exist only on the schedule basis. Shown as their
+            own row rather than folded in, because they are not losses the
+            machine caused — they are the promise not yet kept and the promise
+            not yet reached, and reading them as downtime is the misreading this
+            basis most invites. */}
+        {basis === 'schedule' ? (
+          <>
+            <Stat label="Not started" value={dur(t.notStartedMin)}
+              unit="slot open, machine idle"
+              tone={(t.notStartedMin ?? 0) > 0 ? 'warn' : 'none'} />
+            <Stat label="Not yet reached" value={dur(t.notYetReachedMin)}
+              unit="still ahead in the slot" />
+            <Stat label="Slot elapsed"
+              value={data?.slotElapsedPct == null ? '—' : `${data.slotElapsedPct.toFixed(1)}%`}
+              unit="of the promise" />
+          </>
+        ) : (
+          <>
+            <Stat label="Unmeasured" value={dur(t.unmeasuredMin)}
+              tone={(t.unmeasuredMin ?? 0) > 0 ? 'warn' : 'none'} />
+            <Stat label="Operational" value={dur(t.operationalMin)} unit="the denominator" />
+            <Stat label="Used operational" value={dur(t.usedOperationalMin)}
+              unit="fully productive" tone="good" />
+          </>
+        )}
       </div>
       {(t.unmeasuredMin ?? 0) > 0 && (
         <p className="mt-2 text-[11px] text-muted-foreground">

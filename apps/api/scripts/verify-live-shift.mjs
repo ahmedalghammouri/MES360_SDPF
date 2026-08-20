@@ -13,8 +13,11 @@
  *   1. Every live window lies inside the shift the header names.
  *   2. A narrower window returns no more than a wider one.
  *   3. The machine table reconciles to the headline.
- *   4. THE EQUIVALENCE: /live-shift?window=shift equals /oee-standard over the
- *      same instants and the same shift — factor by factor, machine by machine.
+ *   4. THE EQUIVALENCE: /live-shift?window=shift equals the analysis endpoint
+ *      over the same instants and the same shift — factor by factor, machine by
+ *      machine — on BOTH bases. The OEE / OEE-TB switch has to mean the same
+ *      thing on the live page as on the analysis page, or the two screens are
+ *      once again answering one question two ways.
  */
 const BASE = process.env.BASE || 'http://localhost:8080/api/v1';
 
@@ -65,11 +68,29 @@ const localStamp = (iso) => {
     + `T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 };
 
+const BASES = [
+  { basis: 'standard', endpoint: '/oee-standard', top: 'totalMin' },
+  { basis: 'schedule', endpoint: '/oee-schedule', top: 'committedMin' },
+];
+
 const main = async () => {
   const tok = await login();
+  for (const b of BASES) await runBasis(tok, b);
+  console.log(`
+${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
+  process.exit(failures === 0 ? 0 : 1);
+};
+
+const runBasis = async (tok, { basis, endpoint, top }) => {
+  console.log(`
+${'='.repeat(70)}
+  BASIS: ${basis}   (${endpoint})
+${'='.repeat(70)}`);
 
   console.log('── the shift, and each window inside it');
-  const whole = await get(tok, '/live-shift', { window: 'shift' });
+  const whole = await get(tok, '/live-shift', { window: 'shift', basis });
+  check('the endpoint answered on the basis that was asked for', whole.basis === basis,
+    `asked ${basis}, got ${whole.basis}`);
   const s = whole.shift;
   console.log(`   ${s.code} "${s.name}"  resolved=${s.resolved}`
     + `  ${new Date(s.start).toLocaleTimeString()} → ${new Date(s.end).toLocaleTimeString()}`
@@ -80,7 +101,7 @@ const main = async () => {
 
   const seen = [];
   for (const w of ['shift', '120', '60', '30', '15']) {
-    const d = await get(tok, '/live-shift', { window: w });
+    const d = await get(tok, '/live-shift', { window: w, basis });
     const win = d.window;
     const from = new Date(win.from).getTime();
     const to = new Date(win.to).getTime();
@@ -94,12 +115,15 @@ const main = async () => {
       `${new Date(from).toLocaleTimeString()} vs shift ${new Date(shiftStart).toLocaleTimeString()}`);
     check(`window=${w} ends no later than the shift`, to <= shiftEnd + 1000);
 
-    const machMin = (d.machines ?? []).reduce((a, m) => a + (m.time?.totalMin ?? 0), 0);
+    const headline = d.time?.[top];
+    check(`window=${w} reports its top-level bar (${top})`, headline != null,
+      `keys: ${Object.keys(d.time ?? {}).join(',')}`);
+    const machMin = (d.machines ?? []).reduce((a, m) => a + (m.time?.[top] ?? 0), 0);
     check(`window=${w} machine table reconciles to the headline`,
-      near(machMin, d.time?.totalMin ?? 0, Math.max(1, (d.time?.totalMin ?? 0) * 0.001)),
-      `${machMin.toFixed(1)}m vs ${(d.time?.totalMin ?? 0).toFixed(1)}m`);
+      near(machMin, headline ?? 0, Math.max(1, (headline ?? 0) * 0.001)),
+      `${machMin.toFixed(1)}m vs ${(headline ?? 0).toFixed(1)}m`);
 
-    seen.push({ w, minutes: win.minutes, total: d.time?.totalMin ?? 0, good: d.counts?.good ?? 0 });
+    seen.push({ w, minutes: win.minutes, total: headline ?? 0, good: d.counts?.good ?? 0 });
   }
 
   console.log('\n── narrower windows return less');
@@ -113,15 +137,20 @@ const main = async () => {
 
   // ── The equivalence ───────────────────────────────────────────────────────
   console.log('\n── live shift vs OEE Analysis, same instants, same shift');
-  const analysis = await get(tok, '/oee-standard', {
+  // On the schedule basis the analysis endpoint takes its SLOT bound from
+  // dateTo while still capping the DATA window at now — which is exactly what
+  // the live page does with the shift end. Handing it the shift end therefore
+  // reproduces the live window and the live slot in one call. Handing it `now`
+  // drops the unreached remainder, and the two disagree by construction.
+  const analysis = await get(tok, endpoint, {
     dateFrom: localStamp(whole.window.from),
-    dateTo: localStamp(whole.window.to),
+    dateTo: localStamp(basis === 'schedule' ? s.end : whole.window.to),
     shiftTemplateId: s.templateId,
     granularity: 'hour',
   });
 
   const pairs = [
-    ['total time', whole.time?.totalMin, analysis.time?.totalMin, 0.5],
+    [`top bar (${top})`, whole.time?.[top], analysis.time?.[top], 0.5],
     ['net production', whole.time?.netProductionMin, analysis.time?.netProductionMin, 0.5],
     ['operational', whole.time?.operationalMin, analysis.time?.operationalMin, 0.5],
     ['availability loss', whole.time?.availabilityLossMin, analysis.time?.availabilityLossMin, 0.5],
@@ -146,15 +175,12 @@ const main = async () => {
   for (const m of whole.machines ?? []) {
     const other = byKey.get(m.key);
     check(`${m.label}`, !!other
-      && agree(m.time?.totalMin, other.time?.totalMin, 0.5)
+      && agree(m.time?.[top], other.time?.[top], 0.5)
       && agree(m.counts?.good, other.counts?.good, 1),
       other
-        ? `${m.time?.totalMin?.toFixed(1)}m/${m.counts?.good} vs ${other.time?.totalMin?.toFixed(1)}m/${other.counts?.good}`
+        ? `${m.time?.[top]?.toFixed(1)}m/${m.counts?.good} vs ${other.time?.[top]?.toFixed(1)}m/${other.counts?.good}`
         : 'missing from the analysis page');
   }
-
-  console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
-  process.exit(failures === 0 ? 0 : 1);
 };
 
 main().catch((e) => { console.error('ERROR', e.message); process.exit(2); });

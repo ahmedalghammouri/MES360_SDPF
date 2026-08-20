@@ -106,6 +106,10 @@ const main = async () => {
   const tok = await login();
   const today = new Date();
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const stamp = (d) => {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${iso(d)}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  };
   const T = iso(today);
 
   for (const engine of ['/oee-standard', '/oee-schedule']) {
@@ -113,16 +117,34 @@ const main = async () => {
 
     // 6. A narrower window must return strictly less. This is the check that
     //    distinguishes "the filter works" from "all the data happens to be today".
-    const hh = String(today.getHours()).padStart(2, '0');
-    const twoAgo = String(Math.max(0, today.getHours() - 2)).padStart(2, '0');
-    const narrow = await audit(tok, engine, 'last 2 hours', {
-      dateFrom: `${T}T${twoAgo}:00:00`, dateTo: `${T}T${hh}:59:59`,
+    //
+    //    Built by subtracting from the clock, not by decrementing the hour
+    //    STRING: at 00:22 the old form clamped `hour - 2` to 00 and produced the
+    //    same window as the whole day, so the check compared 88 minutes with 88
+    //    minutes and reported a failure the engine had nothing to do with.
+    //    Clamped to the start of the day as well, so it is genuinely a SUBSET of
+    //    the wide window. Unclamped, "the last two hours" at 00:24 reaches back
+    //    into yesterday and is legitimately the LARGER of the two — which makes
+    //    the comparison meaningless rather than failing.
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const narrowFrom = new Date(
+      Math.max(startOfDay.getTime(), today.getTime() - 2 * 3_600_000),
+    );
+    const narrow = await audit(tok, engine, 'last 2 hours (within the day)', {
+      dateFrom: stamp(narrowFrom),
+      dateTo: stamp(today),
     });
 
     console.log(`\n── ${engine}  narrowing`);
+    // The clamp makes the tail a subset, so it can never be larger. Before
+    // 02:00 it is the WHOLE day and equality is the correct answer — insisting
+    // on strictly-less there would fail the engine for telling the truth.
+    const dayIsOlder = today.getHours() >= 2;
     check('a narrower window returns less total time',
-      narrow.total < wide.total,
-      `${narrow.total.toFixed(0)}m of ${wide.total.toFixed(0)}m`);
+      dayIsOlder ? narrow.total < wide.total : narrow.total <= wide.total + 0.5,
+      `${narrow.total.toFixed(0)}m of ${wide.total.toFixed(0)}m`
+        + (dayIsOlder ? '' : ' — day younger than the tail, equality expected'));
     check('a narrower window returns no more output',
       narrow.good <= wide.good,
       `good ${narrow.good} vs ${wide.good}`);

@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useOrderFilterStore } from '@/store/order-filter-store';
+import { useOeeMode } from '@/hooks/use-oee-mode';
 import type { RangeKey, WindowInfo } from './range-control';
 
 export interface ShiftHeader {
@@ -105,10 +106,16 @@ export interface TimelineSegment {
   to: string;
 }
 
+export type Basis = 'standard' | 'schedule';
+
 export interface LiveShiftPayload {
   shift: ShiftHeader;
   window: WindowInfo;
   bucketMin: number;
+  /** Which engine answered. Echoed back so the page labels what it drew. */
+  basis: Basis;
+  /** Schedule basis only: how far the committed slot was allowed to reach. */
+  slotTo?: string;
   empty: boolean;
   availability: number | null;
   performance: number | null;
@@ -116,8 +123,16 @@ export interface LiveShiftPayload {
   oee: number | null;
   teep: number | null;
   utilization: number | null;
+  /**
+   * The time model. The two engines share every key except the top bar: the
+   * standard one calls it `totalMin`, the schedule one `committedMin`, and the
+   * schedule one adds `notStartedMin` / `notYetReachedMin`. Read it through
+   * `topMin()` rather than naming either directly.
+   */
   time: Record<string, number>;
   counts: { good: number; rejected: number; total: number; theoretical: number };
+  /** Schedule basis only: how much of the promised slot has gone by. */
+  slotElapsedPct?: number | null;
   bars: Array<{ key: string; minutes: number; pct: number; kind: 'base' | 'loss' | 'result' }>;
   audit: { ok: boolean; bucketsMin: number; bucketDriftMin: number; identityDriftMin: number };
   machines: MachineSlice[];
@@ -152,8 +167,30 @@ const REFETCH_MS: Record<RangeKey, number> = {
   shift: 60_000,
 };
 
+/**
+ * The window's top-level time bar, whichever engine produced it.
+ *
+ * The standard basis divides by the time that went by (`totalMin`); the
+ * schedule basis divides by the slot the order was promised (`committedMin`).
+ * Naming one of them at a call site is how a panel comes to read blank on the
+ * other basis — which is exactly what `time.operatingMin` did on this page.
+ */
+export const topMin = (time: Record<string, number> | undefined): number | undefined =>
+  time?.totalMin ?? time?.committedMin;
+
+export const TOP_LABEL: Record<Basis, string> = {
+  standard: 'Total time',
+  schedule: 'Committed time',
+};
+
 export function useLiveShift(range: RangeKey) {
   const { filter, key: scopeKey } = useScope();
+  // The same OEE / OEE-TB switch the analysis page honours, meaning the same
+  // thing: atOee selects the STANDARD engine, and its absence the schedule one.
+  // Read through `useOeeMode` rather than the store, so this page cannot drift
+  // into being the one screen where the toggle is inert.
+  const { atOee } = useOeeMode();
+  const basis: Basis = atOee ? 'standard' : 'schedule';
   // The panel's product / order filter applies here too. It is part of the query
   // KEY as well as the params: without that, narrowing to one product would
   // re-serve the cached whole-factory answer, and the page would look filtered
@@ -166,9 +203,11 @@ export function useLiveShift(range: RangeKey) {
   };
 
   return useQuery<LiveShiftPayload>({
-    queryKey: ['live-shift', range, scopeKey, `${poNumber}|${woId}|${skuId}`],
+    queryKey: ['live-shift', basis, range, scopeKey, `${poNumber}|${woId}|${skuId}`],
     queryFn: async () => {
-      const res = await api.get<any>('/live-shift', { params: { window: range, ...filter, ...dims } });
+      const res = await api.get<any>('/live-shift', {
+        params: { window: range, basis, ...filter, ...dims },
+      });
       return (res?.data ?? res) as LiveShiftPayload;
     },
     refetchInterval: REFETCH_MS[range] ?? 60_000,
