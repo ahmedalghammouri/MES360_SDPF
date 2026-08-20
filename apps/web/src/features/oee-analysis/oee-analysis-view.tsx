@@ -38,6 +38,9 @@ import {
 import { AvailabilityPanel, type Distribution } from './availability-panel';
 import { PerformancePanel } from './performance-panel';
 import { QualityPanel, type RejectReasons } from './quality-panel';
+import { LossPanel } from './loss-panel';
+import { TimeModel } from './chart-kit';
+import { DowntimePanel } from './downtime-panel';
 
 interface Bar { key: string; minutes: number; pct: number; kind: 'base' | 'loss' | 'result' }
 interface Slice {
@@ -57,6 +60,7 @@ interface Payload extends Slice {
   shifts: Slice[];
   states: Array<{ state: string | null; minutes: number; rows: number }>;
   trend: Array<TrendPoint & {
+    teep: number | null;
     time: Record<string, number>;
     counts: { good: number; rejected: number; total: number; theoretical: number };
   }>;
@@ -78,8 +82,8 @@ const ANALYSES = [
   { key: 'availability', label: 'Availability', blurb: 'Detailed overview of availability and its most relevant KPIs.', ready: true },
   { key: 'performance', label: 'Performance', blurb: 'Detailed overview of performance and its most relevant KPIs.', ready: true },
   { key: 'quality', label: 'Quality', blurb: 'Detailed overview of quality and its most relevant KPIs.', ready: true },
-  { key: 'loss', label: 'Loss overview', blurb: 'Investigate TEEP and the different losses.', ready: false },
-  { key: 'downtime', label: 'Downtime analysis', blurb: 'Detailed analysis of downtime reasons.', ready: false },
+  { key: 'loss', label: 'Loss overview', blurb: 'Investigate TEEP and the different losses.', ready: true },
+  { key: 'downtime', label: 'Downtime analysis', blurb: 'Detailed analysis of downtime reasons.', ready: true },
 ] as const;
 
 /**
@@ -237,6 +241,20 @@ export function OeeAnalysisView() {
             </p>
           )}
 
+          {analysis === 'loss' && (
+            <LossPanel
+              teep={d.teep} oee={d.oee} utilization={d.utilization}
+              trend={d.trend ?? []}
+              bars={d.bars} labels={BAR_LABEL}
+              machineCount={d.machines.length}
+              topMin={topMin ?? 0}
+            />
+          )}
+
+          {analysis === 'downtime' && (
+            <DowntimePanel distribution={d.distribution} timeline={d.timeline ?? []} />
+          )}
+
           {analysis === 'quality' && (
             <QualityPanel
               quality={d.quality}
@@ -278,6 +296,9 @@ export function OeeAnalysisView() {
             />
           )}
 
+          {/* The waterfall is the Loss page's argument; on the other analyses it
+              would be a fifth chart nobody came for. */}
+          {analysis === 'overview' && (
           <section className="rounded-lg border border-border/60 bg-card p-4">
             <h2 className="mb-1 text-sm font-semibold">
               Time model{d.machines.length > 1 ? ' — machine-minutes' : ''}
@@ -299,8 +320,9 @@ export function OeeAnalysisView() {
                 <>One machine in scope, so the top bar is wall clock.</>
               )}
             </p>
-            <TimeModel bars={d.bars} />
+            <TimeModel bars={d.bars} labels={BAR_LABEL} />
           </section>
+          )}
 
           {d.states.length > 0 && (
             <section className="rounded-lg border border-border/60 bg-card p-4">
@@ -335,36 +357,6 @@ function Kpi({ label, value, hint, big }: { label: string; value: string; hint?:
       <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</span>
       <span className={`font-semibold tabular-nums ${big ? 'text-3xl' : 'text-2xl'}`}>{value}</span>
       {hint && <span className="font-mono text-[11px] text-muted-foreground">{hint}</span>}
-    </div>
-  );
-}
-
-/** Losses cut back into the level above them, so the descent is visible rather than computed. */
-function TimeModel({ bars }: { bars: Bar[] }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      {bars.map((b) => {
-        const colour =
-          b.kind === 'result' ? 'bg-emerald-600'
-          : b.kind === 'loss' ? 'bg-amber-500'
-          : 'bg-muted-foreground/30';
-        return (
-          <div key={b.key} className="grid grid-cols-[minmax(120px,240px)_1fr] items-center gap-3">
-            <span className={`truncate text-xs ${b.kind === 'loss' ? 'text-muted-foreground' : 'font-medium'}`}
-              title={BAR_LABEL[b.key] ?? b.key}>
-              {BAR_LABEL[b.key] ?? b.key}
-            </span>
-            <div className={`flex items-center gap-2 ${b.kind === 'loss' ? 'flex-row-reverse' : ''}`}>
-              <div className="h-5 min-w-[2px] rounded-sm transition-all" style={{ width: `${Math.max(b.pct, 0)}%` }}>
-                <div className={`h-full w-full rounded-sm ${colour}`} />
-              </div>
-              <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-                {b.pct.toFixed(2)}% · {mins(b.minutes)}
-              </span>
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }

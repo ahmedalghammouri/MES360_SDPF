@@ -56,7 +56,39 @@ export const BANDS: Record<string, { warn: number; good: number }> = {
   Availability: { warn: 80, good: 90 },
   Performance: { warn: 80, good: 95 },
   Quality: { warn: 95, good: 99 },
+  // TEEP is OEE against the whole calendar, so it is always the smaller number
+  // and its bands have to be lower — grading it against OEE's would paint every
+  // plant on earth red.
+  TEEP: { warn: 25, good: 40 },
 };
+
+/**
+ * A colour per machine state, fixed by the state itself.
+ *
+ * Assigned by IDENTITY, never by rank. On the downtime page the same colour ties
+ * a Pareto bar to the blocks in the timeline beneath it, so if the colour moved
+ * with the ranking, changing the filter would repaint both charts and the link
+ * between them would silently point somewhere else.
+ *
+ * The plant's states are a closed set, so they are written out. Anything unknown
+ * falls to a stable hash rather than to "the next colour", which would depend on
+ * what else happened to be in the window.
+ */
+const STATE_SLOT: Record<string, number> = {
+  BREAKDOWN: 8, IDLE: 4, STARVED: 2, BLOCKED: 5,
+  SETUP: 7, CHANGEOVER: 1, PLANNED_STOP: 3, MAINTENANCE: 6,
+  OFFLINE: 5, RUNNING: 6,
+};
+
+export function stateColour(state: string): string {
+  const slot = STATE_SLOT[state];
+  if (slot) return `var(--viz-${slot})`;
+  // Stable across windows and filters: the same name always lands on the same
+  // slot, which is the whole point.
+  let h = 0;
+  for (let i = 0; i < state.length; i++) h = (h * 31 + state.charCodeAt(i)) >>> 0;
+  return `var(--viz-${(h % 8) + 1})`;
+}
 
 export function bandOf(label: string, v: number | null): keyof typeof STATUS {
   if (v == null) return 'none';
@@ -119,6 +151,52 @@ export function Gauge({
       <span className="text-center text-[10px] text-muted-foreground">
         {b ? `warn ${b.warn}% · good ${b.good}%` : 'no band configured'}
       </span>
+    </div>
+  );
+}
+
+export interface TimeModelBar {
+  key: string;
+  minutes: number;
+  pct: number;
+  kind: 'base' | 'loss' | 'result';
+}
+
+/**
+ * The time model as a descending waterfall.
+ *
+ * Losses are drawn right-aligned so each one visually cuts into the level above
+ * it. The descent is then something you see rather than something you compute,
+ * which is the only reason to draw it as bars at all instead of listing the
+ * numbers.
+ */
+export function TimeModel({
+  bars, labels,
+}: { bars: TimeModelBar[]; labels: Record<string, string> }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      {bars.map((b) => {
+        const colour =
+          b.kind === 'result' ? 'bg-emerald-600'
+          : b.kind === 'loss' ? 'bg-amber-500'
+          : 'bg-muted-foreground/30';
+        return (
+          <div key={b.key} className="grid grid-cols-[minmax(120px,240px)_1fr] items-center gap-3">
+            <span className={`truncate text-xs ${b.kind === 'loss' ? 'text-muted-foreground' : 'font-medium'}`}
+              title={labels[b.key] ?? b.key}>
+              {labels[b.key] ?? b.key}
+            </span>
+            <div className={`flex items-center gap-2 ${b.kind === 'loss' ? 'flex-row-reverse' : ''}`}>
+              <div className="h-5 min-w-[2px] rounded-sm transition-all" style={{ width: `${Math.max(b.pct, 0)}%` }}>
+                <div className={`h-full w-full rounded-sm ${colour}`} />
+              </div>
+              <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                {b.pct.toFixed(2)}% · {dur(b.minutes)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
