@@ -28,6 +28,32 @@ export interface ProductionDetails {
   plannedStopMin: number;
   externalCount: number;
   externalMin: number;
+  /** Mean time to repair — total downtime ÷ number of failures. Null with none. */
+  mttrMin: number | null;
+  /** Mean time between failures — total running time ÷ number of failures. */
+  mtbfMin: number | null;
+  runningMin: number;
+}
+
+/** One reason in the distribution: how long, how often, and how it spread. */
+export interface ReasonSlice {
+  key: string;
+  label: string;
+  kind: SegmentKind;
+  minutes: number;
+  occurrence: number;
+  medianMin: number;
+  averageMin: number;
+  /** The states inside this category — the next level of the tree. */
+  children?: ReasonSlice[];
+}
+
+export interface Distribution {
+  occurrence: number;
+  totalMin: number;
+  medianMin: number;
+  averageMin: number;
+  reasons: ReasonSlice[];
 }
 
 export interface TimelineScope {
@@ -170,9 +196,13 @@ export class StateTimelineService {
       segments.filter((s) => s.kind === k).reduce((a, s) => a + s.minutes, 0);
     const count = (k: SegmentKind) => segments.filter((s) => s.kind === k).length;
 
+    const downtimeCount = count('downtime');
+    const downtimeMin = sum('downtime');
+    const runningMin = sum('running');
+
     return {
-      downtimeCount: count('downtime'),
-      downtimeMin: sum('downtime'),
+      downtimeCount,
+      downtimeMin,
       // The reference names microstops as their own level. Nothing in this plant
       // measures them yet, so they are reported as an explicit zero rather than
       // folded into downtime, where they would look measured.
@@ -182,6 +212,90 @@ export class StateTimelineService {
       plannedStopMin: sum('planned'),
       externalCount: count('external'),
       externalMin: sum('external'),
+      // MTTR = Σ downtime ÷ number of failures. MTBF = Σ uptime ÷ the same count:
+      // the reference states it as Σ(start of downtime − start of uptime), which
+      // is the running time between failures, and that is what `running` sums to.
+      //
+      // Only UNPLANNED stops count as failures. A break is not a breakdown, and
+      // counting one lowers MTTR and raises MTBF at once — the two figures then
+      // both look better because the plant took a scheduled lunch.
+      mttrMin: downtimeCount > 0 ? downtimeMin / downtimeCount : null,
+      mtbfMin: downtimeCount > 0 ? runningMin / downtimeCount : null,
+      runningMin,
+    };
+  }
+
+  /**
+   * Where the time went, by reason, two levels deep.
+   *
+   * Level one is the time model — running, planned, external, unplanned — because
+   * that is the level a plant argues about. Level two is the machine states
+   * inside each, which is as far as the reason tree goes until downtime causes
+   * are being recorded against events.
+   *
+   * Median as well as average, because stopped time is not normally distributed:
+   * one four-hour breakdown among forty two-minute stops drags the average to
+   * somewhere no individual stop ever was, and the median says which of the two
+   * numbers to believe.
+   */
+  distribution(segments: TimelineSegment[]): Distribution {
+    const median = (xs: number[]) => {
+      if (xs.length === 0) return 0;
+      const a = [...xs].sort((x, y) => x - y);
+      const m = Math.floor(a.length / 2);
+      return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+    };
+    const stat = (key: string, label: string, kind: SegmentKind, segs: TimelineSegment[]): ReasonSlice => {
+      const durations = segs.map((s) => s.minutes);
+      const minutes = durations.reduce((a, b) => a + b, 0);
+      return {
+        key, label, kind, minutes,
+        occurrence: segs.length,
+        medianMin: median(durations),
+        averageMin: segs.length ? minutes / segs.length : 0,
+      };
+    };
+
+    const KIND_LABEL: Record<SegmentKind, string> = {
+      running: 'Run',
+      downtime: 'Unplanned downtime',
+      planned: 'Planned stop',
+      external: 'Starved / blocked',
+      unmeasured: 'Not reported',
+    };
+
+    const byKind = new Map<SegmentKind, TimelineSegment[]>();
+    for (const s of segments) {
+      const arr = byKind.get(s.kind) ?? [];
+      arr.push(s);
+      byKind.set(s.kind, arr);
+    }
+
+    const reasons = [...byKind.entries()]
+      .map(([kind, segs]) => {
+        const byState = new Map<string, TimelineSegment[]>();
+        for (const s of segs) {
+          const arr = byState.get(s.state) ?? [];
+          arr.push(s);
+          byState.set(s.state, arr);
+        }
+        return {
+          ...stat(kind, KIND_LABEL[kind], kind, segs),
+          children: [...byState.entries()]
+            .map(([state, ss]) => stat(`${kind}:${state}`, state, kind, ss))
+            .sort((a, b) => b.minutes - a.minutes),
+        };
+      })
+      .sort((a, b) => b.minutes - a.minutes);
+
+    const all = segments.map((s) => s.minutes);
+    const totalMin = all.reduce((a, b) => a + b, 0);
+    return {
+      occurrence: segments.length,
+      totalMin,
+      medianMin: median(all),
+      averageMin: segments.length ? totalMin / segments.length : 0,
+      reasons,
     };
   }
 }

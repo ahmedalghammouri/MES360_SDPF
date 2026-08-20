@@ -14,6 +14,8 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 
+import { Gauge, SEGMENT_COLOUR, SEGMENT_LABEL, dur, type SegmentKind } from './chart-kit';
+
 export interface TrendPoint {
   at: string;
   oee: number | null;
@@ -23,7 +25,7 @@ export interface TrendPoint {
 }
 export interface TimelineSegment {
   machineId: string; machineCode: string; state: string;
-  kind: 'running' | 'planned' | 'external' | 'downtime' | 'unmeasured';
+  kind: SegmentKind;
   from: string; to: string; minutes: number;
 }
 export interface ProductionDetails {
@@ -34,115 +36,25 @@ export interface ProductionDetails {
 }
 
 /**
- * Where a reading turns from good to warning to bad.
+ * The four series, in FIXED order.
  *
- * Constants for now, and deliberately visible on the gauge rather than implied
- * by its colour: a band nobody can read is a band nobody agreed to. These belong
- * in factory configuration — the reference makes them per-machine — and until
- * they are, every plant is being graded against somebody else's targets.
+ * Assigned once and never cycled: hiding a line from the legend must not repaint
+ * the ones left, or a reader who hid Quality comes back to a chart where OEE has
+ * changed colour. Emphasis on OEE is carried by stroke weight rather than by
+ * promoting it to a louder hue — weight is a second channel, a hue swap is a
+ * broken one.
+ *
+ * These are the project's validated categorical steps. Checked in both themes:
+ * light CVD ΔE 9.1 (protan) / 22.9 normal, dark 8.4 / 19.8. The light mode's
+ * contrast warning is why this chart always carries a legend and the page
+ * always carries the tables.
  */
-const BANDS: Record<string, { warn: number; good: number }> = {
-  OEE: { warn: 60, good: 70 },
-  Availability: { warn: 80, good: 90 },
-  Performance: { warn: 80, good: 95 },
-  Quality: { warn: 95, good: 99 },
-};
-
-/**
- * Status colours, reserved and never reused as a series hue. Each gauge also
- * prints its value and its band, so the state never rests on colour alone.
- */
-const STATUS = {
-  good: 'hsl(142 62% 38%)',
-  warn: 'hsl(38 92% 46%)',
-  bad: 'hsl(0 72% 51%)',
-  none: 'hsl(215 16% 60%)',
-};
-
-function bandOf(label: string, v: number | null): keyof typeof STATUS {
-  if (v == null) return 'none';
-  const b = BANDS[label];
-  if (!b) return 'none';
-  if (v >= b.good) return 'good';
-  if (v >= b.warn) return 'warn';
-  return 'bad';
-}
-
-/** The four series, in fixed order. Cycling or re-assigning on filter is the bug. */
 const SERIES = [
   { key: 'availability', name: 'Availability', colour: 'var(--viz-1)' },
   { key: 'performance', name: 'Performance', colour: 'var(--viz-2)' },
   { key: 'quality', name: 'Quality', colour: 'var(--viz-3)' },
   { key: 'oee', name: 'OEE', colour: 'var(--viz-4)' },
 ] as const;
-
-const SEGMENT_COLOUR: Record<TimelineSegment['kind'], string> = {
-  running: STATUS.good,
-  downtime: STATUS.bad,
-  planned: 'hsl(215 20% 55%)',
-  external: STATUS.warn,
-  unmeasured: 'hsl(215 14% 78%)',
-};
-const SEGMENT_LABEL: Record<TimelineSegment['kind'], string> = {
-  running: 'Running',
-  downtime: 'Unplanned downtime',
-  planned: 'Planned stop',
-  external: 'Starved / blocked',
-  unmeasured: 'Not reported',
-};
-
-const dur = (m: number) => {
-  if (m == null) return '—';
-  const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), min = Math.round(m % 60);
-  return [d ? `${d}d` : '', h ? `${h}h` : '', `${min}m`].filter(Boolean).join(' ');
-};
-
-/**
- * A semi-donut gauge.
- *
- * Drawn as two arcs rather than pulled from a chart library: the shape is one
- * path and one sweep, and a library would bring an axis system this has no use
- * for. The value is printed inside — the colour is the second encoding, not
- * the only one.
- */
-function Gauge({ label, value, onOpen }: { label: string; value: number | null; onOpen?: () => void }) {
-  const band = bandOf(label, value);
-  const colour = STATUS[band];
-  const b = BANDS[label];
-
-  // 180° sweep, 0% on the left. r=52 in a 140×86 box leaves room for the stroke.
-  const R = 52, CX = 70, CY = 68, W = 13;
-  const arc = (pct: number) => {
-    const a = Math.PI * (1 - Math.min(1, Math.max(0, pct / 100)));
-    return `${CX + R * Math.cos(Math.PI)},${CY} A ${R} ${R} 0 0 1 ${CX + R * Math.cos(a)},${CY - R * Math.sin(a)}`;
-  };
-
-  return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border/60 bg-card p-3">
-      <div className="flex items-start justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
-        {onOpen && (
-          <button onClick={onOpen} title={`Open the ${label} analysis`}
-            className="rounded p-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">↗</button>
-        )}
-      </div>
-      <svg viewBox="0 0 140 82" className="w-full" role="img"
-        aria-label={`${label} ${value == null ? 'not available' : `${value.toFixed(1)} percent`}`}>
-        <path d={`M ${arc(100)}`} fill="none" stroke="hsl(var(--muted))" strokeWidth={W} strokeLinecap="round" />
-        {value != null && (
-          <path d={`M ${arc(value)}`} fill="none" stroke={colour} strokeWidth={W} strokeLinecap="round" />
-        )}
-        <text x={CX} y={CY - 8} textAnchor="middle"
-          className="fill-foreground" style={{ fontSize: 22, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-          {value == null ? '—' : `${value.toFixed(1)}%`}
-        </text>
-      </svg>
-      <span className="text-center text-[10px] text-muted-foreground">
-        {b ? `warn ${b.warn}% · good ${b.good}%` : 'no band configured'}
-      </span>
-    </div>
-  );
-}
 
 /** Crosshair tooltip. Values in ink, identity carried by the swatch beside them. */
 function TrendTooltip({ active, payload, label }: any) {

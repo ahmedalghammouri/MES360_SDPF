@@ -83,7 +83,9 @@ export class OeeScheduleController {
     ]);
     return {
       ...overview, machines, jobOrders, shifts, trend, states, granularity: g,
-      timeline: segments, production: this.timeline.details(segments),
+      timeline: segments,
+      production: this.timeline.details(segments),
+      distribution: this.timeline.distribution(segments),
     };
   }
 
