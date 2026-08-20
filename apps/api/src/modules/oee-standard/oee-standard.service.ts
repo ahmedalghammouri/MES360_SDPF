@@ -19,16 +19,27 @@ export interface OeeSlice extends OeeResult {
   sublabel?: string | null;
 }
 
+/**
+ * Every query in this file reads `oee_minutes` under the alias `o`, and every
+ * column it names is qualified with it.
+ *
+ * Not a style choice. Three of these queries join `machines`, `job_orders` and
+ * `work_orders`, and all of those carry a `factoryId` of their own — so an
+ * unqualified predicate is ambiguous and Postgres refuses the statement outright
+ * (42702). It shipped because the account that tested it was a SUPER_ADMIN with
+ * no factory, which meant the factory predicate was never added to the SQL at
+ * all: the one path that breaks was the one path the test could not reach.
+ */
 const SUMS = Prisma.sql`
-  COALESCE(SUM("totalMin"), 0)::float8            AS "totalMin",
-  COALESCE(SUM("plannedStopMin"), 0)::float8      AS "plannedStopMin",
-  COALESCE(SUM("availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
-  COALESCE(SUM("externalLossMin"), 0)::float8     AS "externalLossMin",
-  COALESCE(SUM("unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
-  COALESCE(SUM("operatingMin"), 0)::float8        AS "operatingMin",
-  COALESCE(SUM("goodParts"), 0)::float8           AS "goodParts",
-  COALESCE(SUM("rejectedParts"), 0)::float8       AS "rejectedParts",
-  COALESCE(SUM("theoreticalParts"), 0)::float8    AS "theoreticalParts"
+  COALESCE(SUM(o."totalMin"), 0)::float8            AS "totalMin",
+  COALESCE(SUM(o."plannedStopMin"), 0)::float8      AS "plannedStopMin",
+  COALESCE(SUM(o."availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
+  COALESCE(SUM(o."externalLossMin"), 0)::float8     AS "externalLossMin",
+  COALESCE(SUM(o."unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
+  COALESCE(SUM(o."operatingMin"), 0)::float8        AS "operatingMin",
+  COALESCE(SUM(o."goodParts"), 0)::float8           AS "goodParts",
+  COALESCE(SUM(o."rejectedParts"), 0)::float8       AS "rejectedParts",
+  COALESCE(SUM(o."theoreticalParts"), 0)::float8    AS "theoreticalParts"
 `;
 
 /**
@@ -45,14 +56,14 @@ export class OeeStandardService {
   constructor(private readonly prisma: PrismaService) {}
 
   private where(factoryId: string | null, from: Date, to: Date, scope: OeeScope): Prisma.Sql {
-    const parts: Prisma.Sql[] = [Prisma.sql`"bucketStart" >= ${from} AND "bucketStart" < ${to}`];
-    if (factoryId) parts.push(Prisma.sql`"factoryId" = ${factoryId}`);
-    if (scope.machineId) parts.push(Prisma.sql`"machineId" = ${scope.machineId}`);
-    if (scope.jobOrderId) parts.push(Prisma.sql`"jobOrderId" = ${scope.jobOrderId}`);
-    if (scope.workOrderId) parts.push(Prisma.sql`"workOrderId" = ${scope.workOrderId}`);
-    if (scope.shiftTemplateId) parts.push(Prisma.sql`"shiftTemplateId" = ${scope.shiftTemplateId}`);
+    const parts: Prisma.Sql[] = [Prisma.sql`o."bucketStart" >= ${from} AND o."bucketStart" < ${to}`];
+    if (factoryId) parts.push(Prisma.sql`o."factoryId" = ${factoryId}`);
+    if (scope.machineId) parts.push(Prisma.sql`o."machineId" = ${scope.machineId}`);
+    if (scope.jobOrderId) parts.push(Prisma.sql`o."jobOrderId" = ${scope.jobOrderId}`);
+    if (scope.workOrderId) parts.push(Prisma.sql`o."workOrderId" = ${scope.workOrderId}`);
+    if (scope.shiftTemplateId) parts.push(Prisma.sql`o."shiftTemplateId" = ${scope.shiftTemplateId}`);
     if (scope.lineId) {
-      parts.push(Prisma.sql`"machineId" IN (SELECT id FROM machines WHERE "lineId" = ${scope.lineId})`);
+      parts.push(Prisma.sql`o."machineId" IN (SELECT m2.id FROM machines m2 WHERE m2."lineId" = ${scope.lineId})`);
     }
     return Prisma.join(parts, ' AND ');
   }
@@ -60,7 +71,7 @@ export class OeeStandardService {
   /** One set of totals for the whole scope. */
   async totals(factoryId: string | null, from: Date, to: Date, scope: OeeScope = {}): Promise<OeeTotals> {
     const rows = await this.prisma.$queryRaw<OeeTotals[]>(Prisma.sql`
-      SELECT ${SUMS} FROM oee_minutes WHERE ${this.where(factoryId, from, to, scope)}
+      SELECT ${SUMS} FROM oee_minutes o WHERE ${this.where(factoryId, from, to, scope)}
     `);
     return rows[0] ?? EMPTY_TOTALS;
   }
@@ -118,9 +129,9 @@ export class OeeStandardService {
   /** Per shift — the second dimension this store keeps. */
   async byShift(factoryId: string | null, from: Date, to: Date, scope: OeeScope = {}): Promise<OeeSlice[]> {
     const rows = await this.prisma.$queryRaw<Array<OeeTotals & { shiftCode: string | null }>>(Prisma.sql`
-      SELECT "shiftCode", ${SUMS}
-      FROM oee_minutes WHERE ${this.where(factoryId, from, to, scope)}
-      GROUP BY "shiftCode"
+      SELECT o."shiftCode", ${SUMS}
+      FROM oee_minutes o WHERE ${this.where(factoryId, from, to, scope)}
+      GROUP BY o."shiftCode"
     `);
     return rows
       .map((r) => ({ key: r.shiftCode ?? 'unassigned', label: r.shiftCode ?? 'Unassigned', ...computeOee(r) }))
@@ -141,8 +152,8 @@ export class OeeStandardService {
   ): Promise<Array<OeeSlice & { at: Date }>> {
     const unit = granularity === 'day' ? 'day' : 'hour';
     const rows = await this.prisma.$queryRaw<Array<OeeTotals & { at: Date }>>(Prisma.sql`
-      SELECT date_trunc(${unit}, "bucketStart") AS at, ${SUMS}
-      FROM oee_minutes WHERE ${this.where(factoryId, from, to, scope)}
+      SELECT date_trunc(${unit}, o."bucketStart") AS at, ${SUMS}
+      FROM oee_minutes o WHERE ${this.where(factoryId, from, to, scope)}
       GROUP BY 1 ORDER BY 1
     `);
     return rows.map((r) => ({
@@ -158,11 +169,11 @@ export class OeeStandardService {
    */
   async stateBreakdown(factoryId: string | null, from: Date, to: Date, scope: OeeScope = {}) {
     return this.prisma.$queryRaw<Array<{ state: string | null; minutes: number; rows: number }>>(Prisma.sql`
-      SELECT "machineState" AS state,
-             COALESCE(SUM("totalMin"), 0)::float8 AS minutes,
+      SELECT o."machineState" AS state,
+             COALESCE(SUM(o."totalMin"), 0)::float8 AS minutes,
              COUNT(*)::int AS rows
-      FROM oee_minutes WHERE ${this.where(factoryId, from, to, scope)}
-      GROUP BY "machineState" ORDER BY 2 DESC
+      FROM oee_minutes o WHERE ${this.where(factoryId, from, to, scope)}
+      GROUP BY o."machineState" ORDER BY 2 DESC
     `);
   }
 }

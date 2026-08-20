@@ -235,13 +235,23 @@ async function main() {
   // ── Save what we are about to overwrite ─────────────────────────────────
   /** State records stood aside for the run, put back in the finally block. */
   let savedStates = [];
+  /** Every oee_minute this job order already had, so the run can put them back. */
+  let savedMinutes = [];
   const saved = await prisma.jobOrder.findUnique({
     where: { id: jo.id },
     select: { status: true, actualStart: true, actualEnd: true, idealCycleTimeSec: true, actualQtyGood: true, actualQtyRejected: true },
   });
 
   try {
-    await prisma.oeeMinute.deleteMany({ where: { jobOrderId: jo.id, bucketStart: { gte: t0, lt: tEnd } } });
+    // ── Back up this job order's minutes before touching any of them ──────
+    // The run deletes rows both inside the window and outside it: inside to
+    // start clean, outside because the writer's cron keeps adding live minutes
+    // that would otherwise land in the same day and be read back as part of the
+    // replay. The outside-the-window delete is the whole of this job order's
+    // history, which is real production data — so it is saved first and put
+    // back afterwards rather than being spent to make a test read cleanly.
+    savedMinutes = await prisma.oeeMinute.findMany({ where: { jobOrderId: jo.id } });
+    await prisma.oeeMinute.deleteMany({ where: { jobOrderId: jo.id } });
 
     // Every state record that OVERLAPS the window, not merely those that START
     // inside it. A record opened before t0 and still open covers the whole run,
@@ -335,14 +345,17 @@ async function main() {
     if (KEEP) {
       console.log(`\n  --keep: rows left in place. Open /oee-standard and pick ${ymd(t0)}.`);
     } else {
-      await prisma.oeeMinute.deleteMany({ where: { jobOrderId: jo.id, bucketStart: { gte: t0, lt: tEnd } } });
+      await prisma.oeeMinute.deleteMany({ where: { jobOrderId: jo.id } });
+      if (savedMinutes.length) {
+        await prisma.oeeMinute.createMany({ data: savedMinutes, skipDuplicates: true });
+      }
       await prisma.machineStateRecord.deleteMany({ where: { machineId: jo.machineId, startTime: { gte: t0, lt: tEnd } } });
       // Put the real history back exactly as it was found.
       if (savedStates.length) {
         await prisma.machineStateRecord.createMany({ data: savedStates, skipDuplicates: true });
       }
       await prisma.jobOrder.update({ where: { id: jo.id }, data: saved });
-      console.log(`\n  scenario rows removed, job order and ${savedStates.length} state record(s) restored`);
+      console.log(`\n  scenario rows removed; restored ${savedMinutes.length} minute(s), ${savedStates.length} state record(s) and the job order`);
     }
     await prisma.$disconnect();
   }
