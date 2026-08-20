@@ -28,6 +28,7 @@ export class OeeStandardController {
 
   private scope(q: Record<string, string | undefined>): OeeScope {
     return {
+      areaId: q.areaId || undefined,
       machineId: q.machineId || undefined,
       lineId: q.lineId || undefined,
       jobOrderId: q.jobOrderId || undefined,
@@ -43,6 +44,7 @@ export class OeeStandardController {
   @ApiQuery({ name: 'dateFrom', required: false, description: 'YYYY-MM-DD, plant-local' })
   @ApiQuery({ name: 'dateTo', required: false, description: 'YYYY-MM-DD, plant-local' })
   @ApiQuery({ name: 'granularity', required: false, description: 'hour | day' })
+  @ApiQuery({ name: 'areaId', required: false })
   @ApiQuery({ name: 'machineId', required: false })
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'jobOrderId', required: false })
@@ -52,13 +54,14 @@ export class OeeStandardController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('granularity') granularity?: string,
+    @Query('areaId') areaId?: string,
     @Query('machineId') machineId?: string,
     @Query('lineId') lineId?: string,
     @Query('jobOrderId') jobOrderId?: string,
     @Query('shiftTemplateId') shiftTemplateId?: string,
   ) {
     const { from, to } = resolveLocalRange(dateFrom, dateTo, 1);
-    const scope = this.scope({ machineId, lineId, jobOrderId, shiftTemplateId });
+    const scope = this.scope({ areaId, machineId, lineId, jobOrderId, shiftTemplateId });
     const f = user.factoryId;
     const g = granularity === 'day' ? 'day' : 'hour';
 

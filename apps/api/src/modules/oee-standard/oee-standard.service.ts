@@ -5,6 +5,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { computeOee, auditTotals, EMPTY_TOTALS, type OeeTotals, type OeeResult } from './oee-standard.calc';
 
 export interface OeeScope {
+  areaId?: string;
   machineId?: string;
   lineId?: string;
   jobOrderId?: string;
@@ -62,6 +63,16 @@ export class OeeStandardService {
     if (scope.jobOrderId) parts.push(Prisma.sql`o."jobOrderId" = ${scope.jobOrderId}`);
     if (scope.workOrderId) parts.push(Prisma.sql`o."workOrderId" = ${scope.workOrderId}`);
     if (scope.shiftTemplateId) parts.push(Prisma.sql`o."shiftTemplateId" = ${scope.shiftTemplateId}`);
+    if (scope.areaId) {
+      // A machine belongs to an area either directly or through its line, and
+      // the hierarchy allows both — asking for only one silently drops half a
+      // plant from an area-scoped reading.
+      parts.push(Prisma.sql`o."machineId" IN (
+        SELECT m2.id FROM machines m2
+        WHERE m2."areaId" = ${scope.areaId}
+           OR m2."lineId" IN (SELECT l2.id FROM production_lines l2 WHERE l2."areaId" = ${scope.areaId})
+      )`);
+    }
     if (scope.lineId) {
       parts.push(Prisma.sql`o."machineId" IN (SELECT m2.id FROM machines m2 WHERE m2."lineId" = ${scope.lineId})`);
     }

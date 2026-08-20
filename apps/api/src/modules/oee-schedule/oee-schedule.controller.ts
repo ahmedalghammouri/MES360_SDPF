@@ -38,6 +38,7 @@ export class OeeScheduleController {
   @ApiOperation({ summary: 'The committed-slot time model, per machine, job order and shift' })
   @ApiQuery({ name: 'dateFrom', required: false, description: 'YYYY-MM-DD, plant-local' })
   @ApiQuery({ name: 'dateTo', required: false, description: 'YYYY-MM-DD, plant-local' })
+  @ApiQuery({ name: 'areaId', required: false })
   @ApiQuery({ name: 'machineId', required: false })
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'jobOrderId', required: false })
@@ -46,6 +47,7 @@ export class OeeScheduleController {
     @CurrentUser() user: RequestUser,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('areaId') areaId?: string,
     @Query('machineId') machineId?: string,
     @Query('lineId') lineId?: string,
     @Query('jobOrderId') jobOrderId?: string,
@@ -57,6 +59,7 @@ export class OeeScheduleController {
     // of the day. The slot gets the end of the range as ASKED FOR.
     const slotTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : endOfLocalDay(new Date());
     const scope: ScheduleScope = {
+      areaId: areaId || undefined,
       machineId: machineId || undefined,
       lineId: lineId || undefined,
       jobOrderId: jobOrderId || undefined,

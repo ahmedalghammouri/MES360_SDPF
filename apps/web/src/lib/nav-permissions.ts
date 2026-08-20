@@ -24,6 +24,9 @@ const ROUTE_PERMISSIONS: Record<string, string> = {
 
   // Production family
   '/production': 'production:read',
+  // Both OEE engines answer to production:read on the API, so the menu entry
+  // must too — otherwise it shows to someone who will only get a 403.
+  '/oee-analysis': 'production:read',
   '/manufacturing': 'manufacturing:read',
   '/scheduling': 'scheduling:read',
   '/production/scheduling': 'scheduling:read',

@@ -165,9 +165,18 @@ const navItems: NavItem[] = [
       // others. It answers to a published reference and exists to be COMPARED
       // with the items above; listing it as just another reading would lose the
       // one thing that makes it useful.
-      { label: 'OEE — Standard Engine', href: '/oee-standard', icon: Scale },
-      // Third basis: the same minutes divided by the slot that was promised.
-      { label: 'OEE — Schedule Basis', href: '/oee-schedule', icon: CalendarClock },
+    ],
+  },
+  {
+    // Its own group because it is not one more reading of the line — it is the
+    // place the readings themselves are put side by side. Both engines live on
+    // one page and the OEE / OEE-TB button in the filter panel swaps between
+    // them, so the scope and period cannot differ between the two.
+    label: 'OEE Analysis Overview',
+    icon: Scale,
+    appHref: '/oee-analysis',
+    children: [
+      { label: 'Time Model & Bases', href: '/oee-analysis', icon: Scale },
     ],
   },
   {
