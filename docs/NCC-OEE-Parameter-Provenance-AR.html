@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>من أين يأتي كل رقم</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#fbfaf8; --card:#ffffff; --sunk:#f3f2ef;
+    --ink:#1b2430; --ink-2:#4a5563; --ink-3:#7b8694;
+    --rule:#e0e2e6; --rule-2:#c9ccd2;
+    --accent:#1f5c8b; --accent-soft:#e7f0f7;
+    --measured:#16694f;  --measured-bg:#e4f1eb;
+    --config:#8a5a11;    --config-bg:#f7efe0;
+    --derived:#5b4b9e;   --derived-bg:#eeebf8;
+    --gap:#a32f2f;       --gap-bg:#f8e9e9;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#12161b; --card:#181d24; --sunk:#1e242c;
+      --ink:#e6eaef; --ink-2:#a9b3c0; --ink-3:#78838f;
+      --rule:#2a313a; --rule-2:#3a434e;
+      --accent:#6db3e8; --accent-soft:#132735;
+      --measured:#5cc99f;  --measured-bg:#122c23;
+      --config:#e0ad5c;    --config-bg:#2e2513;
+      --derived:#a99bec;   --derived-bg:#211d38;
+      --gap:#ef8b8b;       --gap-bg:#331919;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#12161b; --card:#181d24; --sunk:#1e242c;
+    --ink:#e6eaef; --ink-2:#a9b3c0; --ink-3:#78838f;
+    --rule:#2a313a; --rule-2:#3a434e;
+    --accent:#6db3e8; --accent-soft:#132735;
+    --measured:#5cc99f;  --measured-bg:#122c23;
+    --config:#e0ad5c;    --config-bg:#2e2513;
+    --derived:#a99bec;   --derived-bg:#211d38;
+    --gap:#ef8b8b;       --gap-bg:#331919;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--paper); color:var(--ink); direction:rtl;
+    font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,system-ui,sans-serif;
+    font-size:16px; line-height:1.85; font-weight:400;
+  }
+  .wrap{max-width:1060px; margin:0 auto; padding:44px 22px 96px; display:flex; flex-direction:column; gap:40px}
+
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace; direction:ltr; unicode-bidi:embed;
+    font-variant-numeric:tabular-nums}
+  code{font-size:.82em; background:var(--sunk); border:1px solid var(--rule); border-radius:4px; padding:.08em .38em}
+
+  /* ── masthead ── */
+  .mast{display:flex; flex-direction:column; gap:14px; padding-bottom:26px; border-bottom:3px solid var(--ink)}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--accent); direction:ltr; text-align:right}
+  h1{margin:0; font-size:clamp(30px,5.2vw,46px); font-weight:600; line-height:1.25; letter-spacing:-.01em; text-wrap:balance}
+  .thesis{margin:0; font-size:18px; color:var(--ink-2); max-width:62ch; font-weight:300}
+  .meta{display:flex; flex-wrap:wrap; gap:8px 20px; font-size:12.5px; color:var(--ink-3);
+    font-family:"IBM Plex Mono",monospace; direction:ltr; justify-content:flex-end}
+
+  /* ── provenance chips: the spine of the whole document ── */
+  .chip{display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600;
+    padding:.14em .55em; border-radius:3px; white-space:nowrap; line-height:1.6}
+  .chip::before{content:""; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none}
+  .c-m{color:var(--measured); background:var(--measured-bg)}
+  .c-c{color:var(--config);   background:var(--config-bg)}
+  .c-d{color:var(--derived);  background:var(--derived-bg)}
+  .c-g{color:var(--gap);      background:var(--gap-bg)}
+
+  .legend{display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:14px}
+  .legend > div{background:var(--card); border:1px solid var(--rule); border-radius:7px; padding:14px 16px;
+    display:flex; flex-direction:column; gap:7px}
+  .legend p{margin:0; font-size:13.5px; color:var(--ink-2); line-height:1.7}
+
+  /* ── layer sections ── */
+  section{display:flex; flex-direction:column; gap:18px; scroll-margin-top:20px}
+  .lhead{display:flex; align-items:baseline; gap:14px; border-bottom:1px solid var(--rule-2); padding-bottom:11px}
+  .lnum{font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600; color:var(--accent);
+    background:var(--accent-soft); border-radius:3px; padding:.2em .5em; direction:ltr; flex:none}
+  h2{margin:0; font-size:23px; font-weight:600; letter-spacing:-.005em; text-wrap:balance; flex:1}
+  .lsub{font-size:13px; color:var(--ink-3); font-weight:400; flex:none}
+  p{margin:0; max-width:74ch}
+  .lede{color:var(--ink-2)}
+
+  /* ── tables ── */
+  .scroll{overflow-x:auto; border:1px solid var(--rule); border-radius:7px; background:var(--card)}
+  table{width:100%; border-collapse:collapse; font-size:14px; min-width:600px}
+  th,td{padding:10px 13px; text-align:start; vertical-align:top; border-bottom:1px solid var(--rule)}
+  thead th{background:var(--sunk); font-weight:600; font-size:12.5px; color:var(--ink-2);
+    position:sticky; top:0; border-bottom:1px solid var(--rule-2)}
+  tbody tr:last-child td{border-bottom:none}
+  td.k{font-family:"IBM Plex Mono",monospace; font-size:12.5px; font-weight:500; white-space:nowrap; direction:ltr}
+  td.f{font-family:"IBM Plex Mono",monospace; font-size:12.5px; direction:ltr; unicode-bidi:embed}
+  td small{color:var(--ink-3); font-size:12px}
+
+  /* ── formula blocks ── */
+  .eq{background:var(--card); border:1px solid var(--rule); border-inline-start:3px solid var(--accent);
+    border-radius:7px; padding:15px 18px; display:flex; flex-direction:column; gap:9px}
+  .eq .l{font-size:12px; color:var(--ink-3); font-weight:500}
+  .eq pre{margin:0; overflow-x:auto; font-family:"IBM Plex Mono",monospace; font-size:13px; line-height:1.85;
+    direction:ltr; text-align:left; color:var(--ink)}
+  .eq .why{font-size:13.5px; color:var(--ink-2); border-top:1px dashed var(--rule); padding-top:9px; line-height:1.75}
+
+  /* ── notes ── */
+  .note{border-radius:7px; padding:14px 17px; font-size:14.5px; line-height:1.8; border:1px solid transparent}
+  .note b{display:block; margin-bottom:4px; font-weight:600}
+  .note b.i{display:inline; margin:0}
+  .n-a{background:var(--accent-soft); border-color:transparent; color:var(--ink)}
+  .n-g{background:var(--gap-bg); border-color:transparent; color:var(--ink)}
+  .n-p{background:var(--card); border-color:var(--rule)}
+
+  ul,ol{margin:0; padding-inline-start:22px; display:flex; flex-direction:column; gap:7px}
+  li{max-width:72ch}
+
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px}
+  .kpi{background:var(--card); border:1px solid var(--rule); border-radius:7px; padding:15px 17px;
+    display:flex; flex-direction:column; gap:8px}
+  .kpi h3{margin:0; font-size:15.5px; font-weight:600; display:flex; align-items:center; gap:9px; flex-wrap:wrap}
+  .kpi .f{font-family:"IBM Plex Mono",monospace; font-size:12.5px; direction:ltr; background:var(--sunk);
+    border-radius:4px; padding:7px 10px; overflow-x:auto; white-space:nowrap}
+  .kpi p{font-size:13.5px; color:var(--ink-2); margin:0; line-height:1.7}
+
+  svg{max-width:100%; height:auto; display:block}
+  .d-l{fill:var(--ink); font:600 12px "IBM Plex Sans Arabic",sans-serif}
+  .d-s{fill:var(--ink-2); font:11px "IBM Plex Sans Arabic",sans-serif}
+  .d-m{fill:var(--ink-3); font:500 10.5px "IBM Plex Mono",monospace}
+
+  footer{border-top:1px solid var(--rule-2); padding-top:20px; font-size:13px; color:var(--ink-3); line-height:1.8}
+  a{color:var(--accent)}
+  a:focus-visible,summary:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:3px}
+  @media print{ .wrap{max-width:none;padding:0} section{break-inside:avoid} thead th{position:static} }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">MES360° · SDPF · Powder Packing Line 1</div>
+  <h1>من أين يأتي كل رقم</h1>
+  <p class="thesis">
+    تتبُّع كامل لكل معامل يدخل في OEE وبقية المؤشّرات — من البتّة على الجهاز، إلى الدقيقة في مخزن الحقائق،
+    إلى النسبة على الشاشة. لا معادلة هنا بلا مصدر، ولا مصدر بلا ملف.
+  </p>
+  <div class="meta">
+    <span>audit of 16,053 LOC · production module</span>
+    <span>19 Aug 2026</span>
+  </div>
+</header>
+
+<section>
+  <div class="lhead">
+    <h2>كل معامل ينتمي لواحد من ثلاثة</h2>
+    <span class="lsub">وهذا هو السؤال الذي تسأله عن أي رقم</span>
+  </div>
+  <p class="lede">
+    الالتباس الذي يجعل الأرقام تبدو بلا مرجع هو خلط ثلاثة أشياء مختلفة تماماً في صفّ واحد.
+    كل قيمة في هذا النظام إمّا <b>قِيست</b> على سلك، أو <b>عرّفها إنسان</b> في البيانات الأساسية،
+    أو <b>حُسبت</b> من الاثنين. وموثوقية أي رقم لا تزيد عن موثوقية أضعف ما دخل فيه.
+  </p>
+  <div class="legend">
+    <div>
+      <span class="chip c-m">مقيس</span>
+      <p>جاء من حسّاس عبر Modbus. لا رأي فيه — إمّا وصل أو لم يصل. أضعف نقطة فيه هي التوصيل نفسه.</p>
+    </div>
+    <div>
+      <span class="chip c-c">مُعرَّف</span>
+      <p>أدخله إنسان: زمن دورة، تعبئة منتج، قاعدة حالة، وردية. صحيح بقدر صحّة من أدخله، ولا شيء في النظام يراجعه.</p>
+    </div>
+    <div>
+      <span class="chip c-d">مُشتقّ</span>
+      <p>حُسب من الاثنين أعلاه بمعادلة في الكود. هذه وحدها قابلة للمراجعة سطراً بسطر — وهي معظم هذا التقرير.</p>
+    </div>
+    <div>
+      <span class="chip c-g">ثغرة</span>
+      <p>موجود في الواجهة وليس له مصدر حقيقي بعد. ثلاثة منها في النظام اليوم، مذكورة في آخر التقرير.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="lhead">
+    <span class="lnum">00</span>
+    <h2>ما الذي يُقاس فعلاً</h2>
+    <span class="lsub">الطبقة الوحيدة التي تلمس الواقع</span>
+  </div>
+  <p class="lede">
+    كل شيء بعد هذه الطبقة استنتاج. أربعة مصادر فقط تدخل من العالم الحقيقي، والباقي بيانات أساسية.
+  </p>
+  <div class="scroll">
+  <table>
+    <thead><tr>
+      <th style="width:22%">المصدر</th><th style="width:13%">النوع</th>
+      <th style="width:27%">أين يُخزَّن</th><th>كيف يصل</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td><b>حالة الماكينة</b><br><small>RUN_MODE · PROCESSING</small></td>
+        <td><span class="chip c-m">مقيس</span></td>
+        <td class="k">machine_state_records<br>machine_current_status</td>
+        <td>بتة رقمية ← <code>StatusService.derive</code> ← <code>StateInferenceService.classify</code> ← سجلّ حالة بمدّة.
+          هذه هي <b>الوحيدة</b> التي تقول إن الماكينة كانت تُنتج.</td>
+      </tr>
+      <tr>
+        <td><b>عدّاد الإنتاج</b><br><small>GOOD · BAD · TOTAL</small></td>
+        <td><span class="chip c-m">مقيس</span></td>
+        <td class="k">JobOrder.actualQtyGood<br>JobOrder.actualQtyRejected</td>
+        <td>حافّة صاعدة على بتة = +1. <code>CounterService.process</code> يضيفها لأمر التشغيل
+          <code>EXECUTING</code> على تلك الماكينة. عدّاد <b>تراكمي</b>، لا دلتا.</td>
+      </tr>
+      <tr>
+        <td><b>حدث التوقّف</b></td>
+        <td><span class="chip c-d">مُشتقّ</span></td>
+        <td class="k">downtime_events</td>
+        <td>تفتحه الحالة تلقائياً، أو يسجّله مشغّل يدوياً. يحمل <code>isPlanned</code> و<code>affectsOEE</code>
+          <b>منسوخين من قاعدة الحالة</b> لحظة الفتح.</td>
+      </tr>
+      <tr>
+        <td><b>قاعدة الحالة</b></td>
+        <td><span class="chip c-c">مُعرَّف</span></td>
+        <td class="k">machine_state_rules</td>
+        <td>تقرّر: هل هذه الحالة توقّف؟ مخطّط؟ تُحتسب على OEE؟ <b>تُعدَّل من الواجهة بلا نشر</b> —
+          وهي التي تحدّد أين تذهب كل دقيقة توقّف.</td>
+      </tr>
+      <tr>
+        <td><b>زمن الدورة المثالي</b></td>
+        <td><span class="chip c-c">مُعرَّف</span></td>
+        <td class="k">JobOrder.idealCycleTimeSec</td>
+        <td>يُثبَّت على أمر التشغيل عند إنشائه بترتيب أولوية من أربعة مصادر — انظر أدناه.
+          <b>مقام الأداء كلّه</b>.</td>
+      </tr>
+      <tr>
+        <td><b>سلّم التعبئة</b></td>
+        <td><span class="chip c-c">مُعرَّف</span></td>
+        <td class="k">Sku.unitsPerInner ···</td>
+        <td>PIECE ← INNER ← CARTON ← PALLET. بدونه لا يمكن جمع إنتاج محطّات تعدّ بوحدات مختلفة.</td>
+      </tr>
+      <tr>
+        <td><b>الوردية</b></td>
+        <td><span class="chip c-c">مُعرَّف</span></td>
+        <td class="k">shift_templates</td>
+        <td>تُشتقّ لكل دقيقة من وقتها عبر <code>resolveShiftAt</code> — لا تعتمد على أن يضغط أحد «بدء وردية».</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="eq">
+    <span class="l">ترتيب حسم زمن الدورة المثالي — أول قيمة غير فارغة تفوز</span>
+    <pre>idealCycleTimeSec =
+      RoutingStepMachineOption.cycleOverrideSec   ← تجاوز لهذه الماكينة تحديداً
+   ?? RoutingStep.cycleTimeSec                    ← المرجع الأساسي (ثانية لكل وحدة مُخرَجة)
+   ?? MachineCycleTime.cycleTimeSeconds           ← جدول ماكينة × منتج
+   ?? RoutingStep.cycleTimeMins × 60              ← حقل قديم</pre>
+    <div class="why">
+      يُنسَخ إلى أمر التشغيل <b class="i">مرّة واحدة عند الإنشاء</b> ولا يتغيّر بعدها.
+      فتعديل زمن الدورة في المسار لا يُصلح أوامر تشغيل قائمة — ولا يُعاد حساب أدائها.
+      <code>production.service.ts:3795</code>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="lhead">
+    <span class="lnum">01</span>
+    <h2>مخزن الحقائق: كيف تُقسَّم الدقيقة</h2>
+    <span class="lsub">هنا يُصنع كل رقم</span>
+  </div>
+  <p class="lede">
+    هذه هي الطبقة التي تسأل عنها. مرّة كل دقيقة، لكل أمر تشغيل نشط، يُكتب صفّ واحد في
+    <code>production_snapshots</code> يقسّم تلك الدقيقة إلى دلاء لا تتداخل. كل رقم في النظام بعد ذلك
+    هو <b>جمع</b> لهذه الصفوف — لا إعادة حساب.
+  </p>
+
+  <div class="note n-a">
+    <b>الدقيقة المُلتقَطة هي الدقيقة <span class="mono">المُغلَقة</span>، لا الجارية</b>
+    الـ cron يعمل عند الثانية <code>:00</code>، فالدقيقة الحالية لم يمرّ منها شيء تقريباً.
+    التقاطها كان يسجّل دقيقة مخطّطة كاملة مقابل ٢ مللي ثانية تشغيل، فتنهار الإتاحية إلى صفر.
+    لذلك: <code class="mono">bucketStart = floor(at / 60s) × 60s − 60s</code>
+  </div>
+
+  <h3 style="margin:6px 0 0; font-size:16px; font-weight:600">كيف تُقسَّم دقيقة واحدة</h3>
+  <div class="scroll" style="padding:20px 18px; background:var(--card)">
+  <svg viewBox="0 0 900 258" role="img" aria-label="تقسيم الدقيقة إلى توقّف مخطّط وخارجي وغير مقيس وتوقّف وتشغيل">
+    <text class="d-m" x="890" y="14" text-anchor="end">elapsedMin</text>
+    <line x1="890" y1="22" x2="10" y2="22" stroke="var(--rule-2)" stroke-width="1"></line>
+    <line x1="890" y1="18" x2="890" y2="26" stroke="var(--rule-2)" stroke-width="1"></line>
+    <line x1="10" y1="18" x2="10" y2="26" stroke="var(--rule-2)" stroke-width="1"></line>
+
+    <!-- carved out -->
+    <rect x="740" y="38" width="150" height="46" rx="4" fill="var(--config-bg)" stroke="var(--config)"></rect>
+    <text class="d-l" x="815" y="60" text-anchor="middle" style="fill:var(--config)">توقّف مخطّط</text>
+    <text class="d-m" x="815" y="76" text-anchor="middle" style="fill:var(--config)">plannedDownMin</text>
+
+    <rect x="600" y="38" width="134" height="46" rx="4" fill="var(--config-bg)" stroke="var(--config)"></rect>
+    <text class="d-l" x="667" y="60" text-anchor="middle" style="fill:var(--config)">خارجي</text>
+    <text class="d-m" x="667" y="76" text-anchor="middle" style="fill:var(--config)">externalMin</text>
+
+    <rect x="470" y="38" width="124" height="46" rx="4" fill="var(--sunk)" stroke="var(--rule-2)" stroke-dasharray="4 3"></rect>
+    <text class="d-l" x="532" y="60" text-anchor="middle" style="fill:var(--ink-3)">غير مقيس</text>
+    <text class="d-m" x="532" y="76" text-anchor="middle" style="fill:var(--ink-3)">unmeasuredMin</text>
+
+    <!-- kept -->
+    <rect x="290" y="38" width="174" height="46" rx="4" fill="var(--gap-bg)" stroke="var(--gap)"></rect>
+    <text class="d-l" x="377" y="60" text-anchor="middle" style="fill:var(--gap)">توقّف غير مخطّط</text>
+    <text class="d-m" x="377" y="76" text-anchor="middle" style="fill:var(--gap)">downMin</text>
+
+    <rect x="10" y="38" width="274" height="46" rx="4" fill="var(--measured-bg)" stroke="var(--measured)"></rect>
+    <text class="d-l" x="147" y="60" text-anchor="middle" style="fill:var(--measured)">تشغيل</text>
+    <text class="d-m" x="147" y="76" text-anchor="middle" style="fill:var(--measured)">runMin</text>
+
+    <!-- PPT bracket -->
+    <path d="M464,98 L464,110 L10,110 L10,98" fill="none" stroke="var(--accent)" stroke-width="1.5"></path>
+    <rect x="150" y="112" width="180" height="22" rx="3" fill="var(--paper)"></rect>
+    <text class="d-l" x="240" y="128" text-anchor="middle" style="fill:var(--accent)">الزمن المخطّط للإنتاج · plannedMin</text>
+
+    <text class="d-s" x="890" y="128" text-anchor="end">↑ تُرفع من الطرفين — لا تُحتسب على أحد</text>
+
+    <line x1="890" y1="152" x2="10" y2="152" stroke="var(--rule)" stroke-width="1"></line>
+
+    <text class="d-l" x="890" y="180" text-anchor="end">الهويّة التي يعتمد عليها كل عرض:</text>
+    <text class="d-m" x="890" y="204" text-anchor="end" style="fill:var(--accent); font-size:14px; font-weight:600">plannedMin − runMin = downMin</text>
+    <text class="d-s" x="890" y="232" text-anchor="end">تتحقّق بالبناء، لا بالمصادفة: الدلاء تُدمَج بالأسبقية بدل أن تُجمَع.</text>
+  </svg>
+  </div>
+
+  <p>
+    <b>الترتيب مهم.</b> كل معادلة تعتمد على التي قبلها، وتغيير أي منها يغيّر كل رقم في النظام.
+    هذه هي الستّة بالترتيب الذي تُنفَّذ به فعلاً —
+    <code>production-snapshot.service.ts:183–260</code>
+  </p>
+
+  <div class="eq">
+    <span class="l">١ — الزمن المنقضي في هذا الدلو</span>
+    <pre>winFrom   = max(bucketStart, jobOrder.actualStart)
+winTo     = min(now, bucketEnd)
+elapsedMin = (winTo − winFrom) / 60000</pre>
+    <div class="why">أمر تشغيل بدأ في منتصف الدقيقة لا يُنسب له الدقيقة كاملة.</div>
+  </div>
+
+  <div class="eq">
+    <span class="l">٢ — الوقت المتوقّف، مقسوماً بالأسبقية لا بالجمع</span>
+    <pre>splitStoppedTime(events, winFrom, winTo)
+  → قصّ على النافذة
+  → دمج المتداخل داخل كل نوع        (الدقيقة متوقّفة أو لا — لا تتوقّف مرّتين)
+  → أسبقية:  planned → external → unplanned
+
+  { plannedDownMin, externalMin, downMin }</pre>
+    <div class="why">
+      الجمع المباشر كان يعطي توقّفاً أكبر من الدقيقة نفسها: سجلّ المصنع فيه <b class="i">أحداث مكرّرة</b>
+      حرفياً، ودقائق يغطّيها توقّف مخطّط وغير مخطّط معاً. على M1 خرجت ١٥٠٠ مقابل ١٦٢٥ وانهارت الهويّة.
+      <code>common/stopped-time.util.ts</code>
+    </div>
+  </div>
+
+  <div class="eq">
+    <span class="l">٣ — ما الذي قالته الماكينة فعلاً</span>
+    <pre>observedTime(stateRecords, winFrom, winTo, {'RUNNING'})
+  → { coveredMin, producingMin }
+
+coveredMin    = الدقائق التي أبلغت فيها الماكينة عن أي حالة
+producingMin  = الدقائق التي كانت فيها RUNNING</pre>
+    <div class="why">
+      <code>RUNNING</code> وحدها تُعدّ إنتاجاً. <code>SETUP</code> و<code>CHANGEOVER</code> عمل لكنه ليس مُخرَجاً،
+      والقواعد تصنّفهما توقّفاً مخطّطاً أصلاً.
+    </div>
+  </div>
+
+  <div class="eq">
+    <span class="l">٤ — زمن التشغيل: مقيس، لا مفترَض</span>
+    <pre>excluded    = plannedDownMin + externalMin
+accountable = max(0, elapsedMin − downMin − excluded)
+
+runMin      = min( accountable, max(0, producingMin − excluded) )</pre>
+    <div class="why">
+      <b class="i">هذه أهم معادلة في النظام كله.</b> قبلها كان <code>runMin = elapsed − stops</code>، أي:
+      الماكينة تُنتج <b class="i">ما لم يُثبَت أنها توقّفت</b>. وهذا يفشل مفتوحاً — كل توقّف لم يُنتج حدثاً
+      (إشارة مقطوعة، بوّابة متوقّفة، قاعدة غير مضبوطة) كان يُحتسب إنتاجاً. وهكذا ظهرت ماكينات
+      لم تسجّل زمن تشغيل قطّ بإتاحية ٩٧٪. الآن السقف هو ما قِيس، لا ما افتُرض.
+    </div>
+  </div>
+
+  <div class="eq">
+    <span class="l">٥ — الصمت ليس توقّفاً</span>
+    <pre>unmeasuredMin  = max(0, accountable − max(0, coveredMin − excluded))
+unexplainedMin = max(0, accountable − runMin − unmeasuredMin)
+
+المُخزَّن:  downMin ← downMin + unexplainedMin</pre>
+    <div class="why">
+      ثلاث حالات مختلفة: <b class="i">أبلغت أنها تُنتج</b> ← تشغيل ·
+      <b class="i">أبلغت بشيء آخر</b> ← توقّف يُحتسب على الإتاحية ·
+      <b class="i">لم تُبلغ إطلاقاً</b> ← غير مقيس، يخرج من الطرفين.
+      ماكينة بلا إشارة حالة لا تُعطى إتاحية مُجمِّلة — تُعطى <b class="i">لا شيء</b>.
+    </div>
+  </div>
+
+  <div class="eq">
+    <span class="l">٦ — الزمن المخطّط للإنتاج</span>
+    <pre>plannedOverlap = تداخل [plannedStart, plannedEnd] مع هذا الدلو
+plannedMin = max(0, max(elapsedMin, plannedOverlap) − excluded − unmeasuredMin)</pre>
+    <div class="why">
+      الأرضية عند <code>elapsedMin</code> لا عند <code>runMin</code> — ولو كانت عند runMin
+      لطُرح التوقّف من المقام أيضاً ولبقيت الإتاحية مثبّتة على ١٠٠٪ إلى الأبد.
+      وبهذا تتحقّق الهويّة: <b class="i">plannedMin = runMin + downMin</b>
+    </div>
+  </div>
+
+  <div class="eq">
+    <span class="l">٧ — الكميّات: دلتا، ثم قِطَع</span>
+    <pre>goodRaw  = max(0, JobOrder.actualQtyGood − Σ(الدلاء المُغلقة السابقة))
+goodBase = toPieces(goodRaw, outputUnit, sku)
+
+idealRunMin = (idealCycleTimeSec / 60) × totalRaw     ← RAW لا Base</pre>
+    <div class="why">
+      العدّاد تراكمي، والصفّ دلتا — فجمع النافذة صحيح، والنظام يتحمّل إعادة التشغيل لأن الأساس
+      يُقرأ من قاعدة البيانات لا من الذاكرة.
+      <br><br>
+      و<code>idealRunMin</code> يستخدم <b class="i">العدّ الخام</b> عمداً: زمن الدورة معرَّف
+      «ثانية لكل وحدة <b class="i">مُخرَجة</b>» (لكل inner مثلاً)، فضربه في القِطَع يخلط وحدتين
+      ويجعل الأداء رقماً بلا معنى.
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="lhead">
+    <span class="lnum">02</span>
+    <h2>قاعدتان تحكمان كل تجميع</h2>
+    <span class="lsub">ولا يجوز لأي صفحة أن تكتبهما بنفسها</span>
+  </div>
+  <p class="lede">
+    الجمع من مخزن الحقائق يحدث في مكان واحد فقط — <code>KpiService.machineFactTotals</code> —
+    ويطبّق قاعدتين مختلفتين على الزمن وعلى الكميّة.
+  </p>
+
+  <div class="grid2">
+    <div class="kpi">
+      <h3>الزمن مِلك الماكينة</h3>
+      <div class="f">SUM(minutes) GROUP BY machineId</div>
+      <p>دقيقة قضتها المعبّئة معطّلة هي دقيقة حقيقية أياً كان موقعها في المسار. تُجمع كلها بلا تصفية.</p>
+    </div>
+    <div class="kpi">
+      <h3>الكميّة من الخطوة الأخيرة وحدها</h3>
+      <div class="f">WHERE sequenceOrder = MAX(sequenceOrder)<br>       per (machineId, workOrderId)</div>
+      <p>الوحدة التي تمرّ على خمس محطّات هي <b>وحدة واحدة</b>، لا خمس. جمع كل الخطوات يعدّها خمس مرّات.</p>
+    </div>
+  </div>
+
+  <div class="note n-a">
+    <b>أثر القاعدة الثانية مقاس، لا نظري</b>
+    الجودة محسوبة بجمع كل الخطوات كانت <b class="i">٩٩٫٩٪</b>؛ ومحسوبة من الخطوة الأخيرة وحدها
+    <b class="i">٩٨٫٩٪</b>. تضخيم المُخرَج يخفّف نسبة الهالك حتى تبدو الجودة أفضل مما هي.
+    <br><br>
+    ولاحظ عدم التماثل المقصود: <b class="i">السليم</b> من الخطوة الأخيرة فقط، أما <b class="i">الهالك</b>
+    فمن <b class="i">كل</b> الخطوات — وحدة تالفة في المعبّئة خسارة حقيقية وإن لم تصل النهاية أبداً.
+  </div>
+</section>
+
+<section>
+  <div class="lhead">
+    <span class="lnum">03</span>
+    <h2>المعاملات الثلاثة</h2>
+    <span class="lsub">وقاعدتا الإتاحية</span>
+  </div>
+  <p class="lede">
+    كلها من <code>KpiService.factorsFromFacts</code>، من مجموع واحد. لا صفحة تحسبها بنفسها —
+    وهذا مضمون باختبار بنيوي يفشل لو ظهر محرّك خامس.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr>
+      <th style="width:19%">المعامل</th><th style="width:33%">المعادلة</th><th>ما الذي يقيسه — ومتى يكون <code>null</code></th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td><b>الإتاحية</b><br><small>حسب الجدولة</small></td>
+        <td class="f">runMin ÷ plannedMin × 100</td>
+        <td>«من الوقت الذي نويت الإنتاج فيه، كم أنتجتُ فعلاً؟» الوقت المجدوَل ولم يبدأ يُحتسب ضدّها.
+          <br><span class="chip c-d">مُشتقّ</span> · <code>null</code> إن كان المخطّط صفراً — لا صفر٪،
+          لأن «لم يُطلَب منها العمل» ليست فشلاً.</td>
+      </tr>
+      <tr>
+        <td><b>الإتاحية</b><br><small>حسب الزمن · OEE-TB</small></td>
+        <td class="f">runMin ÷ (runMin + downMin) × 100</td>
+        <td>«وقت ما كان الخط قائماً، كم من ذلك كان مُنتِجاً؟» عمياء عن الجدولة تماماً.
+          المخطّط والخارجي خارج الطرفين أصلاً، فـ <code>run + down</code> <b>هو</b> زمن المحاسبة.
+          <br><span class="chip c-d">مُشتقّ</span></td>
+      </tr>
+      <tr>
+        <td><b>الأداء</b></td>
+        <td class="f">min(100, idealRunMin ÷ runMin × 100)</td>
+        <td>«هل تعمل بالسرعة المفترضة؟» السقف عند ١٠٠ مقصود: تجاوز المثالي يعني أن
+          <b>المثالي خاطئ</b>، لا أن الماكينة سبقت الفيزياء.
+          <br><span class="chip c-d">مُشتقّ</span> من <span class="chip c-c">مُعرَّف</span> — أضعف حلقة.</td>
+      </tr>
+      <tr>
+        <td><b>الجودة</b></td>
+        <td class="f">goodBase ÷ totalBase × 100</td>
+        <td>بالقِطَع، ومن الخطوة الأخيرة. القاسم <code>totalBase = goodBase + scrapBase</code>.
+          <br><span class="chip c-d">مُشتقّ</span> من <span class="chip c-m">مقيس</span> — أوثقها.</td>
+      </tr>
+      <tr>
+        <td><b>OEE</b></td>
+        <td class="f">A ÷ 100 × P ÷ 100 × Q ÷ 100 × 100</td>
+        <td>ضرب، لا متوسّط. أي معامل <code>null</code> يجعل النتيجة <code>null</code> — لا صفراً.
+          و<code>oeeTb</code> يستخدم نفس P و Q، ولا يختلف إلا في قاعدة الإتاحية.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <div class="lhead">
+    <span class="lnum">04</span>
+    <h2>التجميع لأعلى</h2>
+    <span class="lsub">ماكينة ← خط ← منطقة ← مصنع</span>
+  </div>
+
+  <div class="eq">
+    <span class="l">OEEService.rollup — المبدأ الوحيد المسموح</span>
+    <pre>❌  OEE(الخط) = متوسّط( OEE(كل ماكينة) )
+
+✅  اجمع الدقائق والأعداد أولاً، ثم أعد حساب A · P · Q من المجاميع
+    netPpt = Σppt − ΣexternalLoss
+    A,P,Q  ← تُشتقّ من المجاميع، لا من النِّسَب</pre>
+    <div class="why">
+      متوسّط النِّسَب يعطي ماكينة عملت ٣ دقائق نفس وزن ماكينة عملت ٨ ساعات.
+      نفس المبدأ يُستخدم في التجميع الرأسي (JO ← WO ← PO) والأفقي (ماكينة ← خط).
+      <code>oee.service.ts:251</code>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="lhead">
+    <span class="lnum">05</span>
+    <h2>المؤشّرات المبنيّة فوق OEE</h2>
+    <span class="lsub">الشلال · TEEP · الجدولة · الطاقة</span>
+  </div>
+
+  <div class="eq">
+    <span class="l">شلال الخسائر — كل دقيقة على مدار الساعة تنزل إلى دلو واحد</span>
+    <pre>calendarMin        = دقائق النافذة × عدد الماكينات في النطاق
+  − scheduleLoss   ────────────────────────────────  وقت لم يُخطَّط للتشغيل فيه أصلاً
+= loadingMin       = plannedMin + plannedDownMin + externalMin
+  − plannedStops   ────────────────────────────────  استراحات · تنظيف · صيانة مخطّطة
+  − external       ────────────────────────────────  جوع · انسداد  (فوق PPT، لا داخلها)
+= plannedMin       ══ مقام الإتاحية ══
+  − downMin        ────────────────────────────────  خسارة الإتاحية
+= runMin
+  − performanceLoss = runMin − runMin × P/100
+= netOperatingMin
+  − qualityLoss     = netOperating − netOperating × Q/100
+= fullyProductiveMin
+
+OEE  = fullyProductive ÷ plannedMin
+TEEP = fullyProductive ÷ calendarMin</pre>
+    <div class="why">
+      <b class="i">الخارجي يجلس فوق PPT، بجوار التوقّف المخطّط — لا داخل خسارة الإتاحية.</b>
+      إضافته للإتاحية كانت تطرحه مرّتين والأعمدة تتوقّف عن التوازن. ماكينة جائعة سليمة،
+      والقيد يخصّ الخط لا الأصل.
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="kpi">
+      <h3>الاستغلال <span class="chip c-d">مُشتقّ</span></h3>
+      <div class="f">plannedMin ÷ calendarMin × 100</div>
+      <p>كم من الساعة خطّط المصنع لاستخدامه أصلاً. الفجوة بينه وبين ١٠٠٪ طاقة تملكها ولا تستعملها.</p>
+    </div>
+    <div class="kpi">
+      <h3>TEEP <span class="chip c-d">مُشتقّ</span></h3>
+      <div class="f">OEE × الاستغلال ÷ 100</div>
+      <p>دائماً أصغر من OEE. يحمل الكفاءة حتى التقويم الكامل: ما كان الأصل ليعطيه لو عمل بلا توقّف.</p>
+    </div>
+    <div class="kpi">
+      <h3>تحقيق الجدول الرئيسي <span class="chip c-c">مُعرَّف</span></h3>
+      <div class="f">Σ min(completedQty, targetQty)<br>÷ Σ targetQty × 100</div>
+      <p>الـ <code>min()</code> هو بيت القصيد: فائض أمر لا يغطّي نقص آخر. ١٠٠٪ تعني «كل أمر بلغ خطّته»،
+        لا «المجموع طابق المجموع».</p>
+    </div>
+    <div class="kpi">
+      <h3>استغلال الطاقة (حجمي) <span class="chip c-d">مُشتقّ</span></h3>
+      <div class="f">Σ goodBase (من مخزن الحقائق)<br>÷ (المعدّل المصمَّم × ساعات النافذة)</div>
+      <p>المعدّل من <code>RoutingStep.cycleTimeSec</code> — لا حقل «طاقة» منفصل يمكن أن ينحرف عن الجدولة.
+        وعند تعدّد المسارات يُؤخذ <b>الأبطأ</b>.</p>
+    </div>
+  </div>
+
+  <div class="note n-a">
+    <b>لماذا كانت هذه البطاقة تقرأ ٧٦٠٪</b>
+    البسط كان يقرأ <code>JobOrder.actualQtyGood</code> — عدّاد <b class="i">تراكمي مدى الحياة</b> —
+    والمقام مبني على ساعات النافذة. أوامر التشغيل كانت مفتوحة ٢٣٠ ساعة، فوُضِع إنتاج ٢٣٠ ساعة
+    فوق طاقة بضع ساعات. نسبة طرفاها يغطّيان فترتين مختلفتين ليست استغلالاً عالياً — هي رقم بلا معنى.
+    القراءة الآن من مخزن الحقائق، وهي دلتا داخل النافذة بالضبط.
+  </div>
+</section>
+
+<section>
+  <div class="lhead">
+    <span class="lnum">06</span>
+    <h2>ثغرات قائمة</h2>
+    <span class="lsub">أرقام تظهر ولها مصدر أضعف مما يوحي عرضها</span>
+  </div>
+  <p class="lede">
+    ثلاث حالات وجدتها أثناء هذا الفحص. كلها تظهر في الواجهة كأرقام عادية، وليست كذلك.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr>
+      <th style="width:20%">الرقم</th><th style="width:11%">الحالة</th><th>ما هو فعلاً</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td><b>التوقّفات الدقيقة</b><br><small class="mono">microStopMin</small></td>
+        <td><span class="chip c-g">ثغرة</span></td>
+        <td>
+          <b>صفر دائماً.</b> العمود موجود في المخزن ويُجمَع ويُعرض في الشلال وقائمة الخسائر،
+          لكن الكاتب يضع فيه <code>0</code> حرفياً — في الكتابة الحيّة وفي إعادة بناء التاريخ معاً.
+          فبند «التوقّفات الدقيقة» في الواجهة لا يعني أنها لا تحدث؛ يعني أن <b>لا شيء يقيسها</b>.
+          <br><small><code>production-snapshot.service.ts:307</code> · <code>backfill.ts:191</code></small>
+        </td>
+      </tr>
+      <tr>
+        <td><b>تحقيق الجدول</b><br><small class="mono">MSA</small></td>
+        <td><span class="chip c-g">ثغرة</span></td>
+        <td>
+          الوحيد الذي <b>لا يقرأ من مخزن الحقائق</b>. يقرأ <code>ProductionOrder.completedQty</code>،
+          وهو مجموع <code>WorkOrder.goodQty</code> — <b>حقل تراكمي مدى عمر الأمر</b>.
+          فاختيار «اليوم» يقارن إنتاج عمر الأمر كله بأهدافه: نفس عيب الـ ٧٦٠٪، في مكان لم يُصلَح بعد.
+          يُقرأ كتحقيق تراكمي للأوامر التي <b>تتداخل خطّتها</b> مع النافذة، لا كتحقيق داخل النافذة.
+        </td>
+      </tr>
+      <tr>
+        <td><b>الأداء</b><br><small class="mono">performance</small></td>
+        <td><span class="chip c-c">مُعرَّف</span></td>
+        <td>
+          مقامه <code>idealCycleTimeSec</code>، وهو مُدخَل بشري لا يراجعه شيء. والسقف عند ١٠٠٪
+          <b>يخفي</b> الخطأ بدل أن يُظهره: زمن دورة مبالغ فيه يقرأ ١٠٠٪ دائماً.
+          وقد رُصد تضارب في أزمنة الدورة على هذا الخط (بند ٢٧ في متتبّع NCC) ولم يُغلَق بعد.
+          <br><b>راجعها قبل الاعتماد على أي رقم أداء.</b>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note n-g">
+    <b>وأثر واحد يستحقّ أن تعرفه قبل أن يفاجئك</b>
+    ماكينة بلا إشارة حالة موصّلة تُنتج <code>unmeasuredMin</code> فقط — لا تشغيل ولا توقّف —
+    فتخرج من الطرفين وتقرأ إتاحيتها <code>null</code>، لا صفراً ولا ١٠٠٪.
+    <b class="i">هذا مقصود</b>: الصمت ليس دليلاً في أي من الاتجاهين. لكنه يعني أن تغطية الإشارات
+    ليست تفصيلاً في التركيب — هي <b class="i">شرط وجود الرقم أصلاً</b>.
+  </div>
+</section>
+
+<section>
+  <div class="lhead">
+    <span class="lnum">07</span>
+    <h2>جدول المراجع</h2>
+    <span class="lsub">أين تفتح الكود لكل رقم</span>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:30%">ما تريد فهمه</th><th style="width:40%">الملف</th><th>الدالة</th></tr></thead>
+    <tbody>
+      <tr><td>كيف تُقسَّم الدقيقة</td><td class="k">historian/production-snapshot.service.ts</td><td class="k">buildRow</td></tr>
+      <tr><td>دمج التوقّف بالأسبقية</td><td class="k">common/stopped-time.util.ts</td><td class="k">splitStoppedTime</td></tr>
+      <tr><td>الفرق بين «توقّفت» و«لم تُبلغ»</td><td class="k">common/stopped-time.util.ts</td><td class="k">observedTime</td></tr>
+      <tr><td>الجمع لكل ماكينة</td><td class="k">production/kpi.service.ts</td><td class="k">machineFactTotals</td></tr>
+      <tr><td>الجمع لكل خطوة</td><td class="k">production/kpi.service.ts</td><td class="k">jobOrderFactTotals</td></tr>
+      <tr><td>A · P · Q · OEE · OEE-TB</td><td class="k">production/kpi.service.ts</td><td class="k">factorsFromFacts</td></tr>
+      <tr><td>التجميع لأعلى</td><td class="k">production/oee.service.ts</td><td class="k">rollup</td></tr>
+      <tr><td>الشلال و TEEP</td><td class="k">production/oee-analytics.service.ts</td><td class="k">derive · waterfall</td></tr>
+      <tr><td>الجدولة والطاقة</td><td class="k">production/schedule-kpi.service.ts</td><td class="k">masterScheduleAttainment</td></tr>
+      <tr><td>قيم الوردية الجارية</td><td class="k">production/live-kpi.service.ts</td><td class="k">snapshot</td></tr>
+      <tr><td>تحويل الوحدات</td><td class="k">common/units.util.ts</td><td class="k">toPieces</td></tr>
+      <tr><td>حسم حالة الماكينة</td><td class="k">edgegateway/acquisition/state-inference.service.ts</td><td class="k">classify</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer>
+  MES360° · مصنع مسحوق المنظفات السعودي · خط تعبئة المسحوق ١<br>
+  فحص للمحرّك كما هو في <span class="mono">c2ca247</span> — ١٩ أغسطس ٢٠٢٦.
+  كل معادلة في هذا التقرير مقروءة من الكود لا من الذاكرة، ومغطّاة بـ <span class="mono">297</span>
+  اختبار API و<span class="mono">117</span> اختبار بوّابة.
+</footer>
+
+</div>
+</body>
+</html>
