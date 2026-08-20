@@ -125,16 +125,34 @@ export function plantWallClockToUtc(
  *  • the upper bound never runs past NOW — a KPI cannot cover hours that have
  *    not happened, and charging planned time for them collapses Availability
  */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A bound the caller wrote, as an instant — or null when it wrote nothing usable.
+ *
+ * A bare `YYYY-MM-DD` keeps its day-edge meaning. Anything longer is read as a
+ * plant-local wall clock, which is what a caller asking for 14:00–15:00 means;
+ * appending the day-edge suffix to it produced `...T14:00:00T23:59:59.999`, an
+ * Invalid Date that reached Postgres and returned a 500 rather than a complaint.
+ */
+export function plantBound(raw: string | undefined, edge: 'start' | 'end'): Date | null {
+  if (!raw) return null;
+  const text = DATE_ONLY.test(raw)
+    ? `${raw}T${edge === 'start' ? '00:00:00.000' : '23:59:59.999'}`
+    : raw;
+  const d = new Date(text);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export function resolveLocalRange(
   dateFrom?: string,
   dateTo?: string,
   defaultDays = 7,
   now: Date = new Date(),
 ): { from: Date; to: Date } {
-  const rawTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : now;
+  const rawTo = plantBound(dateTo, 'end') ?? now;
   const to = rawTo > now ? now : rawTo;
-  const from = dateFrom
-    ? new Date(`${dateFrom}T00:00:00.000`)
-    : new Date(to.getTime() - defaultDays * 86_400_000);
+  const from = plantBound(dateFrom, 'start')
+    ?? new Date(to.getTime() - defaultDays * 86_400_000);
   return { from, to };
 }

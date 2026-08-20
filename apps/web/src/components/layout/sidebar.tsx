@@ -177,6 +177,11 @@ const navItems: NavItem[] = [
     appHref: '/oee-analysis',
     children: [
       { label: 'Time Model & Bases', href: '/oee-analysis', icon: Scale },
+      // Same engine, same rules, no date filter — the window is the shift the
+      // clock says we are in. It sits here rather than under a "live" heading of
+      // its own because a reader comparing the shift to the week should not have
+      // to cross the menu to do it.
+      { label: 'Live Shift', href: '/live-shift', icon: Radio },
     ],
   },
   {

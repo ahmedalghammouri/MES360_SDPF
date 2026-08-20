@@ -20,7 +20,7 @@ import { usePathname } from 'next/navigation';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import {
   ChevronRight, ChevronDown, Factory, LayoutGrid, GitBranch, Cpu, PanelLeftClose, PanelLeftOpen,
-  Filter, Check, Info, CalendarRange, RefreshCw, Package,
+  Filter, Check, Info, CalendarRange, RefreshCw, Package, Boxes,
 } from 'lucide-react';
 import { api } from '@/services/api.client';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ import { useDashboardPrefsStore, type TrendType } from '@/store/dashboard-prefs-
 import { useOrderFilterStore } from '@/store/order-filter-store';
 import { useViewModeStore } from '@/store/view-mode-store';
 import { useScope } from '@/hooks/use-scope';
+import { useTimeRange } from '@/hooks/use-time-range';
 import { SelectMenu } from '@/components/ui/select-menu';
 
 interface TreeNode {
@@ -51,6 +52,7 @@ const toScopeType = (t: TreeNode['type']): ScopeType =>
 
 // Routes where filtering by Production Order / Work Order has a real effect.
 const ORDER_ROUTES = [
+  '/oee-analysis', '/live-shift',
   '/production/kpi', '/production/oee', '/manufacturing/kpi', '/manufacturing/oee',
   '/quality/spc', '/quality/inspections', '/quality/records', '/quality/ncr',
   '/energy', '/energy/dashboard',
@@ -217,6 +219,84 @@ function OrdersSection() {
   );
 }
 
+/**
+ * Product and shift — offered only where they actually have rows.
+ *
+ * ── Why the options come from the data, not the master data ─────────────────
+ * A product list built from the SKU table names every product the plant has ever
+ * defined, so most of its options select nothing and a reader cannot tell "we
+ * did not make that this week" from "I picked the wrong one". These options come
+ * from `/oee-standard/dimensions`, which reads the same minutes the page reads,
+ * so every option returns something and a MISSING option is itself the answer.
+ *
+ * Each list is built server-side with its own dimension excluded from the scope,
+ * so choosing a product does not shrink the shift list to that product's shifts
+ * and strand the reader with no way back.
+ */
+function DimensionsSection({ showShift }: { showShift: boolean }) {
+  const { t } = useTranslation(['common', 'production']);
+  const { filter, key } = useScope();
+  const { params, key: timeKey } = useTimeRange();
+  const { skuId, shiftTemplateId, setSkuId, setShiftTemplateId } = useOrderFilterStore();
+
+  const { data } = useQuery({
+    queryKey: ['oee-standard', 'dimensions', timeKey, key],
+    queryFn: () => api.get<any>('/oee-standard/dimensions', {
+      params: { dateFrom: params.dateFrom, dateTo: params.dateTo, ...filter },
+    }),
+    staleTime: 60_000,
+  });
+  const dims = (data as any)?.data ?? data ?? {};
+  const skus: any[] = dims.skus ?? [];
+  const shifts: any[] = dims.shifts ?? [];
+
+  // A selection that no longer has rows is kept in the list rather than dropped,
+  // so the control still shows what is filtering the page. Silently falling back
+  // to "all" would change the numbers without the reader touching anything.
+  const withCurrent = (list: any[], id: string, label: string) =>
+    id && !list.some((x) => x.id === id) ? [{ id, code: label, name: label }, ...list] : list;
+
+  return (
+    <div className="px-2 space-y-1.5">
+      <SelectMenu
+        size="sm" fullWidth
+        value={skuId}
+        onValueChange={setSkuId}
+        options={[
+          { value: '', label: skus.length ? `All products (${skus.length})` : 'All products' },
+          ...withCurrent(skus, skuId, 'Selected product').map((k: any) => ({
+            value: k.id, label: k.code ? `${k.code} · ${k.name}` : k.name,
+          })),
+        ]}
+      />
+      {showShift && (
+        <SelectMenu
+          size="sm" fullWidth
+          value={shiftTemplateId}
+          onValueChange={setShiftTemplateId}
+          options={[
+            { value: '', label: shifts.length ? `All shifts (${shifts.length})` : 'All shifts' },
+            ...withCurrent(shifts, shiftTemplateId, 'Selected shift').map((x: any) => ({
+              value: x.id, label: x.code ? `${x.code} · ${x.name}` : x.name,
+            })),
+          ]}
+        />
+      )}
+      {(skuId || shiftTemplateId) && (
+        <button onClick={() => { setSkuId(''); setShiftTemplateId(''); }}
+          className="w-full text-[11px] text-muted-foreground hover:text-foreground py-0.5">
+          {t('actions.clear')}
+        </button>
+      )}
+      {skus.length === 0 && (
+        <p className="px-0.5 text-[10px] leading-snug text-muted-foreground">
+          Nothing produced in this window, so there is nothing to filter by.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** View prefs — trend render style + OEE mode (schedule vs time-based). */
 function ViewSection() {
   const { t } = useTranslation('common');
@@ -274,6 +354,8 @@ export function ScopePanel({ passive = false }: { passive?: boolean }) {
   })();
 
   const showOrders = ORDER_ROUTES.includes(pathname);
+  // Only the two pages whose engines actually accept these filters.
+  const showDimensions = pathname === '/oee-analysis' || pathname === '/live-shift';
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -350,6 +432,16 @@ export function ScopePanel({ passive = false }: { passive?: boolean }) {
           <>
             <SectionLabel icon={Package}>{t('filters.orders')}</SectionLabel>
             <OrdersSection />
+          </>
+        )}
+
+        {/* Product and shift. The shift picker is analytics-only: on a live view
+            the shift is the one the clock says we are in, and offering a choice
+            there would be offering to change something the page cannot honour. */}
+        {showDimensions && (
+          <>
+            <SectionLabel icon={Boxes}>Product &amp; shift</SectionLabel>
+            <DimensionsSection showShift={viewMode === 'analytics'} />
           </>
         )}
 

@@ -44,6 +44,39 @@ describe('resolveLocalRange', () => {
     expect(to.getTime() - from.getTime()).toBeGreaterThan(23 * 3_600_000);
   });
 
+  /**
+   * Sub-day bounds.
+   *
+   * The day-edge suffix used to be appended unconditionally, so a caller asking
+   * for one hour got `2026-08-20T14:00:00T23:59:59.999` — an Invalid Date that
+   * travelled all the way into the SQL and came back as a 500. A live screen that
+   * wants the last thirty minutes has to be able to say so.
+   */
+  it('reads a full timestamp as the instant it names, not as a day edge', () => {
+    const now = new Date(2026, 7, 20, 18, 0, 0, 0);
+    const { from, to } = resolveLocalRange('2026-08-20T14:00:00', '2026-08-20T15:00:00', 7, now);
+
+    expect(from).toEqual(new Date(2026, 7, 20, 14, 0, 0, 0));
+    expect(to).toEqual(new Date(2026, 7, 20, 15, 0, 0, 0));
+    expect(to.getTime() - from.getTime()).toBe(3_600_000);
+  });
+
+  it('still gives a bare date its whole day', () => {
+    const now = new Date(2026, 7, 21, 12, 0, 0, 0);
+    const { from, to } = resolveLocalRange('2026-08-20', '2026-08-20', 7, now);
+    expect(from.getHours()).toBe(0);
+    expect(to.getHours()).toBe(23);
+  });
+
+  it('ignores a bound it cannot parse rather than passing NaN down the stack', () => {
+    const now = new Date(2026, 7, 20, 18, 0, 0, 0);
+    const { from, to } = resolveLocalRange('not-a-date', 'rubbish', 2, now);
+
+    expect(Number.isNaN(from.getTime())).toBe(false);
+    expect(Number.isNaN(to.getTime())).toBe(false);
+    expect(to).toEqual(now);
+  });
+
   it('falls back to a trailing window ending now when no dates are given', () => {
     const now = new Date(2026, 7, 9, 10, 0, 0, 0);
     const { from, to } = resolveLocalRange(undefined, undefined, 7, now);

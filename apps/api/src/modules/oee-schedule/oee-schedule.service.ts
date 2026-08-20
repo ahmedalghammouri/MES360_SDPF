@@ -14,6 +14,19 @@ export interface ScheduleScope {
   jobOrderId?: string;
   workOrderId?: string;
   shiftTemplateId?: string;
+  /** The product. Reached through the work order, which is where the SKU lives. */
+  skuId?: string;
+  /** The production order the work orders belong to. */
+  productionOrderId?: string;
+  /**
+   * The production order by its NUMBER.
+   *
+   * The panel's PO picker has always carried the order number rather than its
+   * id, and several pages read that store. Accepting both is cheaper and safer
+   * than migrating every reader — and the number is unique, so it selects
+   * exactly the same rows the id would.
+   */
+  productionOrderNumber?: string;
 }
 
 export interface ScheduleSlice extends ScheduleResult {
@@ -58,6 +71,24 @@ export class OeeScheduleService {
     if (scope.jobOrderId) parts.push(Prisma.sql`o."jobOrderId" = ${scope.jobOrderId}`);
     if (scope.workOrderId) parts.push(Prisma.sql`o."workOrderId" = ${scope.workOrderId}`);
     if (scope.shiftTemplateId) parts.push(Prisma.sql`o."shiftTemplateId" = ${scope.shiftTemplateId}`);
+    // Product and production order are not columns here — they are properties of
+    // the work order, and duplicating them into every minute would be a second
+    // copy to keep true. A minute with no work order cannot match either, and
+    // `IN` already excludes NULL, so no row is silently swept in.
+    if (scope.skuId) {
+      parts.push(Prisma.sql`o."workOrderId" IN (
+        SELECT w2.id FROM work_orders w2 WHERE w2."skuId" = ${scope.skuId})`);
+    }
+    if (scope.productionOrderId) {
+      parts.push(Prisma.sql`o."workOrderId" IN (
+        SELECT w2.id FROM work_orders w2 WHERE w2."productionOrderId" = ${scope.productionOrderId})`);
+    }
+    if (scope.productionOrderNumber) {
+      parts.push(Prisma.sql`o."workOrderId" IN (
+        SELECT w2.id FROM work_orders w2
+        JOIN production_orders p2 ON p2.id = w2."productionOrderId"
+        WHERE p2."orderNumber" = ${scope.productionOrderNumber})`);
+    }
     if (scope.areaId) {
       // A machine belongs to an area either directly or through its line, and
       // the hierarchy allows both — asking for only one silently drops half a
@@ -280,51 +311,79 @@ export class OeeScheduleService {
     const oneBucket = granularity === 'day' ? Prisma.sql`interval '1 day'` : Prisma.sql`interval '1 hour'`;
 
     const rows = await this.prisma.$queryRaw<Array<ScheduleTotals & { at: Date }>>(Prisma.sql`
-      WITH minute_rows AS (
-        SELECT date_trunc(${unitSql}, o."bucketStart") AS at,
-               o."jobOrderId", o."committedFrom", o."committedTo",
-               o."totalMin", o."plannedStopMin", o."availabilityLossMin", o."externalLossMin",
-               o."unmeasuredMin", o."operatingMin", o."goodParts", o."rejectedParts", o."theoreticalParts",
-               j."actualStart"
+      -- Each job order's slot, clipped to the window exactly as the headline
+      -- clips it. Taken ONCE per order rather than per bucket, so the buckets
+      -- below divide the same span the headline charges.
+      WITH jo AS (
+        SELECT o."jobOrderId",
+               GREATEST(MIN(o."committedFrom"), ${from}) AS "slotFrom",
+               LEAST(MAX(o."committedTo"), ${slotTo})    AS "slotTo",
+               MIN(j."actualStart")                      AS "actualStart"
         FROM oee_schedule_minutes o
         JOIN job_orders j ON j.id = o."jobOrderId"
         WHERE ${this.where(factoryId, from, to, scope)}
+        GROUP BY o."jobOrderId"
       ),
-      per_bucket AS (
-        SELECT at, "jobOrderId",
-               -- The slot is clipped INTO each bucket, not across the window: an
-               -- order spanning six hours belongs to six of them, and without the
-               -- clip one bucket claims the whole slot.
-               GREATEST(MIN("committedFrom"), at)             AS "slotFrom",
-               LEAST(MAX("committedTo"), at + ${oneBucket})   AS "slotTo",
-               MIN("actualStart") AS "actualStart",
-               COALESCE(SUM("totalMin"), 0)::float8            AS "elapsedMin",
-               COALESCE(SUM("plannedStopMin"), 0)::float8      AS "plannedStopMin",
-               COALESCE(SUM("availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
-               COALESCE(SUM("externalLossMin"), 0)::float8     AS "externalLossMin",
-               COALESCE(SUM("unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
-               COALESCE(SUM("operatingMin"), 0)::float8        AS "operatingMin",
-               COALESCE(SUM("goodParts"), 0)::float8           AS "goodParts",
-               COALESCE(SUM("rejectedParts"), 0)::float8       AS "rejectedParts",
-               COALESCE(SUM("theoreticalParts"), 0)::float8    AS "theoreticalParts"
-        FROM minute_rows GROUP BY at, "jobOrderId"
+      -- What was actually RECORDED, per bucket. Absent for a bucket in which
+      -- nothing was written, which is the whole point of the left join below.
+      metrics AS (
+        SELECT date_trunc(${unitSql}, o."bucketStart") AS at, o."jobOrderId",
+               COALESCE(SUM(o."totalMin"), 0)::float8            AS "elapsedMin",
+               COALESCE(SUM(o."plannedStopMin"), 0)::float8      AS "plannedStopMin",
+               COALESCE(SUM(o."availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
+               COALESCE(SUM(o."externalLossMin"), 0)::float8     AS "externalLossMin",
+               COALESCE(SUM(o."unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
+               COALESCE(SUM(o."operatingMin"), 0)::float8        AS "operatingMin",
+               COALESCE(SUM(o."goodParts"), 0)::float8           AS "goodParts",
+               COALESCE(SUM(o."rejectedParts"), 0)::float8       AS "rejectedParts",
+               COALESCE(SUM(o."theoreticalParts"), 0)::float8    AS "theoreticalParts"
+        FROM oee_schedule_minutes o
+        JOIN job_orders j ON j.id = o."jobOrderId"
+        WHERE ${this.where(factoryId, from, to, scope)}
+        GROUP BY 1, 2
+      ),
+      -- ── Why the buckets are GENERATED rather than taken from the rows ──────
+      -- They used to come from the minute rows themselves, so an hour inside a
+      -- promised slot in which nothing was recorded produced no bucket at all.
+      -- Its committed minutes were charged in the headline and appeared in no
+      -- bar, and the trend under-reported the commitment by that much — 244 of
+      -- 2661 minutes on the day this was found. That silent hour is the one a
+      -- reader most needs to see: a slot was promised and nothing happened in it.
+      bounds AS (SELECT MIN("slotFrom") AS lo, MAX("slotTo") AS hi FROM jo),
+      buckets AS (
+        SELECT generate_series(
+          date_trunc(${unitSql}, b.lo),
+          date_trunc(${unitSql}, b.hi),
+          ${oneBucket}
+        ) AS at
+        FROM bounds b WHERE b.lo IS NOT NULL AND b.hi IS NOT NULL
+      ),
+      -- The slot clipped INTO each bucket it overlaps. Half-open on both sides so
+      -- an order ending exactly on an hour does not claim the next bucket.
+      slot AS (
+        SELECT b.at, jo."jobOrderId", jo."actualStart",
+               GREATEST(jo."slotFrom", b.at)              AS "slotFrom",
+               LEAST(jo."slotTo", b.at + ${oneBucket})    AS "slotTo"
+        FROM buckets b
+        JOIN jo ON jo."slotFrom" < b.at + ${oneBucket} AND jo."slotTo" > b.at
       )
-      SELECT at,
-        COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (p."slotTo" - p."slotFrom")) / 60)), 0)::float8 AS "committedMin",
+      SELECT s.at,
+        COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (s."slotTo" - s."slotFrom")) / 60)), 0)::float8 AS "committedMin",
         COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (
-          LEAST(COALESCE(p."actualStart", p."slotFrom"), p."slotTo") - p."slotFrom"
+          LEAST(COALESCE(s."actualStart", s."slotFrom"), s."slotTo") - s."slotFrom"
         )) / 60)), 0)::float8 AS "notStartedMin",
-        COALESCE(SUM(p."elapsedMin"), 0)::float8          AS "elapsedMin",
-        COALESCE(SUM(p."plannedStopMin"), 0)::float8      AS "plannedStopMin",
-        COALESCE(SUM(p."availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
-        COALESCE(SUM(p."externalLossMin"), 0)::float8     AS "externalLossMin",
-        COALESCE(SUM(p."unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
-        COALESCE(SUM(p."operatingMin"), 0)::float8        AS "operatingMin",
-        COALESCE(SUM(p."goodParts"), 0)::float8           AS "goodParts",
-        COALESCE(SUM(p."rejectedParts"), 0)::float8       AS "rejectedParts",
-        COALESCE(SUM(p."theoreticalParts"), 0)::float8    AS "theoreticalParts"
-      FROM per_bucket p
-      GROUP BY at ORDER BY at
+        COALESCE(SUM(m."elapsedMin"), 0)::float8          AS "elapsedMin",
+        COALESCE(SUM(m."plannedStopMin"), 0)::float8      AS "plannedStopMin",
+        COALESCE(SUM(m."availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
+        COALESCE(SUM(m."externalLossMin"), 0)::float8     AS "externalLossMin",
+        COALESCE(SUM(m."unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
+        COALESCE(SUM(m."operatingMin"), 0)::float8        AS "operatingMin",
+        COALESCE(SUM(m."goodParts"), 0)::float8           AS "goodParts",
+        COALESCE(SUM(m."rejectedParts"), 0)::float8       AS "rejectedParts",
+        COALESCE(SUM(m."theoreticalParts"), 0)::float8    AS "theoreticalParts"
+      FROM slot s
+      LEFT JOIN metrics m ON m.at = s.at AND m."jobOrderId" = s."jobOrderId"
+      GROUP BY s.at ORDER BY s.at
     `);
     return rows.map((r) => ({
       at: r.at, key: r.at.toISOString(), label: r.at.toISOString(), ...computeSchedule(r),

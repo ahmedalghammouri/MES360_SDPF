@@ -38,6 +38,9 @@ export class OeeStandardController {
       jobOrderId: q.jobOrderId || undefined,
       workOrderId: q.workOrderId || undefined,
       shiftTemplateId: q.shiftTemplateId || undefined,
+      skuId: q.skuId || undefined,
+      productionOrderId: q.productionOrderId || undefined,
+      productionOrderNumber: q.productionOrderNumber || undefined,
     };
   }
 
@@ -53,6 +56,10 @@ export class OeeStandardController {
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'jobOrderId', required: false })
   @ApiQuery({ name: 'shiftTemplateId', required: false })
+  @ApiQuery({ name: 'workOrderId', required: false })
+  @ApiQuery({ name: 'skuId', required: false, description: 'Product' })
+  @ApiQuery({ name: 'productionOrderId', required: false })
+  @ApiQuery({ name: 'productionOrderNumber', required: false })
   async overview(
     @CurrentUser() user: RequestUser,
     @Query('dateFrom') dateFrom?: string,
@@ -63,9 +70,16 @@ export class OeeStandardController {
     @Query('lineId') lineId?: string,
     @Query('jobOrderId') jobOrderId?: string,
     @Query('shiftTemplateId') shiftTemplateId?: string,
+    @Query('skuId') skuId?: string,
+    @Query('productionOrderId') productionOrderId?: string,
+    @Query('productionOrderNumber') productionOrderNumber?: string,
+    @Query('workOrderId') workOrderId?: string,
   ) {
     const { from, to } = resolveLocalRange(dateFrom, dateTo, 1);
-    const scope = this.scope({ areaId, machineId, lineId, jobOrderId, shiftTemplateId });
+    const scope = this.scope({
+      areaId, machineId, lineId, jobOrderId, shiftTemplateId,
+      skuId, productionOrderId, productionOrderNumber, workOrderId,
+    });
     const f = user.factoryId;
     const g = granularity === 'day' ? 'day' : 'hour';
 
@@ -88,6 +102,35 @@ export class OeeStandardController {
       distribution: this.timeline.distribution(segments),
       rejectReasons,
     };
+  }
+
+  /**
+   * What the filter is allowed to offer, for this window and this scope.
+   *
+   * Served from the same rows the page reads, so every option returns something.
+   */
+  @Get('dimensions')
+  @RequirePermissions('production:read')
+  @ApiOperation({ summary: 'Products, production orders, work orders and shifts present in the window' })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  async dimensions(
+    @CurrentUser() user: RequestUser,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('areaId') areaId?: string,
+    @Query('machineId') machineId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('shiftTemplateId') shiftTemplateId?: string,
+    @Query('skuId') skuId?: string,
+    @Query('productionOrderId') productionOrderId?: string,
+    @Query('productionOrderNumber') productionOrderNumber?: string,
+    @Query('workOrderId') workOrderId?: string,
+  ) {
+    const { from, to } = resolveLocalRange(dateFrom, dateTo, 1);
+    return this.service.dimensions(user.factoryId, from, to, this.scope({
+      areaId, machineId, lineId, shiftTemplateId, skuId, productionOrderId, productionOrderNumber, workOrderId,
+    }));
   }
 
   /**

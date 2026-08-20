@@ -11,6 +11,19 @@ export interface OeeScope {
   jobOrderId?: string;
   workOrderId?: string;
   shiftTemplateId?: string;
+  /** The product. Reached through the work order, which is where the SKU lives. */
+  skuId?: string;
+  /** The production order the work orders belong to. */
+  productionOrderId?: string;
+  /**
+   * The production order by its NUMBER.
+   *
+   * The panel's PO picker has always carried the order number rather than its
+   * id, and several pages read that store. Accepting both is cheaper and safer
+   * than migrating every reader — and the number is unique, so it selects
+   * exactly the same rows the id would.
+   */
+  productionOrderNumber?: string;
 }
 
 /** A row of the machine table, and the shape a trend point takes. */
@@ -75,6 +88,24 @@ export class OeeStandardService {
     if (scope.jobOrderId) parts.push(Prisma.sql`o."jobOrderId" = ${scope.jobOrderId}`);
     if (scope.workOrderId) parts.push(Prisma.sql`o."workOrderId" = ${scope.workOrderId}`);
     if (scope.shiftTemplateId) parts.push(Prisma.sql`o."shiftTemplateId" = ${scope.shiftTemplateId}`);
+    // Product and production order are not columns here — they are properties of
+    // the work order, and duplicating them into every minute would be a second
+    // copy to keep true. A minute with no work order cannot match either, and
+    // `IN` already excludes NULL, so no row is silently swept in.
+    if (scope.skuId) {
+      parts.push(Prisma.sql`o."workOrderId" IN (
+        SELECT w2.id FROM work_orders w2 WHERE w2."skuId" = ${scope.skuId})`);
+    }
+    if (scope.productionOrderId) {
+      parts.push(Prisma.sql`o."workOrderId" IN (
+        SELECT w2.id FROM work_orders w2 WHERE w2."productionOrderId" = ${scope.productionOrderId})`);
+    }
+    if (scope.productionOrderNumber) {
+      parts.push(Prisma.sql`o."workOrderId" IN (
+        SELECT w2.id FROM work_orders w2
+        JOIN production_orders p2 ON p2.id = w2."productionOrderId"
+        WHERE p2."orderNumber" = ${scope.productionOrderNumber})`);
+    }
     if (scope.areaId) {
       // A machine belongs to an area either directly or through its line, and
       // the hierarchy allows both — asking for only one silently drops half a
@@ -254,6 +285,63 @@ export class OeeStandardService {
   }
 
   /**
+   * The same trend, bucketed by an arbitrary number of MINUTES.
+   *
+   * `trend()` buckets by hour or day, which is right for a page that looks at a
+   * week and useless for a live screen looking at the last fifteen minutes — one
+   * bar is not a trend. This is the same query with a finer bucket, deliberately
+   * sharing `where()` and the final-step rule rather than being written afresh:
+   * the last thing this system needs is a fourth place that decides which parts
+   * count.
+   *
+   * The bucket expression carries a bind parameter, so it is computed once in
+   * `scoped` and grouped by the resulting column. Repeating the expression in
+   * GROUP BY is the 42803 that has already been fixed once on this page.
+   */
+  async trendByMinutes(
+    factoryId: string | null, from: Date, to: Date, bucketMin: number, scope: OeeScope = {},
+  ): Promise<Array<OeeSlice & { at: Date }>> {
+    // Clamped to a whole number of minutes that divides an hour, so buckets tile
+    // the window instead of leaving a ragged one at each hour boundary.
+    const allowed = [1, 2, 5, 10, 15, 20, 30, 60];
+    const n = allowed.includes(Math.round(bucketMin)) ? Math.round(bucketMin) : 5;
+
+    const rows = await this.prisma.$queryRaw<Array<OeeTotals & { at: Date }>>(Prisma.sql`
+      WITH scoped AS (
+        SELECT o.*, j."sequenceOrder",
+               date_trunc('hour', o."bucketStart")
+                 + ((EXTRACT(MINUTE FROM o."bucketStart")::int / ${n}::int) * ${n}::int)
+                   * INTERVAL '1 minute' AS at
+        FROM oee_minutes o
+        JOIN job_orders j ON j.id = o."jobOrderId"
+        WHERE ${this.where(factoryId, from, to, scope)}
+      ),
+      fin AS (SELECT s2.at, s2."workOrderId", MAX(s2."sequenceOrder") AS ms
+              FROM scoped s2 GROUP BY s2.at, s2."workOrderId"),
+      t AS (SELECT o.at, ${TIME_SUMS},
+                   COALESCE(SUM(o."rejectedParts"), 0)::float8 AS "rejectedParts"
+            FROM scoped o GROUP BY o.at),
+      q AS (SELECT o.at,
+                   COALESCE(SUM(o."goodParts"), 0)::float8        AS "goodParts",
+                   COALESCE(SUM(o."theoreticalParts"), 0)::float8 AS "theoreticalParts"
+            FROM scoped o
+            JOIN fin f ON f.at = o.at
+                      AND f."workOrderId" IS NOT DISTINCT FROM o."workOrderId"
+                      AND f.ms = o."sequenceOrder"
+            GROUP BY o.at)
+      SELECT t.at, t."totalMin", t."plannedStopMin", t."availabilityLossMin", t."externalLossMin",
+             t."unmeasuredMin", t."operatingMin", t."rejectedParts",
+             COALESCE(q."goodParts", 0) AS "goodParts",
+             COALESCE(q."theoreticalParts", 0) AS "theoreticalParts"
+      FROM t LEFT JOIN q ON q.at = t.at
+      ORDER BY t.at
+    `);
+    return rows.map((r) => ({
+      at: r.at, key: r.at.toISOString(), label: r.at.toISOString(), ...computeOee(r),
+    }));
+  }
+
+  /**
    * Why a machine's minutes went where they did, in the window.
    *
    * The time model says how much was lost; this says under which state. Without
@@ -267,5 +355,64 @@ export class OeeStandardService {
       FROM oee_minutes o WHERE ${this.where(factoryId, from, to, scope)}
       GROUP BY o."machineState" ORDER BY 2 DESC
     `);
+  }
+
+  /**
+   * The products, production orders and shifts that actually have minutes in the
+   * window — the choices the filter is allowed to offer.
+   *
+   * A filter populated from the master data lists every product the plant has
+   * ever defined, so most of its options select nothing and the reader cannot
+   * tell "no production" from "wrong choice". Built from the same rows the page
+   * is about, every option returns something, and a missing option is itself the
+   * answer.
+   *
+   * Each list is built with its OWN dimension stripped from the scope, so the
+   * lists stay cross-navigable: picking a product must not shrink the shift list
+   * to that product's shifts and strand the reader with no way back.
+   */
+  async dimensions(factoryId: string | null, from: Date, to: Date, scope: OeeScope = {}) {
+    const strip = (drop: keyof OeeScope): OeeScope => {
+      const s2 = { ...scope };
+      delete s2[drop];
+      return s2;
+    };
+    type Dim = Array<{ id: string; code: string; name: string; minutes: number }>;
+
+    const [skus, orders, shifts, workOrders] = await Promise.all([
+      this.prisma.$queryRaw<Dim>(Prisma.sql`
+        SELECT k.id, k.code, k.name, COALESCE(SUM(o."totalMin"), 0)::float8 AS minutes
+        FROM oee_minutes o
+        JOIN work_orders w ON w.id = o."workOrderId"
+        JOIN skus k ON k.id = w."skuId"
+        WHERE ${this.where(factoryId, from, to, strip('skuId'))}
+        GROUP BY k.id, k.code, k.name ORDER BY 4 DESC`),
+
+      this.prisma.$queryRaw<Dim>(Prisma.sql`
+        SELECT p.id, p."orderNumber" AS code, p."orderNumber" AS name,
+               COALESCE(SUM(o."totalMin"), 0)::float8 AS minutes
+        FROM oee_minutes o
+        JOIN work_orders w ON w.id = o."workOrderId"
+        JOIN production_orders p ON p.id = w."productionOrderId"
+        WHERE ${this.where(factoryId, from, to, strip('productionOrderId'))}
+        GROUP BY p.id, p."orderNumber" ORDER BY 4 DESC`),
+
+      this.prisma.$queryRaw<Dim>(Prisma.sql`
+        SELECT t.id, t.code, t.name, COALESCE(SUM(o."totalMin"), 0)::float8 AS minutes
+        FROM oee_minutes o
+        JOIN shift_templates t ON t.id = o."shiftTemplateId"
+        WHERE ${this.where(factoryId, from, to, strip('shiftTemplateId'))}
+        GROUP BY t.id, t.code, t.name ORDER BY t.code`),
+
+      this.prisma.$queryRaw<Dim>(Prisma.sql`
+        SELECT w.id, w."orderNumber" AS code, w."orderNumber" AS name,
+               COALESCE(SUM(o."totalMin"), 0)::float8 AS minutes
+        FROM oee_minutes o
+        JOIN work_orders w ON w.id = o."workOrderId"
+        WHERE ${this.where(factoryId, from, to, strip('workOrderId'))}
+        GROUP BY w.id, w."orderNumber" ORDER BY 4 DESC`),
+    ]);
+
+    return { skus, productionOrders: orders, shifts, workOrders };
   }
 }

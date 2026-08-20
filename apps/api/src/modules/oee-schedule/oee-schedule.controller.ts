@@ -7,7 +7,7 @@ import { RejectReasonService } from '../oee-standard/reject-reason.service';
 import { StateTimelineService } from '../oee-standard/state-timeline.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
-import { resolveLocalRange } from '../../common/plant-time.util';
+import { plantBound, resolveLocalRange } from '../../common/plant-time.util';
 
 interface RequestUser { id: string; factoryId: string | null }
 
@@ -48,6 +48,10 @@ export class OeeScheduleController {
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'jobOrderId', required: false })
   @ApiQuery({ name: 'shiftTemplateId', required: false })
+  @ApiQuery({ name: 'workOrderId', required: false })
+  @ApiQuery({ name: 'skuId', required: false, description: 'Product' })
+  @ApiQuery({ name: 'productionOrderId', required: false })
+  @ApiQuery({ name: 'productionOrderNumber', required: false })
   async overview(
     @CurrentUser() user: RequestUser,
     @Query('dateFrom') dateFrom?: string,
@@ -58,18 +62,26 @@ export class OeeScheduleController {
     @Query('lineId') lineId?: string,
     @Query('jobOrderId') jobOrderId?: string,
     @Query('shiftTemplateId') shiftTemplateId?: string,
+    @Query('skuId') skuId?: string,
+    @Query('productionOrderId') productionOrderId?: string,
+    @Query('productionOrderNumber') productionOrderNumber?: string,
+    @Query('workOrderId') workOrderId?: string,
   ) {
     const { from, to } = resolveLocalRange(dateFrom, dateTo, 1);
     // resolveLocalRange caps the end at "now", which is right for rows that only
     // exist once time has passed and wrong for a slot that extends into the rest
     // of the day. The slot gets the end of the range as ASKED FOR.
-    const slotTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : endOfLocalDay(new Date());
+    const slotTo = plantBound(dateTo, 'end') ?? endOfLocalDay(new Date());
     const scope: ScheduleScope = {
       areaId: areaId || undefined,
       machineId: machineId || undefined,
       lineId: lineId || undefined,
       jobOrderId: jobOrderId || undefined,
       shiftTemplateId: shiftTemplateId || undefined,
+      workOrderId: workOrderId || undefined,
+      skuId: skuId || undefined,
+      productionOrderId: productionOrderId || undefined,
+      productionOrderNumber: productionOrderNumber || undefined,
     };
     const f = user.factoryId;
 

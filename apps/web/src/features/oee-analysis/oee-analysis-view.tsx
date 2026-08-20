@@ -30,6 +30,7 @@ import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { useOeeMode } from '@/hooks/use-oee-mode';
+import { useOrderFilterStore } from '@/store/order-filter-store';
 import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 import {
   OverviewPanel,
@@ -119,6 +120,7 @@ export function OeeAnalysisView() {
   const { filter, key: scopeKey } = useScope();
   const { dateFrom, dateTo, key: timeKey } = useTimeRange();
   const { atOee } = useOeeMode();
+  const { poNumber, woId, skuId, shiftTemplateId } = useOrderFilterStore();
   // The period control in the filter panel only renders on the analytics half.
   // This page is entirely analytical, so it says so — otherwise arriving here
   // from a live screen leaves the period picker hidden and the window stuck.
@@ -129,9 +131,23 @@ export function OeeAnalysisView() {
   const engine = atOee ? 'standard' : 'schedule';
   const path = atOee ? '/oee-standard' : '/oee-schedule';
 
+  // The order / product / shift filter from the panel. It has to be part of the
+  // query key as well as the params: without it, narrowing to one product would
+  // re-serve the cached whole-factory answer and the page would look filtered
+  // while showing everything.
+  const dimKey = `${poNumber}|${woId}|${skuId}|${shiftTemplateId}`;
+  const dimensions = {
+    ...(woId ? { workOrderId: woId } : {}),
+    ...(skuId ? { skuId } : {}),
+    ...(shiftTemplateId ? { shiftTemplateId } : {}),
+    ...(poNumber ? { productionOrderNumber: poNumber } : {}),
+  };
+
   const q = useQuery({
-    queryKey: ['oee-analysis', engine, scopeKey, timeKey],
-    queryFn: () => api.get<Payload>(path, { params: { dateFrom, dateTo, ...filter } }),
+    queryKey: ['oee-analysis', engine, scopeKey, timeKey, dimKey],
+    queryFn: () => api.get<Payload>(path, {
+      params: { dateFrom, dateTo, ...filter, ...dimensions },
+    }),
     refetchInterval: 30_000,
   });
 
