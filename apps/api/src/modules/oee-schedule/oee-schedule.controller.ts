@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 
 import { OeeScheduleService, type ScheduleScope } from './oee-schedule.service';
 import { OeeScheduleWriter } from './oee-schedule.writer';
+import { RejectReasonService } from '../oee-standard/reject-reason.service';
 import { StateTimelineService } from '../oee-standard/state-timeline.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -33,6 +34,7 @@ export class OeeScheduleController {
     private readonly service: OeeScheduleService,
     private readonly writer: OeeScheduleWriter,
     private readonly timeline: StateTimelineService,
+    private readonly rejects: RejectReasonService,
   ) {}
 
   @Get()
@@ -72,7 +74,7 @@ export class OeeScheduleController {
     const f = user.factoryId;
 
     const g = granularity === 'day' ? 'day' : 'hour';
-    const [overview, machines, jobOrders, shifts, trend, states, segments] = await Promise.all([
+    const [overview, machines, jobOrders, shifts, trend, states, segments, rejectReasons] = await Promise.all([
       this.service.overview(f, from, to, slotTo, scope),
       this.service.byMachine(f, from, to, slotTo, scope),
       this.service.byJobOrder(f, from, to, slotTo, scope),
@@ -80,12 +82,14 @@ export class OeeScheduleController {
       this.service.trend(f, from, to, slotTo, g, scope),
       this.service.stateBreakdown(f, from, to, scope),
       this.timeline.segments(f, from, to, { areaId, lineId, machineId }),
+      this.rejects.topReasons(f, from, to, { areaId, lineId, machineId }),
     ]);
     return {
       ...overview, machines, jobOrders, shifts, trend, states, granularity: g,
       timeline: segments,
       production: this.timeline.details(segments),
       distribution: this.timeline.distribution(segments),
+      rejectReasons,
     };
   }
 

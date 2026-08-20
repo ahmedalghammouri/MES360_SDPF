@@ -4,6 +4,7 @@ import { DatabaseModule } from '../../database/database.module';
 import { OeeStandardService } from './oee-standard.service';
 import { OeeStandardWriter } from './oee-standard.writer';
 import { OeeStandardController } from './oee-standard.controller';
+import { RejectReasonService } from './reject-reason.service';
 import { StateTimelineService } from './state-timeline.service';
 
 /**
@@ -16,7 +17,7 @@ import { StateTimelineService } from './state-timeline.service';
 @Module({
   imports: [DatabaseModule],
   controllers: [OeeStandardController],
-  providers: [OeeStandardService, OeeStandardWriter, StateTimelineService],
-  exports: [OeeStandardService, StateTimelineService],
+  providers: [OeeStandardService, OeeStandardWriter, StateTimelineService, RejectReasonService],
+  exports: [OeeStandardService, StateTimelineService, RejectReasonService],
 })
 export class OeeStandardModule {}

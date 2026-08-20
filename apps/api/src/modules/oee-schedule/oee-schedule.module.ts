@@ -4,6 +4,7 @@ import { DatabaseModule } from '../../database/database.module';
 import { OeeScheduleService } from './oee-schedule.service';
 import { OeeScheduleWriter } from './oee-schedule.writer';
 import { OeeScheduleController } from './oee-schedule.controller';
+import { RejectReasonService } from '../oee-standard/reject-reason.service';
 import { StateTimelineService } from '../oee-standard/state-timeline.service';
 
 /**
@@ -14,7 +15,7 @@ import { StateTimelineService } from '../oee-standard/state-timeline.service';
 @Module({
   imports: [DatabaseModule],
   controllers: [OeeScheduleController],
-  providers: [OeeScheduleService, OeeScheduleWriter, StateTimelineService],
+  providers: [OeeScheduleService, OeeScheduleWriter, StateTimelineService, RejectReasonService],
   exports: [OeeScheduleService],
 })
 export class OeeScheduleModule {}

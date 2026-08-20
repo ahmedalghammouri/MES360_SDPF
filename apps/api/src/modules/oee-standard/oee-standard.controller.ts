@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 
 import { OeeStandardService, type OeeScope } from './oee-standard.service';
 import { OeeStandardWriter } from './oee-standard.writer';
+import { RejectReasonService } from './reject-reason.service';
 import { StateTimelineService } from './state-timeline.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -26,6 +27,7 @@ export class OeeStandardController {
     private readonly service: OeeStandardService,
     private readonly writer: OeeStandardWriter,
     private readonly timeline: StateTimelineService,
+    private readonly rejects: RejectReasonService,
   ) {}
 
   private scope(q: Record<string, string | undefined>): OeeScope {
@@ -67,7 +69,7 @@ export class OeeStandardController {
     const f = user.factoryId;
     const g = granularity === 'day' ? 'day' : 'hour';
 
-    const [overview, machines, jobOrders, shifts, trend, states, segments] = await Promise.all([
+    const [overview, machines, jobOrders, shifts, trend, states, segments, rejectReasons] = await Promise.all([
       this.service.overview(f, from, to, scope),
       this.service.byMachine(f, from, to, scope),
       this.service.byJobOrder(f, from, to, scope),
@@ -75,6 +77,7 @@ export class OeeStandardController {
       this.service.trend(f, from, to, g, scope),
       this.service.stateBreakdown(f, from, to, scope),
       this.timeline.segments(f, from, to, { areaId, lineId, machineId }),
+      this.rejects.topReasons(f, from, to, { areaId, lineId, machineId }),
     ]);
     // The episode counts come from the same segments the chart draws, so the
     // number under the bar and the blocks in it can never tell two stories.
@@ -83,6 +86,7 @@ export class OeeStandardController {
       timeline: segments,
       production: this.timeline.details(segments),
       distribution: this.timeline.distribution(segments),
+      rejectReasons,
     };
   }
 
