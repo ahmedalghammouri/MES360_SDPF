@@ -6,6 +6,7 @@ import { OeeScheduleWriter } from './oee-schedule.writer';
 import { OeeScheduleController } from './oee-schedule.controller';
 import { RejectReasonService } from '../oee-standard/reject-reason.service';
 import { StateTimelineService } from '../oee-standard/state-timeline.service';
+import { LineBasisService } from '../oee-standard/line-basis.service';
 
 /**
  * The schedule-basis engine. Self-contained apart from the minute
@@ -15,7 +16,7 @@ import { StateTimelineService } from '../oee-standard/state-timeline.service';
 @Module({
   imports: [DatabaseModule],
   controllers: [OeeScheduleController],
-  providers: [OeeScheduleService, OeeScheduleWriter, StateTimelineService, RejectReasonService],
+  providers: [OeeScheduleService, OeeScheduleWriter, StateTimelineService, RejectReasonService, LineBasisService],
   exports: [OeeScheduleService],
 })
 export class OeeScheduleModule {}

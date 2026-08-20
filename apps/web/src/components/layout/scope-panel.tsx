@@ -31,6 +31,8 @@ import { useOrderFilterStore } from '@/store/order-filter-store';
 import { useViewModeStore } from '@/store/view-mode-store';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
+import { useLineBasis } from '@/hooks/use-line-basis';
+import { useLineBasisStore } from '@/store/line-basis-store';
 import { SelectMenu } from '@/components/ui/select-menu';
 
 interface TreeNode {
@@ -297,6 +299,69 @@ function DimensionsSection({ showShift }: { showShift: boolean }) {
   );
 }
 
+/**
+ * How a LINE is scored — shown only where the question exists.
+ *
+ * A line runs at the speed of its constraint, so a line's OEE is not a property
+ * of its machines taken together: three machines idling because the fourth is
+ * down did not each have a bad day. The two answers are genuinely different
+ * questions, which is why this is a control and not a constant.
+ *
+ * Hidden for a single machine, because a machine has no constraint to be
+ * measured by. Above a line it still applies: each line is scored on its own
+ * method first, and the area or the factory averages those.
+ */
+function LineBasisSection() {
+  const { basis, applies } = useLineBasis();
+  const setBasis = useLineBasisStore((s) => s.setBasis);
+  const { scope } = useScope();
+  if (!applies) return null;
+
+  const level = scope && scope.type !== 'FACTORY' ? scope.type : 'FACTORY';
+  const options: Array<{ key: 'bottleneck' | 'rollup'; label: string; hint: string }> = [
+    {
+      key: 'bottleneck', label: 'Bottleneck',
+      hint: 'The constraint sets the rate. A and P come from that machine alone; Quality counts '
+        + 'good units where they leave the line and scrap at every machine. Answers: how did the '
+        + 'LINE perform?',
+    },
+    {
+      key: 'rollup', label: 'Roll-up',
+      hint: 'Re-derived from the summed minutes and counts of every machine — not an average of '
+        + 'their percentages. Answers: how did the ASSETS perform?',
+    },
+  ];
+
+  return (
+    <div className="px-2 space-y-1.5">
+      <div className="inline-flex w-full rounded-md border border-border/60 p-0.5">
+        {options.map((o) => (
+          <button
+            key={o.key}
+            onClick={() => setBasis(o.key)}
+            title={o.hint}
+            aria-pressed={basis === o.key}
+            className={cn(
+              'flex-1 px-2 py-1 text-[11px] rounded transition-colors',
+              basis === o.key
+                ? 'bg-primary/15 text-primary font-semibold'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <p className="px-0.5 text-[10px] leading-snug text-muted-foreground">
+        {level === 'LINE'
+          ? 'Applies to the selected line.'
+          : `Each line is scored this way first, then ${level === 'AREA' ? 'the area' : 'the factory'} averages its lines by occupancy.`}
+        {' '}Which machine is the constraint stays set on the line itself.
+      </p>
+    </div>
+  );
+}
+
 /** View prefs — trend render style + OEE mode (schedule vs time-based). */
 function ViewSection() {
   const { t } = useTranslation('common');
@@ -356,6 +421,9 @@ export function ScopePanel({ passive = false }: { passive?: boolean }) {
   const showOrders = ORDER_ROUTES.includes(pathname);
   // Only the two pages whose engines actually accept these filters.
   const showDimensions = pathname === '/oee-analysis' || pathname === '/live-shift';
+  // The basis question only exists from a LINE upwards. Gated here rather than
+  // inside the section so the heading does not sit above nothing.
+  const { applies: lineBasisApplies } = useLineBasis();
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -432,6 +500,15 @@ export function ScopePanel({ passive = false }: { passive?: boolean }) {
           <>
             <SectionLabel icon={Package}>{t('filters.orders')}</SectionLabel>
             <OrdersSection />
+          </>
+        )}
+
+        {/* Line OEE basis — only where a line is in scope, and only on the pages
+            whose engines return a line figure. */}
+        {showDimensions && lineBasisApplies && (
+          <>
+            <SectionLabel icon={GitBranch}>Line OEE basis</SectionLabel>
+            <LineBasisSection />
           </>
         )}
 

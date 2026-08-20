@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { LiveShiftService, LIVE_WINDOWS, isLiveWindow } from './live-shift.service';
 import { OeeStandardService, type OeeScope } from '../oee-standard/oee-standard.service';
 import { OeeScheduleService } from '../oee-schedule/oee-schedule.service';
+import { LineBasisService, type LineMethod } from '../oee-standard/line-basis.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
@@ -30,6 +31,7 @@ export class LiveShiftController {
     private readonly live: LiveShiftService,
     private readonly oee: OeeStandardService,
     private readonly schedule: OeeScheduleService,
+    private readonly lineBasis: LineBasisService,
   ) {}
 
   private scope(q: Record<string, string | undefined>): OeeScope {
@@ -64,6 +66,10 @@ export class LiveShiftController {
     description: 'standard (OEE-TB, time that went by) | schedule (OEE, the committed slot). '
       + 'The same switch the analysis page honours.',
   })
+  @ApiQuery({
+    name: 'lineBasis', required: false,
+    description: 'bottleneck | rollup — how a LINE is scored. Ignored for a single machine.',
+  })
   @ApiQuery({ name: 'areaId', required: false })
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'machineId', required: false })
@@ -75,6 +81,7 @@ export class LiveShiftController {
     @CurrentUser() user: RequestUser,
     @Query('window') windowKey?: string,
     @Query('basis') basisKey?: string,
+    @Query('lineBasis') lineBasis?: string,
     @Query('areaId') areaId?: string,
     @Query('lineId') lineId?: string,
     @Query('machineId') machineId?: string,
@@ -93,6 +100,8 @@ export class LiveShiftController {
     // are not interchangeable readings of one number, so an unrecognised value
     // has to land somewhere definite rather than being guessed at.
     const basis: 'standard' | 'schedule' = basisKey === 'schedule' ? 'schedule' : 'standard';
+    const basisMethod: LineMethod | null =
+      lineBasis === 'bottleneck' ? 'BOTTLENECK' : lineBasis === 'rollup' ? 'ROLLUP' : null;
 
     const shift = await this.live.currentShift(f);
     const win = this.live.windowOf(shift, w);
@@ -107,7 +116,7 @@ export class LiveShiftController {
     // six aggregates over an empty range to print zeros is not.
     if (win.minutes <= 0) {
       return {
-        shift, window: win, bucketMin, basis, empty: true,
+        shift, window: win, bucketMin, basis, empty: true, lineOee: null,
         totals: null, machines: [], jobOrders: [], machineNow: [],
         trend: [], timeline: [], states: [], rejectReasons: null,
         production: null, windows: LIVE_WINDOWS,
@@ -154,9 +163,20 @@ export class LiveShiftController {
     // live window is spread AFTER it on purpose: it is the same span plus the
     // label and the clamp flag, and the page needs to be able to say "last hour,
     // truncated to 20 min" rather than just showing two timestamps.
+    // What the line scored this shift, on whichever basis the page is showing.
+    // The aggregate closure is bound to the SAME engine as everything above it,
+    // so the line figure and the machine rows can never come from different
+    // stores.
+    const lineOee = await this.lineBasis.forScope(f, scoped, basisMethod,
+      (s2) => (basis === 'schedule'
+        ? this.schedule.overview(f, win.from, win.to, slotTo, s2)
+        : this.oee.overview(f, win.from, win.to, s2)),
+      totals);
+
     return {
       ...totals,
       shift, window: win, bucketMin, basis, empty: false,
+      lineOee,
       slotTo,
       machines, jobOrders, machineNow, trend, states, timeline, rejectReasons,
       windows: LIVE_WINDOWS,

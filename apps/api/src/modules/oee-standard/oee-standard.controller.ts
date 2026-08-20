@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { OeeStandardService, type OeeScope } from './oee-standard.service';
 import { OeeStandardWriter } from './oee-standard.writer';
 import { RejectReasonService } from './reject-reason.service';
+import { LineBasisService, type LineMethod } from './line-basis.service';
 import { StateTimelineService } from './state-timeline.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -28,6 +29,7 @@ export class OeeStandardController {
     private readonly writer: OeeStandardWriter,
     private readonly timeline: StateTimelineService,
     private readonly rejects: RejectReasonService,
+    private readonly lineBasis: LineBasisService,
   ) {}
 
   private scope(q: Record<string, string | undefined>): OeeScope {
@@ -56,6 +58,11 @@ export class OeeStandardController {
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'jobOrderId', required: false })
   @ApiQuery({ name: 'shiftTemplateId', required: false })
+  @ApiQuery({
+    name: 'lineBasis', required: false,
+    description: 'bottleneck | rollup — how a LINE is scored. Ignored when the scope is a '
+      + 'single machine. Absent means the method each line is configured with.',
+  })
   @ApiQuery({ name: 'workOrderId', required: false })
   @ApiQuery({ name: 'skuId', required: false, description: 'Product' })
   @ApiQuery({ name: 'productionOrderId', required: false })
@@ -74,6 +81,7 @@ export class OeeStandardController {
     @Query('productionOrderId') productionOrderId?: string,
     @Query('productionOrderNumber') productionOrderNumber?: string,
     @Query('workOrderId') workOrderId?: string,
+    @Query('lineBasis') lineBasis?: string,
   ) {
     const { from, to } = resolveLocalRange(dateFrom, dateTo, 1);
     const scope = this.scope({
@@ -82,6 +90,12 @@ export class OeeStandardController {
     });
     const f = user.factoryId;
     const g = granularity === 'day' ? 'day' : 'hour';
+
+    // The request picks the METHOD; the line keeps deciding which machine is its
+    // constraint and where units are counted. Anything unrecognised means "use
+    // what the line is set to" rather than a guess.
+    const basisMethod: LineMethod | null =
+      lineBasis === 'bottleneck' ? 'BOTTLENECK' : lineBasis === 'rollup' ? 'ROLLUP' : null;
 
     const [overview, machines, jobOrders, shifts, trend, states, segments, rejectReasons] = await Promise.all([
       this.service.overview(f, from, to, scope),
@@ -93,10 +107,19 @@ export class OeeStandardController {
       this.timeline.segments(f, from, to, { areaId, lineId, machineId }),
       this.rejects.topReasons(f, from, to, { areaId, lineId, machineId }),
     ]);
+
+    // What the LINE (or the area, or the factory) scored, as opposed to what its
+    // machines did. Computed after the aggregate above rather than instead of it:
+    // the machine table is unchanged either way, and a reader comparing the two
+    // is doing exactly what this page is for.
+    const lineOee = await this.lineBasis.forScope(f, scope, basisMethod,
+      (s2) => this.service.overview(f, from, to, s2), overview);
+
     // The episode counts come from the same segments the chart draws, so the
     // number under the bar and the blocks in it can never tell two stories.
     return {
       ...overview, machines, jobOrders, shifts, trend, states, granularity: g,
+      lineOee,
       timeline: segments,
       production: this.timeline.details(segments),
       distribution: this.timeline.distribution(segments),

@@ -58,6 +58,19 @@ const PAIRS: Pair[] = [
   },
 ];
 
+/**
+ * Scope keys that are set INSIDE the API and must never be caller-supplied.
+ *
+ * `machineIds` is how `LineBasisService` asks an engine for "the outfeed points"
+ * or "the constraint" while it computes a line's score. Exposing it as a query
+ * parameter would let a caller narrow the page to an arbitrary set of machines
+ * and still be told it was looking at the line — the line basis would be
+ * computed over whatever they picked. It is exempt because it is deliberately
+ * unreachable, not because it was forgotten, and this list is where that
+ * distinction is recorded.
+ */
+const INTERNAL_ONLY = ['machineIds'];
+
 const read = (rel: string) => fs.readFileSync(path.join(SRC, rel), 'utf8');
 
 /** The optional keys declared on an exported scope interface. */
@@ -77,8 +90,14 @@ describe('Every scope filter is reachable from its endpoint', () => {
         expect(keys.length).toBeGreaterThan(3);
       });
 
+      for (const key of INTERNAL_ONLY.filter((k) => keys.includes(k))) {
+        it(`${key} is NOT exposed as a query parameter`, () => {
+          expect(controller).not.toContain(`@Query('${key}')`);
+        });
+      }
+
       for (const key of keys) {
-        const skip = p.exempt?.includes(key);
+        const skip = p.exempt?.includes(key) || INTERNAL_ONLY.includes(key);
 
         (skip ? it.skip : it)(`${key} is accepted as a query parameter`, () => {
           expect(controller).toContain(`@Query('${key}')`);

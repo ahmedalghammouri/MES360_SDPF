@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { OeeScheduleService, type ScheduleScope } from './oee-schedule.service';
 import { OeeScheduleWriter } from './oee-schedule.writer';
 import { RejectReasonService } from '../oee-standard/reject-reason.service';
+import { LineBasisService, type LineMethod } from '../oee-standard/line-basis.service';
 import { StateTimelineService } from '../oee-standard/state-timeline.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -35,6 +36,7 @@ export class OeeScheduleController {
     private readonly writer: OeeScheduleWriter,
     private readonly timeline: StateTimelineService,
     private readonly rejects: RejectReasonService,
+    private readonly lineBasis: LineBasisService,
   ) {}
 
   @Get()
@@ -48,6 +50,11 @@ export class OeeScheduleController {
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'jobOrderId', required: false })
   @ApiQuery({ name: 'shiftTemplateId', required: false })
+  @ApiQuery({
+    name: 'lineBasis', required: false,
+    description: 'bottleneck | rollup — how a LINE is scored. Ignored when the scope is a '
+      + 'single machine. Absent means the method each line is configured with.',
+  })
   @ApiQuery({ name: 'workOrderId', required: false })
   @ApiQuery({ name: 'skuId', required: false, description: 'Product' })
   @ApiQuery({ name: 'productionOrderId', required: false })
@@ -66,6 +73,7 @@ export class OeeScheduleController {
     @Query('productionOrderId') productionOrderId?: string,
     @Query('productionOrderNumber') productionOrderNumber?: string,
     @Query('workOrderId') workOrderId?: string,
+    @Query('lineBasis') lineBasis?: string,
   ) {
     const { from, to } = resolveLocalRange(dateFrom, dateTo, 1);
     // resolveLocalRange caps the end at "now", which is right for rows that only
@@ -86,6 +94,11 @@ export class OeeScheduleController {
     const f = user.factoryId;
 
     const g = granularity === 'day' ? 'day' : 'hour';
+    // The request picks the METHOD; the line keeps deciding which machine is its
+    // constraint and where units are counted.
+    const basisMethod: LineMethod | null =
+      lineBasis === 'bottleneck' ? 'BOTTLENECK' : lineBasis === 'rollup' ? 'ROLLUP' : null;
+
     const [overview, machines, jobOrders, shifts, trend, states, segments, rejectReasons] = await Promise.all([
       this.service.overview(f, from, to, slotTo, scope),
       this.service.byMachine(f, from, to, slotTo, scope),
@@ -96,8 +109,12 @@ export class OeeScheduleController {
       this.timeline.segments(f, from, to, { areaId, lineId, machineId }),
       this.rejects.topReasons(f, from, to, { areaId, lineId, machineId }),
     ]);
+    const lineOee = await this.lineBasis.forScope(f, scope, basisMethod,
+      (s2) => this.service.overview(f, from, to, slotTo, s2), overview);
+
     return {
       ...overview, machines, jobOrders, shifts, trend, states, granularity: g,
+      lineOee,
       timeline: segments,
       production: this.timeline.details(segments),
       distribution: this.timeline.distribution(segments),

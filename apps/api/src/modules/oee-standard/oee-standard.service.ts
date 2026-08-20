@@ -7,6 +7,15 @@ import { computeOee, auditTotals, EMPTY_TOTALS, type OeeTotals, type OeeResult }
 export interface OeeScope {
   areaId?: string;
   machineId?: string;
+  /**
+   * A SET of machines — the line's outfeed points, or its bottleneck.
+   *
+   * Separate from `machineId` rather than replacing it: the two mean different
+   * things to a reader of a call site, and collapsing "the machine I am looking
+   * at" into "the machines that count for quality" is how a line-level rule
+   * would silently start filtering the page.
+   */
+  machineIds?: string[];
   lineId?: string;
   jobOrderId?: string;
   workOrderId?: string;
@@ -85,6 +94,13 @@ export class OeeStandardService {
     const parts: Prisma.Sql[] = [Prisma.sql`o."bucketStart" >= ${from} AND o."bucketStart" < ${to}`];
     if (factoryId) parts.push(Prisma.sql`o."factoryId" = ${factoryId}`);
     if (scope.machineId) parts.push(Prisma.sql`o."machineId" = ${scope.machineId}`);
+    // An EMPTY list is a real answer — "no machine qualifies" — and must select
+    // nothing. `IN ()` is a syntax error, so it is written out as a false.
+    if (scope.machineIds) {
+      parts.push(scope.machineIds.length === 0
+        ? Prisma.sql`FALSE`
+        : Prisma.sql`o."machineId" IN (${Prisma.join(scope.machineIds)})`);
+    }
     if (scope.jobOrderId) parts.push(Prisma.sql`o."jobOrderId" = ${scope.jobOrderId}`);
     if (scope.workOrderId) parts.push(Prisma.sql`o."workOrderId" = ${scope.workOrderId}`);
     if (scope.shiftTemplateId) parts.push(Prisma.sql`o."shiftTemplateId" = ${scope.shiftTemplateId}`);

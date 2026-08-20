@@ -31,6 +31,7 @@ import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { useOeeMode } from '@/hooks/use-oee-mode';
 import { useOrderFilterStore } from '@/store/order-filter-store';
+import { useLineBasis } from '@/hooks/use-line-basis';
 import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 import {
   OverviewPanel,
@@ -42,6 +43,7 @@ import { QualityPanel, type RejectReasons } from './quality-panel';
 import { LossPanel } from './loss-panel';
 import { TimeModel } from './chart-kit';
 import { DowntimePanel } from './downtime-panel';
+import { LineOeeCard, type LineOee } from './line-oee-card';
 
 interface Bar { key: string; minutes: number; pct: number; kind: 'base' | 'loss' | 'result' }
 interface Slice {
@@ -70,6 +72,8 @@ interface Payload extends Slice {
   production: ProductionDetails & { mttrMin: number | null; mtbfMin: number | null };
   distribution: Distribution;
   rejectReasons: RejectReasons;
+  /** What the LINE / area / factory scored, as opposed to what its machines did. */
+  lineOee: LineOee | null;
 }
 
 /**
@@ -121,6 +125,7 @@ export function OeeAnalysisView() {
   const { dateFrom, dateTo, key: timeKey } = useTimeRange();
   const { atOee } = useOeeMode();
   const { poNumber, woId, skuId, shiftTemplateId } = useOrderFilterStore();
+  const { param: lineBasisParam, key: lineBasisKey } = useLineBasis();
   // The period control in the filter panel only renders on the analytics half.
   // This page is entirely analytical, so it says so — otherwise arriving here
   // from a live screen leaves the period picker hidden and the window stuck.
@@ -144,9 +149,9 @@ export function OeeAnalysisView() {
   };
 
   const q = useQuery({
-    queryKey: ['oee-analysis', engine, scopeKey, timeKey, dimKey],
+    queryKey: ['oee-analysis', engine, scopeKey, timeKey, dimKey, lineBasisKey],
     queryFn: () => api.get<Payload>(path, {
-      params: { dateFrom, dateTo, ...filter, ...dimensions },
+      params: { dateFrom, dateTo, ...filter, ...dimensions, ...lineBasisParam },
     }),
     refetchInterval: 30_000,
   });
@@ -306,6 +311,12 @@ export function OeeAnalysisView() {
               distribution={d.distribution}
             />
           )}
+
+          {/* The line's own score, above the machine-level analyses.
+              Deliberately additional rather than a replacement: the panels below
+              stay machine-level, and the gap between the two is the thing worth
+              reading. */}
+          <LineOeeCard data={d.lineOee} />
 
           {analysis === 'overview' && (
             <OverviewPanel

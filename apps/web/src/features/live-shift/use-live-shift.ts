@@ -22,6 +22,8 @@ import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useOrderFilterStore } from '@/store/order-filter-store';
 import { useOeeMode } from '@/hooks/use-oee-mode';
+import { useLineBasis } from '@/hooks/use-line-basis';
+import type { LineOee } from '@/features/oee-analysis/line-oee-card';
 import type { RangeKey, WindowInfo } from './range-control';
 
 export interface ShiftHeader {
@@ -116,6 +118,8 @@ export interface LiveShiftPayload {
   basis: Basis;
   /** Schedule basis only: how far the committed slot was allowed to reach. */
   slotTo?: string;
+  /** What the LINE / area / factory scored. Null before the shift has any minutes. */
+  lineOee: LineOee | null;
   empty: boolean;
   availability: number | null;
   performance: number | null;
@@ -191,6 +195,7 @@ export function useLiveShift(range: RangeKey) {
   // into being the one screen where the toggle is inert.
   const { atOee } = useOeeMode();
   const basis: Basis = atOee ? 'standard' : 'schedule';
+  const { param: lineBasisParam, key: lineBasisKey } = useLineBasis();
   // The panel's product / order filter applies here too. It is part of the query
   // KEY as well as the params: without that, narrowing to one product would
   // re-serve the cached whole-factory answer, and the page would look filtered
@@ -203,10 +208,10 @@ export function useLiveShift(range: RangeKey) {
   };
 
   return useQuery<LiveShiftPayload>({
-    queryKey: ['live-shift', basis, range, scopeKey, `${poNumber}|${woId}|${skuId}`],
+    queryKey: ['live-shift', basis, lineBasisKey, range, scopeKey, `${poNumber}|${woId}|${skuId}`],
     queryFn: async () => {
       const res = await api.get<any>('/live-shift', {
-        params: { window: range, basis, ...filter, ...dims },
+        params: { window: range, basis, ...filter, ...dims, ...lineBasisParam },
       });
       return (res?.data ?? res) as LiveShiftPayload;
     },

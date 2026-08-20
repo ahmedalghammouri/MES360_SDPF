@@ -6,6 +6,7 @@ import { OeeStandardWriter } from './oee-standard.writer';
 import { OeeStandardController } from './oee-standard.controller';
 import { RejectReasonService } from './reject-reason.service';
 import { StateTimelineService } from './state-timeline.service';
+import { LineBasisService } from './line-basis.service';
 
 /**
  * The standard OEE engine — self-contained on purpose.
@@ -17,7 +18,7 @@ import { StateTimelineService } from './state-timeline.service';
 @Module({
   imports: [DatabaseModule],
   controllers: [OeeStandardController],
-  providers: [OeeStandardService, OeeStandardWriter, StateTimelineService, RejectReasonService],
-  exports: [OeeStandardService, StateTimelineService, RejectReasonService],
+  providers: [OeeStandardService, OeeStandardWriter, StateTimelineService, RejectReasonService, LineBasisService],
+  exports: [OeeStandardService, StateTimelineService, RejectReasonService, LineBasisService],
 })
 export class OeeStandardModule {}

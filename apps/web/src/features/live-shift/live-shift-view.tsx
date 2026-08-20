@@ -30,6 +30,7 @@ import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-st
 import { Gauge, dur, stateColour, STATUS, pctText } from '@/features/oee-analysis/chart-kit';
 import { cn } from '@/lib/utils';
 
+import { LineOeeCard } from '@/features/oee-analysis/line-oee-card';
 import { Panel, type RangeKey } from './range-control';
 import { ShiftBand } from './shift-header';
 import {
@@ -111,6 +112,11 @@ export function LiveShiftView() {
           The live feed could not be read. The panels below show the last figures that arrived.
         </div>
       )}
+
+      {/* What the line scored this shift. Above the machine-level panels for the
+          same reason as on the analysis page: they answer different questions,
+          and seeing both is the point. */}
+      <LineOeeCard data={data?.lineOee} />
 
       <div className="grid gap-3 xl:grid-cols-2">
         <FactorsPanel />
