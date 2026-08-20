@@ -156,7 +156,8 @@ export function OeeStandardView() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <Kpi label="OEE" value={pct(d.oee)} big />
             <Kpi label="Availability" value={pct(d.availability)}
-              hint={`${mins(d.time.netProductionMin)} ÷ ${mins(d.time.operationalMin)}`} />
+              hint={`${mins(d.time.netProductionMin)} ÷ ${mins(d.time.operationalMin)}${
+                d.machines.length > 1 ? ` · ${d.machines.length} machines` : ''}`} />
             <Kpi label="Performance" value={pct(d.performance)}
               hint={`${Math.round(d.counts.total)} ÷ ${Math.round(d.counts.theoretical)} parts`} />
             <Kpi label="Quality" value={pct(d.quality)}
@@ -166,11 +167,35 @@ export function OeeStandardView() {
           </div>
 
           {/* ── The time model ── */}
+          {/*
+            Total time across several machines is MACHINE-minutes, not clock
+            minutes: four machines running for an hour contribute four hours.
+            Read as wall clock it looks impossible — a work order forty minutes
+            old showing 2h 23m — so the scope says so in as many words rather
+            than leaving the reader to work out which of the two it is.
+          */}
           <section className="rounded-lg border border-border/60 bg-card p-4">
-            <h2 className="mb-1 text-sm font-semibold">Time model</h2>
-            <p className="mb-4 text-xs text-muted-foreground">
+            <h2 className="mb-1 text-sm font-semibold">
+              Time model{d.machines.length > 1 ? ' — machine-minutes' : ''}
+            </h2>
+            <p className="mb-2 text-xs text-muted-foreground">
               Every bar is a share of Total time. Each grey level is the one above it minus the
               amber loss between them.
+            </p>
+            <p className="mb-4 text-xs text-muted-foreground">
+              {d.machines.length > 1 ? (
+                <>
+                  Summed over <b>{d.machines.length} machines</b>, so Total time is machine-minutes:
+                  each machine contributes its own clock. That is{' '}
+                  <span className="font-mono tabular-nums">
+                    {mins(d.time.totalMin / d.machines.length)}
+                  </span>{' '}
+                  per machine, not {mins(d.time.totalMin)} of wall clock. Pick one machine above to
+                  read it against the clock.
+                </>
+              ) : (
+                <>One machine, so Total time is wall clock — the minutes its job orders occupied.</>
+              )}
             </p>
             <TimeModel bars={d.bars} />
           </section>
