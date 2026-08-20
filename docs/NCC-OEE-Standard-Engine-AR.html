@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>محرّك OEE القياسى</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#fbfaf8; --card:#ffffff; --sunk:#f2f1ee;
+    --ink:#171f28; --ink-2:#48525f; --ink-3:#7a8492;
+    --rule:#e1e3e7; --rule-2:#c8ccd2;
+    --accent:#175d7a; --accent-soft:#e4f0f4;
+    --base:#8b95a3; --base-bg:#eceef1;
+    --loss:#b8860b; --loss-bg:#faf0d8;
+    --good:#146c43; --good-bg:#e3f2e9;
+    --bad:#a32f2f;  --bad-bg:#f9eaea;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#111519; --card:#171c22; --sunk:#1d232a;
+      --ink:#e7ebef; --ink-2:#a6b0bc; --ink-3:#76808c;
+      --rule:#28303a; --rule-2:#39424e;
+      --accent:#5fb3d0; --accent-soft:#102a34;
+      --base:#7c8794; --base-bg:#232a32;
+      --loss:#dfae52; --loss-bg:#2c2412;
+      --good:#57c48d; --good-bg:#122a1e;
+      --bad:#ef8b8b;  --bad-bg:#321919;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#111519; --card:#171c22; --sunk:#1d232a;
+    --ink:#e7ebef; --ink-2:#a6b0bc; --ink-3:#76808c;
+    --rule:#28303a; --rule-2:#39424e;
+    --accent:#5fb3d0; --accent-soft:#102a34;
+    --base:#7c8794; --base-bg:#232a32;
+    --loss:#dfae52; --loss-bg:#2c2412;
+    --good:#57c48d; --good-bg:#122a1e;
+    --bad:#ef8b8b;  --bad-bg:#321919;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--paper); color:var(--ink); direction:rtl;
+    font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,system-ui,sans-serif;
+    font-size:16px; line-height:1.85}
+  .wrap{max-width:1040px; margin:0 auto; padding:44px 22px 90px; display:flex; flex-direction:column; gap:38px}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace; direction:ltr;
+    unicode-bidi:embed; font-variant-numeric:tabular-nums}
+  code{font-size:.82em; background:var(--sunk); border:1px solid var(--rule); border-radius:4px; padding:.08em .38em}
+
+  .mast{display:flex; flex-direction:column; gap:13px; padding-bottom:24px; border-bottom:3px solid var(--ink)}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--accent); direction:ltr; text-align:right}
+  h1{margin:0; font-size:clamp(28px,5vw,44px); font-weight:600; line-height:1.25; letter-spacing:-.01em; text-wrap:balance}
+  .thesis{margin:0; font-size:17.5px; color:var(--ink-2); max-width:62ch; font-weight:300}
+
+  section{display:flex; flex-direction:column; gap:17px}
+  .lhead{display:flex; align-items:baseline; gap:13px; border-bottom:1px solid var(--rule-2); padding-bottom:10px}
+  .lnum{font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600; color:var(--accent);
+    background:var(--accent-soft); border-radius:3px; padding:.2em .5em; direction:ltr; flex:none}
+  h2{margin:0; font-size:22px; font-weight:600; letter-spacing:-.005em; text-wrap:balance; flex:1}
+  h3{margin:6px 0 0; font-size:15.5px; font-weight:600}
+  .lsub{font-size:13px; color:var(--ink-3); flex:none}
+  p{margin:0; max-width:74ch} .lede{color:var(--ink-2)}
+
+  .scroll{overflow-x:auto; border:1px solid var(--rule); border-radius:7px; background:var(--card)}
+  table{width:100%; border-collapse:collapse; font-size:14px; min-width:560px}
+  th,td{padding:9px 12px; text-align:start; vertical-align:top; border-bottom:1px solid var(--rule)}
+  thead th{background:var(--sunk); font-weight:600; font-size:12.5px; color:var(--ink-2)}
+  tbody tr:last-child td{border-bottom:none}
+  td.k,td.n{font-family:"IBM Plex Mono",monospace; font-size:12.5px; direction:ltr; unicode-bidi:embed}
+  td.n{text-align:end; font-variant-numeric:tabular-nums}
+
+  pre{margin:0; background:var(--card); border:1px solid var(--rule); border-radius:7px;
+    padding:15px 17px; overflow-x:auto; font-family:"IBM Plex Mono",monospace; font-size:12.5px;
+    line-height:1.8; direction:ltr; text-align:left; color:var(--ink)}
+  .eq{background:var(--card); border:1px solid var(--rule); border-inline-start:3px solid var(--accent);
+    border-radius:7px; padding:14px 17px; display:flex; flex-direction:column; gap:9px}
+  .eq .l{font-size:12px; color:var(--ink-3); font-weight:500}
+  .eq pre{border:none; background:none; padding:0; border-radius:0}
+  .eq .why{font-size:13.5px; color:var(--ink-2); border-top:1px dashed var(--rule); padding-top:9px}
+
+  .note{border-radius:7px; padding:14px 17px; font-size:14.5px; line-height:1.8}
+  .note b{display:block; margin-bottom:4px; font-weight:600}
+  .note b.i{display:inline; margin:0}
+  .n-a{background:var(--accent-soft)} .n-b{background:var(--bad-bg)} .n-g{background:var(--good-bg)}
+  .n-p{background:var(--card); border:1px solid var(--rule)}
+
+  ul,ol{margin:0; padding-inline-start:22px; display:flex; flex-direction:column; gap:6px}
+  li{max-width:72ch}
+
+  /* the time model chart */
+  .model{display:flex; flex-direction:column; gap:5px; background:var(--card);
+    border:1px solid var(--rule); border-radius:7px; padding:18px}
+  .row{display:grid; grid-template-columns:minmax(96px,170px) 1fr; align-items:center; gap:12px}
+  .row .lbl{font-size:12.5px; text-align:start}
+  .row.loss .lbl{color:var(--ink-3)} .row.base .lbl{font-weight:600}
+  .track{display:flex; align-items:center; gap:8px}
+  .row.loss .track{flex-direction:row-reverse}
+  .bar{height:19px; border-radius:3px}
+  .bar.b{background:var(--base)} .bar.l{background:var(--loss)} .bar.r{background:var(--good)}
+  .val{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3);
+    font-variant-numeric:tabular-nums; white-space:nowrap}
+
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px}
+  .kpi{background:var(--card); border:1px solid var(--rule); border-radius:7px; padding:13px 15px;
+    display:flex; flex-direction:column; gap:4px}
+  .kpi .t{font-size:11px; text-transform:uppercase; letter-spacing:.11em; color:var(--ink-3)}
+  .kpi .v{font-size:26px; font-weight:600; font-variant-numeric:tabular-nums}
+  .kpi .h{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3)}
+
+  .pill{display:inline-block; font-size:11.5px; font-weight:600; padding:.12em .5em; border-radius:3px}
+  .p-g{color:var(--good); background:var(--good-bg)}
+  .p-b{color:var(--bad); background:var(--bad-bg)}
+  .p-l{color:var(--loss); background:var(--loss-bg)}
+
+  footer{border-top:1px solid var(--rule-2); padding-top:18px; font-size:13px; color:var(--ink-3)}
+  a{color:var(--accent)}
+  a:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:3px}
+  @media print{ .wrap{max-width:none;padding:0} section{break-inside:avoid} }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">MES360° · SDPF · Powder Packing Line 1</div>
+  <h1>محرّك OEE القياسى</h1>
+  <p class="thesis">
+    محرّك ثانٍ، مبنيّ على مرجع منشور يستطيع أي مهندس أن يفتحه ويقارن —
+    ومعه وضع تحقّق يقول لك النتيجة الصحيحة <b>قبل</b> أن يحسبها النظام.
+  </p>
+</header>
+
+<section>
+  <div class="lhead"><h2>لماذا محرّك ثانٍ وليس تعديلاً على الأوّل</h2></div>
+  <p class="lede">
+    المحرّكان يجيبان إلى مرجعين مختلفين. الأوّل نشأ من تاريخ أعطال هذا المصنع نفسه؛ وهذا يطبّق
+    <a href="https://documentation.mindsphere.io/MindSphere/apps/insights-hub-oee/OEE-standard-formulas.html" target="_blank" rel="noreferrer">معادلات Insights Hub القياسية</a>
+    حرفياً. وتشغيلهما جنباً إلى جنب هو <b>الطريقة الوحيدة</b> للتفريق بين خلاف بين محرّكين وخلاف مع الواقع.
+  </p>
+  <div class="note n-a">
+    <b>رقم لا يستطيع أحد فحصه ليس قياساً</b>
+    الاختبارات كلها حتى الآن كانت تقارن النظام بنفسه. الجديد هنا أن مخرجات المحرّك تُوضع بجوار
+    مرجع نشره طرف آخر — وأن سيناريو التحقّق يقرّر ماذا حدث، ويحسب الإجابة الواجبة، ثم يسأل النظام.
+  </div>
+</section>
+
+<section>
+  <div class="lhead"><span class="lnum">01</span><h2>نموذج الزمن</h2>
+    <span class="lsub">كل مستوى هو الذى فوقه ناقص خسارة</span></div>
+
+  <div class="model">
+    <div class="row base"><span class="lbl">Total time</span>
+      <span class="track"><span class="bar b" style="width:100%"></span><span class="val">100%</span></span></div>
+    <div class="row loss"><span class="lbl">Planned stops</span>
+      <span class="track"><span class="bar l" style="width:53.57%"></span><span class="val">53.57%</span></span></div>
+    <div class="row base"><span class="lbl">Operational time</span>
+      <span class="track"><span class="bar b" style="width:46.43%"></span><span class="val">46.43% ← مقام الإتاحية</span></span></div>
+    <div class="row loss"><span class="lbl">Availability losses</span>
+      <span class="track"><span class="bar l" style="width:27.12%"></span><span class="val">27.12%</span></span></div>
+    <div class="row base"><span class="lbl">Net production time</span>
+      <span class="track"><span class="bar b" style="width:19.31%"></span><span class="val">19.31% ← بسط الإتاحية</span></span></div>
+    <div class="row loss"><span class="lbl">Performance losses</span>
+      <span class="track"><span class="bar l" style="width:2.01%"></span><span class="val">2.01%</span></span></div>
+    <div class="row loss"><span class="lbl">Microstop losses</span>
+      <span class="track"><span class="bar l" style="width:0.4%"></span><span class="val">0% — لا شىء يقيسها بعد</span></span></div>
+    <div class="row base"><span class="lbl">Net operational time</span>
+      <span class="track"><span class="bar b" style="width:17.3%"></span><span class="val">17.30%</span></span></div>
+    <div class="row loss"><span class="lbl">Quality losses</span>
+      <span class="track"><span class="bar l" style="width:1.74%"></span><span class="val">1.74%</span></span></div>
+    <div class="row base"><span class="lbl">Used operational time</span>
+      <span class="track"><span class="bar r" style="width:15.56%"></span><span class="val">15.56%</span></span></div>
+  </div>
+
+  <p class="lede">
+    الأرقام أعلاه ليست توضيحية — هى أرقام الرسم المرجعى، ويوجد اختبار يُعيد إنتاجها
+    <b>عموداً بعمود</b>. و<code>OEE = 15.56 ÷ 46.43 = 33.5%</code>، وهو نفسه ناتج <code>A×P×Q</code>.
+    النموذج معرَّف مرّتين، والاختبار يثبّت أن التعريفين يتطابقان.
+  </p>
+
+  <div class="eq">
+    <span class="l">المعادلات كما وردت فى المرجع</span>
+    <pre>OEE                   = Availability × Performance × Quality
+Availability          = OperatingTime ÷ PlannedProductionTime
+PlannedProductionTime = TotalTime − PlannedShutdown
+OperatingTime         = PlannedProductionTime − Σ Downtimes
+Performance           = TotalParts ÷ TheoreticalOutput
+TheoreticalOutput     = OperatingTime × DesignSpeed
+Quality               = GoodParts ÷ TotalParts
+TEEP                  = OEE × (PlannedProductionTime ÷ TotalTime)</pre>
+    <div class="why">
+      لاحظ أن الأداء هنا معرَّف بـ<b class="i">سرعة التصميم</b> (قطعة/ساعة) لا بزمن الدورة.
+      عندنا مخزَّن مقلوبه، فالتحويل يحدث فى مكان واحد اسمه <code>designSpeedPph</code>.
+    </div>
+  </div>
+
+  <div class="note n-p">
+    <b>موضع واحد تجاوزنا فيه المرجع — عمداً</b>
+    المرجع يعرف نوعين من الزمن المتوقّف: مخطّط، وتوقّف. و<b class="i">State Rules</b> عندنا تعرف ثالثاً:
+    حالة موصوفة كتوقّف لا يُحتسب على OEE — وهكذا يُسجَّل الجوع والانسداد.
+    <br><br>
+    تلك الدقائق تُرفع <b class="i">فوق</b> الزمن المخطّط للإنتاج، بجوار التوقّفات المخطّطة —
+    خارج النسبة، لا مخفيّة عن الرسم. واضبط كل قاعدة حالة على <code>affectsOEE</code>
+    فيصير الحدّ صفراً ويعود المحرّك إلى المرجع تماماً. وفيه اختبار يثبّت ذلك.
+  </div>
+</section>
+
+<section>
+  <div class="lhead"><span class="lnum">02</span><h2>ما يُخزَّن، وما يُشتقّ</h2>
+    <span class="lsub">جدول oee_minutes — صفّ لكل دقيقة ماكينة</span></div>
+
+  <p class="lede">
+    <b>الأساسيّات فقط تُخزَّن.</b> وكل ما يمكن اشتقاقه منها يُشتقّ عند القراءة، فلا يستطيع صفّ مخزَّن
+    أن يخالف المعادلة التى تقرؤه.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:26%">العمود</th><th style="width:16%">النوع</th><th>ماذا يعنى</th></tr></thead>
+    <tbody>
+      <tr><td class="k">totalMin</td><td><span class="pill p-g">مخزَّن</span></td>
+        <td>الدقيقة نفسها، مقصوصة على شَغْل أمر التشغيل لها.</td></tr>
+      <tr><td class="k">plannedStopMin</td><td><span class="pill p-g">مخزَّن</span></td>
+        <td>توقّف مجدوَل، وأى حالة صنّفها المصنع مخطّطة، وأمر تشغيل موقوف مؤقّتاً.</td></tr>
+      <tr><td class="k">availabilityLossMin</td><td><span class="pill p-g">مخزَّن</span></td>
+        <td>توقّف غير مخطّط يُحتسب على هذه الماكينة.</td></tr>
+      <tr><td class="k">externalLossMin</td><td><span class="pill p-g">مخزَّن</span></td>
+        <td>أوقفها الخط لا هى: جوع، انسداد، وكل ما تصنّفه القاعدة كذلك.</td></tr>
+      <tr><td class="k">unmeasuredMin</td><td><span class="pill p-g">مخزَّن</span></td>
+        <td>لم تُبلّغ الماكينة بشىء. لا تشغيل ولا توقّف — والصمت ليس دليلاً على أيّهما.</td></tr>
+      <tr><td class="k">operatingMin</td><td><span class="pill p-g">مخزَّن</span></td>
+        <td>زمن الإنتاج الصافى: كانت تعمل.</td></tr>
+      <tr><td class="k">goodParts · rejectedParts</td><td><span class="pill p-g">مخزَّن</span></td>
+        <td>دلتا هذه الدقيقة، بالقِطَع.</td></tr>
+      <tr><td class="k">theoreticalParts</td><td><span class="pill p-g">مخزَّن</span></td>
+        <td>ما كان يمكن إنتاجه فى دقائق التشغيل بسرعة تصميم <b>هذا المنتج</b>.
+          مخزَّن لأن السرعة تتغيّر بتغيّر المنتج، والمرجع صريح فى أن النافذة المختلطة تجمع
+          الناتج النظرى لكل منتج على حدة.</td></tr>
+      <tr><td class="k">performanceLoss · qualityLoss</td><td><span class="pill p-l">مُشتقّ</span></td>
+        <td><b>لا تُخزَّن أبداً.</b> ناتج دقيقة واحدة متقطّع، ورقم أداء لكل دقيقة ضجيج يرتدى زِيّ القياس.</td></tr>
+      <tr><td class="k">الأبعاد</td><td><span class="pill p-l">قليلة عمداً</span></td>
+        <td>أمر التشغيل، الوردية، الماكينة. وما عداه يُبلَغ بالانضمام لأمر التشغيل —
+          والبُعد المنسوخ على كل دقيقة بُعد يمكن أن يبطل.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="eq">
+    <span class="l">الأسبقية — كل طبقة تُطرح ممّا لم تطلبه الطبقة فوقها</span>
+    <pre>1. SCHEDULED PLANNED STOP   استراحة وضعها إنسان على التقويم.
+                            تعلو على كل شىء، حتى ماكينة ظلّت تعمل خلالها:
+                            الوقت لم يكن لنا لننتج فيه.
+2. STATE RULE               ما صنّف به المصنعُ الحالةَ المُبلَّغ عنها.
+3. UNOBSERVED               لا سجلّ حالة إطلاقاً ← غير مقيس، خارج الطرفين.
+
+⇒ الدلاء الخمسة تجمع إلى totalMin بالبناء، لا بالمصادفة.</pre>
+    <div class="why">
+      و<code>auditTotals</code> يفحصها رغم ذلك، <b class="i">ويُرسل النتيجة إلى الصفحة بجوار الأرقام</b>.
+      الخطأ الذى يمسكه صامت: دقائق تضيع بين الساعة والدلاء لا ترفع خطأً، بل ترفع الإتاحية.
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="lhead"><span class="lnum">03</span><h2>التوقّفات المخطّطة تُوضع، لا تُوزَّع</h2></div>
+  <div class="eq">
+    <span class="l">ثلاثة تحدّد فترة، والنهاية حساب لا تخمين</span>
+    <pre>window = [ shiftStart + startOffsetMin ,
+           shiftStart + startOffsetMin + durationMinutes )</pre>
+    <div class="why">
+      تعريف لا يذكر بداية <b class="i">غير قابل للوضع على الساعة</b>، فيُتجاهَل —
+      لا يُفترَض فى منتصف الوردية. المولّد القديم كان يفعل ذلك، وكل دقيقة اخترعها
+      كانت تخرج من الإتاحية بلا أن يختارها أحد.
+      <br><br>
+      والنطاق يُحترم: <code>FACTORY</code> يوقف الجميع، <code>LINE</code> يصل خطّاً،
+      <code>MACHINE</code> يصل المسمّاة وحدها. وتسجيل تنظيف ماكينة على معدّات لم يلمسها أحد اختراعُ توقّف.
+      <br><br>
+      وتعريفان متداخلان — استراحة مصنع وتنظيف خط يمتدّ داخلها — يُدمَجان لا يُجمَعان.
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="lhead"><span class="lnum">04</span><h2>السيناريوهات التى سألت عنها</h2></div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:26%">الحالة</th><th>ما يفعله المحرّك — ولماذا</th></tr></thead>
+    <tbody>
+      <tr><td><b>أمر تشغيل يعمل</b><br><code>EXECUTING</code></td>
+        <td>يتراكم من <code>actualStart</code> حتى الآن، دقيقة بدقيقة.</td></tr>
+      <tr><td><b>أمر تشغيل انتهى</b><br><code>COMPLETED</code></td>
+        <td>يتوقّف التراكم عند <code>actualEnd</code> — يفرضه القصّ نفسه بلا فرع منفصل.</td></tr>
+      <tr><td><b>أمر تشغيل موقوف مؤقّتاً</b><br><code>PAUSED</code></td>
+        <td><b>توقّف مخطّط.</b> الإيقاف قرار اتّخذه إنسان بشأن ذلك الوقت،
+          وتحميله على الإتاحية يلوم الماكينة على اختيار اتُّخذ بشأنها.
+          ولاحظ أنه يظلّ <b class="i">يشغل</b> الساعة — لو أخرجناه من الزمن الكلّى لاختفى الإيقاف تماماً.</td></tr>
+      <tr><td><b>تجاوز زمن الانتهاء المخطّط</b></td>
+        <td><b>يستمرّ التراكم.</b> الجدولة كانت خطّة، وOEE يقيس ما حدث.
+          وتحديد الزمن الكلّى عند <code>plannedEnd</code> يجعل <b class="i">التجاوز مجّانياً</b> —
+          تعمل الماكينة بعد موعدها والخسارة لا تظهر فى أى مكان.</td></tr>
+      <tr><td><b>ماكينة بلا إشارة حالة</b></td>
+        <td>كل دقائقها <code>unmeasuredMin</code>، فتخرج من الطرفين وتقرأ الإتاحية
+          <code>null</code> — لا صفراً ولا مئة.</td></tr>
+      <tr><td><b>لا زمن دورة معرَّف</b></td>
+        <td>الأداء <code>null</code>: مجهول، وهو صادق — لا صفر يقرأ كفشل.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <div class="lhead"><span class="lnum">05</span><h2>وضع التحقّق</h2>
+    <span class="lsub">الوردية التى تُعرف إجابتها قبل أن تبدأ</span></div>
+
+  <p class="lede">
+    السيناريو <b>يقرّر</b> ما فعلته الماكينة دقيقةً بدقيقة، ويستخرج الـ OEE الواجب من معادلات المرجع.
+    ثم يُسأل المحرّكُ السؤالَ نفسه عبر واجهته. فإن اختلفا، فأحدهما خاطئ —
+    والسيناريو هو الذى تستطيع قراءته فى عشرين سطراً.
+  </p>
+
+  <pre>cd apps/api
+node scripts/oee-scenario.mjs                     # الوردية الافتراضية
+node scripts/oee-scenario.mjs --scenario starved  # وردية قيدها خارجى
+node scripts/oee-scenario.mjs --scenario silent   # ماكينة لا تُبلّغ بشىء
+node scripts/oee-scenario.mjs --keep              # اترك الصفوف لتراها فى الصفحة</pre>
+
+  <p>
+    الزمن مضغوط: يكتب السيناريو حالات وعدّادات بطوابع زمنية اصطناعية ويقود كاتب الدقائق خلالها،
+    فتُتحقَّق وردية من ثمانى ساعات فى ثوانٍ.
+  </p>
+
+  <h3>المثال — الوردية الافتراضية</h3>
+  <div class="scroll">
+  <table>
+    <thead><tr><th style="width:24%">الحالة</th><th class="n" style="width:16%">الدقائق</th>
+      <th class="n" style="width:20%">قطعة/دقيقة</th><th class="n" style="width:16%">هالك</th><th>التصنيف</th></tr></thead>
+    <tbody>
+      <tr><td class="k">RUNNING</td><td class="n">90</td><td class="n">1.0</td><td class="n">2%</td><td>تشغيل</td></tr>
+      <tr><td class="k">BREAKDOWN</td><td class="n">25</td><td class="n">0</td><td class="n">—</td><td>خسارة إتاحية</td></tr>
+      <tr><td class="k">RUNNING</td><td class="n">45</td><td class="n">0.8</td><td class="n">2%</td><td>تشغيل — بسرعة أقلّ</td></tr>
+      <tr><td class="k">CHANGEOVER</td><td class="n">20</td><td class="n">0</td><td class="n">—</td><td>توقّف مخطّط</td></tr>
+      <tr><td class="k">RUNNING</td><td class="n">60</td><td class="n">1.0</td><td class="n">5%</td><td>تشغيل</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    سرعة التصميم <code>60 s/part</code> = قطعة واحدة فى الدقيقة — <b>اختيار مقصود</b>:
+    دقيقة تشغيل بقطعة واحدة هى ١٠٠٪ أداء بالضبط، وأى معدّل أبطأ خسارةُ سرعة تحسبها ذهنياً.
+  </p>
+
+  <div class="eq">
+    <span class="l">الحساب اليدوى — من المعادلات مباشرةً</span>
+    <pre>Total time            = 90 + 25 + 45 + 20 + 60      = 240 min
+Planned stops         = 20 (CHANGEOVER)             =  20 min
+Operational time      = 240 − 20                    = 220 min
+Availability losses   = 25 (BREAKDOWN)              =  25 min
+Net production time   = 90 + 45 + 60                = 195 min
+
+TotalParts            = 90×1.0 + 45×0.8 + 60×1.0    = 186.0
+TheoreticalOutput     = 195 min × 1 part/min        = 195.0
+GoodParts             = 88.2 + 35.28 + 57.0         = 180.5
+
+Availability = 195 ÷ 220  = 88.6%
+Performance  = 186 ÷ 195  = 95.4%
+Quality      = 180.5 ÷ 186 = 97.0%
+OEE          = 0.886 × 0.954 × 0.970 = 82.0%</pre>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><span class="t">Availability</span><span class="v">88.6%</span><span class="h">195 ÷ 220 min</span></div>
+    <div class="kpi"><span class="t">Performance</span><span class="v">95.4%</span><span class="h">186 ÷ 195 parts</span></div>
+    <div class="kpi"><span class="t">Quality</span><span class="v">97.0%</span><span class="h">180.5 of 186</span></div>
+    <div class="kpi"><span class="t">OEE</span><span class="v">82.0%</span><span class="h">A × P × Q</span></div>
+  </div>
+
+  <h3>ما يطبعه التشغيل</h3>
+  <pre>  OEE verification run — A four-hour shift with one breakdown and one changeover
+  job order Cartoning on machine M3
+  240 synthetic minutes from 19/08/2026, 17:12:00
+
+  RUNNING        90 min  ✓
+  BREAKDOWN      25 min  ✓
+  RUNNING        45 min  ✓
+  CHANGEOVER     20 min  ✓
+  RUNNING        60 min  ✓
+
+  ┌────────────────────────┬────────┬────────┬──────┐
+  │                        │ expect │ engine │      │
+  ├────────────────────────┼────────┼────────┼──────┤
+  │ Total time             │  240.0 │  240.0 │  ok  │ min
+  │ Planned stops          │   20.0 │   20.0 │  ok  │ min
+  │ External loss          │    0.0 │    0.0 │  ok  │ min
+  │ Unmeasured             │    0.0 │    0.0 │  ok  │ min
+  │ Operational time       │  220.0 │  220.0 │  ok  │ min
+  │ Availability losses    │   25.0 │   25.0 │  ok  │ min
+  │ Net production time    │  195.0 │  195.0 │  ok  │ min
+  │ Good parts             │  180.5 │  180.5 │  ok  │
+  │ Rejected parts         │    5.5 │    5.5 │  ok  │
+  │ Theoretical parts      │  195.0 │  195.0 │  ok  │
+  │ Availability           │   88.6 │   88.6 │  ok  │ %
+  │ Performance            │   95.4 │   95.4 │  ok  │ %
+  │ Quality                │   97.0 │   97.0 │  ok  │ %
+  │ OEE                    │   82.0 │   82.0 │  ok  │ %
+  └────────────────────────┴────────┴────────┴──────┘
+
+  engine self-audit: every minute accounted for  (bucket drift 0m, identity drift 0m)
+
+  ✓ the engine reproduced the scenario exactly</pre>
+
+  <div class="note n-p">
+    <b>ولماذا سيناريوهان آخران</b>
+    <code>starved</code> يشغّل نفس الماكينة موقوفةً بالخطّ لا بنفسها — والإتاحية <b class="i">يجب ألّا تتحرّك</b>،
+    لأن الجوع يُرفع فوق الزمن المخطّط. قارنه بالافتراضى لترى بعينك أثر قاعدة الحالة.
+    <br><br>
+    <code>silent</code> ماكينة لا تُبلّغ بشىء — والمحرّك يجب أن يقول <b class="i">لا إتاحية</b>،
+    لا صفراً وقطعاً لا مئة.
+    <br><br>
+    والسيناريو يستعيد ما عدّله عند الانتهاء: يُحذف ما كتبه ويُرجَّع أمر التشغيل كما كان،
+    إلا مع <code>--keep</code>.
+  </div>
+</section>
+
+<section>
+  <div class="lhead"><span class="lnum">06</span><h2>عيب وجدته أثناء البناء</h2></div>
+  <div class="note n-b">
+    <b>دالّة merge كانت تُرجع فتراتٍ مرتبطة بمدخلاتها</b>
+    الصيغة المعتادة تبدأ بأول فترة من المدخل ثم تمدّها فى مكانها — فيتشارك المُخرَج
+    كائنات المُدخَل، ومدّ فترة هنا يعيد كتابتها فى كل مكان آخر تُمسَك فيه.
+    <br><br>
+    لا يكلّف شيئاً حتى تُدمَج الفترة نفسها مرّتين — وهو بالضبط ما يفعله التصنيف الجديد.
+    النتيجة: ماكينة عملت <b class="i">نصف دقيقة</b> تُسجَّل عاملةً <b class="i">الدقيقة كاملة</b>.
+    بلا خطأ ولا تحذير — إتاحية أعلى ممّا ينبغى فقط.
+    <br><br>
+    أصلحتها فى المواضع الثلاثة. النسخة فى <code>stopped-time.util.ts</code> (المحرّك الأوّل)
+    <b class="i">لم تكن تُطلق</b> لأن لا شىء هناك يدمج فترة مرّتين — لكن الدالّة النقيّة
+    لا يستطيع مستدعٍ أن يجعلها تفعل ذلك.
+  </div>
+</section>
+
+<section>
+  <div class="lhead"><span class="lnum">07</span><h2>ما يتبقّى قبل الاعتماد</h2></div>
+  <ul>
+    <li><b>لم يُختبَر على قاعدة حيّة بعد.</b> Docker كان متوقّفاً عندى، فالجدول أُنشئ كـ migration
+      ولم يُطبَّق ولم يُشغَّل سيناريو التحقّق فعلياً. الأرقام أعلاه من الحساب اليدوى ومن
+      ٤٢ اختباراً وحدياً — <b>لا</b> من تشغيل حقيقى. شغّله أوّل ما يقوم الاستاك.</li>
+    <li><b>المحاكى أُعيد توجيهه</b> إلى المنفذين <code>20101 / 20102</code> بدل <code>502 / 503</code>،
+      لأن صفوف الأجهزة تشير إليهما. لكن العنوان <code>192.168.0.x</code> لا بدّ أن يصل لهذا الجهاز:
+      إمّا توجّه الصفوف إلى <code>127.0.0.1</code>، أو تضيف العنوانين كـ loopback aliases.</li>
+    <li><b>التوقّفات الدقيقة</b> مستوى مسمّى فى المرجع، ولا شىء عندنا يقيسه —
+      يظهر صفراً صريحاً لا محذوفاً، حتى تقرّر تعريفه (كم ثانية؟).</li>
+    <li>المحرّك القديم <b>لم يُمَسّ</b>. الصفحتان تعملان معاً، وهذا هو المقصود:
+      قارِن قبل أن تتقاعد أىٌّ منهما.</li>
+  </ul>
+</section>
+
+<footer>
+  MES360° · مصنع مسحوق المنظفات السعودى · خط تعبئة المسحوق ١<br>
+  الصفحة: <code>/oee-standard</code> · الواجهة: <code>GET /api/v1/oee-standard</code> ·
+  ٣٣٩ اختبار API و١١٧ اختبار بوّابة، منها ٤٢ للمحرّك الجديد — ١٩ أغسطس ٢٠٢٦.
+</footer>
+
+</div>
+</body>
+</html>
