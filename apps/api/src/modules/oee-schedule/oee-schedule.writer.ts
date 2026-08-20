@@ -4,45 +4,44 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { toPieces, type SkuPackaging } from '../../common/units.util';
 import { resolveShiftAt, type ShiftTemplateWindow, type ResolvedShift } from '../../common/shift-window.util';
-import { designSpeedPph } from './oee-standard.calc';
+import { designSpeedPph } from '../oee-standard/oee-standard.calc';
+import { committedSlot } from './oee-schedule.calc';
 import {
   classifyMinute, merge, FALLBACK_VERDICTS, UNKNOWN_VERDICT,
   type Span, type Verdict,
-} from './minute-classification';
+} from '../oee-standard/minute-classification';
 import {
-  stopWindowsForShift, plannedStopMinutes,
+  stopWindowsForShift,
   type StopDefinition, type MachinePlace,
-} from './planned-stop-window.util';
+} from '../oee-standard/planned-stop-window.util';
 
 const MIN = 60_000;
 
 /**
- * Writes `oee_minutes` — one row per machine-minute, against the Insights Hub
- * time model.
+ * Writes `oee_schedule_minutes` — the same measured minute, stamped with the
+ * slot the job order was committed to.
  *
- * ── Why a second writer rather than a change to the first ───────────────────
- * The two answer to different references. This one implements a published model
- * a plant can look up; the other grew from this plant's own history of defects.
- * Running them side by side is the only way to tell a disagreement between
- * engines from a disagreement with reality — and the ability to check is the
- * whole reason the plant asked for it.
+ * The classification is not repeated here; it is imported. The two engines
+ * differ in one definition and share the other twenty, and a second copy of the
+ * shared part would drift from the first the moment either was fixed.
  *
- * ── The classification, in strict precedence ────────────────────────────────
- *   1. SCHEDULED PLANNED STOP  a break somebody put on the calendar. Wins over
- *                              everything, including a machine that kept running
- *                              through it: the time was not ours to produce in.
- *   2. STATE RULE              whatever the plant configured this state to mean.
- *   3. UNOBSERVED              no state record at all → unmeasured, out of both
- *                              sides. Silence is not evidence of a stop.
+ * What IS this writer's own job is the slot:
  *
- * Because each layer is SUBTRACTED from what the layer above did not claim, the
- * five buckets sum to total time by construction. `auditTotals` checks it anyway
- * — the failure it catches is silent, and a silent loss of minutes inflates
- * availability rather than raising an error.
+ *   committedFrom = min(plannedStart, actualStart)
+ *   committedTo   = actualEnd == null ? max(now, plannedEnd)
+ *                                     : max(actualEnd, plannedEnd)
+ *
+ * Stamped on every row rather than looked up at read time. It is identical on
+ * every row of a job order, so a reader takes MIN/MAX per job order and clips to
+ * the window — no second query, and no way for the slot to disagree with the
+ * minutes sitting inside it.
+ *
+ * `committedTo` moves for an order that has overrun, which is why the read takes
+ * the MAX: the latest row carries the latest answer.
  */
 @Injectable()
-export class OeeStandardWriter {
-  private readonly logger = new Logger(OeeStandardWriter.name);
+export class OeeScheduleWriter {
+  private readonly logger = new Logger(OeeScheduleWriter.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -51,18 +50,17 @@ export class OeeStandardWriter {
     try {
       await this.captureMinute(new Date());
     } catch (err) {
-      this.logger.error('OEE minute capture failed', err as Error);
+      this.logger.error('OEE schedule minute capture failed', err as Error);
     }
   }
 
-  /** Rules resolved per machine+state, cached briefly so a poll is not a query storm. */
   private ruleCache = new Map<string, { at: number; v: Verdict }>();
   private static readonly RULE_TTL_MS = 30_000;
 
   private async verdictFor(factoryId: string, machineId: string, state: string): Promise<Verdict> {
     const key = `${machineId}:${state}`;
     const hit = this.ruleCache.get(key);
-    if (hit && Date.now() - hit.at < OeeStandardWriter.RULE_TTL_MS) return hit.v;
+    if (hit && Date.now() - hit.at < OeeScheduleWriter.RULE_TTL_MS) return hit.v;
 
     let v = FALLBACK_VERDICTS[state] ?? UNKNOWN_VERDICT;
     try {
@@ -70,43 +68,27 @@ export class OeeStandardWriter {
         where: { factoryId, state, isActive: true, OR: [{ machineId }, { machineId: null }] },
         select: { machineId: true, isDowntime: true, isPlanned: true, affectsOEE: true },
       });
-      // Most specific first: a rule for THIS machine beats the factory rule.
       const chosen = rows.find((r) => r.machineId === machineId) ?? rows.find((r) => r.machineId === null);
       if (chosen) {
         v = { isDowntime: chosen.isDowntime, isPlanned: chosen.isPlanned, affectsOEE: chosen.affectsOEE };
       }
     } catch (err) {
-      // A configuration read must never stop a minute being recorded.
       this.logger.warn(`state-rule lookup failed for ${state}: ${(err as Error).message}`);
     }
     this.ruleCache.set(key, { at: Date.now(), v });
     return v;
   }
 
-  /**
-   * Capture the minute that has just CLOSED.
-   *
-   * The cron fires at second :00, when the current minute has barely begun.
-   * Capturing it would record a full minute of total time against a couple of
-   * milliseconds of operating time and collapse availability to nothing — the
-   * same trap the first engine fell into, avoided here by never looking at a
-   * minute that is still running.
-   */
+  /** Capture the minute that has just CLOSED. */
   async captureMinute(at = new Date()): Promise<number> {
     const bucketStart = new Date(Math.floor(at.getTime() / MIN) * MIN - MIN);
     const bucketEnd = new Date(bucketStart.getTime() + MIN);
 
-    await this.prisma.oeeMinute.updateMany({
+    await this.prisma.oeeScheduleMinute.updateMany({
       where: { isFinalized: false, bucketStart: { lt: bucketStart } },
       data: { isFinalized: true },
     });
 
-    // ── Scenario handling starts here ───────────────────────────────────────
-    // EXECUTING and PAUSED both occupy the clock; a paused order still holds the
-    // machine, and pretending otherwise would make the pause vanish from the
-    // denominator instead of being charged as the deliberate stop it is.
-    // COMPLETED orders stop accruing at actualEnd, which the clip below enforces
-    // without needing a separate branch.
     const jos = await this.prisma.jobOrder.findMany({
       where: {
         status: { in: ['EXECUTING', 'PAUSED'] },
@@ -116,7 +98,7 @@ export class OeeStandardWriter {
       select: {
         id: true, factoryId: true, machineId: true, workOrderId: true, status: true,
         idealCycleTimeSec: true, outputUnit: true,
-        actualStart: true, actualEnd: true, plannedEnd: true,
+        plannedStart: true, plannedEnd: true, actualStart: true, actualEnd: true,
         actualQtyGood: true, actualQtyRejected: true,
         machine: { select: { lineId: true } },
         workOrder: {
@@ -132,7 +114,6 @@ export class OeeStandardWriter {
     const joIds = jos.map((j) => j.id);
     const factoryIds = [...new Set(jos.map((j) => j.factoryId))];
 
-    // What each machine reported it was doing, overlapping this bucket.
     const states = await this.prisma.machineStateRecord.findMany({
       where: {
         machineId: { in: machineIds },
@@ -142,8 +123,7 @@ export class OeeStandardWriter {
       select: { machineId: true, state: true, startTime: true, endTime: true },
     });
 
-    // Counts already booked in closed minutes → this minute's delta.
-    const priorRows = await this.prisma.oeeMinute.groupBy({
+    const priorRows = await this.prisma.oeeScheduleMinute.groupBy({
       by: ['jobOrderId'],
       where: { jobOrderId: { in: joIds }, isFinalized: true },
       _sum: { goodParts: true, rejectedParts: true },
@@ -152,7 +132,6 @@ export class OeeStandardWriter {
       priorRows.map((r) => [r.jobOrderId, { good: r._sum.goodParts ?? 0, rejected: r._sum.rejectedParts ?? 0 }]),
     );
 
-    // Shift and planned-stop definitions, per factory.
     const shiftByFactory = new Map<string, ResolvedShift | null>();
     const stopsByFactory = new Map<string, StopDefinition[]>();
     for (const fid of factoryIds) {
@@ -183,14 +162,14 @@ export class OeeStandardWriter {
       );
       if (!row) continue;
       try {
-        await this.prisma.oeeMinute.upsert({
-          where: { ux_oee_minute_jo_bucket: { jobOrderId: jo.id, bucketStart } },
+        await this.prisma.oeeScheduleMinute.upsert({
+          where: { ux_oee_sched_jo_bucket: { jobOrderId: jo.id, bucketStart } },
           create: row,
           update: row,
         });
         written++;
       } catch (e) {
-        this.logger.warn(`oee minute upsert failed for JO ${jo.id}: ${(e as Error).message}`);
+        this.logger.warn(`schedule minute upsert failed for JO ${jo.id}: ${(e as Error).message}`);
       }
     }
     return written;
@@ -206,15 +185,22 @@ export class OeeStandardWriter {
     shift: ResolvedShift | null,
     stopDefs: StopDefinition[],
   ) {
-    // ── Total time: the job order's occupancy of this minute ─────────────────
-    // Clipped at BOTH ends. actualEnd closes a finished order; `at` stops an open
-    // one from claiming a future it has not lived yet.
-    //
-    // Note what is deliberately NOT here: plannedEnd. An order that overruns its
-    // schedule keeps accruing total time, because the schedule was a plan and OEE
-    // measures what happened. Capping total time at plannedEnd would make the
-    // overrun free — the machine would run past its slot and the loss would
-    // simply not appear anywhere.
+    // The slot. Written from the job order exactly as the plant defined it —
+    // and a job order with no slot at all is not measurable on this basis, so it
+    // is skipped rather than given one.
+    const slot = committedSlot(
+      {
+        plannedStart: jo.plannedStart ?? null,
+        plannedEnd: jo.plannedEnd ?? null,
+        actualStart: jo.actualStart ?? null,
+        actualEnd: jo.actualEnd ?? null,
+      },
+      at,
+    );
+    if (!slot) return null;
+
+    // The ELAPSED part of the minute, identical to the standard engine. The slot
+    // above is the denominator; this is what actually happened inside it.
     const joStart = new Date(jo.actualStart).getTime();
     const joEnd = jo.actualEnd ? new Date(jo.actualEnd).getTime() : at.getTime();
     const winFrom = Math.max(bucketStart.getTime(), joStart);
@@ -222,7 +208,6 @@ export class OeeStandardWriter {
     const totalMin = Math.max(0, (winTo - winFrom) / MIN);
     if (totalMin <= 0) return null;
 
-    // ── Layer 1: scheduled planned stops ────────────────────────────────────
     const place: MachinePlace = { machineId: jo.machineId, lineId: jo.machine?.lineId ?? null };
     const windows = shift ? stopWindowsForShift(stopDefs, shift, place) : [];
     const scheduledSpans: Span[] = merge(
@@ -231,22 +216,17 @@ export class OeeStandardWriter {
         .filter(([s, e]) => e > s),
     );
 
-    // ── Layer 2: what the machine said, classified by State Rules ───────────
-    // Shared with the schedule engine. The two differ in where Total time
-    // begins and ends and in nothing else, so this runs once for both.
-    const mine = states.filter((st) => st.machineId === jo.machineId);
     const {
       plannedStopMin, operatingMin, externalLossMin, availabilityLossMin, unmeasuredMin,
-      dominantState: dominant,
+      dominantState,
     } = await classifyMinute({
       winFrom, winTo, openEnd: at.getTime(),
-      states: mine,
+      states: states.filter((st) => st.machineId === jo.machineId),
       scheduledStops: scheduledSpans,
       paused: jo.status === 'PAUSED',
       verdictFor: (state) => this.verdictFor(jo.factoryId, jo.machineId, state),
     });
 
-    // ── Counts: the delta this minute, in pieces ────────────────────────────
     const sku: SkuPackaging | null = jo.workOrder?.sku ?? null;
     const unit: string | undefined = jo.outputUnit ?? undefined;
     const toBase = (q: number) => (sku && unit ? toPieces(q, unit, sku) : q);
@@ -255,9 +235,6 @@ export class OeeStandardWriter {
     const goodParts = Math.max(0, toBase(jo.actualQtyGood ?? 0) - p.good);
     const rejectedParts = Math.max(0, toBase(jo.actualQtyRejected ?? 0) - p.rejected);
 
-    // Design speed in PIECES per hour, so a theoretical output and an actual count
-    // are the same kind of thing. The cycle time is per OUTPUT unit, so it is
-    // converted on the same ladder the counts are.
     const perOutputUnit = toBase(1) || 1;
     const speedOut = designSpeedPph(jo.idealCycleTimeSec);
     const designSpeed = speedOut != null ? speedOut * perOutputUnit : null;
@@ -272,8 +249,10 @@ export class OeeStandardWriter {
       workOrderId: jo.workOrderId ?? null,
       shiftTemplateId: shift?.templateId ?? null,
       shiftCode: shift?.code ?? null,
-      machineState: dominant,
+      machineState: dominantState,
       jobOrderStatus: jo.status,
+      committedFrom: slot.from,
+      committedTo: slot.to,
       totalMin, plannedStopMin, availabilityLossMin, externalLossMin, unmeasuredMin, operatingMin,
       goodParts, rejectedParts, theoreticalParts,
       designSpeedPph: designSpeed,

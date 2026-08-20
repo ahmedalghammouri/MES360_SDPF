@@ -166,6 +166,8 @@ const navItems: NavItem[] = [
       // with the items above; listing it as just another reading would lose the
       // one thing that makes it useful.
       { label: 'OEE — Standard Engine', href: '/oee-standard', icon: Scale },
+      // Third basis: the same minutes divided by the slot that was promised.
+      { label: 'OEE — Schedule Basis', href: '/oee-schedule', icon: CalendarClock },
     ],
   },
   {

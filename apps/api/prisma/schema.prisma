@@ -145,6 +145,7 @@ model Factory {
 
   @@map("factories")
   oeeMinutes OeeMinute[]
+  oeeScheduleMinutes OeeScheduleMinute[]
 }
 
 // ============================================================
@@ -325,6 +326,7 @@ model Machine {
 
   @@map("machines")
   oeeMinutes OeeMinute[]
+  oeeScheduleMinutes OeeScheduleMinute[]
 }
 
 enum MachineType {
@@ -3603,6 +3605,7 @@ model JobOrder {
 
   @@map("job_orders")
   oeeMinutes OeeMinute[]
+  oeeScheduleMinutes OeeScheduleMinute[]
 }
 
 // Per-step scrap / rejection log — every increment of actualQtyRejected creates one entry
@@ -4177,4 +4180,86 @@ model OeeMinute {
   @@index([shiftTemplateId, bucketStart])
   @@index([workOrderId])
   @@map("oee_minutes")
+}
+
+
+// ============================================================
+// OEE SCHEDULE ENGINE — the same time model over the COMMITTED slot
+// ------------------------------------------------------------
+// A third store, and the only thing that differs from `oee_minutes` is where
+// Total time starts and stops:
+//
+//   committedFrom = min(plannedStart, actualStart)
+//   committedTo   = actualEnd == null ? max(now, plannedEnd)
+//                                     : max(actualEnd, plannedEnd)
+//
+// So the denominator is the WHOLE SLOT the order was committed to, not the part
+// of it that has gone by. Two consequences follow, and both are the point rather
+// than side effects:
+//
+//   • an order that started late is charged for the time between the slot
+//     opening and the machine actually starting;
+//   • an order still inside its slot is charged for the time it has not reached
+//     yet, so it reads low at the start and climbs as it runs.
+//
+// That makes this a reading of the SCHEDULE, not of the equipment. `oee_minutes`
+// answers "of the time it ran, how well did it run"; this answers "of the time
+// we promised, how much did we deliver". A plant needs both and they are not
+// meant to agree.
+//
+// The per-minute classification is identical, and is shared code rather than a
+// second copy — the two engines differ in one definition, and duplicating the
+// other twenty would reintroduce exactly the drift this project spent weeks
+// removing.
+// ============================================================
+
+/// One machine-minute, plus the committed slot the minute belongs to.
+model OeeScheduleMinute {
+  id String @id @default(uuid())
+
+  bucketStart DateTime
+  isFinalized Boolean @default(false)
+
+  factoryId   String
+  machineId   String
+  jobOrderId  String
+  workOrderId String?
+
+  shiftTemplateId String?
+  shiftCode       String?
+
+  machineState   String?
+  jobOrderStatus String
+
+  /// The committed slot. Identical on every row of a job order, so a read takes
+  /// MIN/MAX per job order and clips to the window — no second query, and no
+  /// chance of the slot disagreeing with the minutes that sit inside it.
+  committedFrom DateTime
+  committedTo   DateTime
+
+  // ── Elapsed time, classified exactly as the standard engine classifies it ──
+  totalMin            Float @default(0)
+  plannedStopMin      Float @default(0)
+  availabilityLossMin Float @default(0)
+  externalLossMin     Float @default(0)
+  unmeasuredMin       Float @default(0)
+  operatingMin        Float @default(0)
+
+  goodParts        Float @default(0)
+  rejectedParts    Float @default(0)
+  theoreticalParts Float @default(0)
+  designSpeedPph   Float?
+
+  createdAt DateTime @default(now())
+
+  factory  Factory  @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  machine  Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  jobOrder JobOrder @relation(fields: [jobOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([jobOrderId, bucketStart], name: "ux_oee_sched_jo_bucket")
+  @@index([machineId, bucketStart])
+  @@index([factoryId, bucketStart])
+  @@index([shiftTemplateId, bucketStart])
+  @@index([workOrderId])
+  @@map("oee_schedule_minutes")
 }

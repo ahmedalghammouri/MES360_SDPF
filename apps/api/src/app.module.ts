@@ -14,6 +14,7 @@ import { RbacModule } from './modules/rbac/rbac.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ProductionModule } from './modules/production/production.module';
 import { OeeStandardModule } from './modules/oee-standard/oee-standard.module';
+import { OeeScheduleModule } from './modules/oee-schedule/oee-schedule.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { ReliabilityModule } from './modules/reliability/reliability.module';
@@ -109,6 +110,7 @@ import { configuration } from './config/configuration';
     ReliabilityModule, // canonical MTBF/MTTR engine — global, consumed by production/maintenance/reports
     ProductionModule,
     OeeStandardModule,
+    OeeScheduleModule,
     QualityModule,
     MaintenanceModule,
     IotModule,

@@ -34,6 +34,39 @@ const KEEP = process.argv.includes('--keep');
 const scenarioAt = process.argv.indexOf('--scenario');
 const WANTED = scenarioAt >= 0 ? (process.argv[scenarioAt + 1] || 'default') : 'default';
 
+/**
+ * Which engine to verify. The scenarios are the same either way — what changes
+ * is the denominator, so running one scenario against both is the cleanest way
+ * to see what the schedule basis actually does to a reading.
+ *
+ *   standard  divides by the time that went by
+ *   schedule  divides by the slot the order was committed to
+ *
+ * `--slack N` extends the planned end N minutes past the run, so the schedule
+ * engine has a stretch of slot the order never reaches. With no slack the two
+ * engines must agree exactly, which is itself worth asserting.
+ */
+const engineAt = process.argv.indexOf('--engine');
+const ENGINE = engineAt >= 0 ? (process.argv[engineAt + 1] || 'standard') : 'standard';
+const slackAt = process.argv.indexOf('--slack');
+const SLACK_MIN = slackAt >= 0 ? Number(process.argv[slackAt + 1] || 0) : 0;
+if (!['standard', 'schedule'].includes(ENGINE)) {
+  console.error(`Unknown engine "${ENGINE}". Use standard or schedule.`);
+  process.exit(1);
+}
+const BASE = ENGINE === 'schedule' ? '/oee-schedule' : '/oee-standard';
+
+/**
+ * The minute table this run owns.
+ *
+ * Each engine writes its own, and a run that backs up and clears the wrong one
+ * leaves the engine under test reading rows it never wrote — its own live cron
+ * output from before the replay, complete with a committed slot of its own. The
+ * first schedule run reported 249.7 committed minutes against 240 for exactly
+ * that reason, and every factor downstream moved with it.
+ */
+const store = (prisma) => (ENGINE === 'schedule' ? prisma.oeeScheduleMinute : prisma.oeeMinute);
+
 const MIN = 60_000;
 const prisma = new PrismaClient();
 
@@ -227,7 +260,7 @@ async function main() {
   const t0 = new Date(Math.floor((Date.now() - (totalMinutes + 5) * MIN) / MIN) * MIN);
   const tEnd = new Date(t0.getTime() + totalMinutes * MIN);
 
-  console.log(`\n  OEE verification run — ${scenario.label}`);
+  console.log(`\n  OEE verification run [${ENGINE}] — ${scenario.label}`);
   console.log(`  job order ${jo.operationName ?? jo.id} on machine ${jo.machine?.code ?? jo.machineId}`);
   console.log(`  counting in ${jo.outputUnit ?? 'PIECE'} — 1 part = ${piecesPerPart} piece(s)`);
   console.log(`  ${totalMinutes} synthetic minutes from ${t0.toLocaleString()}\n`);
@@ -250,8 +283,8 @@ async function main() {
     // replay. The outside-the-window delete is the whole of this job order's
     // history, which is real production data — so it is saved first and put
     // back afterwards rather than being spent to make a test read cleanly.
-    savedMinutes = await prisma.oeeMinute.findMany({ where: { jobOrderId: jo.id } });
-    await prisma.oeeMinute.deleteMany({ where: { jobOrderId: jo.id } });
+    savedMinutes = await store(prisma).findMany({ where: { jobOrderId: jo.id } });
+    await store(prisma).deleteMany({ where: { jobOrderId: jo.id } });
 
     // Every state record that OVERLAPS the window, not merely those that START
     // inside it. A record opened before t0 and still open covers the whole run,
@@ -273,6 +306,11 @@ async function main() {
       where: { id: jo.id },
       data: {
         status: 'EXECUTING', actualStart: t0, actualEnd: null,
+        // The slot the schedule basis divides by. Pinned to the run so the
+        // expected answer is arithmetic rather than whatever the seed left on
+        // the order; --slack adds a stretch it will never reach.
+        plannedStart: t0,
+        plannedEnd: new Date(tEnd.getTime() + SLACK_MIN * MIN),
         idealCycleTimeSec: scenario.designCycleSec,
         actualQtyGood: 0, actualQtyRejected: 0,
       },
@@ -309,7 +347,7 @@ async function main() {
 
         // Capture the minute that has just closed: pass the START of the next.
         const at = new Date(cursor + (m + 1) * MIN);
-        const res = await fetch(`${API}/oee-standard/capture?at=${encodeURIComponent(at.toISOString())}`, {
+        const res = await fetch(`${API}${BASE}/capture?at=${encodeURIComponent(at.toISOString())}`, {
           method: 'POST', headers: auth,
         });
         if (!res.ok) throw new Error(`capture failed (${res.status}) at ${at.toISOString()}`);
@@ -326,12 +364,12 @@ async function main() {
     // Setting actualEnd clips every later bucket to nothing, so the cron writes
     // no row rather than being raced against.
     await prisma.jobOrder.update({ where: { id: jo.id }, data: { actualEnd: tEnd } });
-    await prisma.oeeMinute.deleteMany({
+    await store(prisma).deleteMany({
       where: { jobOrderId: jo.id, OR: [{ bucketStart: { lt: t0 } }, { bucketStart: { gte: tEnd } }] },
     });
 
     // ── Ask the engine ────────────────────────────────────────────────────
-    const url = new URL(`${API}/oee-standard`);
+    const url = new URL(`${API}${BASE}`);
     url.searchParams.set('jobOrderId', jo.id);
     url.searchParams.set('dateFrom', ymd(t0));
     url.searchParams.set('dateTo', ymd(tEnd));
@@ -339,15 +377,27 @@ async function main() {
     if (!res.ok) throw new Error(`read failed (${res.status})`);
     const actual = unwrap(await res.json());
     const exp = expected(scenario, piecesPerPart);
+    if (ENGINE === 'schedule') {
+      // committedMin = the run plus whatever slack was added past its end.
+      // notStarted is zero here because the scenario starts the order exactly
+      // when its slot opens — the late-start term is covered by unit tests.
+      exp.committedMin = exp.totalMin + SLACK_MIN;
+      exp.notStartedMin = 0;
+      exp.notYetReachedMin = SLACK_MIN;
+      exp.operationalMin = Math.max(0, exp.committedMin - exp.plannedStopMin - exp.externalLossMin - exp.unmeasuredMin);
+      exp.availability = exp.operationalMin > 0 ? Math.min(100, (exp.operatingMin / exp.operationalMin) * 100) : null;
+      exp.oee = exp.availability != null && exp.performance != null && exp.quality != null
+        ? (exp.availability / 100) * (exp.performance / 100) * (exp.quality / 100) * 100 : null;
+    }
 
     report(exp, actual, jo.outputUnit, piecesPerPart);
   } finally {
     if (KEEP) {
       console.log(`\n  --keep: rows left in place. Open /oee-standard and pick ${ymd(t0)}.`);
     } else {
-      await prisma.oeeMinute.deleteMany({ where: { jobOrderId: jo.id } });
+      await store(prisma).deleteMany({ where: { jobOrderId: jo.id } });
       if (savedMinutes.length) {
-        await prisma.oeeMinute.createMany({ data: savedMinutes, skipDuplicates: true });
+        await store(prisma).createMany({ data: savedMinutes, skipDuplicates: true });
       }
       await prisma.machineStateRecord.deleteMany({ where: { machineId: jo.machineId, startTime: { gte: t0, lt: tEnd } } });
       // Put the real history back exactly as it was found.
@@ -366,7 +416,11 @@ const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
 /** Side by side, with the verdict computed rather than eyeballed. */
 function report(exp, got, outputUnit, piecesPerPart) {
   const rows = [
-    ['Total time', exp.totalMin, got.time.totalMin, 'min'],
+    ...(ENGINE === 'schedule'
+      ? [['Committed time', exp.committedMin, got.time.committedMin, 'min'],
+         ['Not started', exp.notStartedMin, got.time.notStartedMin, 'min'],
+         ['Not yet reached', exp.notYetReachedMin, got.time.notYetReachedMin, 'min']]
+      : [['Total time', exp.totalMin, got.time.totalMin, 'min']]),
     ['Planned stops', exp.plannedStopMin, got.time.plannedStopMin, 'min'],
     ['External loss', exp.externalLossMin, got.time.externalLossMin, 'min'],
     ['Unmeasured', exp.unmeasuredMin, got.time.unmeasuredMin, 'min'],
