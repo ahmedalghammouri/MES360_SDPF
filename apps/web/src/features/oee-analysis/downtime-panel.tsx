@@ -21,7 +21,8 @@ import {
 } from 'recharts';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
 
-import { dur, stateColour, SEGMENT_COLOUR, SEGMENT_LABEL, type SegmentKind } from './chart-kit';
+import { dur, stateColour, SEGMENT_COLOUR, type SegmentKind } from './chart-kit';
+import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
 
 export interface TimelineSegment {
   machineId: string; machineCode: string; state: string;
@@ -42,8 +43,14 @@ type RankBy = 'duration' | 'occurrence';
 const num = (n: number) => Math.round(n).toLocaleString();
 
 export function DowntimePanel({
-  distribution, timeline,
-}: { distribution: Distribution; timeline: TimelineSegment[] }) {
+  distribution, timeline, machines, windowStart, windowEnd,
+}: {
+  distribution: Distribution;
+  timeline: TimelineSegment[];
+  machines: Array<{ key: string; label: string; sublabel?: string | null; availability: number | null }>;
+  windowStart: string;
+  windowEnd: string;
+}) {
   const [rankBy, setRankBy] = React.useState<RankBy>('duration');
   const [drill, setDrill] = React.useState<string | null>(null);
 
@@ -77,22 +84,38 @@ export function DowntimePanel({
     ? { occurrence: level.occurrence, totalMin: level.minutes, medianMin: level.medianMin, averageMin: level.averageMin }
     : distribution;
 
-  const span = React.useMemo(() => {
-    if (timeline.length === 0) return null;
-    const from = Math.min(...timeline.map((s) => new Date(s.from).getTime()));
-    const to = Math.max(...timeline.map((s) => new Date(s.to).getTime()));
-    return to > from ? { from, to, ms: to - from } : null;
-  }, [timeline]);
-
-  const byMachine = React.useMemo(() => {
-    const m = new Map<string, TimelineSegment[]>();
+  /**
+   * The same rows the Overview draws, from the same component.
+   *
+   * The reference colours this band by the top downtime reasons so a bar and a
+   * block match. That link is worth having, but not at the price of a second,
+   * weaker timeline — this one keeps gaps honest, re-renders on zoom instead of
+   * scaling, and ships a validated palette with texture for CVD and print. The
+   * ranking above carries NUMBERS as well as colour, so a reader can still match
+   * a bar to a stop without either chart agreeing on hue.
+   */
+  const ganttRows: GanttRow[] = React.useMemo(() => {
+    const byMachine = new Map<string, { label: string; segments: TimelineSegment[] }>();
     for (const s of timeline) {
-      const arr = m.get(s.machineCode) ?? [];
-      arr.push(s);
-      m.set(s.machineCode, arr);
+      const hit = byMachine.get(s.machineId) ?? { label: s.machineCode, segments: [] };
+      hit.segments.push(s);
+      byMachine.set(s.machineId, hit);
     }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [timeline]);
+    return [...byMachine.entries()]
+      .map(([id, v]) => {
+        const m = machines.find((x) => x.key === id);
+        const down = v.segments.filter((x) => x.kind === 'downtime');
+        const lost = down.reduce((a, x) => a + x.minutes, 0);
+        return {
+          id,
+          label: m?.label ?? v.label,
+          sublabel: m?.sublabel ?? undefined,
+          meta: `${down.length} stops · ${dur(lost)}`,
+          segments: v.segments.map((x) => ({ state: x.state, startTime: x.from, endTime: x.to })),
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [timeline, machines]);
 
   if (!downtime || leaves.length === 0) {
     return (
@@ -190,49 +213,16 @@ export function DowntimePanel({
         </div>
       </section>
 
-      {/* ── When they happened, in the ranking's own colours ── */}
+      {/* ── When they happened ── */}
       <section className="rounded-lg border border-border/60 bg-card p-4">
         <h2 className="mb-1 text-sm font-semibold">Downtime timeline</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          The same blocks as the status band on Overview, coloured by reason instead of by
-          category — so a colour here and a bar above it are the same stop. Everything that is not
-          unplanned downtime is greyed back.
+        <p className="mb-4 text-[11px] text-muted-foreground">
+          The same bands as Overview, with each machine&rsquo;s stop count beside it. Red is the
+          machine&rsquo;s own loss, amber is the line waiting on something else — the exact state is
+          one hover away, and the ranking above is numbered so a bar can be matched to a stop
+          without relying on colour.
         </p>
-        {!span ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">No machine states in this window.</p>
-        ) : (
-          <>
-            <div className="flex flex-col gap-2">
-              {byMachine.map(([code, segs]) => (
-                <div key={code} className="grid grid-cols-[52px_1fr] items-center gap-3">
-                  <span className="truncate font-mono text-xs text-muted-foreground">{code}</span>
-                  <div className="relative h-6 w-full overflow-hidden rounded-sm bg-muted/40">
-                    {segs.map((s, i) => {
-                      const left = ((new Date(s.from).getTime() - span.from) / span.ms) * 100;
-                      const width = ((new Date(s.to).getTime() - new Date(s.from).getTime()) / span.ms) * 100;
-                      const isDown = s.kind === 'downtime';
-                      return (
-                        <div key={`${s.from}-${i}`} className="absolute inset-y-0"
-                          style={{
-                            left: `${left}%`,
-                            width: `max(2px, calc(${width}% - 2px))`,
-                            marginLeft: 1,
-                            background: isDown ? stateColour(s.state) : 'hsl(var(--muted))',
-                            opacity: isDown ? 1 : 0.55,
-                          }}
-                          title={`${s.state} — ${isDown ? 'unplanned downtime' : SEGMENT_LABEL[s.kind]}\n${dur(s.minutes)}\n${new Date(s.from).toLocaleString()} → ${new Date(s.to).toLocaleString()}`} />
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-muted-foreground">
-              <span>{new Date(span.from).toLocaleString()}</span>
-              <span>{new Date(span.to).toLocaleString()}</span>
-            </div>
-          </>
-        )}
+        <MachineStateGantt rows={ganttRows} windowStart={windowStart} windowEnd={windowEnd} />
       </section>
 
       {/* ── The tree ── */}

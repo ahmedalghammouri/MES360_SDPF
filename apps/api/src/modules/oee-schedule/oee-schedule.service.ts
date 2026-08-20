@@ -93,6 +93,7 @@ export class OeeScheduleService {
              GREATEST(MIN(o."committedFrom"), ${from}) AS "slotFrom",
              LEAST(MAX(o."committedTo"), ${slotTo})    AS "slotTo",
              MIN(j."actualStart")     AS "actualStart",
+             MAX(j."sequenceOrder")   AS "sequenceOrder",
              COALESCE(SUM(o."totalMin"), 0)::float8            AS "elapsedMin",
              COALESCE(SUM(o."plannedStopMin"), 0)::float8      AS "plannedStopMin",
              COALESCE(SUM(o."availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
@@ -109,9 +110,29 @@ export class OeeScheduleService {
     `;
   }
 
-  /** The per-job-order stage rolled into one set of totals. */
+  /**
+   * The per-job-order stage rolled into one set of totals.
+   *
+   * ── Quantity does not roll up the way time does ─────────────────────────────
+   * A minute belongs to the machine that spent it, so time sums plainly. One
+   * physical unit, though, passes four stations on this line — summing every
+   * step counts it four times, inflating output and diluting the scrap rate,
+   * because the scrap stays where it happened while the good count multiplies.
+   *
+   * Good and theoretical therefore come from the LAST step of each work order.
+   * Scrap comes from all of them: a unit thrown away at the filler is a real
+   * loss even though nothing downstream ever saw it.
+   */
   private rollup(inner: Prisma.Sql): Prisma.Sql {
     return Prisma.sql`
+      WITH p AS (${inner}),
+      fin AS (SELECT p2."workOrderId", MAX(p2."sequenceOrder") AS ms FROM p p2 GROUP BY p2."workOrderId"),
+      q AS (
+        SELECT COALESCE(SUM(p."goodParts"), 0)::float8        AS "goodParts",
+               COALESCE(SUM(p."theoreticalParts"), 0)::float8 AS "theoreticalParts"
+        FROM p JOIN fin f ON f."workOrderId" IS NOT DISTINCT FROM p."workOrderId"
+                         AND f.ms = p."sequenceOrder"
+      )
       SELECT
         COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (p."slotTo" - p."slotFrom")) / 60)), 0)::float8 AS "committedMin",
         COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (
@@ -123,10 +144,10 @@ export class OeeScheduleService {
         COALESCE(SUM(p."externalLossMin"), 0)::float8       AS "externalLossMin",
         COALESCE(SUM(p."unmeasuredMin"), 0)::float8         AS "unmeasuredMin",
         COALESCE(SUM(p."operatingMin"), 0)::float8          AS "operatingMin",
-        COALESCE(SUM(p."goodParts"), 0)::float8             AS "goodParts",
+        (SELECT q."goodParts" FROM q)                       AS "goodParts",
         COALESCE(SUM(p."rejectedParts"), 0)::float8         AS "rejectedParts",
-        COALESCE(SUM(p."theoreticalParts"), 0)::float8      AS "theoreticalParts"
-      FROM (${inner}) p
+        (SELECT q."theoreticalParts" FROM q)                AS "theoreticalParts"
+      FROM p
     `;
   }
 

@@ -31,6 +31,18 @@ export interface OeeSlice extends OeeResult {
  * no factory, which meant the factory predicate was never added to the SQL at
  * all: the one path that breaks was the one path the test could not reach.
  */
+/**
+ * Time sums. Every machine's minutes count, wherever it sits in the routing.
+ */
+const TIME_SUMS = Prisma.sql`
+  COALESCE(SUM(o."totalMin"), 0)::float8            AS "totalMin",
+  COALESCE(SUM(o."plannedStopMin"), 0)::float8      AS "plannedStopMin",
+  COALESCE(SUM(o."availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
+  COALESCE(SUM(o."externalLossMin"), 0)::float8     AS "externalLossMin",
+  COALESCE(SUM(o."unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
+  COALESCE(SUM(o."operatingMin"), 0)::float8        AS "operatingMin"
+`;
+
 const SUMS = Prisma.sql`
   COALESCE(SUM(o."totalMin"), 0)::float8            AS "totalMin",
   COALESCE(SUM(o."plannedStopMin"), 0)::float8      AS "plannedStopMin",
@@ -80,9 +92,53 @@ export class OeeStandardService {
   }
 
   /** One set of totals for the whole scope. */
+  /**
+   * A roll-up over more than one machine — the plant, a line, an area.
+   *
+   * ── The rule the per-machine rows cannot apply for you ──────────────────────
+   * TIME belongs to every machine: a minute the filler spent broken is a real
+   * minute wherever it sat in the routing. QUANTITY does not. One physical unit
+   * passes four stations on this line, and summing every step counts it four
+   * times — which inflates output and DILUTES the scrap rate, because the scrap
+   * stays where it happened while the good count is multiplied.
+   *
+   * Measured on this window: 34,037 good pieces summed across steps against
+   * 19,757 from the final step, and quality reading 82.9% instead of 73.7%. Nine
+   * points of scrap hidden by arithmetic.
+   *
+   * So good and theoretical come from the LAST step of each work order, and
+   * scrap comes from ALL of them: a unit thrown away at the filler is a real
+   * loss even though it never reached the wrapper.
+   *
+   * The per-machine and per-job-order rows below do NOT apply this — each of
+   * those is one station's own output in its own right, and it would be wrong to
+   * blank a filler's count because it is not the end of the line. That means the
+   * roll-up is deliberately not the sum of the rows, which is why the page says
+   * so rather than leaving somebody to add the column up and find a third number.
+   */
   async totals(factoryId: string | null, from: Date, to: Date, scope: OeeScope = {}): Promise<OeeTotals> {
     const rows = await this.prisma.$queryRaw<OeeTotals[]>(Prisma.sql`
-      SELECT ${SUMS} FROM oee_minutes o WHERE ${this.where(factoryId, from, to, scope)}
+      WITH scoped AS (
+        SELECT o.*, j."sequenceOrder"
+        FROM oee_minutes o
+        JOIN job_orders j ON j.id = o."jobOrderId"
+        WHERE ${this.where(factoryId, from, to, scope)}
+      ),
+      fin AS (
+        SELECT s2."workOrderId", MAX(s2."sequenceOrder") AS ms FROM scoped s2 GROUP BY s2."workOrderId"
+      ),
+      t AS (SELECT ${TIME_SUMS} FROM scoped o),
+      q AS (
+        SELECT COALESCE(SUM(o."goodParts"), 0)::float8        AS "goodParts",
+               COALESCE(SUM(o."theoreticalParts"), 0)::float8 AS "theoreticalParts"
+        FROM scoped o
+        JOIN fin f ON f."workOrderId" IS NOT DISTINCT FROM o."workOrderId" AND f.ms = o."sequenceOrder"
+      ),
+      -- Scrap from every step. A unit rejected at the filler is gone whether or
+      -- not anything downstream ever saw it.
+      sc AS (SELECT COALESCE(SUM(o."rejectedParts"), 0)::float8 AS "rejectedParts" FROM scoped o)
+      SELECT t.*, q."goodParts", q."theoreticalParts", sc."rejectedParts"
+      FROM t, q, sc
     `);
     return rows[0] ?? EMPTY_TOTALS;
   }
@@ -163,9 +219,34 @@ export class OeeStandardService {
   ): Promise<Array<OeeSlice & { at: Date }>> {
     const unit = granularity === 'day' ? 'day' : 'hour';
     const rows = await this.prisma.$queryRaw<Array<OeeTotals & { at: Date }>>(Prisma.sql`
-      SELECT date_trunc(${unit}, o."bucketStart") AS at, ${SUMS}
-      FROM oee_minutes o WHERE ${this.where(factoryId, from, to, scope)}
-      GROUP BY 1 ORDER BY 1
+      WITH scoped AS (
+        SELECT o.*, j."sequenceOrder", date_trunc(${unit}, o."bucketStart") AS at
+        FROM oee_minutes o
+        JOIN job_orders j ON j.id = o."jobOrderId"
+        WHERE ${this.where(factoryId, from, to, scope)}
+      ),
+      -- The final step is resolved PER BUCKET, so a work order whose last station
+      -- had not started early in the window is not credited with output it had
+      -- not made yet.
+      fin AS (SELECT s2.at, s2."workOrderId", MAX(s2."sequenceOrder") AS ms
+              FROM scoped s2 GROUP BY s2.at, s2."workOrderId"),
+      t AS (SELECT o.at, ${TIME_SUMS},
+                   COALESCE(SUM(o."rejectedParts"), 0)::float8 AS "rejectedParts"
+            FROM scoped o GROUP BY o.at),
+      q AS (SELECT o.at,
+                   COALESCE(SUM(o."goodParts"), 0)::float8        AS "goodParts",
+                   COALESCE(SUM(o."theoreticalParts"), 0)::float8 AS "theoreticalParts"
+            FROM scoped o
+            JOIN fin f ON f.at = o.at
+                      AND f."workOrderId" IS NOT DISTINCT FROM o."workOrderId"
+                      AND f.ms = o."sequenceOrder"
+            GROUP BY o.at)
+      SELECT t.at, t."totalMin", t."plannedStopMin", t."availabilityLossMin", t."externalLossMin",
+             t."unmeasuredMin", t."operatingMin", t."rejectedParts",
+             COALESCE(q."goodParts", 0) AS "goodParts",
+             COALESCE(q."theoreticalParts", 0) AS "theoreticalParts"
+      FROM t LEFT JOIN q ON q.at = t.at
+      ORDER BY t.at
     `);
     return rows.map((r) => ({
       at: r.at, key: r.at.toISOString(), label: r.at.toISOString(), ...computeOee(r),

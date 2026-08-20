@@ -14,7 +14,8 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 
-import { Gauge, SEGMENT_COLOUR, SEGMENT_LABEL, dur, type SegmentKind } from './chart-kit';
+import { Gauge, dur, type SegmentKind } from './chart-kit';
+import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
 
 export interface TrendPoint {
   at: string;
@@ -76,7 +77,8 @@ function TrendTooltip({ active, payload, label }: any) {
 }
 
 export function OverviewPanel({
-  oee, availability, performance, quality, trend, production, timeline, operationalMin, usedOperationalMin,
+  oee, availability, performance, quality, trend, production, timeline,
+  operationalMin, usedOperationalMin, machines, windowStart, windowEnd,
 }: {
   oee: number | null; availability: number | null; performance: number | null; quality: number | null;
   trend: TrendPoint[];
@@ -84,6 +86,9 @@ export function OverviewPanel({
   timeline: TimelineSegment[];
   operationalMin: number;
   usedOperationalMin: number;
+  machines: Array<{ key: string; label: string; sublabel?: string | null; availability: number | null }>;
+  windowStart: string;
+  windowEnd: string;
 }) {
   const hhmm = (iso: string) => {
     const d = new Date(iso);
@@ -91,24 +96,34 @@ export function OverviewPanel({
   };
   const data = trend.map((p) => ({ ...p, t: hhmm(p.at) }));
 
-  // One row per machine, so a stopped machine reads as its own band rather than
-  // being interleaved with the others into a stripe nobody can attribute.
-  const byMachine = React.useMemo(() => {
-    const m = new Map<string, TimelineSegment[]>();
+  /**
+   * One row per machine, with its own availability beside the code.
+   *
+   * The Gantt wants segments with real start and end instants; it works out the
+   * geometry, the gaps and the axis itself. Handing it anything less — a
+   * pre-computed percentage, say — would be doing its job badly on its behalf.
+   */
+  const ganttRows: GanttRow[] = React.useMemo(() => {
+    const byMachine = new Map<string, { label: string; segments: TimelineSegment[] }>();
     for (const s of timeline) {
-      const arr = m.get(s.machineCode) ?? [];
-      arr.push(s);
-      m.set(s.machineCode, arr);
+      const hit = byMachine.get(s.machineId) ?? { label: s.machineCode, segments: [] };
+      hit.segments.push(s);
+      byMachine.set(s.machineId, hit);
     }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [timeline]);
-
-  const span = React.useMemo(() => {
-    if (timeline.length === 0) return null;
-    const from = Math.min(...timeline.map((s) => new Date(s.from).getTime()));
-    const to = Math.max(...timeline.map((s) => new Date(s.to).getTime()));
-    return to > from ? { from, to, ms: to - from } : null;
-  }, [timeline]);
+    return [...byMachine.entries()]
+      .map(([id, v]) => {
+        const m = machines.find((x) => x.key === id);
+        const running = v.segments.filter((x) => x.kind === 'running').reduce((a, x) => a + x.minutes, 0);
+        return {
+          id,
+          label: m?.label ?? v.label,
+          sublabel: m?.sublabel ?? undefined,
+          meta: `${m?.availability == null ? '—' : `${m.availability}%`} · ${dur(running)}`,
+          segments: v.segments.map((x) => ({ state: x.state, startTime: x.from, endTime: x.to })),
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [timeline, machines]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -173,60 +188,21 @@ export function OverviewPanel({
       </section>
 
       {/* ── The chronology ── */}
+      {/*
+        The shared Gantt, not a strip of divs. It already solves the things a
+        hand-rolled one gets wrong: gaps stay gaps instead of being closed by
+        neighbouring bands, zoom re-renders against a narrower window rather than
+        CSS-scaling the marks into blur, and its palette is validated at
+        --pairs all because any two states can end up adjacent on a row. A second
+        timeline would have been a second set of those decisions to get wrong.
+      */}
       <section className="rounded-lg border border-border/60 bg-card p-4">
-        <h2 className="mb-1 text-sm font-semibold">Machine status</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          Every state the machines reported, in order. Hover a block for its state and duration.
+        <h2 className="mb-1 text-sm font-semibold">Machine status timeline</h2>
+        <p className="mb-4 text-[11px] text-muted-foreground">
+          One band per period a machine spent in a state. Gaps mean the machine reported nothing —
+          they are left blank rather than filled in, because a guess here would hide a signal outage.
         </p>
-        {!span ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            No machine states recorded in this window.
-          </p>
-        ) : (
-          <>
-            <div className="flex flex-col gap-2">
-              {byMachine.map(([code, segs]) => (
-                <div key={code} className="grid grid-cols-[52px_1fr] items-center gap-3">
-                  <span className="truncate font-mono text-xs text-muted-foreground">{code}</span>
-                  <div className="relative h-6 w-full overflow-hidden rounded-sm bg-muted/40">
-                    {segs.map((s, i) => {
-                      const left = ((new Date(s.from).getTime() - span.from) / span.ms) * 100;
-                      const width = ((new Date(s.to).getTime() - new Date(s.from).getTime()) / span.ms) * 100;
-                      return (
-                        <div
-                          key={`${s.from}-${i}`}
-                          className="absolute inset-y-0"
-                          // A 1px inset on each side is the 2px surface gap between
-                          // adjacent fills; without it a run of short states reads
-                          // as one long block.
-                          style={{
-                            left: `${left}%`,
-                            width: `max(2px, calc(${width}% - 2px))`,
-                            marginLeft: 1,
-                            background: SEGMENT_COLOUR[s.kind],
-                          }}
-                          title={`${s.state} — ${SEGMENT_LABEL[s.kind]}\n${dur(s.minutes)}\n${new Date(s.from).toLocaleString()} → ${new Date(s.to).toLocaleString()}`}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-muted-foreground">
-              <span>{new Date(span.from).toLocaleString()}</span>
-              <span>{new Date(span.to).toLocaleString()}</span>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-3">
-              {(Object.keys(SEGMENT_LABEL) as Array<TimelineSegment['kind']>).map((k) => (
-                <span key={k} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: SEGMENT_COLOUR[k] }} />
-                  {SEGMENT_LABEL[k]}
-                </span>
-              ))}
-            </div>
-          </>
-        )}
+        <MachineStateGantt rows={ganttRows} windowStart={windowStart} windowEnd={windowEnd} />
       </section>
     </div>
   );

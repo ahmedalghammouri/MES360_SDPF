@@ -54,6 +54,7 @@ interface Slice {
   bars: Bar[];
 }
 interface Payload extends Slice {
+  window: { from: string; to: string };
   audit: { ok: boolean; bucketsMin: number; bucketDriftMin: number; identityDriftMin: number };
   machines: Slice[];
   jobOrders: Slice[];
@@ -252,7 +253,13 @@ export function OeeAnalysisView() {
           )}
 
           {analysis === 'downtime' && (
-            <DowntimePanel distribution={d.distribution} timeline={d.timeline ?? []} />
+            <DowntimePanel
+              distribution={d.distribution}
+              timeline={d.timeline ?? []}
+              machines={d.machines}
+              windowStart={d.window.from}
+              windowEnd={d.window.to}
+            />
           )}
 
           {analysis === 'quality' && (
@@ -293,6 +300,9 @@ export function OeeAnalysisView() {
               timeline={d.timeline ?? []}
               operationalMin={d.time.operationalMin}
               usedOperationalMin={d.time.usedOperationalMin}
+              machines={d.machines}
+              windowStart={d.window.from}
+              windowEnd={d.window.to}
             />
           )}
 
