@@ -36,6 +36,7 @@ import {
   type TrendPoint, type TimelineSegment, type ProductionDetails,
 } from './overview-panel';
 import { AvailabilityPanel, type Distribution } from './availability-panel';
+import { PerformancePanel } from './performance-panel';
 
 interface Bar { key: string; minutes: number; pct: number; kind: 'base' | 'loss' | 'result' }
 interface Slice {
@@ -54,7 +55,10 @@ interface Payload extends Slice {
   jobOrders: Slice[];
   shifts: Slice[];
   states: Array<{ state: string | null; minutes: number; rows: number }>;
-  trend: Array<TrendPoint & { time: Record<string, number> }>;
+  trend: Array<TrendPoint & {
+    time: Record<string, number>;
+    counts: { good: number; rejected: number; total: number; theoretical: number };
+  }>;
   timeline: TimelineSegment[];
   production: ProductionDetails & { mttrMin: number | null; mtbfMin: number | null };
   distribution: Distribution;
@@ -70,7 +74,7 @@ interface Payload extends Slice {
 const ANALYSES = [
   { key: 'overview', label: 'Overview', blurb: 'Comprehensive overview of the machine KPIs and status.', ready: true },
   { key: 'availability', label: 'Availability', blurb: 'Detailed overview of availability and its most relevant KPIs.', ready: true },
-  { key: 'performance', label: 'Performance', blurb: 'Detailed overview of performance and its most relevant KPIs.', ready: false },
+  { key: 'performance', label: 'Performance', blurb: 'Detailed overview of performance and its most relevant KPIs.', ready: true },
   { key: 'quality', label: 'Quality', blurb: 'Detailed overview of quality and its most relevant KPIs.', ready: false },
   { key: 'loss', label: 'Loss overview', blurb: 'Investigate TEEP and the different losses.', ready: false },
   { key: 'downtime', label: 'Downtime analysis', blurb: 'Detailed analysis of downtime reasons.', ready: false },
@@ -229,6 +233,15 @@ export function OeeAnalysisView() {
               <b>{mins(d.time.notYetReachedMin)}</b> of it is time the orders have not reached yet
               and is counted against them. Mid-slot this is a progress figure, not a verdict.
             </p>
+          )}
+
+          {analysis === 'performance' && (
+            <PerformancePanel
+              performance={d.performance}
+              trend={d.trend ?? []}
+              counts={d.counts}
+              netProductionMin={d.time.netProductionMin}
+            />
           )}
 
           {analysis === 'availability' && (
