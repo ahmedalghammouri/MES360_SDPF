@@ -48,16 +48,25 @@ export interface StoppedSplit {
 
 type Span = [number, number];
 
-/** Clip to [from, to], drop empties, merge every overlap and touching pair. */
+/**
+ * Clip to [from, to], drop empties, merge every overlap and touching pair.
+ *
+ * Returns NEW spans. Seeding the output with the input's own array objects and
+ * extending them in place aliases the two, so a later merge of the same span
+ * silently rewrites an earlier result. Nothing in this file merges a span twice
+ * today, so it never fired here — but the identical shortcut in the standard
+ * engine booked half a minute of running time as a whole one, and a pure
+ * function cannot be made to do that by a caller.
+ */
 function merge(spans: Span[]): Span[] {
   if (spans.length === 0) return [];
   const sorted = [...spans].sort((a, b) => a[0] - b[0]);
-  const out: Span[] = [sorted[0]];
+  const out: Span[] = [[sorted[0][0], sorted[0][1]]];
   for (let i = 1; i < sorted.length; i++) {
     const last = out[out.length - 1];
     const cur = sorted[i];
     if (cur[0] <= last[1]) last[1] = Math.max(last[1], cur[1]);
-    else out.push(cur);
+    else out.push([cur[0], cur[1]]);
   }
   return out;
 }

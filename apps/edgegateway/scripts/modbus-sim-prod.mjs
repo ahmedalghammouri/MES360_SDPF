@@ -107,11 +107,28 @@ const REJECT_PCT = process.env.SIM_REJECT_PCT ? Number(process.env.SIM_REJECT_PC
 // one flat 8% at every stage therefore scrapped ~8% of all output at the wrapper
 // alone and pushed the quality KPI far below anything a real detergent line sees.
 // Losses belong where they actually happen — mostly at the filler.
+// ── The ports must match the DB the gateway actually reads ──────────────────
+// The device rows carry 192.168.0.2:20101 and 192.168.0.3:20102 — the plant's
+// real remote I/O. This simulator listened on 502/503, so the gateway looked for
+// the modules at addresses nothing was serving and the whole rig quietly did
+// nothing. Defaulting to the configured ports means it works against the DB as
+// it stands; the old ports remain available for a device row that still uses
+// them.
+//
+//   SIM_PORT_1=502 SIM_PORT_2=503 node scripts/modbus-sim-prod.mjs
+//
+// The gateway connects over TCP, so the DB's 192.168.0.x still has to resolve to
+// this machine. Either point the device rows at 127.0.0.1, or add the two
+// addresses as loopback aliases:
+//   netsh interface ipv4 add address "Loopback" 192.168.0.2 255.255.255.0
+const PORT_1 = Number(process.env.SIM_PORT_1 || 20101);
+const PORT_2 = Number(process.env.SIM_PORT_2 || 20102);
+
 const TCP_DEVICES = [
-  { name: 'EDGECOUNTER01', port: 502, machines: [
+  { name: 'EDGECOUNTER01', port: PORT_1, machines: [
     { label: 'M1 Filling',   total: 0, good: 1, piecesPerPulse: 1,   rejectPct: 2.0, feedsFrom: null,       feedsInto: 'filled' },
   ] },
-  { name: 'EDGECOUNTER02', port: 503, machines: [
+  { name: 'EDGE_COUNTER_M03', port: PORT_2, machines: [
     { label: 'M3 Cartoning', total: 0, good: 1, piecesPerPulse: 4,   rejectPct: 0.5, feedsFrom: 'filled',   feedsInto: 'cartoned' },
     { label: 'M5 Wrapping',  total: 2, good: 3, piecesPerPulse: 160, rejectPct: 0.2, feedsFrom: 'cartoned', feedsInto: null },
   ] },
@@ -146,11 +163,11 @@ const buffers = { filled: 0, cartoned: 0 };
 // against NCC's document directly, with the offset applied once.
 const diAddress = (ioId) => ioId - 1;
 const SIGNALS = [
-  { code: 'M1', name: 'Big Betti',         port: 502, ioId: 3, role: 'RUN_MODE' },
-  { code: 'M3', name: 'Cartomac',          port: 502, ioId: 4, role: 'RUN_MODE' },
-  { code: 'M4', name: 'Euro-Pack Robot',   port: 502, ioId: 5, role: 'RUN_MODE_PULSED' },
-  { code: 'M5', name: 'Uni-tech Table',    port: 503, ioId: 5, role: 'PROCESSING' },
-  { code: 'M5', name: 'Uni-tech Wrapping', port: 503, ioId: 6, role: 'RUN_MODE' },
+  { code: 'M1', name: 'Big Betti',         port: PORT_1, ioId: 3, role: 'RUN_MODE' },
+  { code: 'M3', name: 'Cartomac',          port: PORT_1, ioId: 4, role: 'RUN_MODE' },
+  { code: 'M4', name: 'Euro-Pack Robot',   port: PORT_1, ioId: 5, role: 'RUN_MODE_PULSED' },
+  { code: 'M5', name: 'Uni-tech Table',    port: PORT_2, ioId: 5, role: 'PROCESSING' },
+  { code: 'M5', name: 'Uni-tech Wrapping', port: PORT_2, ioId: 6, role: 'RUN_MODE' },
 ].map((s) => ({ ...s, di: diAddress(s.ioId) }));
 
 /**

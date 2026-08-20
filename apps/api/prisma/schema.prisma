@@ -144,6 +144,7 @@ model Factory {
 
 
   @@map("factories")
+  oeeMinutes OeeMinute[]
 }
 
 // ============================================================
@@ -323,6 +324,7 @@ model Machine {
 
 
   @@map("machines")
+  oeeMinutes OeeMinute[]
 }
 
 enum MachineType {
@@ -3600,6 +3602,7 @@ model JobOrder {
   downtimeEvents DowntimeEvent[]
 
   @@map("job_orders")
+  oeeMinutes OeeMinute[]
 }
 
 // Per-step scrap / rejection log — every increment of actualQtyRejected creates one entry
@@ -4074,4 +4077,104 @@ enum WorkOrderStopTrigger {
   PRODUCT_CHANGE
   ORDER_CHANGE
   ALWAYS
+}
+
+
+// ============================================================
+// OEE STANDARD ENGINE — the Insights Hub time model, one row per minute
+// ------------------------------------------------------------
+// A second, independent fact store. It exists beside production_snapshots
+// rather than replacing it because the two answer to different references, and
+// a plant that is being asked to trust a number must be able to see the
+// reference it was computed against.
+//
+//   https://documentation.mindsphere.io/MindSphere/apps/insights-hub-oee/
+//
+// The time model, top to bottom. Each level is the one above it minus a loss,
+// and every minute of the clock lands in exactly one bucket:
+//
+//   Total time
+//    − planned stops        → scheduled, from PlannedStopTemplate + State Rules
+//   = Operational time      ── PlannedProductionTime, the availability denominator
+//    − availability losses  → unplanned downtime
+//   = Net production time   ── OperatingTime, the availability numerator
+//    − performance losses   ┐ derived at READ time from counts, never stored:
+//    − microstop losses     │ a single minute's output is lumpy and a per-minute
+//   = Net operational time  │ performance figure would be noise, not measurement
+//    − quality losses       ┘
+//   = Used operational time
+//
+// Only the PRIMITIVES are stored. Anything derivable from them is derived on
+// read, so a stored row can never disagree with the formula that reads it.
+//
+// Dimensions are deliberately few — job order, shift, machine. Everything else
+// (work order, product, line, area) is reachable by joining the job order, and
+// a dimension copied onto every minute row is a dimension that can go stale.
+// ============================================================
+
+/// One machine-minute, classified against the Insights Hub time model.
+model OeeMinute {
+  id String @id @default(uuid())
+
+  /// The minute this row accounts for: [bucketStart, bucketStart + 60s).
+  bucketStart DateTime
+  /// False while the minute is still in progress and may be re-upserted.
+  isFinalized Boolean @default(false)
+
+  factoryId  String
+  machineId  String
+  jobOrderId String
+  /// Carried so a work-order roll-up does not need a second query per row.
+  workOrderId String?
+
+  /// Which shift this minute fell in — DERIVED from the clock, not from anyone
+  /// pressing "start shift", so attribution never depends on an operator action.
+  shiftTemplateId String?
+  shiftCode       String?
+
+  /// The machine state that governed this minute, and the job order's status.
+  /// Kept because the classification below is only as readable as its reason.
+  machineState   String?
+  jobOrderStatus String
+
+  // ── The time model. These six are mutually exclusive and sum to totalMin. ──
+  /// The minute itself, clipped to the job order's actual occupancy of it.
+  totalMin Float @default(0)
+  /// Scheduled stops (breaks, cleaning) and states the plant marked as planned.
+  plannedStopMin Float @default(0)
+  /// Unplanned downtime that counts against this machine — the availability loss.
+  availabilityLossMin Float @default(0)
+  /// Stopped, but by the line rather than by the machine: starved, blocked, and
+  /// anything else a State Rule marks as downtime that does not affect OEE.
+  externalLossMin Float @default(0)
+  /// The machine reported no state at all. Neither running nor stopped — and
+  /// counting silence as either is the failure this column exists to prevent.
+  unmeasuredMin Float @default(0)
+  /// Net production time: the machine was running.
+  operatingMin Float @default(0)
+
+  // ── Counts, as deltas for this minute, in PIECES ──
+  goodParts     Float @default(0)
+  rejectedParts Float @default(0)
+
+  /// Parts this machine COULD have made in its operating minutes, at the design
+  /// speed of the product it was running. Stored per minute rather than derived
+  /// later because design speed changes with the product, and the reference is
+  /// explicit that a mixed window sums each product's own theoretical output.
+  theoreticalParts Float @default(0)
+  /// Parts per hour at 100% speed — kept for display and for auditing the above.
+  designSpeedPph Float?
+
+  createdAt DateTime @default(now())
+
+  factory  Factory  @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  machine  Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  jobOrder JobOrder @relation(fields: [jobOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([jobOrderId, bucketStart], name: "ux_oee_minute_jo_bucket")
+  @@index([machineId, bucketStart])
+  @@index([factoryId, bucketStart])
+  @@index([shiftTemplateId, bucketStart])
+  @@index([workOrderId])
+  @@map("oee_minutes")
 }

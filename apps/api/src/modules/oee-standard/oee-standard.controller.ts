@@ -1,0 +1,107 @@
+import { BadRequestException, Controller, Get, Post, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+
+import { OeeStandardService, type OeeScope } from './oee-standard.service';
+import { OeeStandardWriter } from './oee-standard.writer';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { resolveLocalRange } from '../../common/plant-time.util';
+
+interface RequestUser { id: string; factoryId: string | null }
+
+/**
+ * The standard OEE engine, exposed on its own path.
+ *
+ * Deliberately parallel to the existing endpoints rather than replacing them.
+ * Two engines answering the same question from the same raw data is how a plant
+ * finds out which one is wrong — and until it has, retiring either one would be
+ * removing the evidence.
+ */
+@ApiTags('OEE Standard')
+@ApiBearerAuth('JWT-auth')
+@Controller('oee-standard')
+export class OeeStandardController {
+  constructor(
+    private readonly service: OeeStandardService,
+    private readonly writer: OeeStandardWriter,
+  ) {}
+
+  private scope(q: Record<string, string | undefined>): OeeScope {
+    return {
+      machineId: q.machineId || undefined,
+      lineId: q.lineId || undefined,
+      jobOrderId: q.jobOrderId || undefined,
+      workOrderId: q.workOrderId || undefined,
+      shiftTemplateId: q.shiftTemplateId || undefined,
+    };
+  }
+
+  /** Everything one screen needs, from one window, in one round trip. */
+  @Get()
+  @RequirePermissions('production:read')
+  @ApiOperation({ summary: 'Time model, factors, per-machine and per-shift breakdown, trend and audit' })
+  @ApiQuery({ name: 'dateFrom', required: false, description: 'YYYY-MM-DD, plant-local' })
+  @ApiQuery({ name: 'dateTo', required: false, description: 'YYYY-MM-DD, plant-local' })
+  @ApiQuery({ name: 'granularity', required: false, description: 'hour | day' })
+  @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'jobOrderId', required: false })
+  @ApiQuery({ name: 'shiftTemplateId', required: false })
+  async overview(
+    @CurrentUser() user: RequestUser,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('granularity') granularity?: string,
+    @Query('machineId') machineId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('jobOrderId') jobOrderId?: string,
+    @Query('shiftTemplateId') shiftTemplateId?: string,
+  ) {
+    const { from, to } = resolveLocalRange(dateFrom, dateTo, 1);
+    const scope = this.scope({ machineId, lineId, jobOrderId, shiftTemplateId });
+    const f = user.factoryId;
+    const g = granularity === 'day' ? 'day' : 'hour';
+
+    const [overview, machines, jobOrders, shifts, trend, states] = await Promise.all([
+      this.service.overview(f, from, to, scope),
+      this.service.byMachine(f, from, to, scope),
+      this.service.byJobOrder(f, from, to, scope),
+      this.service.byShift(f, from, to, scope),
+      this.service.trend(f, from, to, g, scope),
+      this.service.stateBreakdown(f, from, to, scope),
+    ]);
+    return { ...overview, machines, jobOrders, shifts, trend, states, granularity: g };
+  }
+
+  /**
+   * Capture one minute on demand.
+   *
+   * The writer is on a cron, but a simulation that compresses an eight-hour
+   * shift into ten minutes needs to drive it directly — otherwise a test of the
+   * arithmetic becomes a test of how long you are willing to wait.
+   */
+  @Post('capture')
+  @RequirePermissions('production:write')
+  @ApiOperation({ summary: 'Capture the just-closed minute now (for simulation and verification)' })
+  @ApiQuery({
+    name: 'at', required: false,
+    description: 'ISO instant to capture the minute BEFORE. Simulation only — lets a scenario ' +
+      'replay eight hours in seconds instead of waiting for them.',
+  })
+  async capture(@Query('at') at?: string) {
+    // A synthetic instant is accepted so a verification run can compress time.
+    // It is validated rather than trusted: an unparseable value silently falling
+    // back to "now" would write a minute in the wrong bucket and make the
+    // verification pass against the wrong data.
+    let when = new Date();
+    if (at) {
+      const parsed = new Date(at);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new BadRequestException(`'at' is not a valid instant: ${at}`);
+      }
+      when = parsed;
+    }
+    const written = await this.writer.captureMinute(when);
+    return { written, at: when.toISOString() };
+  }
+}
