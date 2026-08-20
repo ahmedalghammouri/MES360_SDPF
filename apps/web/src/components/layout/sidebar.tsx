@@ -65,6 +65,7 @@ import {
   TabletSmartphone,
   PauseCircle,
   ExternalLink,
+  Scale,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -160,6 +161,11 @@ const navItems: NavItem[] = [
       { label: 'Quality',      href: '/production/quality-analytics',      icon: ShieldCheck },
       { label: 'Loss Tree & TEEP',    href: '/production/loss-tree',       icon: Layers },
       { label: 'Schedule & Capacity', href: '/production/schedule-capacity', icon: Target },
+      // The second engine, kept visibly separate rather than folded in beside the
+      // others. It answers to a published reference and exists to be COMPARED
+      // with the items above; listing it as just another reading would lose the
+      // one thing that makes it useful.
+      { label: 'OEE — Standard Engine', href: '/oee-standard', icon: Scale },
     ],
   },
   {
