@@ -2238,6 +2238,18 @@
     "tabAnalytics": "Analytics",
     "tabsLabel": "Live or historical view",
     "tabNowHelp": "What the plant is doing this shift. No time filter — the window is the running shift.",
-    "tabAnalyticsHelp": "Change and comparison over the period you select in the filter panel."
+    "tabAnalyticsHelp": "Change and comparison over the period you select in the filter panel.",
+    "viewsLabel": "Which analytical view",
+    "equipment": {
+      "viewStatus": "Machine Status",
+      "viewAvailability": "Availability"
+    },
+    "oeeViewLine": "Line & Factors",
+    "oeeViewMachine": "By Machine",
+    "kpiViewProduction": "Production",
+    "kpiViewMachine": "By Machine",
+    "repViewShift": "Shift & Line",
+    "repViewManufacturing": "Manufacturing",
+    "repViewSummary": "Summary"
   }
 }

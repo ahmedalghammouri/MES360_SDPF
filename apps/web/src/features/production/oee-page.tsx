@@ -17,18 +17,36 @@
  * window is the running shift and the browser has no say in it.
  *
  * This is the pattern the rest of the dashboards follow.
+ *
+ * ── What the Analytics half absorbed ────────────────────────────────────────
+ * "OEE" and "Machine OEE" were two menu entries and two routes. Both answered
+ * the same question over the same window from the same store; they differed in
+ * how they cut it — one by factor and trend, one by machine and record. Two
+ * entries for one question is the duplication this consolidation exists to
+ * remove, and a reader who found both had no way to know they were the same
+ * measurement twice.
+ *
+ * They are sub-tabs now. Neither view lost a chart, and the old
+ * /manufacturing/oee URL still resolves here.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { LiveAnalyticsTabs } from '@/components/layout/live-analytics-tabs';
 import { LiveProductionView } from '@/features/live/live-production-view';
+import ManufacturingOeeView from '@/features/manufacturing/manufacturing-oee-view';
 import { ProductionOEEView } from './production-oee-view';
 
 export function OeePage() {
+  const { t } = useTranslation(['production', 'common']);
   return (
     <LiveAnalyticsTabs
+      subTabKey="oee"
       live={<LiveProductionView />}
-      analytics={<ProductionOEEView />}
+      analytics={[
+        { id: 'line', label: t('live.oeeViewLine'), node: <ProductionOEEView /> },
+        { id: 'machine', label: t('live.oeeViewMachine'), node: <ManufacturingOeeView /> },
+      ]}
     />
   );
 }

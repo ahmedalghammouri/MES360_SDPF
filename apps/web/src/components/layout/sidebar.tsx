@@ -155,9 +155,11 @@ const navItems: NavItem[] = [
       // menu items holds the reading they want. The names are the subject, not
       // the reading: "Availability", not "Availability Analytics".
       { label: 'OEE',          href: '/production/oee',                    icon: LineChart },
-      { label: 'Machine OEE',  href: '/manufacturing/oee',                 icon: Activity  },
-      { label: 'Machine Status', href: '/manufacturing/machine-status',    icon: Activity },
-      { label: 'Availability', href: '/production/availability-analytics', icon: Clock },
+      // Machine Status and Availability were two entries opening the SAME live
+      // view, differing only in the chart set beneath it. They are one page with
+      // both chart sets as sub-tabs; the old Availability URL still resolves to
+      // it, so no written-down link broke, but the menu shows the subject once.
+      { label: 'Equipment',    href: '/manufacturing/machine-status',      icon: Activity },
       { label: 'Performance',  href: '/production/performance-analytics',  icon: Gauge },
       { label: 'Quality',      href: '/production/quality-analytics',      icon: ShieldCheck },
       { label: 'Loss Tree & TEEP',    href: '/production/loss-tree',       icon: Layers },
@@ -206,8 +208,10 @@ const navItems: NavItem[] = [
         label: 'KPIs',
         icon: Gauge,
         children: [
-          { label: 'Production KPIs', href: '/production/kpi',    icon: Gauge },
-          { label: 'Machine KPIs',    href: '/manufacturing/kpi', icon: Cpu   },
+          // Production KPIs and Machine KPIs were two entries reading the same
+          // window from the same store; the machine sheet's endpoints were a
+          // strict subset of the other's. One sheet, two cuts, both URLs live.
+          { label: 'KPI Sheets', href: '/production/kpi', icon: Gauge },
         ],
       },
       {

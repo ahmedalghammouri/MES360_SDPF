@@ -1,7 +1,10 @@
-import ManufacturingKpiView from '@/features/manufacturing/manufacturing-kpi-view';
+import type { Metadata } from 'next';
+import { KpiPage } from '@/features/production/kpi-page';
 
-export const metadata = { title: 'Manufacturing KPI Analytics | INDUSTRY360 MES' };
+export const metadata: Metadata = { title: 'Production KPIs | INDUSTRY360 MES' };
 
-export default function Page() {
-  return <ManufacturingKpiView />;
-}
+/**
+ * One pack, several sheets — see the component. This route stays so links
+ * already written down keep resolving; the sidebar carries the subject once.
+ */
+export default function Page() { return <KpiPage />; }

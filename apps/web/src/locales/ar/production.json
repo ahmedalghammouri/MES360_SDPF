@@ -2238,6 +2238,18 @@
     "tabAnalytics": "تحليلات",
     "tabsLabel": "عرض حيّ أو تاريخي",
     "tabNowHelp": "ما يفعله المصنع في هذه الوردية. بلا فلتر زمني — النافذة هي الوردية الجارية.",
-    "tabAnalyticsHelp": "التغيّر والمقارنة عبر الفترة التي تختارها من لوحة الفلاتر."
+    "tabAnalyticsHelp": "التغيّر والمقارنة عبر الفترة التي تختارها من لوحة الفلاتر.",
+    "viewsLabel": "أي عرض تحليلي",
+    "equipment": {
+      "viewStatus": "حالة الماكينات",
+      "viewAvailability": "الإتاحية"
+    },
+    "oeeViewLine": "الخط والعوامل",
+    "oeeViewMachine": "حسب الماكينة",
+    "kpiViewProduction": "الإنتاج",
+    "kpiViewMachine": "حسب الماكينة",
+    "repViewShift": "الوردية والخط",
+    "repViewManufacturing": "التصنيع",
+    "repViewSummary": "الملخّص"
   }
 }

@@ -1,7 +1,10 @@
-import ManufacturingReportsView from '@/features/manufacturing/manufacturing-reports-view';
+import type { Metadata } from 'next';
+import { ReportsPage } from '@/features/production/reports-page';
 
-export const metadata = { title: 'Manufacturing Reports | INDUSTRY360 MES' };
+export const metadata: Metadata = { title: 'Production Reports | INDUSTRY360 MES' };
 
-export default function Page() {
-  return <ManufacturingReportsView />;
-}
+/**
+ * One pack, several sheets — see the component. This route stays so links
+ * already written down keep resolving; the sidebar carries the subject once.
+ */
+export default function Page() { return <ReportsPage />; }
