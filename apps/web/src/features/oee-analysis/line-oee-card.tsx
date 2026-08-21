@@ -170,7 +170,7 @@ function MethodChip({ row, compact }: { row: LineRow; compact?: boolean }) {
             ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
             : 'bg-slate-500/15 text-slate-700 dark:text-slate-300')}
         title={row.method === 'BOTTLENECK'
-          ? `Availability and Performance come from ${row.bottleneckName} alone. Quality counts good units from ${row.bottleneckName} alone and scrap at every machine on the line, both in pieces.`
+          ? `Availability, Performance and all of the time come from ${row.bottleneckName} alone. Good and theoretical are counted at the line's last station${row.outfeedResolvedBy === 'ALL_MACHINES_ON_LINE' ? ' (no outfeed configured, so every machine is treated as one)' : ` among ${row.outfeedNames.join(' + ')}`}, and scrap at all ${row.machineCount} machines. Both in pieces.`
           : `Re-derived from the summed minutes and counts of all ${row.machineCount} machines.`}
       >
         {row.method === 'BOTTLENECK' ? 'Bottleneck' : 'Roll-up'}
