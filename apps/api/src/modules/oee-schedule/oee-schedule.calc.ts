@@ -121,7 +121,28 @@ export function computeSchedule(t: ScheduleTotals, opts: { cap?: boolean } = {})
   );
   const netProductionMin = t.operatingMin;
 
-  const availability = clamp(ratio(netProductionMin, operationalMin));
+  /**
+   * Has anything actually been observed in this window?
+   *
+   * ── The defect this closes ──────────────────────────────────────────────
+   * The committed slot runs to the END of the promise, so a bucket covering an
+   * hour that has not begun still has a real `operationalMin`. Dividing zero
+   * running minutes by it gives Availability = 0% for an hour nothing has
+   * happened in — and on the trend chart that drew a line along the floor from
+   * now until the end of the day, which reads as a breakdown that never
+   * happened.
+   *
+   * Performance and Quality already declined to answer there, because their
+   * denominators are genuinely zero. Availability was the odd one out,
+   * asserting a measurement from an absence. This makes the three agree: no
+   * elapsed minutes, no factors.
+   *
+   * The committed minutes are still reported in full, so the time model and the
+   * trend still sum to the headline — the slot is charged, it just is not
+   * described as 0% available.
+   */
+  const observed = t.elapsedMin > 0;
+  const availability = observed ? clamp(ratio(netProductionMin, operationalMin)) : null;
   const totalParts = t.goodParts + t.rejectedParts;
   const performance = clamp(ratio(totalParts, t.theoreticalParts));
   const quality = clamp(ratio(t.goodParts, totalParts));

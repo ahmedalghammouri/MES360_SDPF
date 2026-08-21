@@ -146,6 +146,43 @@ describe('OEE schedule engine — the committed slot', () => {
     expect(r.oee).toBeNull();
   });
 
+  /**
+   * A slot that EXISTS but has not been reached yet.
+   *
+   * The empty-totals case above never had a denominator, so it fell out for
+   * free. This one does: an hour of the promise that has not begun still has
+   * 60 committed minutes, and `operationalMin` is a real 60. Dividing zero
+   * running minutes by it used to give Availability = 0%.
+   *
+   * That mattered on the trend, which generates a bucket for every hour of the
+   * slot including the unreached ones: it drew Availability along the floor
+   * from now until the end of the day, which reads as a breakdown. Performance
+   * and Quality were already null there — this makes the three agree.
+   */
+  it('does not call an unreached hour 0% available', () => {
+    const t = totals({ committedMin: 60, elapsedMin: 0, notStartedMin: 0 });
+    const r = computeSchedule(t);
+
+    expect(r.availability).toBeNull();
+    expect(r.performance).toBeNull();
+    expect(r.quality).toBeNull();
+    expect(r.oee).toBeNull();
+    // The promise is still charged in full — only the factors decline to answer.
+    expect(r.time.committedMin).toBe(60);
+    expect(r.time.notYetReachedMin).toBe(60);
+  });
+
+  it('still reports 0% available for an hour that was observed and idle', () => {
+    // One minute of the slot was actually recorded, and the machine ran for
+    // none of it. That IS zero availability, and must not be swept up by the
+    // guard above.
+    const t = totals({ committedMin: 60, elapsedMin: 60, operatingMin: 0 });
+    const r = computeSchedule(t);
+
+    expect(r.availability).toBe(0);
+    expect(r.time.notYetReachedMin).toBe(0);
+  });
+
   // ── The self-check ────────────────────────────────────────────────────────
   it('accounts for every minute of the slot', () => {
     const t = totals({
