@@ -52,6 +52,11 @@ describe('KpiService.lineOeeAnalytics', () => {
     const scheduleKpi = { ratedCapacityByMachine: jest.fn().mockResolvedValue(new Map()) };
     const service = new KpiService(
       prisma as never, new OEEService(), { emit: jest.fn() } as never, scheduleKpi as never,
+    
+      // The records list delegates to the two engines; nothing in these
+      // suites reaches it, so a stub is enough to construct the service.
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
     );
     return { service, prisma, scheduleKpi };
   }
@@ -244,6 +249,11 @@ describe('KpiService window clamping', () => {
     const scheduleKpi = { ratedCapacityByMachine: jest.fn().mockResolvedValue(new Map()) };
     return new KpiService(
       prisma as never, new OEEService(), { emit: jest.fn() } as never, scheduleKpi as never,
+    
+      // The records list delegates to the two engines; nothing in these
+      // suites reaches it, so a stub is enough to construct the service.
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
     );
   }
 

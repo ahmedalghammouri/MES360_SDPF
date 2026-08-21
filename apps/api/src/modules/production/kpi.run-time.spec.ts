@@ -88,6 +88,11 @@ describe('KpiService — run time is operating time', () => {
       new OEEService(),
       { emit: jest.fn() } as never,
       { ratedCapacityByMachine: jest.fn().mockResolvedValue(new Map()) } as never,
+    
+      // The records list delegates to the two engines; nothing in these
+      // suites reaches it, so a stub is enough to construct the service.
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
     );
     return { service, prisma };
   }

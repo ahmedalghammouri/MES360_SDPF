@@ -24,7 +24,12 @@ import { OEEService } from './oee.service';
 describe('KpiService.factorsFromFacts — both bases', () => {
   const svc = () => new KpiService(
     {} as never, new OEEService(), { emit: jest.fn() } as never, {} as never,
-  );
+  
+      // The records list delegates to the two engines; nothing in these
+      // suites reaches it, so a stub is enough to construct the service.
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
+    );
 
   /** An hour planned, 45 min running, 15 min broken, all of it good output. */
   const facts = (over: Partial<Record<string, number>> = {}) => ({

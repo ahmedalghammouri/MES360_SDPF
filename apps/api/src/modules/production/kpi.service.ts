@@ -8,6 +8,8 @@ import { toPieces } from '../../common/units.util';
 import { splitStoppedTime, type StopInterval } from '../../common/stopped-time.util';
 import { ScheduleKpiService } from './schedule-kpi.service';
 import { oeeIdentityOf } from '../../common/oee-identity.util';
+import { OeeStandardService } from '../oee-standard/oee-standard.service';
+import { OeeScheduleService } from '../oee-schedule/oee-schedule.service';
 
 /**
  * KpiService — OEE orchestration & roll-up (Phase 2 of the OEE/KPI engine).
@@ -213,6 +215,10 @@ export class KpiService {
     private readonly eventEmitter: EventEmitter2,
     // Rated capacity comes from routing master data — see ratedCapacityByMachine.
     private readonly scheduleKpi: ScheduleKpiService,
+    // The two bases, for the records list. It used to derive its own — see
+    // oeeRecordsFromJobOrders.
+    private readonly oeeStandard: OeeStandardService,
+    private readonly oeeSchedule: OeeScheduleService,
   ) {}
 
   // ── time helpers ───────────────────────────────────────────────────────────
@@ -1713,7 +1719,37 @@ export class KpiService {
     return { availabilityTb: r1(availabilityTb), oeeTb: r1(oeeTb), downtimeMin: r1(down) };
   }
 
-  /** JO-derived per-machine OEE rows (replaces sparse one-per-WO OEERecord for KPI history/lists). */
+  /**
+   * The OEE records list — one row per job order, from the one store.
+   *
+   * ── What this used to be, and what it cost ──────────────────────────────────
+   * This built each row by re-deriving OEE from `job_orders` plus
+   * `downtime_events`, while the cards ABOVE the same table read the unified
+   * minute store. Two sources for one screen, and they did not agree:
+   *
+   *     machine              store   this list
+   *     Euro-Pack Robot      35.3    22.0 / 41.1
+   *     Cartomac             45.6    39.5 / 44.3
+   *     Big Betti            30.4    27.1 / 29.0
+   *     Uni-tech Wrapping    27.3    23.3 / 25.8
+   *
+   * The list was not wrong by a rounding step; it was answering a different
+   * question with the same caption. Availability from stop events reads the
+   * events somebody logged, availability from minutes reads the time that
+   * actually elapsed, and on a line with unlogged stops those diverge by ten
+   * points and more.
+   *
+   * ── What it is now ──────────────────────────────────────────────────────────
+   * A projection of the two engines' own `byJobOrder`, which is the same grain
+   * this list has always shown. No SQL of its own: a fourth copy of the
+   * aggregation is how the disagreement above happened in the first place.
+   *
+   *   availability / oee      the SCHEDULE basis (the committed slot)
+   *   availabilityTb / oeeTb  the STANDARD basis (elapsed less excused stops)
+   *
+   * which is the same pairing the analysis pages and the live screen use, so
+   * the toggle means one thing everywhere.
+   */
   async oeeRecordsFromJobOrders(
     factoryId: string | null,
     from: Date,
@@ -1721,57 +1757,66 @@ export class KpiService {
     machineIds: string[] | undefined,
     limit = 200,
   ) {
+    // Metadata the engines do not carry: which machine, when it ran, and what it
+    // was supposed to make. Also the machine filter — the engines take a single
+    // machineId, and callers here pass a resolved SET.
     const jos = await this.prisma.jobOrder.findMany({
       where: {
         ...(factoryId ? { factoryId } : {}),
         ...(machineIds ? { machineId: { in: machineIds } } : {}),
         ...joOverlapsWindow(from, to),
       },
-      select: { ...JO_SELECT_ANALYTICS, machine: { select: { name: true, code: true } } },
+      select: {
+        id: true, machineId: true, actualStart: true, actualEnd: true,
+        plannedQtyOut: true, outputUnit: true,
+        machine: { select: { name: true, code: true } },
+        workOrder: { select: { sku: { select: { baseUnit: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true } } } },
+      },
       orderBy: { actualStart: 'desc' },
       take: limit,
     });
+    if (jos.length === 0) return [];
 
-    // Unplanned downtime for these machines/window → per-record time-based (OEE-TB) values.
-    const dtMachineIds = [...new Set(jos.map((j) => j.machineId).filter(Boolean))] as string[];
-    const downtime = dtMachineIds.length
-      ? (await this.prisma.downtimeEvent.findMany({
-          where: {
-            ...(factoryId ? { factoryId } : {}),
-            machineId: { in: dtMachineIds },
-            startTime: { lte: to },
-            OR: [{ endTime: null }, { endTime: { gte: from } }],
-          },
-          select: DT_SELECT,
-        })) as unknown as DtLite[]
-      : [];
+    // The committed slot may run past the window for an order still in flight;
+    // the engine clips it, and `to` is the right clip for a closed window.
+    const [std, sched] = await Promise.all([
+      this.oeeStandard.byJobOrder(factoryId, from, to, {}),
+      this.oeeSchedule.byJobOrder(factoryId, from, to, to, {}),
+    ]);
+    const stdBy = new Map(std.map((r) => [r.key, r]));
+    const schedBy = new Map(sched.map((r) => [r.key, r]));
 
-    // Loaded for the same reason the cards above this list load them: without the
-    // stops and the external states, every ROW in the OEE records list would report a
-    // different availability from the headline computed over the same job orders.
-    const recStates = await this.loadExternalStates(factoryId, dtMachineIds, from, to);
+    const r1 = (n: number | null | undefined) => (n == null ? null : Math.round(n * 10) / 10);
 
-    const recWin = { from: from.getTime(), to: to.getTime() };
     return jos.map((jo) => {
-      const b = this.oee.rollup([
-        this.joRollupChild(jo as unknown as JoLite, recWin, recStates, downtime),
-      ]);
-      const tb = this.timeBasedOee([jo as unknown as JoLite], downtime, b.performance, b.quality, recWin);
-      // Planned output (base-unit normalised, like total/good) so reports can show a real
-      // Planned vs Actual instead of Planned == Actual.
-      const sku = (jo as any).workOrder?.sku ?? null;
-      const plannedRaw = (jo as any).plannedQtyOut ?? 0;
-      const plannedOutput = sku && jo.outputUnit ? toPieces(plannedRaw, jo.outputUnit, sku) : plannedRaw;
+      const a = stdBy.get(jo.id);
+      const b = schedBy.get(jo.id);
+      // Counts are a property of the job order, not of the basis, so either
+      // engine answers — the standard one is present whenever minutes were
+      // written at all.
+      const c = a?.counts ?? b?.counts ?? { good: 0, rejected: 0, total: 0, theoretical: 0 };
+
+      const sku = jo.workOrder?.sku ?? null;
+      const plannedRaw = jo.plannedQtyOut ?? 0;
+      const plannedOutput = sku && jo.outputUnit ? toPieces(plannedRaw, jo.outputUnit, sku as never) : plannedRaw;
+
       return {
         id: jo.id,
         machineId: jo.machineId,
-        machine: (jo as any).machine ?? null,
-        recordDate: (jo.actualStart ?? jo.actualEnd ?? new Date()),
-        oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
-        oeeTb: tb.oeeTb, availabilityTb: tb.availabilityTb,
+        machine: jo.machine ?? null,
+        recordDate: jo.actualStart ?? jo.actualEnd ?? new Date(),
+        // The committed slot — what the plan asked for.
+        oee: r1(b?.oee), availability: r1(b?.availability),
+        // Shared between the bases: neither the parts made nor the minutes spent
+        // running depend on which denominator the time is measured against.
+        performance: r1(a?.performance ?? b?.performance),
+        quality: r1(a?.quality ?? b?.quality),
+        // Elapsed time less the stops nobody is charged for.
+        oeeTb: r1(a?.oee), availabilityTb: r1(a?.availability),
         plannedOutput,
-        totalOutput: b.totalCount, goodOutput: b.goodCount,
-        scrapOutput: b.totalCount - b.goodCount,
+        totalOutput: c.total,
+        goodOutput: c.good,
+        scrapOutput: c.rejected,
       };
     });
   }

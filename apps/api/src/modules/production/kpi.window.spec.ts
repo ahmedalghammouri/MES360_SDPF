@@ -41,6 +41,11 @@ describe('job-order window selection', () => {
       new OEEService(),
       { emit: jest.fn() } as never,
       { ratedCapacityByMachine: jest.fn().mockResolvedValue(new Map()) } as never,
+    
+      // The records list delegates to the two engines; nothing in these
+      // suites reaches it, so a stub is enough to construct the service.
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
     );
     return { service, prisma };
   }
@@ -167,6 +172,11 @@ describe('planned production time is not charged for the future', () => {
     const service = new KpiService(
       prisma as never, new OEEService(), { emit: jest.fn() } as never,
       { ratedCapacityByMachine: jest.fn().mockResolvedValue(new Map()) } as never,
+    
+      // The records list delegates to the two engines; nothing in these
+      // suites reaches it, so a stub is enough to construct the service.
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
+      { byJobOrder: jest.fn().mockResolvedValue([]) } as never,
     );
     return service;
   }

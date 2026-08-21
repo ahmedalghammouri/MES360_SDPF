@@ -115,6 +115,32 @@ describe('availability has one implementation', () => {
     expect(status).not.toMatch(/pct\(\s*buckets\.runMin/);
   });
 
+  /**
+   * The records list is a projection, not a fourth derivation.
+   *
+   * It used to build each row from `job_orders` plus `downtime_events` while the
+   * cards above the same table read the minute store. Euro-Pack Robot read 35.3%
+   * in the cards and 22.0% / 41.1% in the two rows underneath them — one screen,
+   * two sources, ten points apart. Availability from logged stop events and
+   * availability from elapsed minutes are different questions, and on a line
+   * with unlogged stops they answer differently.
+   */
+  it('builds the OEE records list from the engines, not from stop events', () => {
+    const start = kpi.indexOf('async oeeRecordsFromJobOrders');
+    expect(start).toBeGreaterThan(-1);
+    const body = kpi.slice(start, kpi.indexOf('  async ', start + 30));
+
+    // It asks the engines the question.
+    expect(body).toContain('oeeStandard.byJobOrder');
+    expect(body).toContain('oeeSchedule.byJobOrder');
+
+    // And does not answer it itself.
+    expect(body).not.toContain('downtimeEvent');
+    expect(body).not.toContain('$queryRaw');
+    expect(body).not.toContain('joRollupChild');
+    expect(body).not.toContain('timeBasedOee');
+  });
+
   it('reports no availability rather than 0% when nothing was planned', () => {
     // 0% accuses a machine of failing when it was never asked to run, and it was
     // the shape that made an idle machine look identical to a broken one.
