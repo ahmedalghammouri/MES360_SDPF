@@ -159,7 +159,7 @@ export const SNAPSHOT_COMPAT = Prisma.sql`(
     o."plannedStopMin"::float8                    AS "plannedDownMin",
     o."externalLossMin"::float8                   AS "externalMin",
     o."unmeasuredMin"::float8                     AS "unmeasuredMin",
-    0::float8                                     AS "microStopMin",
+    o."microStopMin"::float8                      AS "microStopMin",
     CASE WHEN COALESCE(o."designSpeedPph", 0) > 0
          THEN ((o."goodParts" + o."rejectedParts") / o."designSpeedPph") * 60
          ELSE 0 END::float8                       AS "idealRunMin",
@@ -771,10 +771,7 @@ export class KpiService {
                SUM(s."plannedStopMin")::float8        AS "plannedDownMin",
                SUM(s."externalLossMin")::float8       AS "externalMin",
                SUM(s."unmeasuredMin")::float8         AS "unmeasuredMin",
-               -- Microstops are not separated yet; the threshold that would
-               -- define one is a factory setting that does not exist. Reported
-               -- as zero rather than guessed, exactly as the old store did.
-               0::float8                              AS "microStopMin",
+               SUM(s."microStopMin")::float8          AS "microStopMin",
                -- Earned minutes. The old store kept this as a column
                -- (idealCycleSec/60 x totalBase); here it is the same quantity
                -- from the same inputs — the parts made, at the design speed that

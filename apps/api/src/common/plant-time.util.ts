@@ -144,6 +144,30 @@ export function plantBound(raw: string | undefined, edge: 'start' | 'end'): Date
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * The same idea, but anchored to UTC.
+ *
+ * ── Why both exist ──────────────────────────────────────────────────────────
+ * Most date filters mean a PLANT-LOCAL day and use `plantBound`. A few — shift
+ * instance generation, the scheduling horizon — were written against UTC on
+ * purpose, with an explicit `Z`. Re-pointing those at plant time would silently
+ * move every one of their windows by the plant's offset, which for Riyadh is
+ * three hours: a shift generated for "the 21st" would start on the 20th.
+ *
+ * So this preserves their meaning exactly and fixes only the defect they share
+ * with every other copy — appending a day edge to a string that already carries
+ * a time, which yields `...T19:00:00T23:59:59.999Z`, an Invalid Date, and a 500
+ * from whatever it reaches.
+ */
+export function utcBound(raw: string | undefined | null, edge: 'start' | 'end'): Date | null {
+  if (!raw) return null;
+  const text = DATE_ONLY.test(raw)
+    ? `${raw}T${edge === 'start' ? '00:00:00.000' : '23:59:59.999'}Z`
+    : raw;
+  const d = new Date(text);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export function resolveLocalRange(
   dateFrom?: string,
   dateTo?: string,

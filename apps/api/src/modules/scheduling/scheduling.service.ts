@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { utcBound } from '../../common/plant-time.util';
 import { PrismaService } from '../../database/prisma.service';
 
 export type ScheduleItemType =
@@ -60,8 +61,8 @@ export class SchedulingService {
 
     // Default window = current week (Sat → Fri, 7 days from today)
     const now = new Date();
-    const from = query.dateFrom ? new Date(`${query.dateFrom}T00:00:00.000Z`) : new Date(now.getTime() - 1 * 86_400_000);
-    const to = query.dateTo ? new Date(`${query.dateTo}T23:59:59.999Z`) : new Date(from.getTime() + 8 * 86_400_000);
+    const from = utcBound(query.dateFrom, 'start') ?? new Date(now.getTime() - 1 * 86_400_000);
+    const to = utcBound(query.dateTo, 'end') ?? new Date(from.getTime() + 8 * 86_400_000);
     if (to < from) throw new BadRequestException('dateTo must be on or after dateFrom');
 
     const wanted = new Set<ScheduleItemType>(

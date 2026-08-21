@@ -119,7 +119,9 @@ export class OeeStandardWriter {
         idealCycleTimeSec: true, outputUnit: true,
         actualStart: true, actualEnd: true, plannedEnd: true,
         actualQtyGood: true, actualQtyRejected: true,
-        machine: { select: { lineId: true } },
+        // `downtimeThreshold` is the plant's own microstop boundary, set on the
+        // hierarchy screen and, until now, read by nothing.
+        machine: { select: { lineId: true, downtimeThreshold: true } },
         workOrder: {
           select: {
             sku: { select: { baseUnit: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true } },
@@ -238,6 +240,7 @@ export class OeeStandardWriter {
     const mine = states.filter((st) => st.machineId === jo.machineId);
     const {
       plannedStopMin, operatingMin, externalLossMin, availabilityLossMin, unmeasuredMin,
+      microStopMin,
       dominantState: dominant,
     } = await classifyMinute({
       winFrom, winTo, openEnd: at.getTime(),
@@ -245,6 +248,7 @@ export class OeeStandardWriter {
       scheduledStops: scheduledSpans,
       paused: jo.status === 'PAUSED',
       verdictFor: (state) => this.verdictFor(jo.factoryId, jo.machineId, state),
+      microStopSec: jo.machine?.downtimeThreshold ?? undefined,
     });
 
     // ── Counts: the delta this minute, in pieces ────────────────────────────
@@ -297,6 +301,7 @@ export class OeeStandardWriter {
       committedFrom: slot?.from ?? null,
       committedTo: slot?.to ?? null,
       totalMin, plannedStopMin, availabilityLossMin, externalLossMin, unmeasuredMin, operatingMin,
+      microStopMin,
       goodParts, rejectedParts, theoreticalParts,
       designSpeedPph: designSpeed,
     };

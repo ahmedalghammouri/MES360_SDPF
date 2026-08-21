@@ -6,7 +6,7 @@ import { oeeIdentityOf } from '../../common/oee-identity.util';
 
 import { PrismaService } from '../../database/prisma.service';
 import { toBaseUnits, convertUnits, toPieces, fromPieces } from '../../common/units.util';
-import { plantWallClockToUtc } from '../../common/plant-time.util';
+import { plantWallClockToUtc, utcBound } from '../../common/plant-time.util';
 import { KpiService } from '../production/kpi.service';
 import { PlannedStopService } from './planned-stop.service';
 import {
@@ -238,8 +238,8 @@ export class ShiftService {
   async generateInstances(factoryId: string | null, dto: GenerateInstancesDto) {
     const fid = this.requireFactory(factoryId);
 
-    const from = new Date(`${dto.dateFrom}T00:00:00.000Z`);
-    const to = dto.dateTo ? new Date(`${dto.dateTo}T00:00:00.000Z`) : from;
+    const from = utcBound(dto.dateFrom, 'start') as Date;
+    const to = utcBound(dto.dateTo, 'start') ?? from;
     if (to < from) throw new BadRequestException('dateTo must be on or after dateFrom');
 
     const templates = await this.prisma.shiftTemplate.findMany({
@@ -315,8 +315,8 @@ export class ShiftService {
       ...(query.lineId && { lineId: query.lineId }),
       ...((query.dateFrom || query.dateTo) && {
         shiftDate: {
-          ...(query.dateFrom && { gte: new Date(`${query.dateFrom}T00:00:00.000Z`) }),
-          ...(query.dateTo && { lte: new Date(`${query.dateTo}T23:59:59.999Z`) }),
+          ...(query.dateFrom && { gte: utcBound(query.dateFrom, 'start') as Date }),
+          ...(query.dateTo && { lte: utcBound(query.dateTo, 'end') as Date }),
         },
       }),
     };
@@ -855,8 +855,8 @@ export class ShiftService {
       ...(query.machineId && { machineId: query.machineId }),
       ...((query.dateFrom || query.dateTo) && {
         startTime: {
-          ...(query.dateFrom && { gte: new Date(`${query.dateFrom}T00:00:00.000Z`) }),
-          ...(query.dateTo && { lte: new Date(`${query.dateTo}T23:59:59.999Z`) }),
+          ...(query.dateFrom && { gte: utcBound(query.dateFrom, 'start') as Date }),
+          ...(query.dateTo && { lte: utcBound(query.dateTo, 'end') as Date }),
         },
       }),
     };

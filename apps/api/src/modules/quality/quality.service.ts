@@ -2,6 +2,7 @@ import {
   Injectable, NotFoundException, BadRequestException, Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { plantBound } from '../../common/plant-time.util';
 import { PrismaService } from '../../database/prisma.service';
 import { sumInPieces } from '../../common/units.util';
 import { NCRStatus, Severity, type Prisma } from '@prisma/client';
@@ -171,9 +172,9 @@ export class QualityService {
     const machineScope = machineIds ? { machineId: { in: machineIds } } : {};
 
     const now = new Date();
-    const to = range?.dateTo ? new Date(`${range.dateTo}T23:59:59.999`) : now;
+    const to = plantBound(range?.dateTo, 'end') ?? now;
     const from = range?.dateFrom
-      ? new Date(`${range.dateFrom}T00:00:00`)
+      ? (plantBound(range.dateFrom, 'start') as Date)
       : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
     const spanMs = Math.max(to.getTime() - from.getTime(), 86_400_000);
     const multiDay = spanMs > 36 * 3_600_000;

@@ -62,7 +62,8 @@ const TIME_SUMS = Prisma.sql`
   COALESCE(SUM(o."availabilityLossMin"), 0)::float8 AS "availabilityLossMin",
   COALESCE(SUM(o."externalLossMin"), 0)::float8     AS "externalLossMin",
   COALESCE(SUM(o."unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
-  COALESCE(SUM(o."operatingMin"), 0)::float8        AS "operatingMin"
+  COALESCE(SUM(o."operatingMin"), 0)::float8        AS "operatingMin",
+  COALESCE(SUM(o."microStopMin"), 0)::float8        AS "microStopMin"
 `;
 
 const SUMS = Prisma.sql`
@@ -72,6 +73,7 @@ const SUMS = Prisma.sql`
   COALESCE(SUM(o."externalLossMin"), 0)::float8     AS "externalLossMin",
   COALESCE(SUM(o."unmeasuredMin"), 0)::float8       AS "unmeasuredMin",
   COALESCE(SUM(o."operatingMin"), 0)::float8        AS "operatingMin",
+  COALESCE(SUM(o."microStopMin"), 0)::float8        AS "microStopMin",
   COALESCE(SUM(o."goodParts"), 0)::float8           AS "goodParts",
   COALESCE(SUM(o."rejectedParts"), 0)::float8       AS "rejectedParts",
   COALESCE(SUM(o."theoreticalParts"), 0)::float8    AS "theoreticalParts"

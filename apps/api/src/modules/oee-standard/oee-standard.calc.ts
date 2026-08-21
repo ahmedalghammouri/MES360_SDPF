@@ -45,6 +45,7 @@ export interface OeeTotals {
   externalLossMin: number;
   /** The machine reported nothing. Neither running nor stopped. */
   unmeasuredMin: number;
+  microStopMin?: number;
   /** Minutes the machine was running. */
   operatingMin: number;
   goodParts: number;
@@ -202,7 +203,7 @@ export function computeOee(t: OeeTotals, opts: { cap?: boolean } = {}): OeeResul
       // Microstops are a named level of the reference's model and this plant does
       // not measure them yet. Reported as an explicit zero rather than omitted,
       // so the bar reads "nothing measures this" instead of "this never happens".
-      microstopLossMin: 0,
+      microstopLossMin: r1(t.microStopMin ?? 0),
       netOperationalMin: r1(netOperationalMin),
       qualityLossMin: r1(qualityLossMin),
       usedOperationalMin: r1(usedOperationalMin),

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { EnergyPeriod } from '@prisma/client';
 import { instantiateMeterTags } from './meter-templates';
-import { plantDayKey } from '../../common/plant-time.util';
+import { plantDayKey, plantBound } from '../../common/plant-time.util';
 
 @Injectable()
 export class EnergyService {
@@ -210,8 +210,9 @@ export class EnergyService {
   ) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const now = new Date();
-    const to = range?.dateTo ? new Date(`${range.dateTo}T23:59:59.999`) : now;
-    const from = range?.dateFrom ? new Date(`${range.dateFrom}T00:00:00`) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13);
+    const to = plantBound(range?.dateTo, 'end') ?? now;
+    const from = plantBound(range?.dateFrom, 'start')
+      ?? new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13);
     // Plant-local day, so a window labelled "today" matches the plant's day.
     const iso = (d: Date) => plantDayKey(d);
 

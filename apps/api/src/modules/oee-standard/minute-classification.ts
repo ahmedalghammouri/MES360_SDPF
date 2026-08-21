@@ -103,6 +103,18 @@ export interface MinuteBuckets {
   externalLossMin: number;
   unmeasuredMin: number;
   operatingMin: number;
+  /**
+   * The part of `availabilityLossMin` that came from stops SHORTER than the
+   * machine's threshold.
+   *
+   * Reported, not re-bucketed. It is a subset of the availability loss and is
+   * NOT subtracted from it, so the time model still closes on itself and no
+   * OEE figure moves because this became measurable. Deciding that a microstop
+   * is a performance loss rather than an availability loss is a real change to
+   * the model, and it gets its own before/after rather than arriving inside the
+   * commit that merely started counting them.
+   */
+  microStopMin: number;
   /** The state that governed most of the minute, for readability on the page. */
   dominantState: string | null;
 }
@@ -133,13 +145,29 @@ export async function classifyMinute(opts: {
   scheduledStops: Span[];
   paused: boolean;
   verdictFor: (state: string) => Promise<Verdict>;
+  /**
+   * Seconds below which a stop is a MICROSTOP rather than a real breakdown.
+   *
+   * Per machine, from `Machine.downtimeThreshold` — a field the plant has been
+   * able to set since the hierarchy screen was built and which nothing has ever
+   * read. Measured against the state record's OWN duration, not against the
+   * slice of it that fell inside this minute: a 40-second stop straddling a
+   * minute boundary is one 40-second stop, not two 20-second ones.
+   */
+  microStopSec?: number;
 }): Promise<MinuteBuckets> {
-  const { winFrom, winTo, openEnd, states, scheduledStops, paused, verdictFor } = opts;
+  const {
+    winFrom, winTo, openEnd, states, scheduledStops, paused, verdictFor,
+    microStopSec,
+  } = opts;
   const whole: Span[] = [[winFrom, winTo]];
 
   const byKind: Record<'operating' | 'planned' | 'external' | 'avail', Span[]> = {
     operating: [], planned: [], external: [], avail: [],
   };
+  // A subset of `avail`, tracked alongside rather than instead of it.
+  const microSpans: Span[] = [];
+  const microMs = (microStopSec ?? 0) * 1000;
   let dominantState: string | null = null;
   let dominantMs = 0;
 
@@ -150,9 +178,17 @@ export async function classifyMinute(opts: {
     if (e - s > dominantMs) { dominantMs = e - s; dominantState = seg.state; }
 
     if (PRODUCING.has(seg.state)) { byKind.operating.push([s, e]); continue; }
+
+    // The record's WHOLE duration decides whether it is a microstop, even when
+    // only part of it lands in this minute.
+    const wholeMs = (seg.endTime ? new Date(seg.endTime).getTime() : openEnd)
+      - new Date(seg.startTime).getTime();
+    const isMicro = microMs > 0 && wholeMs > 0 && wholeMs < microMs;
+
     const v = await verdictFor(seg.state);
     if (v.isDowntime && v.isPlanned) byKind.planned.push([s, e]);
     else if (v.isDowntime && !v.affectsOEE) byKind.external.push([s, e]);
+    else if (isMicro) { byKind.avail.push([s, e]); microSpans.push([s, e]); }
     // Not producing and not excused is an availability loss — including a state
     // the plant marked as "not downtime". Inside planned production time, a
     // minute that made nothing is a loss whatever it is called.
@@ -177,6 +213,7 @@ export async function classifyMinute(opts: {
     operatingMin: spanMinutes(operating),
     externalLossMin: spanMinutes(external),
     availabilityLossMin: spanMinutes(avail),
+    microStopMin: spanMinutes(merge(microSpans.map((x) => [...x] as Span))),
     unmeasuredMin: spanMinutes(unmeasured),
     dominantState,
   };

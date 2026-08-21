@@ -4173,6 +4173,11 @@ model OeeMinute {
   unmeasuredMin Float @default(0)
   /// Net production time: the machine was running.
   operatingMin Float @default(0)
+  /// The part of `availabilityLossMin` that came from stops shorter than the
+  /// machine's `downtimeThreshold`. A SUBSET, not a sixth bucket — it is not
+  /// subtracted from the availability loss, so the six above still sum to
+  /// totalMin and the audit still closes.
+  microStopMin Float @default(0)
 
   // ── Counts, as deltas for this minute, in PIECES ──
   goodParts     Float @default(0)
