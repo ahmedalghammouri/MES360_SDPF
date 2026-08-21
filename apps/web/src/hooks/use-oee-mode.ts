@@ -8,12 +8,22 @@ import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
  * it consistently.
  *
  * ── The two bases ───────────────────────────────────────────────────────────
- *   • SCHEDULE-BASED (default) — Availability is measured against the PLANNED
- *     production time. Downtime that was never scheduled to be production time
- *     is not charged. This is the figure a plant commits to in a plan.
- *   • TIME-BASED (OEE-TB)      — Availability is measured against uptime +
- *     downtime, i.e. the clock the equipment actually faced. Harsher, and the
- *     one maintenance teams recognise.
+ *   • STANDARD (OEE-TB, the default) — Availability is measured against the time
+ *     that actually WENT BY, less the stops nobody is charged for: planned stops,
+ *     and minutes lost to an upstream or downstream constraint. Complete at every
+ *     instant, which is why a headline card opens on it.
+ *   • SCHEDULE (OEE)                 — Availability is measured against the slot
+ *     each order was COMMITTED to. A late start is charged, and so is the part of
+ *     the slot the order has not reached yet, so mid-slot this reads low and
+ *     climbs. It answers "of the time we promised, how much have we delivered".
+ *
+ * ── What these used to say, and why it was wrong ────────────────────────────
+ * This block described the second basis as "uptime + downtime, the clock the
+ * equipment actually faced". That denominator is algebraically IDENTICAL to the
+ * first one — the minute buckets are defined to sum to the total, so
+ * `total − planned − external − unmeasured` is exactly `operating + down`. Both
+ * sides of the toggle were the same number, and switching it changed only the
+ * rounding. The two bases above are the ones the engines actually compute.
  *
  * Neither is "the right one"; they answer different questions. What is NOT
  * acceptable is a screen that mixes them, or a toggle that changes one card and
@@ -36,11 +46,11 @@ export function useOeeMode() {
   /**
    * Choose between the schedule-based and time-based value.
    *
-   * `tbValue` is optional on purpose: several endpoints do not return a
-   * time-based variant yet. When it is missing we fall back to the schedule
-   * figure rather than rendering 0 or a blank — but `isExact` reports that the
-   * card could not honour the toggle, so a caller can mark it instead of
-   * quietly showing the wrong basis.
+   * `tbValue` is optional on purpose: several endpoints do not return a standard
+   * variant yet. When it is missing we fall back to the schedule figure rather
+   * than rendering 0 or a blank — but `isExact` reports that the card could not
+   * honour the toggle, so a caller can mark it instead of quietly showing the
+   * wrong basis.
    */
   const pick = (scheduleValue: number | null | undefined, tbValue?: number | null) => {
     if (!atOee) return scheduleValue ?? 0;

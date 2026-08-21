@@ -40,6 +40,10 @@ export class OeeStandardController {
       jobOrderId: q.jobOrderId || undefined,
       workOrderId: q.workOrderId || undefined,
       shiftTemplateId: q.shiftTemplateId || undefined,
+      // The shift by CODE, as the minute rows carry it: nothing creates
+      // ShiftInstance rows here, so the writer derives a code per minute and the
+      // grouped views key on that — a template id matches nothing for them.
+      shiftCode: q.shiftCode || undefined,
       skuId: q.skuId || undefined,
       productionOrderId: q.productionOrderId || undefined,
       productionOrderNumber: q.productionOrderNumber || undefined,
@@ -58,6 +62,7 @@ export class OeeStandardController {
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'jobOrderId', required: false })
   @ApiQuery({ name: 'shiftTemplateId', required: false })
+  @ApiQuery({ name: 'shiftCode', required: false, description: 'The shift by code, as the minute rows carry it.' })
   @ApiQuery({
     name: 'lineBasis', required: false,
     description: 'bottleneck | rollup — how a LINE is scored. Ignored when the scope is a '
@@ -77,6 +82,7 @@ export class OeeStandardController {
     @Query('lineId') lineId?: string,
     @Query('jobOrderId') jobOrderId?: string,
     @Query('shiftTemplateId') shiftTemplateId?: string,
+    @Query('shiftCode') shiftCode?: string,
     @Query('skuId') skuId?: string,
     @Query('productionOrderId') productionOrderId?: string,
     @Query('productionOrderNumber') productionOrderNumber?: string,
@@ -85,7 +91,7 @@ export class OeeStandardController {
   ) {
     const { from, to } = resolveLocalRange(dateFrom, dateTo, 1);
     const scope = this.scope({
-      areaId, machineId, lineId, jobOrderId, shiftTemplateId,
+      areaId, machineId, lineId, jobOrderId, shiftTemplateId, shiftCode,
       skuId, productionOrderId, productionOrderNumber, workOrderId,
     });
     const f = user.factoryId;

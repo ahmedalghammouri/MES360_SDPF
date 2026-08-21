@@ -20,6 +20,15 @@ export interface OeeScope {
   jobOrderId?: string;
   workOrderId?: string;
   shiftTemplateId?: string;
+  /**
+   * The shift by its CODE, as the minute rows carry it.
+   *
+   * Separate from `shiftTemplateId`: nothing creates ShiftInstance rows on this
+   * plant, so the writer derives a shift code per minute and that — not a
+   * template id — is what the grouped views key on. Scoping by template would
+   * silently match nothing for them.
+   */
+  shiftCode?: string;
   /** The product. Reached through the work order, which is where the SKU lives. */
   skuId?: string;
   /** The production order the work orders belong to. */
@@ -106,6 +115,7 @@ export class OeeStandardService {
     if (scope.jobOrderId) parts.push(Prisma.sql`o."jobOrderId" = ${scope.jobOrderId}`);
     if (scope.workOrderId) parts.push(Prisma.sql`o."workOrderId" = ${scope.workOrderId}`);
     if (scope.shiftTemplateId) parts.push(Prisma.sql`o."shiftTemplateId" = ${scope.shiftTemplateId}`);
+    if (scope.shiftCode) parts.push(Prisma.sql`o."shiftCode" = ${scope.shiftCode}`);
     // Product and production order are not columns here — they are properties of
     // the work order, and duplicating them into every minute would be a second
     // copy to keep true. A minute with no work order cannot match either, and

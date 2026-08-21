@@ -43,6 +43,10 @@ export class LiveShiftController {
       workOrderId: q.workOrderId || undefined,
       productionOrderId: q.productionOrderId || undefined,
       productionOrderNumber: q.productionOrderNumber || undefined,
+      // Accepted for parity with the analysis pages. The live window is the
+      // RUNNING shift, so this narrows within it rather than selecting a
+      // different one — a widget scoped to the code the minutes carry.
+      shiftCode: q.shiftCode || undefined,
     };
   }
 
@@ -77,6 +81,7 @@ export class LiveShiftController {
   @ApiQuery({ name: 'workOrderId', required: false })
   @ApiQuery({ name: 'productionOrderId', required: false })
   @ApiQuery({ name: 'productionOrderNumber', required: false })
+  @ApiQuery({ name: 'shiftCode', required: false, description: 'The shift by code, as the minute rows carry it.' })
   async overview(
     @CurrentUser() user: RequestUser,
     @Query('window') windowKey?: string,
@@ -89,9 +94,10 @@ export class LiveShiftController {
     @Query('workOrderId') workOrderId?: string,
     @Query('productionOrderId') productionOrderId?: string,
     @Query('productionOrderNumber') productionOrderNumber?: string,
+    @Query('shiftCode') shiftCode?: string,
   ) {
     const f = user.factoryId;
-    const scope = this.scope({ areaId, lineId, machineId, skuId, workOrderId, productionOrderId, productionOrderNumber });
+    const scope = this.scope({ areaId, lineId, machineId, skuId, workOrderId, productionOrderId, productionOrderNumber, shiftCode });
     // An unknown window falls back to the whole shift rather than 400-ing: a
     // stale bookmark should show the shift, not an error page.
     const w = isLiveWindow(windowKey) ? (windowKey as string) : 'shift';

@@ -1,5 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { plantBound } from '../../common/plant-time.util';
+
+/**
+ * The end of the plant day a moment falls in — the schedule basis's slot end.
+ *
+ * Deliberately the same shape as `endOfLocalDay` in the schedule controller: the
+ * two must agree or the dashboards and the analysis page clip the committed slot
+ * differently and disagree about the same machine.
+ */
+function endOfPlantDay(d: Date): Date {
+  const e = new Date(d);
+  e.setHours(23, 59, 59, 999);
+  return e;
+}
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma, MachineState } from '@prisma/client';
@@ -8,7 +21,7 @@ import { toPieces } from '../../common/units.util';
 import { splitStoppedTime, type StopInterval } from '../../common/stopped-time.util';
 import { ScheduleKpiService } from './schedule-kpi.service';
 import { oeeIdentityOf } from '../../common/oee-identity.util';
-import { OeeStandardService } from '../oee-standard/oee-standard.service';
+import { OeeStandardService, type OeeScope } from '../oee-standard/oee-standard.service';
 import { OeeScheduleService } from '../oee-schedule/oee-schedule.service';
 
 /**
@@ -965,29 +978,6 @@ export class KpiService {
     return process.env.SNAPSHOTS_READ === 'on';
   }
 
-  /** Build an OEEBreakdown-shaped result + OEE-TB from summed fact-store quantities. */
-  private snapMetrics(good: number, scrap: number, ppt: number, run: number, down: number, earned: number, external = 0) {
-    const total = good + scrap;
-    const b = this.oee.calculateDetailed({
-      plannedProductionTime: ppt,
-      // The writer already carved planned and rule-excluded stops out of BOTH ppt and
-      // run, so what separates them here is exactly the unplanned downtime.
-      unplannedDowntime: Math.max(0, ppt - run),
-      idealCycleTime: total > 0 ? earned / total : 0,
-      totalCount: total,
-      goodCount: good,
-    });
-    const r1 = (n: number) => Math.round(n * 10) / 10;
-    const availabilityTb = (run + down) > 0 ? Math.min(100, (run / (run + down)) * 100) : 0;
-    const oeeTb = oeeIdentityOf(availabilityTb, b.performance, b.quality);
-    return {
-      ...b,
-      availabilityTb: r1(availabilityTb), oeeTb: r1(oeeTb),
-      totalCount: total, goodCount: good,
-      downMin: r1(down), runMin: r1(run), plannedMin: r1(ppt), externalMin: r1(external),
-    };
-  }
-
   /** SUM columns for a fact-store rollup. `good` filters to the group's final step
    *  (last sequenceOrder), referenced via the joined `fin` CTE alias. */
   private snapMetricCols(finAlias: string): Prisma.Sql {
@@ -1001,15 +991,54 @@ export class KpiService {
       COALESCE(SUM(s."idealRunMin"),0)::float8 AS earned`;
   }
 
-  /** Headline rollup (final step per WO across the scope) → metrics for one node/scope. */
+  /**
+   * One node of the hierarchy tree — projected from the two engines.
+   *
+   * Every node in `hierarchyOEE` calls this, so it is the one place the tree's
+   * numbers are decided. It used to return `snapMetrics`, which published
+   * `availability` and `availabilityTb` as two bases when they are the same
+   * quantity — see snapshotAggregate for the proof. With the cards fixed and
+   * this left alone, the tree read OEE 34.3% beside cards reading 2.2% for the
+   * same machine and window: the disagreement moved rather than ended.
+   *
+   *     availability / oee        the SCHEDULE engine — the committed slot
+   *     availabilityTb / oeeTb    the STANDARD engine — elapsed less excused stops
+   *
+   * The loss minutes come from the standard engine's time model, which names the
+   * same four buckets this shape has always carried.
+   */
   async snapshotScope(factoryId: string | null, from: Date, to: Date, machineIds: string[] | undefined) {
-    if (machineIds && machineIds.length === 0) return this.snapMetrics(0, 0, 0, 0, 0, 0);
-    const where = this.snapWhere(factoryId, from, to, machineIds);
-    const [t] = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      WITH scoped AS (SELECT * FROM ${SNAPSHOT_COMPAT} snap WHERE ${where}),
-           fin AS (SELECT "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY "workOrderId")
-      SELECT ${this.snapMetricCols('f')} FROM scoped s JOIN fin f ON f."workOrderId" = s."workOrderId"`);
-    return this.snapMetrics(t?.good ?? 0, t?.scrap ?? 0, t?.ppt ?? 0, t?.run ?? 0, t?.down ?? 0, t?.earned ?? 0, t?.external ?? 0);
+    const n = (v: number | null | undefined) => v ?? 0;
+    const r1 = (v: number) => Math.round(v * 10) / 10;
+    // A node covering no machines — an empty area, or one whose only machine was
+    // archived. Zero, rather than a query that would cover the whole factory.
+    if (machineIds && machineIds.length === 0) {
+      return {
+        oee: 0, availability: 0, performance: 0, quality: 0, oeeTb: 0, availabilityTb: 0,
+        totalCount: 0, goodCount: 0,
+        losses: { availabilityLossMin: 0, performanceLossMin: 0, qualityLossMin: 0, externalLossMin: 0 },
+      };
+    }
+
+    const scope: OeeScope = machineIds ? { machineIds } : {};
+    const [std, sch] = await Promise.all([
+      this.oeeStandard.overview(factoryId, from, to, scope),
+      this.oeeSchedule.overview(factoryId, from, to, endOfPlantDay(to), scope),
+    ]);
+
+    return {
+      oee: n(sch.oee), availability: n(sch.availability),
+      performance: n(std.performance), quality: n(std.quality),
+      oeeTb: n(std.oee), availabilityTb: n(std.availability),
+      totalCount: std.counts.total,
+      goodCount: std.counts.good,
+      losses: {
+        availabilityLossMin: r1(std.time.availabilityLossMin),
+        performanceLossMin: r1(std.time.performanceLossMin),
+        qualityLossMin: r1(std.time.qualityLossMin),
+        externalLossMin: r1(std.time.externalLossMin),
+      },
+    };
   }
 
   private snapWhere(factoryId: string | null, from: Date, to: Date, machineIds?: string[]): Prisma.Sql {
@@ -1024,107 +1053,165 @@ export class KpiService {
   }
 
   /**
-   * Window/scope aggregation from the persisted fact store — the canonical
-   * read path. Mirrors the live engine EXACTLY: good = Σ good of the LAST step
-   * PRESENT IN SCOPE per work order (so a single non-final machine still reports
-   * its own throughput); scrap = Σ all in-scope steps; total derived; A/P/Q/OEE
-   * recomputed from the summed quantities. The "final among in-scope" rule is the
-   * SQL twin of kpi.finalStepCounts and avoids double-counting routed WOs.
+   * The OEE headline, per-machine list and trend — projected from the TWO ENGINES.
+   *
+   * ── The bug this replaced ───────────────────────────────────────────────────
+   * This built its own pair of availability bases:
+   *
+   *     availability   = runMin / plannedMin      plannedMin = total - planned
+   *                                                          - external - unmeasured
+   *     availabilityTb = runMin / (runMin + downMin)
+   *
+   * and published them as the two sides of the OEE / OEE-TB toggle on every
+   * dashboard. But the six minute buckets are defined to sum to totalMin, so
+   *
+   *     total - planned - external - unmeasured  ===  operating + availabilityLoss
+   *
+   * identically. The two denominators were the SAME QUANTITY, and the toggle
+   * switched between a number and that number rounded a second time. Measured on
+   * this plant, to six decimals on every machine: M1 1222.7760 vs 1222.7760,
+   * M3 1208.1418 vs 1208.1418, M4 1142.9058 vs 1142.9058, M5 864.9178 vs
+   * 864.9178 — difference 0.000000 throughout.
+   *
+   * So the Command Center showed 34.6% and 34.5% for its two "bases" while the
+   * OEE Analysis page, which calls the engines directly, showed 34.6% and 1.6%.
+   * `plannedMin` here was never the planned time: it is elapsed time less the
+   * stops nobody is charged for, which IS the standard basis. The committed slot
+   * exists only in the schedule engine, and this path had never reached it.
+   *
+   * ── What it is now ──────────────────────────────────────────────────────────
+   * A projection. No factor is derived here:
+   *
+   *     availability / oee        the SCHEDULE engine — the committed slot
+   *     availabilityTb / oeeTb    the STANDARD engine — elapsed less excused stops
+   *     performance / quality     shared; neither depends on the time basis
+   *
+   * which is the vocabulary the OEE Analysis page and Live Shift already use, so
+   * the toggle means one thing everywhere.
+   *
+   * Nulls are coerced to 0 here, as the old code did. The engines keep "not
+   * measured" distinct from "measured at zero" and the twenty-odd pages
+   * downstream do not yet; widening them is its own change, and doing it here
+   * silently would put undefined into a .toFixed() on screens nobody asked to
+   * touch.
    */
   async snapshotAggregate(
     factoryId: string | null, from: Date, to: Date, machineIds: string[] | undefined,
     bucket: 'hour' | 'day' = 'hour',
+    opts: { workOrderId?: string; productionOrderId?: string; slotTo?: Date } = {},
   ) {
-    // Empty scope (a hierarchy node covering no machines) → all-zero result.
-    if (machineIds && machineIds.length === 0) {
-      const z = this.snapMetrics(0, 0, 0, 0, 0, 0);
-      return { current: { oee: z.oee, availability: z.availability, performance: z.performance, quality: z.quality, availabilityTb: z.availabilityTb, oeeTb: z.oeeTb }, totalOutput: 0, goodOutput: 0, downtimeMin: 0, byEquipment: [], trend: [] };
-    }
-    const where = this.snapWhere(factoryId, from, to, machineIds);
+    const scope: OeeScope = {
+      ...(machineIds ? { machineIds } : {}),
+      ...(opts.workOrderId ? { workOrderId: opts.workOrderId } : {}),
+      ...(opts.productionOrderId ? { productionOrderId: opts.productionOrderId } : {}),
+    };
+    const n = (v: number | null | undefined) => v ?? 0;
+    const r1 = (v: number) => Math.round(v * 10) / 10;
 
-    // Headline — final step per WO across the whole scope.
-    const current = await this.snapshotScope(factoryId, from, to, machineIds);
+    /**
+     * How far the committed slot reaches.
+     *
+     * NOT `to`. Callers clamp `to` to now, because planned production time must
+     * not accrue for hours that have not happened. The schedule basis needs the
+     * opposite: the unreached remainder of the slot is the term that makes the
+     * reading climb from low to true as the period runs, and dropping it turns
+     * this basis into the standard one wearing a different name.
+     *
+     * Passing `to` gave 34.0% / A 98.4% where the analysis page — which clips to
+     * the END of the selected period — gave 2.1% / A 6.0% for the same machine
+     * and window. The end of the plant day containing `to` reproduces the
+     * analysis page's rule for every period the filter can select, since they
+     * are all day-aligned; a caller with a sub-day window passes its own.
+     */
+    const slotTo = opts.slotTo ?? endOfPlantDay(to);
 
-    // Per-machine — each machine is its own scope (final step per WO ON THAT MACHINE).
-    const perM = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      WITH scoped AS (SELECT * FROM ${SNAPSHOT_COMPAT} snap WHERE ${where}),
-           fin AS (SELECT "machineId", "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY "machineId", "workOrderId")
-      SELECT s."machineId" AS id, m.name, m.code, ${this.snapMetricCols('f')}
-      FROM scoped s
-      JOIN fin f ON f."machineId" = s."machineId" AND f."workOrderId" = s."workOrderId"
-      JOIN machines m ON m.id = s."machineId"
-      GROUP BY s."machineId", m.name, m.code`);
-    const byEquipment = perM.map((r) => {
-      const b = this.snapMetrics(r.good, r.scrap, r.ppt, r.run, r.down, r.earned, r.external ?? 0);
+    const [std, sch, stdM, schM, stdT, schT] = await Promise.all([
+      this.oeeStandard.overview(factoryId, from, to, scope),
+      this.oeeSchedule.overview(factoryId, from, to, slotTo, scope),
+      this.oeeStandard.byMachine(factoryId, from, to, scope),
+      this.oeeSchedule.byMachine(factoryId, from, to, slotTo, scope),
+      this.oeeStandard.trend(factoryId, from, to, bucket, scope),
+      this.oeeSchedule.trend(factoryId, from, to, slotTo, bucket, scope),
+    ]);
+
+    const current = {
+      oee: n(sch.oee), availability: n(sch.availability),
+      performance: n(std.performance), quality: n(std.quality),
+      oeeTb: n(std.oee), availabilityTb: n(std.availability),
+    };
+
+    const schByMachine = new Map(schM.map((r) => [r.key, r]));
+    const byEquipment = stdM.map((r) => {
+      const sc = schByMachine.get(r.key);
       return {
-        machineId: r.id, name: r.name, code: r.code,
-        oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
-        availabilityTb: b.availabilityTb, oeeTb: b.oeeTb,
-        output: b.totalCount,
-        // good/scrap split out (PIECES) so any surface needing windowed quantities —
-        // the shift card especially — can take them from THIS engine instead of
-        // re-deriving its own from raw telemetry events.
-        good: b.goodCount,
-        scrap: Math.max(0, b.totalCount - b.goodCount),
+        machineId: r.key, name: r.sublabel ?? r.label, code: r.label,
+        oee: n(sc?.oee), availability: n(sc?.availability),
+        performance: n(r.performance), quality: n(r.quality),
+        availabilityTb: n(r.availability), oeeTb: n(r.oee),
+        output: Math.round(r.counts.total),
+        good: Math.round(r.counts.good),
+        scrap: Math.round(r.counts.rejected),
       };
     }).sort((a, b) => b.oee - a.oee);
 
-    // Trend — final step per WO within each time bucket.
-    const labelF = bucket === 'hour'
-      ? Prisma.sql`to_char("bucketStart", 'HH24') || ':00'`
-      : Prisma.sql`(EXTRACT(MONTH FROM "bucketStart")::int || '/' || EXTRACT(DAY FROM "bucketStart")::int)`;
-    const tr = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      WITH scoped AS (SELECT *, ${labelF} AS period FROM ${SNAPSHOT_COMPAT} snap WHERE ${where}),
-           fin AS (SELECT period, "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY period, "workOrderId")
-      SELECT s.period, MIN(s."bucketStart") AS sort, ${this.snapMetricCols('f')}
-      FROM scoped s JOIN fin f ON f.period = s.period AND f."workOrderId" = s."workOrderId"
-      GROUP BY s.period ORDER BY sort`);
-    const trend = tr.map((r) => {
-      const b = this.snapMetrics(r.good, r.scrap, r.ppt, r.run, r.down, r.earned, r.external ?? 0);
-      // Carry every metric per bucket so trend charts can plot any KPI (not just OEE).
+    // The label the dashboards have always drawn: the hour, or month/day.
+    const label = (at: Date) => (bucket === 'hour'
+      ? `${String(at.getHours()).padStart(2, '0')}:00`
+      : `${at.getMonth() + 1}/${at.getDate()}`);
+    const schByAt = new Map(schT.map((r) => [new Date(r.at).getTime(), r]));
+    const trend = stdT.map((r) => {
+      const sc = schByAt.get(new Date(r.at).getTime());
       return {
-        period: r.period, oee: b.oee, oeeTb: b.oeeTb,
-        availability: b.availability, availabilityTb: b.availabilityTb,
-        performance: b.performance, quality: b.quality,
-        output: b.totalCount, good: b.goodCount, scrap: b.totalCount - b.goodCount, down: b.downMin,
+        period: label(new Date(r.at)),
+        oee: n(sc?.oee), availability: n(sc?.availability),
+        oeeTb: n(r.oee), availabilityTb: n(r.availability),
+        performance: n(r.performance), quality: n(r.quality),
+        output: Math.round(r.counts.total),
+        good: Math.round(r.counts.good),
+        scrap: Math.round(r.counts.rejected),
+        down: r1(r.time.availabilityLossMin),
       };
     });
 
     return {
-      current: { oee: current.oee, availability: current.availability, performance: current.performance, quality: current.quality, availabilityTb: current.availabilityTb, oeeTb: current.oeeTb },
-      // Rounded at the API boundary. Bags and cartons are discrete: a card reading
-      // "178,870.511 units" is a conversion artefact leaking into the UI, not a real
-      // measurement. The unrounded values stay inside the OEE ratios above.
-      totalOutput: Math.round(current.totalCount),
-      goodOutput: Math.round(current.goodCount),
-      downtimeMin: current.downMin,
+      current,
+      // Rounded at the API boundary. Bags and cartons are discrete: a card
+      // reading "178,870.511 units" is a conversion artefact, not a measurement.
+      totalOutput: Math.round(std.counts.total),
+      goodOutput: Math.round(std.counts.good),
+      downtimeMin: r1(std.time.availabilityLossMin),
+      // Time the scope was ready but the line could not feed or drain it.
+      // Reported separately so it is visibly excluded rather than absorbed.
+      externalLossMin: r1(std.time.externalLossMin),
       byEquipment,
       trend,
     };
   }
 
+
   /**
-   * Per-day full OEE breakdown for ONE machine, from the fact store. The canonical
-   * machine OEE trend — replaces the InfluxDB / OEERecord machine history so the JO
-   * detail (and any machine analytics) matches every other dashboard exactly.
-   * Each day uses the final step per WO on that machine, A/P/Q/OEE (+ time-based)
-   * recomputed from the summed quantities.
+   * Per-day OEE for ONE machine — the canonical machine trend.
+   *
+   * Projected from the two engines for the same reason `snapshotAggregate` is:
+   * it used to call `snapMetrics`, so it published the same pair of identical
+   * denominators under the names of two different bases, and the machine trend
+   * disagreed with the analysis page's trend for the same machine and window.
    */
   async snapshotMachineTrend(factoryId: string | null, machineId: string, from: Date, to: Date) {
-    const where = this.snapWhere(factoryId, from, to, [machineId]);
-    const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      WITH scoped AS (SELECT *, date_trunc('day', "bucketStart") AS d FROM ${SNAPSHOT_COMPAT} snap WHERE ${where}),
-           fin AS (SELECT d, "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY d, "workOrderId")
-      SELECT s.d AS date, ${this.snapMetricCols('f')}
-      FROM scoped s JOIN fin f ON f.d = s.d AND f."workOrderId" = s."workOrderId"
-      GROUP BY s.d ORDER BY s.d`);
-    return rows.map((r) => {
-      const b = this.snapMetrics(r.good, r.scrap, r.ppt, r.run, r.down, r.earned, r.external ?? 0);
+    const scope: OeeScope = { machineId };
+    const n = (v: number | null | undefined) => v ?? 0;
+    const [std, sch] = await Promise.all([
+      this.oeeStandard.trend(factoryId, from, to, 'day', scope),
+      this.oeeSchedule.trend(factoryId, from, to, endOfPlantDay(to), 'day', scope),
+    ]);
+    const schByAt = new Map(sch.map((r) => [new Date(r.at).getTime(), r]));
+    return std.map((r) => {
+      const sc = schByAt.get(new Date(r.at).getTime());
       return {
-        date: r.date,
-        availability: b.availability, availabilityTb: b.availabilityTb,
-        performance: b.performance, quality: b.quality,
-        oee: b.oee, oeeTb: b.oeeTb,
+        date: r.at,
+        availability: n(sc?.availability), availabilityTb: n(r.availability),
+        performance: n(r.performance), quality: n(r.quality),
+        oee: n(sc?.oee), oeeTb: n(r.oee),
       };
     });
   }
@@ -1174,10 +1261,16 @@ export class KpiService {
   }
 
   /**
-   * The canonical per-machine OEE source: aggregates JOB ORDERS in a window (scoped
-   * to machineIds) via the engine. Returns the rolled-up A/P/Q/OEE, output, a
-   * per-equipment breakdown and a time-bucketed trend. Used by every OEE/KPI surface
-   * so a routed WO's machines all get real OEE (not just the WO header machine).
+   * The OEE read every dashboard goes through.
+   *
+   * One path. It used to branch: the fact store normally, and a live job-order
+   * scan whenever a WO or PO filter was applied or SNAPSHOTS_READ was off. That
+   * second branch derived its own A/P/Q, so applying a drill-down filter
+   * silently changed which arithmetic answered the question — and the reader saw
+   * only that the number moved.
+   *
+   * Both engines take `workOrderId` and `productionOrderId` in their scope, so a
+   * drill-down is the same query with one more predicate.
    */
   async oeeAnalytics(
     factoryId: string | null,
@@ -1187,106 +1280,9 @@ export class KpiService {
     bucket: 'hour' | 'day' = 'hour',
     opts: { workOrderId?: string; productionOrderId?: string } = {},
   ) {
-    // Canonical read path: aggregate the persisted fact store (stable, dimension-
-    // classified). Falls back to the live JO scan for PO/WO drill-downs (not yet
-    // wired into snapshotAggregate) and whenever the SNAPSHOTS_READ flag is off.
-    if (this.snapshotsEnabled() && !opts.workOrderId && !opts.productionOrderId) {
-      return this.snapshotAggregate(factoryId, from, to, machineIds, bucket);
-    }
-
-    const jos = await this.prisma.jobOrder.findMany({
-      where: {
-        ...(factoryId ? { factoryId } : {}),
-        ...(machineIds ? { machineId: { in: machineIds } } : {}),
-        // PO / WO drill-down — so every OEE card & chart reacts to the PO/WO filter.
-        ...(opts.workOrderId ? { workOrderId: opts.workOrderId } : {}),
-        ...(opts.productionOrderId ? { workOrder: { productionOrderId: opts.productionOrderId } } : {}),
-        ...joOverlapsWindow(from, to),
-      },
-      select: { ...JO_SELECT_ANALYTICS, machine: { select: { id: true, name: true, code: true } } },
-    });
-
-    // Unplanned downtime overlapping these machines/window — needed for the SECOND
-    // availability method (time-based / OEE-TB), exposed alongside schedule-based OEE
-    // so every KPI/OEE surface can show both (matches the JO-live dashboard + historian).
-    const dtMachineIds = [...new Set(jos.map((j) => j.machineId).filter(Boolean))] as string[];
-    const downtime = dtMachineIds.length
-      ? (await this.prisma.downtimeEvent.findMany({
-          where: {
-            ...(factoryId ? { factoryId } : {}),
-            machineId: { in: dtMachineIds },
-            startTime: { lte: to },
-            OR: [{ endTime: null }, { endTime: { gte: from } }],
-          },
-          select: DT_SELECT,
-        })) as unknown as DtLite[]
-      : [];
-
-    // STARVED/BLOCKED segments — carved out of PPT so a machine waiting on the line
-    // constraint is not charged Availability or Performance for the wait.
-    const states = await this.loadExternalStates(factoryId, dtMachineIds, from, to);
-
-    const all = jos as unknown as JoLite[];
-    const win = { from: from.getTime(), to: to.getTime() };
-    const current = this.aggregateJos(all, win, states, downtime);
-    const currentTb = this.timeBasedOee(all, downtime, current.performance, current.quality, win);
-
-    const perMachine = new Map<string, { name: string; code: string | null; jos: JoLite[] }>();
-    const buckets = new Map<string, JoLite[]>();
-    for (const jo of all) {
-      if (jo.machineId) {
-        const e = perMachine.get(jo.machineId) ?? { name: (jo as any).machine?.name ?? 'Unknown', code: (jo as any).machine?.code ?? null, jos: [] as JoLite[] };
-        e.jos.push(jo);
-        perMachine.set(jo.machineId, e);
-      }
-      const d = jo.actualStart ?? jo.actualEnd;
-      if (d) {
-        const dt = new Date(d);
-        const label = bucket === 'hour' ? `${String(dt.getHours()).padStart(2, '0')}:00` : `${dt.getMonth() + 1}/${dt.getDate()}`;
-        const arr = buckets.get(label) ?? [];
-        arr.push(jo);
-        buckets.set(label, arr);
-      }
-    }
-
-    const byEquipment = [...perMachine.entries()].map(([id, { name, code, jos: mjos }]) => {
-      const b = this.aggregateJos(mjos, win, states, downtime);
-      const tb = this.timeBasedOee(mjos, downtime, b.performance, b.quality, win);
-      return { machineId: id, name, code, oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality, availabilityTb: tb.availabilityTb, oeeTb: tb.oeeTb, output: b.totalCount };
-    }).sort((a, b) => b.oee - a.oee);
-
-    const trend = [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b))
-      .map(([period, bjos]) => {
-        const b = this.aggregateJos(bjos, win, states, downtime);
-        const tb = this.timeBasedOee(bjos, downtime, b.performance, b.quality, win);
-        // Carry every metric per bucket so trend charts can plot any KPI (not just OEE).
-        return {
-          period, oee: b.oee, oeeTb: tb.oeeTb,
-          availability: b.availability, availabilityTb: tb.availabilityTb,
-          performance: b.performance, quality: b.quality,
-          output: b.totalCount, good: b.goodCount, scrap: b.totalCount - b.goodCount, down: tb.downtimeMin,
-        };
-      });
-
-    return {
-      // Schedule-based (classic) OEE + the time-based (OEE-TB) variant, side by side.
-      current: {
-        oee: current.oee, availability: current.availability, performance: current.performance, quality: current.quality,
-        availabilityTb: currentTb.availabilityTb, oeeTb: currentTb.oeeTb,
-      },
-      // Rounded at the API boundary. Bags and cartons are discrete: a card reading
-      // "178,870.511 units" is a conversion artefact leaking into the UI, not a real
-      // measurement. The unrounded values stay inside the OEE ratios above.
-      totalOutput: Math.round(current.totalCount),
-      goodOutput: Math.round(current.goodCount),
-      downtimeMin: currentTb.downtimeMin,
-      // Time the scope was ready but the line could not feed or drain it. Reported
-      // separately so it is visibly excluded rather than silently absorbed.
-      externalLossMin: current.losses.externalLossMin,
-      byEquipment,
-      trend,
-    };
+    return this.snapshotAggregate(factoryId, from, to, machineIds, bucket, opts);
   }
+
 
   /**
    * THE single place a production line's headline OEE is decided.
@@ -1575,17 +1571,52 @@ export class KpiService {
     }
     const fallback = groupBy === 'productionOrder' ? 'Direct WOs' : groupBy === 'shift' ? 'Unassigned' : '—';
 
+    /**
+     * The two bases per group, from the engines.
+     *
+     * `machineIds` still bounds the scope — a group is a slice of the same set
+     * of machines the caller asked about, not a way around the filter.
+     */
+    const scopeFor = (key: string): OeeScope => ({
+      ...(machineIds ? { machineIds } : {}),
+      ...(groupBy === 'machine' ? { machineIds: [key] } : {}),
+      ...(groupBy === 'workOrder' ? { workOrderId: key } : {}),
+      ...(groupBy === 'productionOrder' && !key.startsWith('__') ? { productionOrderId: key } : {}),
+      ...(groupBy === 'shift' && !key.startsWith('__') ? { shiftCode: key } : {}),
+    });
+    const slotTo = endOfPlantDay(to);
+    const factors = new Map(await Promise.all(rows.map(async (r) => {
+      const sc = scopeFor(String(r.key));
+      const [std, sch] = await Promise.all([
+        this.oeeStandard.overview(factoryId, from, to, sc),
+        this.oeeSchedule.overview(factoryId, from, to, slotTo, sc),
+      ]);
+      return [String(r.key), {
+        oee: sch.oee ?? 0, availability: sch.availability ?? 0,
+        performance: std.performance ?? 0, quality: std.quality ?? 0,
+        oeeTb: std.oee ?? 0, availabilityTb: std.availability ?? 0,
+      }] as const;
+    })));
+
+
     return rows
       .map((r) => {
-        const b = this.snapMetrics(r.good, r.scrap, r.ppt, r.run, r.down, r.earned, r.external ?? 0);
+        // The factor pair comes from the ENGINES, keyed to this group.
+        //
+        // It used to come from `snapMetrics`, which published `availability` and
+        // `availabilityTb` as two bases when they are the same quantity — so the
+        // breakdown rows moved with the toggle only by a rounding step while the
+        // cards above them moved by thirty points. One query per group rather
+        // than one for all of them: every grouping this method offers maps to a
+        // scope field the engines already filter on, and a window holds a
+        // handful of groups, not thousands.
+        const f = factors.get(String(r.key)) ?? null;
         return {
           key: r.key, label: labels.get(r.key) ?? fallback,
-          oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
-          // Time-based twin so grouped views honour the schedule-vs-time-based
-          // toggle like every other OEE surface, instead of silently staying on
-          // the schedule basis when the user switches.
-          oeeTb: b.oeeTb, availabilityTb: b.availabilityTb,
-          output: Math.round(b.totalCount), good: Math.round(b.goodCount),
+          oee: f?.oee ?? 0, availability: f?.availability ?? 0,
+          performance: f?.performance ?? 0, quality: f?.quality ?? 0,
+          oeeTb: f?.oeeTb ?? 0, availabilityTb: f?.availabilityTb ?? 0,
+          output: Math.round(r.good + r.scrap), good: Math.round(r.good),
         };
       })
       .filter((r) => r.output > 0)

@@ -50,6 +50,7 @@ export class OeeScheduleController {
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'jobOrderId', required: false })
   @ApiQuery({ name: 'shiftTemplateId', required: false })
+  @ApiQuery({ name: 'shiftCode', required: false, description: 'The shift by code, as the minute rows carry it.' })
   @ApiQuery({
     name: 'lineBasis', required: false,
     description: 'bottleneck | rollup — how a LINE is scored. Ignored when the scope is a '
@@ -69,6 +70,7 @@ export class OeeScheduleController {
     @Query('lineId') lineId?: string,
     @Query('jobOrderId') jobOrderId?: string,
     @Query('shiftTemplateId') shiftTemplateId?: string,
+    @Query('shiftCode') shiftCode?: string,
     @Query('skuId') skuId?: string,
     @Query('productionOrderId') productionOrderId?: string,
     @Query('productionOrderNumber') productionOrderNumber?: string,
@@ -86,6 +88,7 @@ export class OeeScheduleController {
       lineId: lineId || undefined,
       jobOrderId: jobOrderId || undefined,
       shiftTemplateId: shiftTemplateId || undefined,
+      shiftCode: shiftCode || undefined,
       workOrderId: workOrderId || undefined,
       skuId: skuId || undefined,
       productionOrderId: productionOrderId || undefined,
