@@ -137,14 +137,20 @@ const main = async () => {
     });
 
     console.log(`\n── ${engine}  narrowing`);
-    // The clamp makes the tail a subset, so it can never be larger. Before
-    // 02:00 it is the WHOLE day and equality is the correct answer — insisting
-    // on strictly-less there would fail the engine for telling the truth.
-    const dayIsOlder = today.getHours() >= 2;
+    // Strictly-less is only a meaningful demand when there IS data outside the
+    // tail. Keying that on the clock was wrong: at 04:05 the day is four hours
+    // old, but if the line only started producing at 02:36 then the last two
+    // hours legitimately contain everything the day contains, and equality is
+    // the correct answer. So ask the head of the day directly.
+    const head = await audit(tok, engine, 'before the tail', {
+      dateFrom: stamp(startOfDay),
+      dateTo: stamp(narrowFrom),
+    });
+    const hasOlderData = head.total > 0.5;
     check('a narrower window returns less total time',
-      dayIsOlder ? narrow.total < wide.total : narrow.total <= wide.total + 0.5,
+      hasOlderData ? narrow.total < wide.total : narrow.total <= wide.total + 0.5,
       `${narrow.total.toFixed(0)}m of ${wide.total.toFixed(0)}m`
-        + (dayIsOlder ? '' : ' — day younger than the tail, equality expected'));
+        + (hasOlderData ? '' : ' — nothing recorded before the tail, equality expected'));
     check('a narrower window returns no more output',
       narrow.good <= wide.good,
       `good ${narrow.good} vs ${wide.good}`);

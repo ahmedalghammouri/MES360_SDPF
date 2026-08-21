@@ -170,7 +170,7 @@ function MethodChip({ row, compact }: { row: LineRow; compact?: boolean }) {
             ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
             : 'bg-slate-500/15 text-slate-700 dark:text-slate-300')}
         title={row.method === 'BOTTLENECK'
-          ? `The line is measured as ${row.bottleneckName}: its time, its stops, its output. Scrap is the one exception — summed across all ${row.machineCount} machines, because a unit binned upstream is a loss to the line even though the constraint never saw it.`
+          ? `Availability and Performance come from ${row.bottleneckName} alone. Quality counts good units from ${row.bottleneckName} alone and scrap at every machine on the line, both in pieces.`
           : `Re-derived from the summed minutes and counts of all ${row.machineCount} machines.`}
       >
         {row.method === 'BOTTLENECK' ? 'Bottleneck' : 'Roll-up'}

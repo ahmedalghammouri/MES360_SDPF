@@ -8,7 +8,7 @@
  *
  *   1. A single machine has no line basis, and says so.
  *   2. BOTTLENECK takes A and P from the constraint's own row in the table.
- *   3. Line Quality = outfeed good ÷ (outfeed good + scrap at every machine).
+ *   3. Line Quality = the CONSTRAINT's good ÷ (that + scrap at every machine).
  *   4. Line OEE = A × P × Q, to the same rounding the page shows.
  *   5. ROLLUP returns the engine's own line-scoped aggregate, unchanged.
  *   6. The two methods genuinely differ — a switch that changes nothing is a
@@ -115,7 +115,7 @@ const main = async () => {
         `line ${lo.counts.rejected} vs engine aggregate ${bn.counts.rejected}`);
 
       const total = lo.counts.good + lo.counts.rejected;
-      check('Quality = outfeed good ÷ (outfeed good + line scrap)',
+      check('Quality = constraint good ÷ (constraint good + line scrap)',
         total > 0 ? near(lo.quality, r1((lo.counts.good / total) * 100), 0.11) : lo.quality == null,
         `${lo.counts.good} / ${total} = ${total > 0 ? r1((lo.counts.good / total) * 100) : '—'}  vs ${lo.quality}`);
 

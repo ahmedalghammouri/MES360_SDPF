@@ -307,10 +307,9 @@ export class LineBasisService {
           : 'Line OEE = A × P × Q, re-derived from the summed minutes and counts of every '
             + 'machine (not an average of their percentages)',
         note: l.method === 'BOTTLENECK'
-          ? `The line is measured as ${l.bottleneckName}: its time, its stops, its output. `
-            + `Scrap is the one exception — summed across all ${l.machineCount} machines, because `
-            + 'a unit binned upstream is a loss to the line even though the constraint never saw '
-            + 'it. Both sides in pieces.'
+          ? `Availability and Performance come from ${l.bottleneckName} alone. Quality counts good `
+            + `units from ${l.bottleneckName} alone and scrap at every machine on the line, both `
+            + 'in pieces.'
           : `Every one of the ${l.machineCount} machines contributes its own minutes and counts.`,
       };
     }
