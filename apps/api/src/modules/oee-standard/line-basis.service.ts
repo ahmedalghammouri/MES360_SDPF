@@ -86,12 +86,22 @@ const productOf = (a: number | null, p: number | null, q: number | null): number
  * time and all of its stops, planned and unplanned — that is what "the line runs
  * at the speed of its constraint" means arithmetically.
  *
- * Quality is the line's, not the constraint's: good units counted where saleable
- * units leave (the outfeed points, final routing step among them, so one pallet
- * is one pallet), and scrap counted at EVERY machine — a unit binned at the
- * filler is a real loss the wrapper never saw. Both sides are in pieces, the
- * common unit the packaging ladder converts to, so the ratio is a ratio of like
- * for like. Reported in pieces for the same reason.
+ * The counts follow the same idea: the line IS the constraint, so its produced
+ * and good quantities are the constraint's own. Scrap is the exception, and
+ * deliberately so — it is summed across EVERY machine on the line, because a
+ * unit binned at the filler is a real loss even though the constraint never saw
+ * it. So:
+ *
+ *   Line Quality = Constraint good ÷ (Constraint good + scrap at every machine)
+ *
+ * Both sides are in pieces, the common rung the packaging ladder converts to, so
+ * the ratio compares like with like and is reported in pieces for the same reason.
+ *
+ * Taking good from the line's OUTFEED instead was the earlier reading of this,
+ * and it fails in a way that is easy to miss: on a short window the last station
+ * may not have output anything yet, so the numerator is zero while the line is
+ * plainly working, and Quality — and with it OEE — reads 0.0%. Measured at the
+ * constraint the figure moves with the line, which is what makes it usable live.
  *
  * ── ROLLUP ─────────────────────────────────────────────────────────────────
  * The line re-derived from the summed minutes and counts of all its machines —
@@ -209,14 +219,15 @@ export class LineBasisService {
       };
     }
 
-    const [bn, outfeed, whole] = await Promise.all([
+    const [bn, whole] = await Promise.all([
       agg({ ...lineScope, machineId: cfg.bottleneckId ?? undefined }),
-      agg({ ...lineScope, machineIds: cfg.outfeedIds }),
       agg(lineScope),
     ]);
 
-    // Good where saleable units leave; scrap from every machine on the line.
-    const good = outfeed.counts.good;
+    // Good from the constraint — the line is being measured AS that machine.
+    // Scrap from every machine, because it is a loss to the line wherever it
+    // happened.
+    const good = bn.counts.good;
     const rejected = whole.counts.rejected;
     const total = good + rejected;
     const quality = total > 0 ? clamp((good / total) * 100) : null;
@@ -235,8 +246,8 @@ export class LineBasisService {
       oee: r1(productOf(availability, performance, quality)),
       counts: {
         good, rejected, total,
-        // Theoretical stays the CONSTRAINT's: it is the ceiling the line could
-        // have reached, and the line cannot outrun the machine setting its rate.
+        // Theoretical is the CONSTRAINT's too: it is the ceiling the line could
+        // have reached, and a line cannot outrun the machine setting its rate.
         theoretical: bn.counts.theoretical,
       },
       weightMin: topMin(whole.time),
@@ -296,9 +307,10 @@ export class LineBasisService {
           : 'Line OEE = A × P × Q, re-derived from the summed minutes and counts of every '
             + 'machine (not an average of their percentages)',
         note: l.method === 'BOTTLENECK'
-          ? `Availability and Performance come from ${l.bottleneckName} alone. Quality counts `
-            + `good units at ${l.outfeedNames.join(' + ')} and scrap at every machine on the `
-            + 'line, both in pieces.'
+          ? `The line is measured as ${l.bottleneckName}: its time, its stops, its output. `
+            + `Scrap is the one exception — summed across all ${l.machineCount} machines, because `
+            + 'a unit binned upstream is a loss to the line even though the constraint never saw '
+            + 'it. Both sides in pieces.'
           : `Every one of the ${l.machineCount} machines contributes its own minutes and counts.`,
       };
     }

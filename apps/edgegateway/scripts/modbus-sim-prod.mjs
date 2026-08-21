@@ -107,6 +107,21 @@ const REJECT_PCT = process.env.SIM_REJECT_PCT ? Number(process.env.SIM_REJECT_PC
 // one flat 8% at every stage therefore scrapped ~8% of all output at the wrapper
 // alone and pushed the quality KPI far below anything a real detergent line sees.
 // Losses belong where they actually happen — mostly at the filler.
+//
+// ── Why these rates produced scrap at the WRAPPER ONLY, at 41% ──────────────
+// They did not. The rates below were always right; the tag bindings were not,
+// and the simulator cannot compensate for a binding it does not control:
+//
+//   M1  both GOOD and TOTAL sat on DI0, so Good == Total and the filler could
+//       never report a reject at all — 0.02% observed against 2.0% configured.
+//   M3  GOOD and TOTAL were on each other's inputs, so Total read lower than
+//       Good and Bad clamped to zero — 0.00% observed against 0.5%.
+//   M5  its TOTAL on DI2 was shared with a phantom M4 counter, and the wrapper
+//       came out at 41% against 0.2%.
+//
+// Fixed in the tag_definitions rows, not here. The startup summary below prints
+// the configured rates so the next disagreement between configured and observed
+// is a five-second check rather than a day of forensics.
 // ── The ports must match the DB the gateway actually reads ──────────────────
 // The device rows carry 192.168.0.2:20101 and 192.168.0.3:20102 — the plant's
 // real remote I/O. This simulator listened on 502/503, so the gateway looked for
@@ -184,7 +199,56 @@ const CONTROL_FILE = process.env.SIM_CONTROL || 'sim-control.json';
 const stopped = new Set(
   (process.env.SIM_STOP ?? '').split(',').map((s) => s.trim()).filter(Boolean),
 );
-const isStopped = (code) => stopped.has(code);
+/**
+ * Unplanned stops, so Availability is a quantity and not a constant.
+ *
+ * Without these every machine ran 662 of 662 minutes and read A = 100%, which
+ * makes the factor untestable: a KPI pinned to its ceiling carries no
+ * information, exactly as the Performance ceiling did before the pace was fixed.
+ *
+ * Modelled as a Poisson-ish process per machine — a mean time between failures
+ * and a mean time to repair — so the numbers a reader checks (MTBF, MTTR, the
+ * downtime Pareto) have something real underneath rather than a single scripted
+ * outage. The constraint fails a little more often than the rest, which is what
+ * makes it the constraint.
+ */
+const FAULTS_ON = process.env.SIM_FAULTS !== '0';
+const FAULT_PROFILE = {
+  M1: { mtbfMin: 55, mttrMin: 6 },   // the filler: frequent short jams
+  M3: { mtbfMin: 90, mttrMin: 8 },
+  M4: { mtbfMin: 150, mttrMin: 12 }, // the robot: rare but slower to clear
+  M5: { mtbfMin: 120, mttrMin: 10 },
+};
+/** code → epoch ms at which the current fault clears; absent means healthy. */
+const faultUntil = {};
+
+function tickFaults() {
+  if (!FAULTS_ON) return;
+  const now = Date.now();
+  for (const [code, p] of Object.entries(FAULT_PROFILE)) {
+    if (faultUntil[code] && faultUntil[code] > now) continue;
+    if (faultUntil[code]) {
+      delete faultUntil[code];
+      console.log(`[fault] ${code} recovered`);
+      continue;
+    }
+    // One second's worth of hazard at the configured MTBF.
+    if (Math.random() < 1 / (p.mtbfMin * 60)) {
+      // Exponential repair time, floored so a "breakdown" is never sub-minute —
+      // that would be a microstop, which is a different thing the MES classifies
+      // separately.
+      const mins = Math.max(1, -Math.log(1 - Math.random()) * p.mttrMin);
+      faultUntil[code] = now + mins * 60_000;
+      console.log(`[fault] ${code} down for ${mins.toFixed(1)} min`);
+    }
+  }
+}
+setInterval(tickFaults, 1000);
+
+const isFaulted = (code) => FAULTS_ON && !!faultUntil[code] && faultUntil[code] > Date.now();
+
+/** Stopped by the operator, or broken down. Either way it produces nothing. */
+const isStopped = (code) => stopped.has(code) || isFaulted(code);
 
 function readControl() {
   try {
@@ -211,13 +275,35 @@ const STAGE_OF = { M1: 'M1', M3: 'M3', M4: 'M5', M5: 'M5' };
 const lastProducedAt = { M1: Date.now(), M3: Date.now(), M5: Date.now() };
 
 /**
- * How long after the last unit the PROCESSING signal drops.
+ * How long after the last unit the PROCESSING signal stays up, PER STAGE.
  *
- * The wrapping table rotates while a pallet is being wrapped and rests between
- * pallets, so this must exceed one normal cycle — otherwise the table reads
- * "not processing" between every pallet during healthy production.
+ * ── The bug this replaces ───────────────────────────────────────────────────
+ * This was one flat 90 s for every stage. The comment above it already said the
+ * value "must exceed one normal cycle" — and it did not, by a factor of six. A
+ * pallet takes ~9 minutes to fill (160 inners at ~3.4 s each), so the wrapping
+ * table read "not processing" for 7 of every 9 minutes of perfectly healthy
+ * production. Two visible failures came out of that one number:
+ *
+ *   • M5 read RUN=1 with PROCESSING=0 and was inferred STARVED — 187 of 662
+ *     minutes on the day this was found.
+ *   • M4's Run Mode is a three-state bit that PULSES when stopped, and it uses
+ *     the same stall test. It pulsed for 505 of 662 minutes, so the palletiser
+ *     appeared stopped 76% of a shift it worked through.
+ *
+ * A wrapper physically wraps for most of its cycle and rests briefly between
+ * pallets, so the hold is now a FRACTION OF THAT STAGE'S OWN CYCLE. The line
+ * then reads as running with short gaps, which is what it is doing.
  */
-const PROCESS_HOLD_MS = Number(process.env.SIM_PROCESS_HOLD_MS || 90_000);
+const PROCESS_HOLD_FRACTION = Number(process.env.SIM_PROCESS_HOLD_FRACTION || 0.85);
+/** Floor for fast stages, so a sub-second cycle does not produce a flickering bit. */
+const PROCESS_HOLD_MIN_MS = Number(process.env.SIM_PROCESS_HOLD_MIN_MS || 30_000);
+
+/** Nominal cycle of a stage in ms, from the pace and the packaging ladder. */
+const nominalCycleMs = (piecesPerPulse) => ((CYCLE_MIN + CYCLE_MAX) / 2) * piecesPerPulse;
+
+/** Filled in as the stages are built, so each stage carries its own hold. */
+const processHoldMs = {};
+const holdFor = (stage) => processHoldMs[stage] ?? PROCESS_HOLD_MIN_MS;
 
 /**
  * A Run Mode bit. ON whenever the machine is able to work.
@@ -241,7 +327,7 @@ const PULSE_PERIOD_MS = Number(process.env.SIM_PULSE_PERIOD_MS || 1000);
 const runModePulsed = (code) => {
   if (isStopped(code)) return false;                    // alarm / e-stop
   const stage = STAGE_OF[code];
-  const stalled = stage && Date.now() - lastProducedAt[stage] > PROCESS_HOLD_MS;
+  const stalled = stage && Date.now() - lastProducedAt[stage] > holdFor(stage);
   if (!stalled) return true;                            // steady ON
   return Math.floor(Date.now() / (PULSE_PERIOD_MS / 2)) % 2 === 0; // pulsing
 };
@@ -250,7 +336,7 @@ const runModePulsed = (code) => {
 const processing = (code) => {
   if (isStopped(code)) return false;
   const stage = STAGE_OF[code];
-  return !!stage && Date.now() - lastProducedAt[stage] <= PROCESS_HOLD_MS;
+  return !!stage && Date.now() - lastProducedAt[stage] <= holdFor(stage);
 };
 
 /** Current level of one signal, evaluated live on every poll. */
@@ -274,6 +360,11 @@ function startTcpDevice(dev) {
     const cycle = () => rnd(CYCLE_MIN, CYCLE_MAX) * m.piecesPerPulse;
     // The machine this production stage belongs to, so a stop really stops it.
     const mCode = m.label.split(' ')[0];
+    // This stage's own processing hold — see PROCESS_HOLD_FRACTION.
+    processHoldMs[mCode] = Math.max(
+      PROCESS_HOLD_MIN_MS,
+      nominalCycleMs(m.piecesPerPulse) * PROCESS_HOLD_FRACTION,
+    );
     const producePart = () => {
       // A stopped machine produces nothing. This is what makes the Starved demo
       // physically true rather than cosmetic: stopping the filler drains the
@@ -381,6 +472,39 @@ console.log('MES360 prod-local simulator — mirrors mes360 devices/tags\n');
 for (const d of TCP_DEVICES) startTcpDevice(d);
 if (!NO_SERIAL) startPm5110();
 else console.log('… serial PM5110 skipped (SIM_NO_SERIAL=1)');
+
+/**
+ * The effective model, printed once.
+ *
+ * Every number below has been wrong at some point and the wrongness was only
+ * visible hours later in a KPI. Printing the model at startup makes a bad pace,
+ * a bad reject rate or a processing hold shorter than its own cycle something
+ * you see in the first line of output instead of something you diagnose from a
+ * chart the next day.
+ */
+console.log('\n── effective model ──────────────────────────────────────────');
+for (const d of TCP_DEVICES) {
+  for (const m of d.machines) {
+    const code = m.label.split(' ')[0];
+    const cycleS = nominalCycleMs(m.piecesPerPulse) / 1000;
+    const holdS = processHoldMs[code] / 1000;
+    console.log(
+      `  ${m.label.padEnd(14)} 1 pulse = ${String(m.piecesPerPulse).padStart(3)} pc`
+      + `   cycle ~${cycleS.toFixed(0).padStart(4)} s`
+      + `   reject ${String(REJECT_PCT ?? m.rejectPct).padStart(4)}%`
+      + `   processing hold ${holdS.toFixed(0).padStart(4)} s`
+      + (holdS * 1000 >= nominalCycleMs(m.piecesPerPulse) * 0.5 ? '' : '   ⚠ SHORTER THAN HALF ITS CYCLE'),
+    );
+  }
+}
+if (FAULTS_ON) {
+  const f = Object.entries(FAULT_PROFILE)
+    .map(([c, p]) => `${c} MTBF ${p.mtbfMin}m/MTTR ${p.mttrMin}m`).join('   ');
+  console.log(`  unplanned stops → ${f}`);
+} else {
+  console.log('  unplanned stops → DISABLED (SIM_FAULTS=0) — every machine will read A = 100%');
+}
+console.log('────────────────────────────────────────────────────────────\n');
 
 // Periodic tally so you can cross-check simulated production against the MES.
 // The PIECES column is the point: the three stages count in different packaging

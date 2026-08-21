@@ -7,7 +7,9 @@ import type { OeeScope } from './oee-standard.service';
  * ── The contract ────────────────────────────────────────────────────────────
  *   1. A single machine has no line basis, and says so rather than inventing one.
  *   2. BOTTLENECK takes A and P from the constraint ALONE.
- *   3. Line Quality is good at the outfeed over good + scrap from EVERY machine.
+ *   3. Line Quality is the CONSTRAINT's good over that plus scrap from EVERY
+ *      machine — the line is measured as the constraint, and scrap is the one
+ *      quantity that is a loss to the line wherever it happened.
  *   4. The request picks the method; the line keeps the constraint and outfeed.
  *   5. BOTTLENECK asked for on a line with no constraint falls back and explains.
  *   6. Above a line, percentages are averaged and WEIGHTED by occupancy, while
@@ -85,13 +87,12 @@ describe('LineBasisService', () => {
   });
 
   // ── 2 and 3 ────────────────────────────────────────────────────────────────
-  it('takes A and P from the constraint, and Quality from outfeed good over line scrap', async () => {
+  it('measures the line as the constraint, with scrap from every machine', async () => {
     const svc = build([LINE]);
     const { fn, seen } = router({
       // The constraint ran badly; the line is only as good as it.
-      bottleneck: agg(60, 50, 99, { good: 9000, rejected: 100, theoretical: 20000 }, 480),
-      // Saleable units leave here.
-      outfeed: agg(95, 95, 95, { good: 800, rejected: 20 }, 480),
+      bottleneck: agg(60, 50, 99, { good: 800, rejected: 5, theoretical: 20000 }, 480),
+      outfeed: agg(95, 95, 95, { good: 123, rejected: 20 }, 480),
       // Scrap from every machine on the line.
       whole: agg(90, 90, 90, { good: 30000, rejected: 200 }, 1920),
     });
@@ -101,22 +102,46 @@ describe('LineBasisService', () => {
     expect(r.applies).toBe(true);
     expect(r.availability).toBe(60);
     expect(r.performance).toBe(50);
-    // 800 good at the outfeed, 200 scrapped across the line → 800/1000.
+    // 800 good at the constraint, 200 scrapped across the line → 800/1000.
     expect(r.quality).toBe(80);
     expect(r.oee).toBe(24); // 0.60 × 0.50 × 0.80
     expect(r.counts).toEqual({ good: 800, rejected: 200, total: 1000, theoretical: 20000 });
 
-    // The three questions it must ask, and no fourth.
+    // Two questions, not three: the outfeed no longer supplies the numerator, so
+    // asking for it would be a query whose answer is thrown away.
     expect(seen.filter((s) => s.machineId === 'm1')).toHaveLength(1);
-    expect(seen.filter((s) => s.machineIds?.join() === 'm5')).toHaveLength(1);
+    expect(seen.filter((s) => s.machineIds)).toHaveLength(0);
     expect(seen.every((s) => s.lineId === 'l1')).toBe(true);
+  });
+
+  /**
+   * The failure that moved the numerator to the constraint.
+   *
+   * A line whose last station has not output anything yet is still working —
+   * material is in the buffers between stations. Sourcing good from the outfeed
+   * made the numerator zero, so Quality and OEE both read 0.0% on a running
+   * line, for a reason that had nothing to do with quality.
+   */
+  it('still reports a moving Quality when the last station has output nothing', async () => {
+    const svc = build([LINE]);
+    const { fn } = router({
+      bottleneck: agg(80, 90, 99, { good: 5189, rejected: 40, theoretical: 9000 }, 480),
+      outfeed: agg(0, 0, 0, { good: 0, rejected: 0 }, 480),   // nothing wrapped yet
+      whole: agg(70, 70, 0, { good: 11105, rejected: 5281 }, 1920),
+    });
+
+    const r = await svc.forScope(F, { lineId: 'l1' }, 'BOTTLENECK', fn, agg(70, 70, 0));
+
+    expect(r.counts.good).toBe(5189);
+    expect(r.quality).toBe(49.6); // 5189 / (5189 + 5281)
+    expect(r.oee).toBeGreaterThan(0);
   });
 
   it('reports the line time model as the CONSTRAINT’s, not the whole line’s', async () => {
     const svc = build([LINE]);
     const { fn } = router({
-      bottleneck: agg(60, 50, 99, {}, 480),
-      outfeed: agg(95, 95, 95, { good: 800 }, 480),
+      bottleneck: agg(60, 50, 99, { good: 800 }, 480),
+      outfeed: agg(95, 95, 95, { good: 123 }, 480),
       whole: agg(90, 90, 90, { rejected: 200 }, 1920),
     });
     const r = await svc.forScope(F, { lineId: 'l1' }, 'BOTTLENECK', fn, agg(90, 90, 90));
@@ -157,7 +182,7 @@ describe('LineBasisService', () => {
     expect(r.lines[0].method).toBe('BOTTLENECK');
   });
 
-  it('treats an empty outfeed list as the whole line', async () => {
+  it('still reports the outfeed configuration, which the form owns', async () => {
     const svc = build([{ ...LINE, outfeedMachineIds: [] }]);
     const { fn } = router({
       bottleneck: agg(60, 50, 99),
@@ -208,7 +233,7 @@ describe('LineBasisService', () => {
       const fn = perLine({
         // Ran all shift, scored 90.
         l1: {
-          bottleneck: agg(90, 100, 99, { theoretical: 100 }, 480),
+          bottleneck: agg(90, 100, 99, { good: 900, theoretical: 100 }, 480),
           outfeed: agg(0, 0, 0, { good: 900 }, 480),
           whole: agg(0, 0, 0, { good: 900, rejected: 100 }, 480),
         },
@@ -231,7 +256,7 @@ describe('LineBasisService', () => {
       const svc = build([LINE, LINE2]);
       const fn = perLine({
         l1: {
-          bottleneck: agg(90, 100, 99, { theoretical: 100 }, 480),
+          bottleneck: agg(90, 100, 99, { good: 900, theoretical: 100 }, 480),
           outfeed: agg(0, 0, 0, { good: 900 }, 480),
           whole: agg(0, 0, 0, { good: 900, rejected: 100 }, 480),
         },
@@ -250,7 +275,7 @@ describe('LineBasisService', () => {
       const svc = build([LINE, LINE2]);
       const fn = perLine({
         l1: {
-          bottleneck: agg(90, 100, 99, { theoretical: 100 }, 480),
+          bottleneck: agg(90, 100, 99, { good: 900, theoretical: 100 }, 480),
           outfeed: agg(0, 0, 0, { good: 900 }, 480),
           whole: agg(0, 0, 0, { good: 900, rejected: 100 }, 480),
         },

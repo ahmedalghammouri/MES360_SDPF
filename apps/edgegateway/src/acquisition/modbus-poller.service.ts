@@ -208,6 +208,36 @@ export class ModbusPollerService implements OnModuleDestroy {
         };
       });
 
+      /**
+       * GOOD counters are applied before TOTAL counters, within every poll.
+       *
+       * ── The defect this closes ──────────────────────────────────────────
+       * A TOTAL counter has no bad count of its own; `CounterService` derives
+       * one as `total - good`, reading `good` from the job order. When one
+       * physical unit raises both bits in the same poll — which is what the
+       * hardware does — the order these two tags are visited in decides the
+       * answer:
+       *
+       *   TOTAL first → good is still N-1, so bad = 1 is written and STANDS
+       *                 until the next TOTAL edge re-derives it.
+       *   GOOD first  → good is N, so bad = 0. Correct.
+       *
+       * The tags arrived in address order, so TOTAL (the lower address on both
+       * of this plant's modules) always won. On a fast machine the phantom
+       * reject is corrected 3 seconds later and nobody sees it. On the wrapper,
+       * one pallet every NINE MINUTES, it stood for nine minutes — and the
+       * minute-level OEE store recorded every one of those minutes. That is how
+       * a line configured for 0.2% scrap reported 41%, and why the scrap looked
+       * like it only ever happened at the last machine.
+       *
+       * A stable sort, so everything else keeps its address order and only the
+       * two counter roles are pulled apart.
+       */
+      const COUNTER_PRIORITY: Record<string, number> = { GOOD: 0, BAD: 0, TOTAL: 1 };
+      const priority = (t: (typeof tags)[number]) =>
+        (t.isCounter ? COUNTER_PRIORITY[String(t.counterTag.counterRole)] ?? 0 : 0);
+      tags.sort((a, b) => priority(a) - priority(b));
+
       const meter: MeterContext | null = dev.energyMeter
         ? {
             meterId: dev.energyMeter.id,
