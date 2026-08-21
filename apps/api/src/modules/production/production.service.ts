@@ -17,7 +17,7 @@ import {
   convertUnits, isConvertibleUnit, normaliseUnit, piecesPer, smallestLadderUnit,
   toPieces, sumInPieces, UNIT_LADDER, type SkuPackaging,
 } from '../../common/units.util';
-import { resolveLocalRange } from '../../common/plant-time.util';
+import { resolveLocalRange, plantBound } from '../../common/plant-time.util';
 import type { WorkOrderStatus, Prisma } from '@prisma/client';
 import type {
   CreateWorkOrderDto, UpdateWorkOrderDto, CompleteWorkOrderDto,
@@ -2122,9 +2122,15 @@ export class ProductionService implements OnApplicationBootstrap {
       //
       // The upper bound never runs past now, for the same reason planned production
       // time does not accrue for hours that have not happened yet.
-      const rawTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : now;
-      to = rawTo > now ? now : rawTo;
-      if (dateFrom) from = new Date(`${dateFrom}T00:00:00.000`);
+      // Parsed by the shared helper, not by hand. This was a fourth copy of the
+      // day-edge logic and it had the bug the shared one exists to prevent: it
+      // appended "T23:59:59.999" unconditionally, so a caller asking for
+      // "2026-08-21T19:00:00" produced "2026-08-21T19:00:00T23:59:59.999" — an
+      // Invalid Date that travelled into the SQL as a null parameter and came
+      // back as a 500. Any window narrower than a whole day broke this endpoint.
+      const parsed = resolveLocalRange(dateFrom, dateTo, 1, now);
+      to = parsed.to;
+      if (dateFrom) from = parsed.from;
       else {
         from = new Date(to);
         if (tf === 'week') from.setDate(to.getDate() - 7);
@@ -2208,9 +2214,12 @@ export class ProductionService implements OnApplicationBootstrap {
     // window. Parsing these as UTC made "Today" start three hours in the future in
     // Riyadh, so the list was empty until 03:00 every morning.
     const recNow = new Date();
-    const recRawTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : recNow;
+      // Parsed by the shared helper: a bare date keeps its day edge, anything
+      // longer is the instant it names. Appending the suffix unconditionally
+      // made any sub-day window an Invalid Date and a 500.
+    const recRawTo = plantBound(dateTo, 'end') ?? recNow;
     const to = recRawTo > recNow ? recNow : recRawTo;
-    const from = dateFrom ? new Date(`${dateFrom}T00:00:00.000`) : new Date(to.getTime() - 90 * 86_400_000);
+    const from = plantBound(dateFrom, 'start') ?? new Date(to.getTime() - 90 * 86_400_000);
 
     const data = await this.kpiService.oeeRecordsFromJobOrders(factoryId, from, to, machineIds, limit);
     return { data, total: data.length, page, limit, totalPages: 1 };
@@ -3791,12 +3800,35 @@ export class ProductionService implements OnApplicationBootstrap {
           })
         : null;
 
-      // Per-machine cycle override (alternative may run slower) wins, then the
-      // routing step seconds (THE reference), machine×SKU table, legacy minutes.
+      // ── Where the cycle time comes from ──────────────────────────────────
+      // `RoutingStep.cycleTimeSec`, defined on the Manufacturing Process, is THE
+      // reference for a step and for the machine running it. Everything below it
+      // is either an explicit exception or a legacy field:
+      //
+      //   1. cycleOverrideSec  an ALTERNATIVE machine that genuinely runs at a
+      //                        different rate. A deliberate, per-machine entry.
+      //   2. step.cycleTimeSec the reference.
+      //   3. machine x SKU     an older table, kept only so an order routed
+      //   4. cycleTimeMins     before the routing carried seconds still gets a
+      //                        denominator instead of a null Performance.
+      //
+      // Performance divides by this, so a job order that reaches (3) or (4) is
+      // being graded against a number nobody has confirmed. It is logged rather
+      // than left silent — an unvalidated denominator that nobody can see is how
+      // Performance came to read 162% on this line.
       const idealCycleTimeSec: number | null = pick.cycleOverrideSec
         ?? step.cycleTimeSec
         ?? cycleTime?.cycleTimeSeconds
         ?? (step.cycleTimeMins != null ? step.cycleTimeMins * 60 : null);
+
+      if (pick.cycleOverrideSec == null && step.cycleTimeSec == null) {
+        this.logger.warn(
+          `Routing step "${step.operationName ?? step.id}" has no cycleTimeSec; Performance for this `
+          + `job order will be graded against ${idealCycleTimeSec == null
+            ? 'nothing (Performance will be unmeasurable)'
+            : `a fallback of ${idealCycleTimeSec}s`}. Set it on the Manufacturing Process.`,
+        );
+      }
 
       const jo: Record<string, unknown> = await this.prisma.jobOrder.create({
         data: {

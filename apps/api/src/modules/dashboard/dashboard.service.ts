@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { plantBound } from '../../common/plant-time.util';
 import { PrismaService } from '../../database/prisma.service';
 import { toPieces } from '../../common/units.util';
 import { KpiService } from '../production/kpi.service';
@@ -127,9 +128,9 @@ export class DashboardService {
       // Real current-shift window (start → now), resolved from shift templates.
       from = (await currentShiftStart(this.prisma, factoryId)) ?? (() => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d; })();
     } else if (range?.dateFrom) {
-      from = new Date(`${range.dateFrom}T00:00:00`);
+      from = plantBound(range.dateFrom, 'start') ?? new Date();
       if (range.dateTo) {
-        const end = new Date(`${range.dateTo}T23:59:59.999`);
+        const end = plantBound(range.dateTo, 'end') ?? new Date();
         to = end < now ? end : now;
       }
     } else {

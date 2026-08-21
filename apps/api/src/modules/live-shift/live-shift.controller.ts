@@ -109,7 +109,19 @@ export class LiveShiftController {
     // whatever minutes fall in the window regardless of which shift claimed them,
     // which at a shift boundary is two shifts added together.
     const scoped: OeeScope = { ...scope, shiftTemplateId: shift.templateId ?? undefined };
-    const bucketMin = this.live.bucketMinutesFor(win.minutes);
+    const slotTo = w === 'shift' ? shift.end : win.to;
+
+    // ── Bucket width comes from what is CHARTED, not from what is measured ──
+    // The standard basis charts the window, so the two are the same. The
+    // schedule basis charts the whole committed slot, including the part not
+    // yet reached — so 24 minutes of data on a 12-hour shift was being drawn at
+    // the 2-minute width the 24 minutes deserved, and generated 360 buckets, 348
+    // of them empty. The payload went from 124 KB to 622 KB and the chart became
+    // unreadable, for a window the reader had narrowed on purpose.
+    const chartedMin = basis === 'schedule'
+      ? Math.max(win.minutes, (slotTo.getTime() - win.from.getTime()) / 60_000)
+      : win.minutes;
+    const bucketMin = this.live.bucketMinutesFor(chartedMin);
 
     // A window that has not started yet (the first seconds of a shift) has no
     // rows and no meaningful trend. Returning the header alone is honest; running
@@ -134,7 +146,6 @@ export class LiveShiftController {
      * the standard one wearing a different name. For a tail there is no ahead,
      * so the slot stops where the tail does.
      */
-    const slotTo = w === 'shift' ? shift.end : win.to;
 
     const [totals, machines, jobOrders, machineNow, trend, states, timeline, rejectReasons] =
       await Promise.all([

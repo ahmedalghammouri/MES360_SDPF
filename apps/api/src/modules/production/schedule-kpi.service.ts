@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { SNAPSHOT_COMPAT } from './kpi.service';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '@prisma/client';
 import { toPieces } from '../../common/units.util';
@@ -317,7 +318,7 @@ export class ScheduleKpiService {
     const producedRows = machineIds.length
       ? await this.prisma.$queryRaw<Array<{ machineId: string; pieces: number }>>(Prisma.sql`
           SELECT "machineId", COALESCE(SUM("goodBase"), 0)::float8 AS pieces
-          FROM production_snapshots
+          FROM ${SNAPSHOT_COMPAT} snap
           WHERE granularity = 'MINUTE'
             AND "machineId" IN (${Prisma.join(machineIds)})
             AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
@@ -450,7 +451,7 @@ export class ScheduleKpiService {
     const rows = await this.prisma.$queryRaw<Array<{ day: Date; productionOrderId: string; cumGood: number }>>(Prisma.sql`
       WITH scoped AS (
         SELECT *, date_trunc('day', "bucketStart" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Riyadh') AS d
-        FROM production_snapshots
+        FROM ${SNAPSHOT_COMPAT} snap
         WHERE granularity = 'MINUTE'
           AND "productionOrderId" IN (${Prisma.join(ids)})
           AND "bucketStart" < ${to}
@@ -540,7 +541,7 @@ export class ScheduleKpiService {
     const rows = await this.prisma.$queryRaw<Array<{ day: Date; actual: number }>>(Prisma.sql`
       WITH scoped AS (
         SELECT *, date_trunc('day', "bucketStart" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Riyadh') AS d
-        FROM production_snapshots
+        FROM ${SNAPSHOT_COMPAT} snap
         WHERE granularity = 'MINUTE'
           AND "machineId" IN (${Prisma.join(machines.map((m) => m.id))})
           AND "bucketStart" >= ${from} AND "bucketStart" < ${to}

@@ -428,8 +428,17 @@ export class ShiftService {
    * windows (works even when no ShiftInstance has been generated). Drives the
    * shop-floor shift progress bar: window, elapsed/remaining, time progress.
    */
+  /**
+   * Which shift is running now.
+   *
+   * No factory is required. A SUPER_ADMIN has none and sees every factory, and
+   * this is the only data source behind the Shop Floor and the Operator HMI —
+   * so demanding one returned 400 on the two screens most likely to be in front
+   * of a customer. `LiveShiftService.currentShift` already resolves this way;
+   * this is the same rule, in the older service that predates it.
+   */
   async getCurrentShiftStatus(factoryId: string | null) {
-    const fid = this.requireFactory(factoryId);
+    const fid = factoryId ?? undefined;
     const templates = await this.prisma.shiftTemplate.findMany({
       where: { factoryId: fid, isActive: true },
       orderBy: { startTime: 'asc' },
@@ -490,8 +499,25 @@ export class ShiftService {
    * and a per-machine breakdown (output, scrap, downtime, live state, OEE). All
    * from real operational data, scoped to the shift's start→now window.
    */
+  /**
+   * The shift in progress, and how it has gone.
+   *
+   * ── Why this no longer demands a factory ────────────────────────────────
+   * It used to call `requireFactory`, which throws a 400 when the caller has no
+   * `factoryId`. A SUPER_ADMIN has none — they see every factory — so the Shop
+   * Floor and the Operator HMI, whose only data source is this endpoint,
+   * returned 400 for exactly the account most likely to be demonstrating them.
+   *
+   * That is the third defect this session traced to the same account shape: it
+   * is the one shape that skips a `if (factoryId)` branch, so it is the one
+   * shape nothing is tested against. `getCurrentShiftStatus` already resolves
+   * across factories when there is none, so the guard was the only obstacle.
+   */
   async getShiftAnalysis(factoryId: string | null) {
-    const fid = this.requireFactory(factoryId);
+    // Prisma drops an `undefined` filter, so this reads "this factory" for a
+    // scoped user and "every factory" for one without — which is what a
+    // SUPER_ADMIN is entitled to see.
+    const fid = factoryId ?? undefined;
     const status = await this.getCurrentShiftStatus(factoryId);
     if (!status.active) {
       return { status, totals: null, machines: [], downtime: { totalMins: 0, occurrences: 0, byReason: [] } };
@@ -530,7 +556,7 @@ export class ShiftService {
       // job orders OEE is built on — which is how the card came to read
       // "274,800 / 3,500 CARTON = 7851% of target".
       this.kpi.snapshotsEnabled()
-        ? this.kpi.snapshotAggregate(fid, from, to, undefined)
+        ? this.kpi.snapshotAggregate(factoryId, from, to, undefined)
             .then((a) => a.byEquipment.map((e) => ({
               machineId: e.machineId, oee: e.oee, availability: e.availability,
               performance: e.performance, quality: e.quality,

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/swagger';
 
 import { ProductionService } from './production.service';
+import { plantBound } from '../../common/plant-time.util';
 import { OEEService } from './oee.service';
 import { KpiService } from './kpi.service';
 import { ScheduleKpiService } from './schedule-kpi.service';
@@ -74,10 +75,13 @@ async function resolveRange(
     return { from: start, to: now };
   }
 
-  const rawTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : now;
+      // Parsed by the shared helper: a bare date keeps its day edge, anything
+      // longer is the instant it names. Appending the suffix unconditionally
+      // made any sub-day window an Invalid Date and a 500.
+  const rawTo = plantBound(dateTo, 'end') ?? now;
   const to = rawTo > now ? now : rawTo;
   const from = dateFrom
-    ? new Date(`${dateFrom}T00:00:00.000`)
+    ? (plantBound(dateFrom, 'start') as Date)
     : new Date(to.getTime() - defaultDays * 86_400_000);
   return { from, to };
 }

@@ -64,11 +64,48 @@ describe('availability has one implementation', () => {
     expect(status).toContain('dailyFactTotals(');
   });
 
-  it('keeps the granularity filter on every canonical aggregate', () => {
-    // Without it a rollup row would be summed on top of the minutes it rolls up.
-    const aggregates = kpi.split('async ').filter((b) => b.startsWith('machineFactTotals') || b.startsWith('dailyFactTotals'));
+  /**
+   * The invariant is that a rollup row is never summed on top of the minutes it
+   * rolls up. How that is enforced changed with the store.
+   *
+   * `production_snapshots` held every granularity in one table — MINUTE, HOUR,
+   * SHIFT, DAY, JO — so each aggregate had to carry `granularity = 'MINUTE'` or
+   * it would double-count. `oee_minutes` has no granularity column at all: one
+   * row IS one minute, and there is nothing coarser in the table to mix in. The
+   * predicate became meaningless the moment the source changed, so asserting it
+   * would have been asserting a spelling rather than the property.
+   *
+   * What is checked instead is the property itself: the canonical aggregates
+   * read the minute store, and nothing in the table can be coarser than a minute.
+   */
+  it('cannot sum a rollup row on top of the minutes it rolls up', () => {
+    const aggregates = kpi.split('async ').filter(
+      (b) => b.startsWith('machineFactTotals') || b.startsWith('dailyFactTotals'),
+    );
     expect(aggregates).toHaveLength(2);
-    for (const a of aggregates) expect(a).toContain("granularity = 'MINUTE'");
+
+    for (const a of aggregates) {
+      // Either the old guard, or a source that has no granularity to guard.
+      const guarded = a.includes("granularity = 'MINUTE'");
+      const minuteStore = a.includes('oee_minutes') || a.includes('SNAPSHOT_COMPAT');
+      expect(guarded || minuteStore).toBe(true);
+    }
+  });
+
+  /**
+   * And the projection those aggregates read must itself be one row per minute.
+   * If it ever grew a coarser row, every caller would double-count silently.
+   */
+  it('reads a projection of the minute store, one row per minute', () => {
+    expect(kpi).toContain('SNAPSHOT_COMPAT');
+    // Just the fragment, not the rest of the file: the doc comment above it
+    // names the retired table, and matching that would be matching prose.
+    const after = kpi.split('SNAPSHOT_COMPAT = Prisma.sql')[1] ?? '';
+    const compat = after.slice(0, after.indexOf('`;'));
+    expect(compat).toContain('FROM oee_minutes');
+    // It must not read anything that could carry a rolled-up row.
+    expect(compat).not.toContain('production_snapshots');
+    expect(compat).toContain("'MINUTE' AS granularity");
   });
 
   it('does not let Machine Status derive availability from state records', () => {

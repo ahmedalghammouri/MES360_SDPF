@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { plantBound } from '../../common/plant-time.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma, MachineState } from '@prisma/client';
@@ -110,6 +111,70 @@ export interface DailyFactTotals {
   downMin: number;
   totalBase: number; goodBase: number;
 }
+
+/**
+ * `oee_minutes`, wearing the column names the old fact store used.
+ *
+ * ── Why a projection and not eighteen rewritten queries ─────────────────────
+ * Seven queries in this service, plus Machine Status and OEE Analytics, read
+ * `production_snapshots` through a shared WHERE builder and a shared column
+ * list. Rewriting each one is eighteen chances to get a rename wrong, and the
+ * point of the consolidation is to REDUCE the number of places that decide what
+ * a minute means — not to touch all of them at once.
+ *
+ * So the store changes and the vocabulary does not. Every caller keeps its
+ * query, its aliases and its tests; only the rows underneath are now the ones
+ * the OEE Analysis pages read.
+ *
+ * ── The one mapping that is a change, not a rename ──────────────────────────
+ *   plannedMin  ->  totalMin - plannedStop - external - unmeasured
+ *
+ * `plannedMin` was the Availability denominator, written from whichever source
+ * had most recently touched the plan. Its replacement is the time that actually
+ * elapsed less the stops nobody is charged for — the published definition, and
+ * the one the OEE Analysis pages have been showing all along. Availability, and
+ * therefore OEE, moves on the pages fed by this. That is the intent of the
+ * migration and is reported endpoint by endpoint, not discovered later.
+ *
+ * Everything else is the same quantity under its old name:
+ *   runMin -> operatingMin        downMin -> availabilityLossMin
+ *   plannedDownMin -> plannedStopMin   externalMin -> externalLossMin
+ *   goodBase/scrapBase -> goodParts/rejectedParts (already in PIECES)
+ *   idealRunMin -> parts / designSpeed, which is what the old column held
+ *   microStopMin -> 0, because no threshold defines one yet
+ */
+export const SNAPSHOT_COMPAT = Prisma.sql`(
+  SELECT
+    o.id, o."bucketStart", o."factoryId", o."machineId",
+    o."jobOrderId", o."workOrderId", o."shiftTemplateId", o."shiftCode",
+    o."machineState", o."isFinalized",
+    j."sequenceOrder", j."operationName",
+    w."productionOrderId", w."skuId",
+    m."areaId", m."lineId",
+    'MINUTE' AS granularity,
+    GREATEST(0, o."totalMin" - o."plannedStopMin" - o."externalLossMin"
+                - o."unmeasuredMin")::float8      AS "plannedMin",
+    o."operatingMin"::float8                      AS "runMin",
+    o."availabilityLossMin"::float8               AS "downMin",
+    o."plannedStopMin"::float8                    AS "plannedDownMin",
+    o."externalLossMin"::float8                   AS "externalMin",
+    o."unmeasuredMin"::float8                     AS "unmeasuredMin",
+    0::float8                                     AS "microStopMin",
+    CASE WHEN COALESCE(o."designSpeedPph", 0) > 0
+         THEN ((o."goodParts" + o."rejectedParts") / o."designSpeedPph") * 60
+         ELSE 0 END::float8                       AS "idealRunMin",
+    o."goodParts"::float8                         AS "goodBase",
+    o."rejectedParts"::float8                     AS "scrapBase",
+    -- Rework is not recorded per minute by either engine. Zero rather than
+    -- absent, so a caller that sums it still gets a number.
+    0::float8                                     AS "reworkBase",
+    (o."goodParts" + o."rejectedParts")::float8   AS "totalBase",
+    o."totalMin"::float8                          AS "totalMin"
+  FROM oee_minutes o
+  JOIN job_orders j ON j.id = o."jobOrderId"
+  LEFT JOIN work_orders w ON w.id = o."workOrderId"
+  LEFT JOIN machines m ON m.id = o."machineId"
+)`;
 
 export interface MachineFactTotals {
   plannedMin: number; runMin: number; downMin: number; plannedDownMin: number;
@@ -675,43 +740,65 @@ export class KpiService {
   ): Promise<Map<string, MachineFactTotals>> {
     if (machineIds.length === 0) return new Map();
     const rows = await this.prisma.$queryRaw<Array<MachineFactTotals & { machineId: string }>>(Prisma.sql`
+      -- ── Reads the unified store ────────────────────────────────────────────
+      -- This used to read "production_snapshots". The plant now keeps ONE store
+      -- of measured minutes, so the shape below is a projection of "oee_minutes"
+      -- onto the field names this aggregate has always returned — every caller
+      -- is unchanged, and there is one fewer place that decides what a minute
+      -- means.
+      --
+      -- One mapping is a real change and not a rename: the Availability
+      -- denominator. "plannedMin" came from whatever had most recently written
+      -- the plan, from several sources; "operationalMin" is the time that
+      -- actually elapsed less the stops nobody is charged for. It is the
+      -- published definition, it is what the OEE Analysis pages already show,
+      -- and it is the one figure this migration deliberately moves.
       WITH scoped AS (
-        SELECT * FROM production_snapshots
-        WHERE granularity = 'MINUTE'
-          AND "machineId" IN (${Prisma.join(machineIds)})
-          AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
+        SELECT o.*, j."sequenceOrder"
+        FROM oee_minutes o
+        JOIN job_orders j ON j.id = o."jobOrderId"
+        WHERE o."machineId" IN (${Prisma.join(machineIds)})
+          AND o."bucketStart" >= ${from} AND o."bucketStart" < ${to}
       ),
       -- TIME belongs to every machine: a minute the filler spent broken is a
       -- real minute regardless of where it sat in the routing.
       t AS (
-        SELECT "machineId",
-               SUM("plannedMin")::float     AS "plannedMin",
-               SUM("runMin")::float         AS "runMin",
-               SUM("downMin")::float        AS "downMin",
-               SUM("plannedDownMin")::float AS "plannedDownMin",
-               SUM("externalMin")::float    AS "externalMin",
-               SUM("unmeasuredMin")::float  AS "unmeasuredMin",
-               SUM("microStopMin")::float   AS "microStopMin",
-               SUM("idealRunMin")::float    AS "idealRunMin"
-        FROM scoped GROUP BY "machineId"
+        SELECT s."machineId",
+               SUM(GREATEST(0, s."totalMin" - s."plannedStopMin"
+                   - s."externalLossMin" - s."unmeasuredMin"))::float8 AS "plannedMin",
+               SUM(s."operatingMin")::float8          AS "runMin",
+               SUM(s."availabilityLossMin")::float8   AS "downMin",
+               SUM(s."plannedStopMin")::float8        AS "plannedDownMin",
+               SUM(s."externalLossMin")::float8       AS "externalMin",
+               SUM(s."unmeasuredMin")::float8         AS "unmeasuredMin",
+               -- Microstops are not separated yet; the threshold that would
+               -- define one is a factory setting that does not exist. Reported
+               -- as zero rather than guessed, exactly as the old store did.
+               0::float8                              AS "microStopMin",
+               -- Earned minutes. The old store kept this as a column
+               -- (idealCycleSec/60 x totalBase); here it is the same quantity
+               -- from the same inputs — the parts made, at the design speed that
+               -- made them. Algebraically identical, so Performance is unmoved.
+               SUM(CASE WHEN COALESCE(s."designSpeedPph", 0) > 0
+                        THEN ((s."goodParts" + s."rejectedParts") / s."designSpeedPph") * 60
+                        ELSE 0 END)::float8           AS "idealRunMin"
+        FROM scoped s GROUP BY s."machineId"
       ),
-      -- QUANTITIES must come from the FINAL routing step per work order on that
-      -- machine, exactly as the OEE engine does it. Summing every step counts one
-      -- physical unit once per stage — five times on this line — which inflates
-      -- output and dilutes the scrap rate until quality reads better than it is.
-      -- Measured here: 99.9% summed across steps against 98.9% done properly.
+      -- QUANTITIES come from the FINAL routing step per work order on that
+      -- machine, exactly as before: a unit that passes five stations is one
+      -- unit, not five.
       fin AS (
-        SELECT "machineId", "workOrderId", MAX("sequenceOrder") ms
-        FROM scoped GROUP BY "machineId", "workOrderId"
+        SELECT s2."machineId", s2."workOrderId", MAX(s2."sequenceOrder") ms
+        FROM scoped s2 GROUP BY s2."machineId", s2."workOrderId"
       ),
       q AS (
         SELECT s."machineId",
-               SUM(s."totalBase")::float AS "totalBase",
-               SUM(s."goodBase")::float  AS "goodBase",
-               SUM(s."scrapBase")::float AS "scrapBase"
+               SUM(s."goodParts" + s."rejectedParts")::float8 AS "totalBase",
+               SUM(s."goodParts")::float8                     AS "goodBase",
+               SUM(s."rejectedParts")::float8                 AS "scrapBase"
         FROM scoped s
         JOIN fin f ON f."machineId" = s."machineId"
-                  AND f."workOrderId" = s."workOrderId"
+                  AND f."workOrderId" IS NOT DISTINCT FROM s."workOrderId"
                   AND f.ms = s."sequenceOrder"
         GROUP BY s."machineId"
       )
@@ -766,7 +853,7 @@ export class KpiService {
              COALESCE(SUM("totalBase"), 0)::float8      AS "totalBase",
              COALESCE(SUM("goodBase"), 0)::float8       AS "goodBase",
              COALESCE(SUM("scrapBase"), 0)::float8      AS "scrapBase"
-      FROM production_snapshots
+      FROM ${SNAPSHOT_COMPAT} snap
       WHERE granularity = 'MINUTE'
         AND "jobOrderId" IN (${Prisma.join(jobOrderIds)})
         ${window}
@@ -845,7 +932,7 @@ export class KpiService {
     return this.prisma.$queryRaw<Array<DailyFactTotals>>(Prisma.sql`
       WITH scoped AS (
         SELECT *, date_trunc('day', "bucketStart" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Riyadh') AS d
-        FROM production_snapshots
+        FROM ${SNAPSHOT_COMPAT} snap
         WHERE granularity = 'MINUTE'
           AND "machineId" IN (${Prisma.join(machineIds)})
           AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
@@ -916,7 +1003,7 @@ export class KpiService {
     if (machineIds && machineIds.length === 0) return this.snapMetrics(0, 0, 0, 0, 0, 0);
     const where = this.snapWhere(factoryId, from, to, machineIds);
     const [t] = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      WITH scoped AS (SELECT * FROM production_snapshots WHERE ${where}),
+      WITH scoped AS (SELECT * FROM ${SNAPSHOT_COMPAT} snap WHERE ${where}),
            fin AS (SELECT "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY "workOrderId")
       SELECT ${this.snapMetricCols('f')} FROM scoped s JOIN fin f ON f."workOrderId" = s."workOrderId"`);
     return this.snapMetrics(t?.good ?? 0, t?.scrap ?? 0, t?.ppt ?? 0, t?.run ?? 0, t?.down ?? 0, t?.earned ?? 0, t?.external ?? 0);
@@ -957,7 +1044,7 @@ export class KpiService {
 
     // Per-machine — each machine is its own scope (final step per WO ON THAT MACHINE).
     const perM = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      WITH scoped AS (SELECT * FROM production_snapshots WHERE ${where}),
+      WITH scoped AS (SELECT * FROM ${SNAPSHOT_COMPAT} snap WHERE ${where}),
            fin AS (SELECT "machineId", "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY "machineId", "workOrderId")
       SELECT s."machineId" AS id, m.name, m.code, ${this.snapMetricCols('f')}
       FROM scoped s
@@ -984,7 +1071,7 @@ export class KpiService {
       ? Prisma.sql`to_char("bucketStart", 'HH24') || ':00'`
       : Prisma.sql`(EXTRACT(MONTH FROM "bucketStart")::int || '/' || EXTRACT(DAY FROM "bucketStart")::int)`;
     const tr = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      WITH scoped AS (SELECT *, ${labelF} AS period FROM production_snapshots WHERE ${where}),
+      WITH scoped AS (SELECT *, ${labelF} AS period FROM ${SNAPSHOT_COMPAT} snap WHERE ${where}),
            fin AS (SELECT period, "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY period, "workOrderId")
       SELECT s.period, MIN(s."bucketStart") AS sort, ${this.snapMetricCols('f')}
       FROM scoped s JOIN fin f ON f.period = s.period AND f."workOrderId" = s."workOrderId"
@@ -1023,7 +1110,7 @@ export class KpiService {
   async snapshotMachineTrend(factoryId: string | null, machineId: string, from: Date, to: Date) {
     const where = this.snapWhere(factoryId, from, to, [machineId]);
     const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      WITH scoped AS (SELECT *, date_trunc('day', "bucketStart") AS d FROM production_snapshots WHERE ${where}),
+      WITH scoped AS (SELECT *, date_trunc('day', "bucketStart") AS d FROM ${SNAPSHOT_COMPAT} snap WHERE ${where}),
            fin AS (SELECT d, "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY d, "workOrderId")
       SELECT s.d AS date, ${this.snapMetricCols('f')}
       FROM scoped s JOIN fin f ON f.d = s.d AND f."workOrderId" = s."workOrderId"
@@ -1456,7 +1543,7 @@ export class KpiService {
     const col = Prisma.raw(colSql[groupBy] ?? '"machineId"');
     const where = this.snapWhere(factoryId, from, to, machineIds);
     const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      WITH scoped AS (SELECT * FROM production_snapshots WHERE ${where}),
+      WITH scoped AS (SELECT * FROM ${SNAPSHOT_COMPAT} snap WHERE ${where}),
            fin AS (SELECT ${col} AS gk, "workOrderId" AS wo, MAX("sequenceOrder") ms FROM scoped GROUP BY ${col}, "workOrderId")
       SELECT ${col} AS key, ${this.snapMetricCols('f')}
       FROM scoped s JOIN fin f ON f.gk = ${col} AND f.wo = s."workOrderId"
@@ -1707,9 +1794,12 @@ export class KpiService {
     // this tree and the cards above it in Riyadh, and an end-of-day bound charged
     // planned time for hours that had not happened.
     const now = new Date();
-    const rawTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : now;
+      // Parsed by the shared helper: a bare date keeps its day edge, anything
+      // longer is the instant it names. Appending the suffix unconditionally
+      // made any sub-day window an Invalid Date and a 500.
+    const rawTo = plantBound(dateTo, 'end') ?? now;
     const to = rawTo > now ? now : rawTo;
-    const from = dateFrom ? new Date(`${dateFrom}T00:00:00.000`) : new Date(to.getTime() - 7 * 86_400_000);
+    const from = plantBound(dateFrom, 'start') ?? new Date(to.getTime() - 7 * 86_400_000);
     const factoryFilter = factoryId ? { factoryId } : {};
 
     // Resolve the scope (area/line/machine) to the set of machines it covers.
