@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AttainmentSnapshotService } from './attainment-snapshot.service';
 import { ApsModule } from '../aps/aps.module';
 import { ProductionController } from './production.controller';
 import { ProductionService } from './production.service';
@@ -24,7 +25,9 @@ import { HistorianModule } from '../historian/historian.module';
 @Module({
   imports: [ApsModule, HistorianModule],
   controllers: [LiveController, MachineStatusController, ProductionController, DowntimeController, RecipeController, TraceabilityController, MaterialRequestController],
-  providers: [LiveKpiService, MachineStatusService, OeeAnalyticsService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService, WorkOrderSchedulerService, MaterialRequestService],
-  exports: [LiveKpiService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService],
+  providers: [
+    AttainmentSnapshotService,LiveKpiService, MachineStatusService, OeeAnalyticsService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService, WorkOrderSchedulerService, MaterialRequestService],
+  exports: [
+    AttainmentSnapshotService,LiveKpiService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService],
 })
 export class ProductionModule {}

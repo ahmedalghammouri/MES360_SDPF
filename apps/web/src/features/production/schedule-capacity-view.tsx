@@ -67,8 +67,14 @@ interface Msa {
     attainmentPct: number; status: string;
   }>;
   method: { formula: string; note: string };
-  /** Attainment as it stood at the end of each day — derived, not stored. */
-  trend?: Array<{ date: string; msaPct: number; credited: number; scheduled: number }>;
+  /**
+   * Attainment as it stood at the end of each day, read from frozen rows.
+   *
+   * `day` is the PLANT's calendar day; `date` is the instant that day begins.
+   * The label comes from `day` so the point cannot slide to the day before when
+   * the browser sits in a different zone from the factory.
+   */
+  trend?: Array<{ date: string; day?: string; msaPct: number; credited: number; scheduled: number }>;
 }
 
 interface Capacity {
@@ -297,7 +303,7 @@ export function ScheduleCapacityView() {
         {(ms?.trend?.length ?? 0) > 1 && (
           <Panel title={t('schedCap.attainmentTrend')} subtitle={t('schedCap.attainmentTrendHelp')}>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={(ms!.trend ?? []).map((d) => ({ ...d, label: fmtDay(d.date) }))}>
+              <LineChart data={(ms!.trend ?? []).map((d) => ({ ...d, label: fmtDay(d.day ?? d.date) }))}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                 <XAxis dataKey="label" {...AXIS} />
                 <YAxis domain={[0, 100]} unit="%" {...AXIS} />

@@ -60,6 +60,7 @@ export class HierarchyService {
       machineType: m.machineType, state: m.currentStatus?.state ?? 'OFFLINE', oee: m.currentStatus?.oee,
       // Editable attributes — surfaced so the Edit dialog can pre-fill (parity with Add)
       criticality: m.criticality, manufacturer: m.manufacturer, designCapacity: m.designCapacity,
+      downtimeThreshold: m.downtimeThreshold,
       areaId: m.areaId, lineId: m.lineId,
     });
 
@@ -209,6 +210,20 @@ export class HierarchyService {
             manufacturer: data.manufacturer || undefined,
             areaId: data.areaId || undefined,
             lineId: data.lineId || undefined,
+            // Both of these were settable at CREATE and dropped on every edit,
+            // so a machine created with the wrong figure kept it forever and the
+            // only route to a correction was SQL. `designCapacity` is the
+            // denominator of Performance and `downtimeThreshold` is the microstop
+            // boundary — two of the more consequential numbers in the system.
+            //
+            // `undefined` means "left off the form"; a value of 0 is a real
+            // choice, so the check is on presence, not truthiness.
+            ...(data.designCapacity !== undefined && data.designCapacity !== ''
+              ? { designCapacity: parseFloat(data.designCapacity) }
+              : {}),
+            ...(data.downtimeThreshold !== undefined && data.downtimeThreshold !== ''
+              ? { downtimeThreshold: parseInt(data.downtimeThreshold, 10) }
+              : {}),
           },
         });
       case 'FACTORY':

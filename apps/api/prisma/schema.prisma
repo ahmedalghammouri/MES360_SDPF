@@ -137,6 +137,7 @@ model Factory {
   storageTransfers       StorageTransfer[]
 
   machineStateRules      MachineStateRule[]
+  scheduleAttainment     ScheduleAttainmentDaily[]
 
   plannedStopTemplates PlannedStopTemplate[]
   scheduleRules        ScheduleRule[]
@@ -766,6 +767,7 @@ model ProductionOrder {
 
   @@index([factoryId, status])
   @@map("production_orders")
+  scheduleAttainment ScheduleAttainmentDaily[]
 }
 
 // ── RESCHEDULE GOVERNANCE ───────────────────────────────────────────────────
@@ -4116,6 +4118,59 @@ enum WorkOrderStopTrigger {
 // ============================================================
 
 /// One machine-minute, classified against the Insights Hub time model.
+/// Master Schedule Attainment, frozen per production order per day.
+///
+/// ── Why this is stored and capacity utilisation is not ──────────────────────
+/// Capacity utilisation is derived from `oee_minutes`, which is immutable once
+/// a minute closes — recomputing it tomorrow gives the same answer it gave
+/// today, so storing it would be storing a second copy of a settled fact.
+///
+/// Attainment is not like that. It divides what was PRODUCED by what was
+/// PLANNED, and the plan is editable: change a production order's `targetQty`
+/// or move its `plannedStart`, and every past day's attainment silently
+/// rewrites itself. A KPI whose history changes when somebody edits a plan is
+/// precisely the "two screens, two numbers" problem this whole consolidation
+/// exists to end — except here the two screens are the same screen, yesterday
+/// and today.
+///
+/// So each day's numerator and denominator are frozen as they stood. The grain
+/// is one row per ORDER per day, because that is the level the credit rule
+/// applies at — an order is credited at most its own scheduled quantity, so a
+/// roll-up of pre-credited rows is a plain sum, and a roll-up of raw quantities
+/// would let one order's overproduction mask another's shortfall.
+model ScheduleAttainmentDaily {
+  id  String   @id @default(uuid())
+  /// Plant-local midnight of the day being reported.
+  day DateTime
+
+  factoryId         String
+  productionOrderId String
+  /// Carried so a line or product roll-up is a filter rather than a join.
+  lineId String?
+  skuId  String?
+
+  /// All three in the SKU's base unit, so orders in different packaging add up.
+  scheduledQty Float @default(0)
+  actualQty    Float @default(0)
+  /// min(actualQty, scheduledQty) — the credit rule, applied before storage so
+  /// no reader can forget it.
+  creditedQty  Float @default(0)
+
+  /// False while the day is still running and the row may be re-upserted.
+  isFinalized Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  factory         Factory         @relation(fields: [factoryId], references: [id])
+  productionOrder ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([productionOrderId, day])
+  @@index([factoryId, day])
+  @@index([lineId, day])
+  @@map("schedule_attainment_daily")
+}
+
 model OeeMinute {
   id String @id @default(uuid())
 

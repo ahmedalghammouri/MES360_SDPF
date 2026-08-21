@@ -7,6 +7,7 @@ import {
 } from '@nestjs/swagger';
 
 import { ProductionService } from './production.service';
+import { AttainmentSnapshotService } from './attainment-snapshot.service';
 import { plantBound } from '../../common/plant-time.util';
 import { OEEService } from './oee.service';
 import { KpiService } from './kpi.service';
@@ -95,6 +96,7 @@ export class ProductionController {
     private readonly oeeService: OEEService,
     private readonly kpiService: KpiService,
     private readonly scheduleKpi: ScheduleKpiService,
+    private readonly attainment: AttainmentSnapshotService,
     // Needed to resolve the CURRENT shift from its template, the same way
     // getOEESummary does — otherwise these endpoints answer for a different period.
     private readonly prisma: PrismaService,
@@ -218,6 +220,30 @@ export class ProductionController {
     return this.kpiService.lineOeeAnalytics(user.factoryId, lineId, from, to);
   }
 
+  /**
+   * Freeze one day of attainment on demand.
+   *
+   * The cron runs hourly, which is right for a plant and useless for a check
+   * that has to happen now — the same reason the OEE writer exposes a capture.
+   * Also the backfill route: a plant that installs this today has no history
+   * until somebody walks it backwards.
+   */
+  @Post('kpi/attainment/capture')
+  @RequirePermissions('production:write')
+  @ApiOperation({ summary: 'Freeze Master Schedule Attainment for a day (defaults to today)' })
+  @ApiQuery({ name: 'day', required: false, description: 'YYYY-MM-DD, plant-local. Defaults to today.' })
+  @ApiQuery({ name: 'days', required: false, description: 'Also walk back this many days from it.' })
+  async captureAttainment(@Query('day') day?: string, @Query('days') days?: string) {
+    const at = plantBound(day, 'start') ?? new Date();
+    const back = Math.min(Math.max(Number(days) || 0, 0), 400);
+    const out: Array<{ day: string; orders: number }> = [];
+    for (let i = 0; i <= back; i++) {
+      const d = new Date(at.getTime() - i * 24 * 3_600_000);
+      out.push({ day: d.toISOString().slice(0, 10), orders: await this.attainment.captureDay(d) });
+    }
+    return { captured: out.length, days: out };
+  }
+
   @Get('kpi/master-schedule-attainment')
   @ApiOperation({
     summary: 'Master Schedule Attainment (MSA)',
@@ -243,8 +269,23 @@ export class ProductionController {
     // stored, so it costs a query rather than a nightly job — and it can never
     // drift from the figure it sits under.
     const [headline, trend] = await Promise.all([
-      this.scheduleKpi.masterScheduleAttainment(user.factoryId, from, to, { lineId, skuId }),
-      this.scheduleKpi.attainmentTrend(user.factoryId, from, to, { lineId, skuId }).catch(() => []),
+      // The snapshot is the source when it has rows: it converts units before
+      // summing and takes each order's output from its final routing step, both
+      // of which the live derivation does not. Without this the headline and the
+      // trend directly beneath it read 100% and 5% on the same page.
+      this.attainment.headline(user.factoryId, from, to, { lineId, skuId })
+        .then((snap) => snap ?? this.scheduleKpi.masterScheduleAttainment(user.factoryId, from, to, { lineId, skuId })),
+      // Frozen rows first. A day's attainment divides by a PLAN, and a plan is
+      // editable — so a series re-derived on every request redraws its own
+      // history the moment somebody corrects a target quantity. Days that were
+      // captured come from the snapshot; anything older than the snapshot
+      // itself falls back to live derivation, and the response says which.
+      this.attainment.trend(user.factoryId, from, to, { lineId, skuId })
+        .then(async (stored) => {
+          if (stored.length > 0) return stored;
+          return this.scheduleKpi.attainmentTrend(user.factoryId, from, to, { lineId, skuId });
+        })
+        .catch(() => []),
     ]);
     return { ...headline, trend };
   }

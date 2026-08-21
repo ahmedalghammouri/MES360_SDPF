@@ -1183,6 +1183,8 @@
       "searchLines": "Search lines…",
       "manufacturer": "Manufacturer",
       "designCapacity": "Design Capacity (units/hr)",
+      "microStop": "Microstop Threshold (seconds)",
+      "microStopHelp": "A stop shorter than this counts as a microstop rather than a breakdown. Reported alongside the availability loss, never subtracted from it.",
       "removeTitle": "Remove Node",
       "removeConfirmPre": "Are you sure you want to remove",
       "removeConfirmPost": "from the hierarchy? This will deactivate the node and hide it from all views.",

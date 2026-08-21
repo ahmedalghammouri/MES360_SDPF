@@ -326,6 +326,10 @@ from(bucket: "${bucket}")
     let mi = 0;
     for (const [machineId, jo] of byMachine) {
       const seed = hash(machineId);
+      // SYNTHETIC. This whole method fabricates a historian series from a PRNG
+      // to populate a demo; the 30 is a seed for made-up numbers, not a default
+      // cycle time. The real reference is `RoutingStep.cycleTimeSec` and the
+      // measuring paths carry null rather than invent one — see line 126.
       const ict = jo.idealCycleTimeSec ?? 30;
       let cumGood = 0; let cumRej = 0;
       const stepMs = stepMin * MIN;

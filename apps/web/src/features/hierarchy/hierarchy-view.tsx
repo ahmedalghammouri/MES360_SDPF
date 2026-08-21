@@ -40,6 +40,7 @@ interface HierarchyNode {
   criticality?: string;
   manufacturer?: string | null;
   designCapacity?: number | null;
+  downtimeThreshold?: number | null;
   areaId?: string | null;
   lineId?: string | null;
   oeeMethod?: 'ROLLUP' | 'BOTTLENECK';
@@ -80,7 +81,7 @@ const EMPTY_FORM = {
   areaType: 'PACKING', lineType: 'PACKING',
   machineType: 'MACHINE', criticality: 'MEDIUM',
   areaId: '__none__', lineId: '__none__',
-  manufacturer: '', designCapacity: '',
+  manufacturer: '', designCapacity: '', downtimeThreshold: '',
   // Line OEE basis. ROLLUP = historic quantity-weighted aggregation of every
   // machine; BOTTLENECK = constraint A × constraint P × final-outfeed Q.
   oeeMethod: 'ROLLUP' as 'ROLLUP' | 'BOTTLENECK',
@@ -276,6 +277,7 @@ export function HierarchyView() {
       lineId: node.lineId ?? '__none__',
       manufacturer: node.manufacturer ?? '',
       designCapacity: node.designCapacity != null ? String(node.designCapacity) : '',
+      downtimeThreshold: node.downtimeThreshold != null ? String(node.downtimeThreshold) : '',
       oeeMethod: node.oeeMethod ?? 'ROLLUP',
       bottleneckMachineId: node.bottleneckMachineId ?? '__none__',
       outfeedMachineIds: node.outfeedMachineIds ?? [],
@@ -307,6 +309,7 @@ export function HierarchyView() {
       if (val(form.lineId)) dto.lineId = val(form.lineId);
       if (form.manufacturer) dto.manufacturer = form.manufacturer;
       if (form.designCapacity) dto.designCapacity = form.designCapacity;
+      if (form.downtimeThreshold) dto.downtimeThreshold = form.downtimeThreshold;
     }
 
     if (editNode) {
@@ -676,6 +679,25 @@ export function HierarchyView() {
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium">{t('hierarchy.hform.designCapacity')}</Label>
                     <Input type="number" value={form.designCapacity} onChange={e => setForm(f => ({ ...f, designCapacity: e.target.value }))} className="h-9" placeholder="e.g. 2700" />
+                  </div>
+                  {/*
+                    The microstop boundary. A stop shorter than this is counted as
+                    a microstop — reported as a subset of the availability loss so
+                    no OEE figure moves, but it is what separates "the line keeps
+                    hiccuping" from "the line broke down", and the two call for
+                    different work. It belongs to the machine, not to a global
+                    constant, because a filler and a palletiser do not agree on
+                    what counts as brief.
+                  */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">{t('hierarchy.hform.microStop')}</Label>
+                    <Input
+                      type="number" min={0} step={5}
+                      value={form.downtimeThreshold}
+                      onChange={e => setForm(f => ({ ...f, downtimeThreshold: e.target.value }))}
+                      className="h-9" placeholder="60"
+                    />
+                    <p className="text-[11px] text-muted-foreground">{t('hierarchy.hform.microStopHelp')}</p>
                   </div>
                 </div>
               </>
