@@ -54,7 +54,7 @@ const toScopeType = (t: TreeNode['type']): ScopeType =>
 
 // Routes where filtering by Production Order / Work Order has a real effect.
 const ORDER_ROUTES = [
-  '/oee-analysis', '/live-shift',
+  '/oee-analysis', '/live-shift', '/oee-breakdown',
   '/production/kpi', '/production/oee', '/manufacturing/kpi', '/manufacturing/oee',
   '/quality/spc', '/quality/inspections', '/quality/records', '/quality/ncr',
   '/energy', '/energy/dashboard',
@@ -420,7 +420,8 @@ export function ScopePanel({ passive = false }: { passive?: boolean }) {
 
   const showOrders = ORDER_ROUTES.includes(pathname);
   // Only the two pages whose engines actually accept these filters.
-  const showDimensions = pathname === '/oee-analysis' || pathname === '/live-shift';
+  const showDimensions = pathname === '/oee-analysis' || pathname === '/live-shift'
+    || pathname === '/oee-breakdown';
   // The basis question only exists from a LINE upwards. Gated here rather than
   // inside the section so the heading does not sit above nothing.
   const { applies: lineBasisApplies } = useLineBasis();

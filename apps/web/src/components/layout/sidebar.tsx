@@ -66,6 +66,7 @@ import {
   PauseCircle,
   ExternalLink,
   Scale,
+  Table2,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -182,6 +183,10 @@ const navItems: NavItem[] = [
       // its own because a reader comparing the shift to the week should not have
       // to cross the menu to do it.
       { label: 'Live Shift', href: '/live-shift', icon: Radio },
+      // The three breakdowns used to sit under whichever analysis was selected,
+      // so they were always present and never the subject. Given a page they can
+      // carry the charts that explain them.
+      { label: 'Breakdown', href: '/oee-breakdown', icon: Table2 },
     ],
   },
   {

@@ -28,6 +28,7 @@ const ROUTE_PERMISSIONS: Record<string, string> = {
   // must too — otherwise it shows to someone who will only get a 403.
   '/oee-analysis': 'production:read',
   '/live-shift': 'production:read',
+  '/oee-breakdown': 'production:read',
   '/manufacturing': 'manufacturing:read',
   '/scheduling': 'scheduling:read',
   '/production/scheduling': 'scheduling:read',

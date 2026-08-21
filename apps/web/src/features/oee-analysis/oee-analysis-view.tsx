@@ -379,9 +379,23 @@ export function OeeAnalysisView() {
             </section>
           )}
 
-          <SliceTable title="By machine" rows={d.machines} isSchedule={isSchedule} />
-          <SliceTable title="By job order" rows={d.jobOrders} isSchedule={isSchedule} />
-          <SliceTable title="By shift" rows={d.shifts} isSchedule={isSchedule} />
+          {/* The three breakdown tables moved to their own page. They used to
+              sit here under whichever analysis was selected, so they were both
+              always present and never the subject — and had no room for the
+              charts that explain them. Same request, same numbers. */}
+          <a
+            href="/oee-breakdown"
+            className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-4 py-3 text-sm transition-colors hover:border-primary/40 hover:bg-muted/30"
+          >
+            <span>
+              <span className="font-medium text-foreground">Breakdown by machine, job order and shift</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                {d.machines.length} machines · {d.jobOrders.length} job orders · {d.shifts.length} shifts
+                {' '}in this window, each with its own charts and a sortable table.
+              </span>
+            </span>
+            <span aria-hidden className="text-muted-foreground">→</span>
+          </a>
         </>
       )}
     </div>
@@ -398,52 +412,3 @@ function Kpi({ label, value, hint, big }: { label: string; value: string; hint?:
   );
 }
 
-function SliceTable({ title, rows, isSchedule }: { title: string; rows: Slice[]; isSchedule: boolean }) {
-  if (rows.length === 0) return null;
-  return (
-    <section className="rounded-lg border border-border/60 bg-card">
-      <h2 className="border-b border-border/60 px-4 py-3 text-sm font-semibold">{title}</h2>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[780px] text-sm">
-          <thead>
-            <tr className="border-b border-border/60 text-xs text-muted-foreground">
-              <th className="px-4 py-2 text-start font-medium">Name</th>
-              <th className="px-3 py-2 text-end font-medium">OEE</th>
-              <th className="px-3 py-2 text-end font-medium">A</th>
-              <th className="px-3 py-2 text-end font-medium">P</th>
-              <th className="px-3 py-2 text-end font-medium">Q</th>
-              {isSchedule && <th className="px-3 py-2 text-end font-medium">Slot</th>}
-              <th className="px-3 py-2 text-end font-medium">{isSchedule ? 'Committed' : 'Operational'}</th>
-              <th className="px-3 py-2 text-end font-medium">Net production</th>
-              <th className="px-3 py-2 text-end font-medium">Good / total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key} className="border-b border-border/40 last:border-0">
-                <td className="px-4 py-2">
-                  <div className="font-medium">{r.label}</div>
-                  {r.sublabel && <div className="text-xs text-muted-foreground">{r.sublabel}</div>}
-                </td>
-                <td className="px-3 py-2 text-end font-mono font-semibold tabular-nums">{pct(r.oee)}</td>
-                <td className="px-3 py-2 text-end font-mono tabular-nums">{pct(r.availability)}</td>
-                <td className="px-3 py-2 text-end font-mono tabular-nums">{pct(r.performance)}</td>
-                <td className="px-3 py-2 text-end font-mono tabular-nums">{pct(r.quality)}</td>
-                {isSchedule && (
-                  <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">{pct(r.slotElapsedPct)}</td>
-                )}
-                <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">
-                  {mins(isSchedule ? r.time.committedMin : r.time.operationalMin)}
-                </td>
-                <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">{mins(r.time.netProductionMin)}</td>
-                <td className="px-3 py-2 text-end font-mono tabular-nums text-muted-foreground">
-                  {Math.round(r.counts.good)} / {Math.round(r.counts.total)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
