@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { PrismaService } from '../../database/prisma.service';
 import { toPieces, type SkuPackaging } from '../../common/units.util';
@@ -39,7 +38,44 @@ export class ProductionSnapshotService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  /**
+   * RETIRED — the writer no longer runs.
+   *
+   * ── Why it stopped ──────────────────────────────────────────────────────────
+   * This store was the plant's fact store, and `oee_minutes` was built beside it
+   * rather than on top of it so the two could be compared before either was
+   * trusted. They ran in parallel, and over every minute both of them covered:
+   *
+   *   planned-stop minutes    identical, to the digit
+   *   unmeasured minutes      identical, to the digit
+   *   good and scrap totals   identical per machine across the window
+   *   run vs down             conserved — where they differ, minutes move
+   *                           BETWEEN the two, never in or out
+   *
+   * The run/down disagreements are the two writers' minute classifiers, and the
+   * one that survives is `classifyMinute`, shared by both engines and covered by
+   * its own tests. The per-minute attribution also shifts slightly because two
+   * independent samplers book a counter delta to whichever minute they woke in —
+   * which is the argument against keeping two of them.
+   *
+   * By the time it stopped, nothing read it. The last functional reader was the
+   * energy denominator, and that one queried `granularity: 'HOUR'` against a
+   * writer that has only ever emitted MINUTE, so it matched zero rows on every
+   * request since it was written. `SNAPSHOT_COMPAT` in kpi.service kept the old
+   * column names alive as a projection of `oee_minutes`, so every KPI caller had
+   * already moved without changing a line.
+   *
+   * ── What is kept, and why ───────────────────────────────────────────────────
+   * The table, its rows, and `captureMinute` below. The data is a recorded
+   * measurement of real production and deleting it destroys the only independent
+   * check on the store that replaced it. The method stays callable so the
+   * comparison can be re-run against a fresh window if anybody wants to see it
+   * again — but nothing schedules it.
+   *
+   * To restart the parallel run, put `@Cron(CronExpression.EVERY_MINUTE)` back on
+   * this method and re-import it from `@nestjs/schedule`. That is the whole
+   * revert — nothing else was removed.
+   */
   async tick() {
     try {
       await this.captureMinute(new Date());

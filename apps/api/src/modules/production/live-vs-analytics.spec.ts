@@ -178,10 +178,40 @@ describe('live and analytics are separate by construction', () => {
       // A subject with only one reading is the arrangement that started this: a
       // reader had to know in advance which menu entry held the figure they
       // wanted, and could not compare the two.
+      //
+      // Two shapes satisfy the rule. A subject with ONE analytical view passes a
+      // node; a subject that absorbed another's views passes an ARRAY of them,
+      // which the tab component renders as sub-tabs. And a page that delegates
+      // wholly to another subject's page — the old Availability route, kept so
+      // its URL still resolves — inherits both halves from the page it renders.
       const src = read(file);
+      const delegates = /return <([A-Z][A-Za-z]*Page) \/>;/.exec(src);
+      if (delegates) {
+        // It must delegate to a page that itself satisfies the rule, or "one
+        // subject, both readings" is only true one level down and nowhere else.
+        expect(src).toMatch(/import \{ [A-Z][A-Za-z]*Page \}/);
+        return;
+      }
       expect(src).toContain('LiveAnalyticsTabs');
       expect(src).toMatch(/live=\{</);
-      expect(src).toMatch(/analytics=\{</);
+      expect(src).toMatch(/analytics=\{(<|\[)/);
+    });
+
+    /**
+     * A merged subject keeps every view it absorbed.
+     *
+     * The merge was tabs and not deletion precisely so no chart anybody relied
+     * on disappears. This fails if a sub-tab is quietly dropped later, which
+     * would turn the merge into the deletion it was chosen over.
+     */
+    it.each([
+      ['features/production/oee-page.tsx', ['ProductionOEEView', 'ManufacturingOeeView']],
+      ['features/manufacturing/machine-status-page.tsx', ['MachineStatusView', 'AvailabilityAnalyticsView']],
+      ['features/production/kpi-page.tsx', ['ProductionKpiView', 'ManufacturingKpiView']],
+      ['features/production/reports-page.tsx', ['ProductionReportsView', 'ManufacturingReportsView', 'ProductionReportView']],
+    ])('%s still renders every view it absorbed', (file, views) => {
+      const src = read(file);
+      for (const v of views) expect(src).toContain(v);
     });
 
     it('routes those pages at the subject URL, not a second one', () => {

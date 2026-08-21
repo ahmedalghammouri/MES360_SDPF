@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { plantDayKey, plantHourKey, plantWeekKey } from '../../common/plant-time.util';
 import { smallestLadderUnit } from '../../common/units.util';
@@ -465,9 +466,25 @@ export class EnergyAnalyticsService {
   // ── denominators ───────────────────────────────────────────────────────
 
   /**
-   * Units produced per group key. Prefers ProductionSnapshot (dimension-complete,
-   * base-unit normalised); falls back to WorkOrder.goodQty, which can only answer
-   * WO/PO/SKU groupings. Reports which source each key used.
+   * Units produced per group key — the denominator of kWh per unit.
+   *
+   * ── The read this replaced, and why it never fired ──────────────────────────
+   * This queried `production_snapshots` with `granularity: 'HOUR'`. Nothing has
+   * ever written a row at that grain: the writer emits MINUTE and only MINUTE,
+   * and the hourly and daily rollups were deferred and never built. So the
+   * filter matched zero rows on every request, since the day it was written, and
+   * the method fell silently through to the work-order fallback below.
+   *
+   * The fallback is honest about itself — it reports `WORK_ORDER` and refuses
+   * the groupings it cannot answer — which is why this went unnoticed: nothing
+   * ever showed a wrong number, it just never showed the precise one. Energy
+   * intensity has been a work-order average for its whole life while the code
+   * around it described a minute-grain fact store.
+   *
+   * It now reads `oee_minutes`, the one store, at the grain that store actually
+   * keeps. `isFinalStep` is not a column there; the final step is
+   * `MAX(sequenceOrder)` per work order, which is the same rule every engine
+   * applies — a unit passing four stations is one unit, not four.
    */
   private async denominators(
     factoryId: string | null,
@@ -479,39 +496,49 @@ export class EnergyAnalyticsService {
   ): Promise<{ qtyByKey: Map<string, { qty: number; source: 'SNAPSHOT' | 'WORK_ORDER' }>; source: 'SNAPSHOT' | 'WORK_ORDER' | 'NONE' }> {
     const qtyByKey = new Map<string, { qty: number; source: 'SNAPSHOT' | 'WORK_ORDER' }>();
 
-    // Only the final routing step's output counts, otherwise a routed WO's units
-    // are counted once per step. HOUR is the finest non-overlapping granularity.
-    const snapshots = await this.prisma.productionSnapshot.findMany({
-      where: {
-        ...(factoryId ? { factoryId } : {}),
-        machineId: { in: machineIds },
-        granularity: 'HOUR',
-        isFinalStep: true,
-        bucketStart: { gte: filters.from, lte: filters.to },
-      },
-      select: {
-        goodBase: true,
-        machineId: true,
-        lineId: true,
-        areaId: true,
-        skuId: true,
-        workOrderId: true,
-        productionOrderId: true,
-        shiftInstanceId: true,
-        // Derived per bucket by the snapshot writer — the shift a minute of
-        // production actually happened in, independent of any ShiftInstance row.
-        shiftCode: true,
-        bucketStart: true,
-      },
-    });
+    // Only the final routing step's output counts, or a routed work order's
+    // units are counted once per step. The dimensions the old store carried as
+    // columns are joined here instead — `oee_minutes` keeps the measurement and
+    // leaves the hierarchy where it is defined.
+    const rows = await this.prisma.$queryRaw<Array<{
+      goodBase: number; machineId: string | null; lineId: string | null;
+      areaId: string | null; skuId: string | null; workOrderId: string | null;
+      productionOrderId: string | null; shiftCode: string | null; bucketStart: Date;
+    }>>(Prisma.sql`
+      WITH scoped AS (
+        SELECT o."machineId", o."workOrderId", o."bucketStart", o."shiftCode",
+               o."goodParts", j."sequenceOrder"
+        FROM oee_minutes o
+        JOIN job_orders j ON j.id = o."jobOrderId"
+        WHERE o."machineId" IN (${Prisma.join(machineIds)})
+          AND o."bucketStart" >= ${filters.from} AND o."bucketStart" <= ${filters.to}
+          ${factoryId ? Prisma.sql`AND o."factoryId" = ${factoryId}` : Prisma.empty}
+      ),
+      -- The last step of each work order. Its good count IS the work order's
+      -- output; the earlier steps made the same units.
+      fin AS (
+        SELECT s2."workOrderId", MAX(s2."sequenceOrder") AS ms
+        FROM scoped s2 GROUP BY s2."workOrderId"
+      )
+      SELECT s."goodParts"::float8 AS "goodBase",
+             s."machineId", m."lineId", l."areaId",
+             w."skuId", s."workOrderId", w."productionOrderId",
+             s."shiftCode", s."bucketStart"
+      FROM scoped s
+      JOIN fin f ON f."workOrderId" IS NOT DISTINCT FROM s."workOrderId"
+                AND f.ms = s."sequenceOrder"
+      LEFT JOIN machines m ON m.id = s."machineId"
+      LEFT JOIN production_lines l ON l.id = m."lineId"
+      LEFT JOIN work_orders w ON w.id = s."workOrderId"
+    `);
 
-    if (snapshots.length > 0) {
-      for (const s of snapshots) {
-        const key = this.snapshotKey(groupBy, s);
+    if (rows.length > 0) {
+      for (const r of rows) {
+        const key = this.snapshotKey(groupBy, r);
         if (!key) continue;
         const cur = qtyByKey.get(key);
-        if (cur) cur.qty += s.goodBase;
-        else qtyByKey.set(key, { qty: s.goodBase, source: 'SNAPSHOT' });
+        if (cur) cur.qty += r.goodBase;
+        else qtyByKey.set(key, { qty: r.goodBase, source: 'SNAPSHOT' });
       }
       if (qtyByKey.size > 0) return { qtyByKey, source: 'SNAPSHOT' };
     }
