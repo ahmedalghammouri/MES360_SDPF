@@ -139,19 +139,43 @@ const REJECT_PCT = process.env.SIM_REJECT_PCT ? Number(process.env.SIM_REJECT_PC
 const PORT_1 = Number(process.env.SIM_PORT_1 || 20101);
 const PORT_2 = Number(process.env.SIM_PORT_2 || 20102);
 
+// ── The bindings, as tag_definitions actually holds them ────────────────────
+//
+//   EDGECOUNTER01     DI0 TOTAL M1   DI1 GOOD M1
+//   EDGE_COUNTER_M03  DI0 TOTAL M3   DI1 GOOD M3
+//                     DI2 GOOD  M4   ← the palletiser's own output
+//                     DI3 GOOD  M5   ← the wrapper's own output
+//
+// ── Why M4 and M5 have a GOOD counter and no TOTAL ──────────────────────────
+// Because the plant does not weigh or reject at those two stations. A pallet is
+// built and then wrapped; anything wrong with it was wrong upstream, at the
+// filler or the cartoner, and was rejected there. So there is nothing for a
+// TOTAL counter to be the total OF.
+//
+// The gateway derives scrap as `TOTAL - GOOD`, so a station with only a GOOD
+// counter reports output and never reports scrap — which is the truth about
+// these two. `rejectPct: 0` below keeps the simulator honest about that rather
+// than emitting rejects the wiring has no way to carry.
+//
+// M4 used to have no stage here at all, and DI2 carried M5's TOTAL. Its run-mode
+// bit was driven off M5's production, so the palletiser's state was really the
+// wrapper's, and once a tag was pointed at DI2 for M4 it counted the wrapper's
+// pallets as its own. It is a station in its own right now: cartons in, pallets
+// out, its own clock.
 const TCP_DEVICES = [
   { name: 'EDGECOUNTER01', port: PORT_1, machines: [
-    { label: 'M1 Filling',   total: 0, good: 1, piecesPerPulse: 1,   rejectPct: 2.0, feedsFrom: null,       feedsInto: 'filled' },
+    { label: 'M1 Filling',     total: 0, good: 1, piecesPerPulse: 1,   rejectPct: 2.0, feedsFrom: null,         feedsInto: 'filled' },
   ] },
   { name: 'EDGE_COUNTER_M03', port: PORT_2, machines: [
-    { label: 'M3 Cartoning', total: 0, good: 1, piecesPerPulse: 4,   rejectPct: 0.5, feedsFrom: 'filled',   feedsInto: 'cartoned' },
-    { label: 'M5 Wrapping',  total: 2, good: 3, piecesPerPulse: 160, rejectPct: 0.2, feedsFrom: 'cartoned', feedsInto: null },
+    { label: 'M3 Cartoning',   total: 0, good: 1, piecesPerPulse: 4,   rejectPct: 0.5, feedsFrom: 'filled',     feedsInto: 'cartoned' },
+    { label: 'M4 Palletizing',           good: 2, piecesPerPulse: 160, rejectPct: 0,   feedsFrom: 'cartoned',   feedsInto: 'palletized' },
+    { label: 'M5 Wrapping',              good: 3, piecesPerPulse: 160, rejectPct: 0,   feedsFrom: 'palletized', feedsInto: null },
   ] },
 ];
 
 // Work-in-process between stages, in PIECES — the smallest rung, where the
 // conversion is exact.
-const buffers = { filled: 0, cartoned: 0 };
+const buffers = { filled: 0, cartoned: 0, palletized: 0 };
 
 // ── Machine status signals — NCC's actual I/O ───────────────────────────────
 // The remote Modbus I/O carries EIGHT DIGITAL INPUTS and nothing else: no status
@@ -269,10 +293,10 @@ setInterval(readControl, 1000);
 readControl();
 
 /** Which production stage tells us whether a machine is actually processing. */
-const STAGE_OF = { M1: 'M1', M3: 'M3', M4: 'M5', M5: 'M5' };
+const STAGE_OF = { M1: 'M1', M3: 'M3', M4: 'M4', M5: 'M5' };
 
 /** Last time each stage actually produced a unit. */
-const lastProducedAt = { M1: Date.now(), M3: Date.now(), M5: Date.now() };
+const lastProducedAt = { M1: Date.now(), M3: Date.now(), M4: Date.now(), M5: Date.now() };
 
 /**
  * How long after the last unit the PROCESSING signal stays up, PER STAGE.
@@ -353,7 +377,8 @@ const counts = {}; // "DEV/label" → { total, good, bad }
 function startTcpDevice(dev) {
   const di = {};                 // discrete-input address → boolean (current level)
   for (const m of dev.machines) {
-    di[m.total] = false; di[m.good] = false;
+    if (m.total != null) di[m.total] = false;
+    di[m.good] = false;
     counts[`${dev.name}/${m.label}`] = { total: 0, good: 0, bad: 0 };
     // One unit of THIS machine's packaging unit takes proportionally longer to
     // make than one unit of the smallest one: a pallet is 160 pieces of work.
@@ -387,12 +412,22 @@ function startTcpDevice(dev) {
       lastProducedAt[mCode] = Date.now();
 
       // Per-stage reject rate; SIM_REJECT_PCT overrides all stages when set.
-      const isGood = Math.random() * 100 >= (REJECT_PCT ?? m.rejectPct);
+      // A station with no TOTAL input cannot express a reject at all — there is
+      // no second pulse train for the gateway to subtract GOOD from — so one is
+      // never generated for it. That is not a shortcut: it is what "this station
+      // does not reject" means in wiring, and pretending otherwise would emit a
+      // unit that simply vanishes from every count.
+      const canReject = m.total != null;
+      const isGood = !canReject || Math.random() * 100 >= (REJECT_PCT ?? m.rejectPct);
       const c = counts[`${dev.name}/${m.label}`];
       // Raise the pulse(s) — a rising edge the gateway's fast poll will catch.
-      di[m.total] = true; if (isGood) di[m.good] = true;
+      if (canReject) di[m.total] = true;
+      if (isGood) di[m.good] = true;
       c.total++; if (isGood) c.good++; else c.bad++;
-      setTimeout(() => { di[m.total] = false; di[m.good] = false; }, PULSE_MS); // short high window
+      setTimeout(() => {
+        if (canReject) di[m.total] = false;
+        di[m.good] = false;
+      }, PULSE_MS); // short high window
       setTimeout(producePart, cycle());                                          // next part
     };
     setTimeout(producePart, rnd(0, CYCLE_MAX)); // stagger machines
@@ -419,7 +454,11 @@ function startTcpDevice(dev) {
   const server = new ServerTCP(vector, { host: '0.0.0.0', port: dev.port, debug: false, unitID: 1 });
   server.on('socketError', (e) => console.error(`[${dev.name}] socket error:`, e?.message));
   server.on('serverError', (e) => console.error(`[${dev.name}] server error:`, e?.message));
-  const map = dev.machines.map((m) => `${m.label}: DI${m.total}=TOTAL DI${m.good}=GOOD`).join('  |  ');
+  const map = dev.machines
+    .map((m) => (m.total != null
+      ? `${m.label}: DI${m.total}=TOTAL DI${m.good}=GOOD`
+      : `${m.label}: DI${m.good}=GOOD (no TOTAL — this station does not reject)`))
+    .join('  |  ');
   console.log(`▶ ${dev.name}  Modbus TCP 0.0.0.0:${dev.port} (unit 1)  ${map}`);
   console.log(`    status DIs → ${statusBits.map((s) => `DI${s.di}=${s.code} ${s.role} (ID ${s.ioId})`).join('  |  ')}`);
 }
@@ -520,7 +559,8 @@ setInterval(() => {
     .join('   ');
   if (line) {
     console.log(`[${new Date().toLocaleTimeString()}] produced →  ${line}`);
-    console.log(`            WIP pieces → filled:${buffers.filled}  cartoned:${buffers.cartoned}`);
+    console.log(`            WIP pieces → filled:${buffers.filled}  cartoned:${buffers.cartoned}`
+      + `  palletized:${buffers.palletized}`);
   }
 }, 10_000);
 
