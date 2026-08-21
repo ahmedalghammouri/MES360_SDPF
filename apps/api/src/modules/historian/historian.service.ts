@@ -3,6 +3,7 @@ import { Point } from '@influxdata/influxdb-client';
 
 import { PrismaService } from '../../database/prisma.service';
 import { InfluxService } from './influx.service';
+import { oeeIdentityOf } from '../../common/oee-identity.util';
 
 const MIN = 60_000;
 const DAY = 24 * 60 * MIN;
@@ -149,9 +150,9 @@ export class HistorianService {
     const performance = idealProdMin != null && runMin > 0 ? Math.min(100, (idealProdMin / runMin) * 100) : null;
 
     const oee = availability != null && performance != null && quality != null
-      ? (availability / 100) * (performance / 100) * (quality / 100) * 100 : null;
+      ? oeeIdentityOf(availability, performance, quality) : null;
     const oeeTimeBased = availabilityTimeBased != null && performance != null && quality != null
-      ? (availabilityTimeBased / 100) * (performance / 100) * (quality / 100) * 100 : null;
+      ? oeeIdentityOf(availabilityTimeBased, performance, quality) : null;
 
     const utilizationPct = operatingMin > 0 ? Math.min(100, ((operatingMin - plannedMin) / operatingMin) * 100) : null;
 
@@ -234,8 +235,13 @@ from(bucket: "${bucket}")
     return records.map((r) => {
       const active = (r.uptimeMin ?? 0) + (r.downtimeMin ?? 0);
       const availabilityTb = active > 0 ? r1(((r.uptimeMin ?? 0) / active) * 100) : null;
+      // NOTE: the `?? 0` treats a missing Performance or Quality as ZERO, which
+      // reports 0.0% OEE-TB for a machine that simply had nothing counted. It is
+      // preserved here deliberately — this commit unifies the arithmetic and
+      // changes no number — and is one of the coercions the semantics pass will
+      // remove, each with its own before/after diff.
       const oeeTb = availabilityTb != null
-        ? r1((availabilityTb / 100) * ((r.performance ?? 0) / 100) * ((r.quality ?? 0) / 100) * 100)
+        ? r1(oeeIdentityOf(availabilityTb, r.performance ?? 0, r.quality ?? 0))
         : null;
       return {
         time: r.recordDate.toISOString(),
@@ -337,8 +343,8 @@ from(bucket: "${bucket}")
         const quality = clamp(96 + (r() - 0.5) * 3.5, 90, 99.8);
         // Time-based availability tends slightly higher (excludes planned stops)
         const availabilityTb = clamp(availability + 3 + (r() - 0.5) * 4, 62, 99.5);
-        const oee = (availability / 100) * (performance / 100) * (quality / 100) * 100;
-        const oeeTb = (availabilityTb / 100) * (performance / 100) * (quality / 100) * 100;
+        const oee = oeeIdentityOf(availability, performance, quality);
+        const oeeTb = oeeIdentityOf(availabilityTb, performance, quality);
         const runMin = stepMin * (availability / 100);
         const downMin = stepMin * downFrac;
         cumGood += goodPerStep; cumRej += rejPerStep;

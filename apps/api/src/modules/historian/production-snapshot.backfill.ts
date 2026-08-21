@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { oeeIdentityOf } from '../../common/oee-identity.util';
 import { PrismaClient } from '@prisma/client';
 
 import { toPieces, type SkuPackaging } from '../../common/units.util';
@@ -172,8 +173,8 @@ export class ProductionSnapshotBackfill {
       const availabilityTb = (runMin + downMin) > 0 ? Math.min(100, (runMin / (runMin + downMin)) * 100) : null;
       const performance = runMin > 0 && idealRunMin > 0 ? Math.min(100, (idealRunMin / runMin) * 100) : null;
       const quality = totalBase > 0 ? (goodBase / totalBase) * 100 : null;
-      const oee = availability != null && performance != null && quality != null ? (availability / 100) * (performance / 100) * (quality / 100) * 100 : null;
-      const oeeTb = availabilityTb != null && performance != null && quality != null ? (availabilityTb / 100) * (performance / 100) * (quality / 100) * 100 : null;
+      const oee = availability != null && performance != null && quality != null ? oeeIdentityOf(availability, performance, quality) : null;
+      const oeeTb = availabilityTb != null && performance != null && quality != null ? oeeIdentityOf(availabilityTb, performance, quality) : null;
 
       const data = {
         bucketStart: new Date(bStart), bucketEnd: new Date(bEnd), granularity: 'MINUTE', isFinalized: true,

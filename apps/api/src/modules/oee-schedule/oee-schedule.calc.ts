@@ -28,6 +28,8 @@
  * standard engine instead.
  */
 
+import { oeeIdentityOf } from '../../common/oee-identity.util';
+
 /** Summed primitives. Minutes except the counts. */
 export interface ScheduleTotals {
   /** The committed slot, clipped to the query window. The denominator. */
@@ -154,7 +156,7 @@ export function computeSchedule(t: ScheduleTotals, opts: { cap?: boolean } = {})
 
   const oee =
     availability != null && performance != null && quality != null
-      ? (availability / 100) * (performance / 100) * (quality / 100) * 100
+      ? oeeIdentityOf(availability, performance, quality)
       : null;
 
   const utilization = ratio(operationalMin, committedMin);

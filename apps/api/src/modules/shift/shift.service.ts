@@ -2,6 +2,7 @@ import {
   Injectable, NotFoundException, BadRequestException, ConflictException,
 } from '@nestjs/common';
 import { Prisma, DowntimeCategory, DowntimeReasonCode } from '@prisma/client';
+import { oeeIdentityOf } from '../../common/oee-identity.util';
 
 import { PrismaService } from '../../database/prisma.service';
 import { toBaseUnits, convertUnits, toPieces, fromPieces } from '../../common/units.util';
@@ -374,7 +375,7 @@ export class ShiftService {
     const availability = plannedMin > 0 ? (runMin / plannedMin) * 100 : 0;
     const performance = inst.targetQty && inst.targetQty > 0 ? Math.min(100, (actualQty / inst.targetQty) * 100) : 0;
     const quality = actualQty > 0 ? (goodQty / actualQty) * 100 : 0;
-    const oee = (availability / 100) * (performance / 100) * (quality / 100) * 100;
+    const oee = oeeIdentityOf(availability, performance, quality);
     const round1 = (n: number) => Math.round(n * 10) / 10;
 
     return this.prisma.shiftInstance.update({

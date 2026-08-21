@@ -31,6 +31,8 @@
  * the reference.
  */
 
+import { oeeIdentityOf } from '../../common/oee-identity.util';
+
 /** Summed primitives for a window. Every field is minutes except the counts. */
 export interface OeeTotals {
   /** Every minute the job order occupied. The top of the time model. */
@@ -169,7 +171,7 @@ export function computeOee(t: OeeTotals, opts: { cap?: boolean } = {}): OeeResul
 
   const oee =
     availability != null && performance != null && quality != null
-      ? (availability / 100) * (performance / 100) * (quality / 100) * 100
+      ? oeeIdentityOf(availability, performance, quality)
       : null;
 
   const utilization = ratio(operationalMin, totalMin);

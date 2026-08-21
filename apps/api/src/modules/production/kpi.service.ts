@@ -6,6 +6,7 @@ import { OEEService, RollupChild, OEEBreakdown } from './oee.service';
 import { toPieces } from '../../common/units.util';
 import { splitStoppedTime, type StopInterval } from '../../common/stopped-time.util';
 import { ScheduleKpiService } from './schedule-kpi.service';
+import { oeeIdentityOf } from '../../common/oee-identity.util';
 
 /**
  * KpiService — OEE orchestration & roll-up (Phase 2 of the OEE/KPI engine).
@@ -817,7 +818,7 @@ export class KpiService {
 
     const compose = (a: number | null) =>
       a != null && performance != null && quality != null
-        ? r1((a / 100) * (performance / 100) * (quality / 100) * 100)
+        ? r1(oeeIdentityOf(a, performance, quality))
         : null;
 
     return {
@@ -888,7 +889,7 @@ export class KpiService {
     });
     const r1 = (n: number) => Math.round(n * 10) / 10;
     const availabilityTb = (run + down) > 0 ? Math.min(100, (run / (run + down)) * 100) : 0;
-    const oeeTb = (availabilityTb / 100) * (b.performance / 100) * (b.quality / 100) * 100;
+    const oeeTb = oeeIdentityOf(availabilityTb, b.performance, b.quality);
     return {
       ...b,
       availabilityTb: r1(availabilityTb), oeeTb: r1(oeeTb),
@@ -1623,7 +1624,7 @@ export class KpiService {
     }
     const net = Math.max(0, operating - down);
     const availabilityTb = operating > 0 ? Math.min(100, (net / operating) * 100) : 0;
-    const oeeTb = (availabilityTb / 100) * (performance / 100) * (quality / 100) * 100;
+    const oeeTb = oeeIdentityOf(availabilityTb, performance, quality);
     const r1 = (n: number) => Math.round(n * 10) / 10;
     return { availabilityTb: r1(availabilityTb), oeeTb: r1(oeeTb), downtimeMin: r1(down) };
   }
@@ -1918,7 +1919,7 @@ export class KpiService {
       // would answer a different question than the number beside it.
       const lineAvailabilityTb = bn.availabilityTb;
       const lineOeeTb =
-        (lineAvailabilityTb / 100) * (r.performance / 100) * (r.quality / 100) * 100;
+        oeeIdentityOf(lineAvailabilityTb, r.performance, r.quality);
 
       return {
         id: ln.id, name: ln.name, code: ln.code, type: 'LINE',

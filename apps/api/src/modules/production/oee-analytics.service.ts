@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { KpiService } from './kpi.service';
 import { resolveLocalRange } from '../../common/plant-time.util';
 import { currentShiftStart } from '../../common/shift-window.util';
+import { oeeIdentityOf } from '../../common/oee-identity.util';
 
 /**
  * OEE analytics — the loss tree behind the headline number.
@@ -233,9 +234,9 @@ export class OeeAnalyticsService {
     const fullyProductiveMin = this.r(netOperatingMin * (quality / 100));
     const qualityLossMin = Math.max(0, this.r(netOperatingMin - fullyProductiveMin));
 
-    const oee = this.r((availability / 100) * (performance / 100) * (quality / 100) * 100);
+    const oee = this.r(oeeIdentityOf(availability, performance, quality));
     // Same P and Q; only the availability basis differs.
-    const oeeTb = this.r((availabilityTb / 100) * (performance / 100) * (quality / 100) * 100);
+    const oeeTb = this.r(oeeIdentityOf(availabilityTb, performance, quality));
     // Utilisation is how much of the clock the plant even planned to use.
     const utilization = this.pct(plannedProductionMin, calendarMin);
     const teep = this.r(oee * (utilization / 100));
@@ -297,10 +298,10 @@ export class OeeAnalyticsService {
       const availability = this.pct(r.runMin, r.plannedMin);
       const performance = Math.min(100, this.pct(r.idealRunMin, r.runMin));
       const quality = this.pct(r.goodBase, r.totalBase);
-      const oee = this.r((availability / 100) * (performance / 100) * (quality / 100) * 100);
+      const oee = this.r(oeeIdentityOf(availability, performance, quality));
       // The trend must offer both bases or the toggle cannot reach the charts.
       const availabilityTb = this.pct(r.runMin, r.runMin + (r.downMin ?? 0));
-      const oeeTb = this.r((availabilityTb / 100) * (performance / 100) * (quality / 100) * 100);
+      const oeeTb = this.r(oeeIdentityOf(availabilityTb, performance, quality));
       const utilization = this.pct(r.plannedMin, dayMin);
       return {
         date: r.day,

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
 import type { OeeScope } from './oee-standard.service';
+import { oeeIdentityOf } from '../../common/oee-identity.util';
 
 export type LineMethod = 'ROLLUP' | 'BOTTLENECK';
 export type ScopeLevel = 'MACHINE' | 'LINE' | 'AREA' | 'FACTORY';
@@ -59,7 +60,7 @@ const clamp = (n: number | null): number | null =>
 const r1 = (n: number | null): number | null => (n == null ? null : Math.round(n * 10) / 10);
 
 const productOf = (a: number | null, p: number | null, q: number | null): number | null =>
-  a == null || p == null || q == null ? null : (a / 100) * (p / 100) * (q / 100) * 100;
+  a == null || p == null || q == null ? null : oeeIdentityOf(a, p, q);
 
 /**
  * What a LINE, an AREA or the FACTORY scored — as opposed to what its machines did.

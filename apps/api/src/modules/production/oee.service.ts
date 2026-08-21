@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { oeeIdentityOf } from '../../common/oee-identity.util';
 
 export interface OEEInput {
   plannedProductionTime: number; // minutes
@@ -113,7 +114,7 @@ export class OEEService {
     const quality = totalCount > 0 ? (goodCount / totalCount) * 100 : 0;
 
     // OEE = Availability × Performance × Quality
-    const oee = (availability / 100) * (performance / 100) * (quality / 100) * 100;
+    const oee = oeeIdentityOf(availability, performance, quality);
 
     return {
       oee: Math.min(Math.round(oee * 10) / 10, 100),
@@ -140,7 +141,7 @@ export class OEEService {
     const availability = ppt > 0 ? clampPct((runTime / ppt) * 100) : 0;
     const performance = runTime > 0 ? clampPct((idealRunTime / runTime) * 100) : 0;
     const quality = input.totalCount > 0 ? clampPct((input.goodCount / input.totalCount) * 100) : 0;
-    const oee = (availability / 100) * (performance / 100) * (quality / 100) * 100;
+    const oee = oeeIdentityOf(availability, performance, quality);
 
     return {
       oee: round1(oee),
@@ -225,7 +226,7 @@ export class OEEService {
     const total = Math.max(0, input.finalOutfeed.totalCount ?? 0);
     const good = Math.max(0, Math.min(total, input.finalOutfeed.goodCount ?? 0));
     const quality = total > 0 ? clampPct((good / total) * 100) : 0;
-    const oee = (availability / 100) * (performance / 100) * (quality / 100) * 100;
+    const oee = oeeIdentityOf(availability, performance, quality);
 
     return {
       oee: round1(oee),

@@ -3,6 +3,7 @@ import {
   ConflictException, type OnApplicationBootstrap,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { oeeIdentityOf } from '../../common/oee-identity.util';
 import { PrismaService } from '../../database/prisma.service';
 import { archivedWhere } from '../../common/archive.util';
 import { findProcessForSku } from '../../common/process-scope.util';
@@ -3605,7 +3606,7 @@ export class ProductionService implements OnApplicationBootstrap {
       const joAvailabilityTimeBased = availTb != null ? parseFloat(availTb.toFixed(1)) : null;
       const joOEETimeBased =
         availTb != null && jo.joPerformance != null && jo.joQuality != null
-          ? parseFloat(((availTb / 100) * (jo.joPerformance / 100) * (jo.joQuality / 100) * 100).toFixed(1))
+          ? parseFloat((oeeIdentityOf(availTb, jo.joPerformance, jo.joQuality)).toFixed(1))
           : availTb != null && jo.joQuality != null
           ? parseFloat(((availTb / 100) * (jo.joQuality / 100) * 100).toFixed(1))
           : null;
@@ -4981,7 +4982,7 @@ export class ProductionService implements OnApplicationBootstrap {
       : null;
     // Time-based OEE reuses the same Performance & Quality, only Availability differs.
     const oeeTimeBased = availabilityTimeBased != null && oee.joPerformance != null && oee.joQuality != null
-      ? (availabilityTimeBased / 100) * (oee.joPerformance / 100) * (oee.joQuality / 100) * 100
+      ? oeeIdentityOf(availabilityTimeBased, oee.joPerformance, oee.joQuality)
       : null;
     const teepTimeBasedPct = oeeTimeBased != null && utilizationPct != null
       ? (oeeTimeBased * utilizationPct) / 100
