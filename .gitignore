@@ -67,3 +67,6 @@ SYSTEM-ADMIN-ACCESS.md
 apps/edgegateway/src/generated/
 
 # Local DB dumps (contain sensitive data - never commit)
+
+# Baseline captures — machine- and moment-specific, regenerated on demand.
+apps/api/.baselines/

@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { PrismaService } from '../../database/prisma.service';
 import { toPieces, type SkuPackaging } from '../../common/units.util';
+import { committedSlot } from '../oee-schedule/oee-schedule.calc';
 import { resolveShiftAt, type ShiftTemplateWindow, type ResolvedShift } from '../../common/shift-window.util';
 import { designSpeedPph } from './oee-standard.calc';
 import {
@@ -263,6 +264,25 @@ export class OeeStandardWriter {
     const designSpeed = speedOut != null ? speedOut * perOutputUnit : null;
     const theoreticalParts = designSpeed != null ? (operatingMin / 60) * designSpeed : 0;
 
+    // ── The committed slot ────────────────────────────────────────────────
+    // Carried on the same row rather than in a table of its own. It is not a
+    // measurement — it is read straight off the job order's dates — so a second
+    // store holding it alongside a duplicate of every measured column was two
+    // copies of one minute, and the pair could only ever drift apart.
+    //
+    // NULL when the order has no slot to speak of. The schedule read excludes
+    // those rows, which is exactly what the separate writer did by returning
+    // early on them.
+    const slot = committedSlot(
+      {
+        plannedStart: jo.plannedStart ?? null,
+        plannedEnd: jo.plannedEnd ?? null,
+        actualStart: jo.actualStart ?? null,
+        actualEnd: jo.actualEnd ?? null,
+      },
+      at,
+    );
+
     return {
       bucketStart,
       isFinalized: false,
@@ -274,6 +294,8 @@ export class OeeStandardWriter {
       shiftCode: shift?.code ?? null,
       machineState: dominant,
       jobOrderStatus: jo.status,
+      committedFrom: slot?.from ?? null,
+      committedTo: slot?.to ?? null,
       totalMin, plannedStopMin, availabilityLossMin, externalLossMin, unmeasuredMin, operatingMin,
       goodParts, rejectedParts, theoreticalParts,
       designSpeedPph: designSpeed,

@@ -45,7 +45,16 @@ export class OeeScheduleWriter {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  /**
+   * Retired. The standard writer records the slot on `oee_minutes`, so this
+   * table is no longer written and the schedule basis reads the unified store.
+   *
+   * Kept as a file rather than deleted: `committedSlot` lives beside it and is
+   * now imported by the standard writer, and the table itself stays for archive
+   * until the parallel-run window closes. Re-enabling the cron would start a
+   * second copy of every minute diverging from the first again.
+   */
+  // @Cron(CronExpression.EVERY_MINUTE)
   async tick(): Promise<void> {
     try {
       await this.captureMinute(new Date());

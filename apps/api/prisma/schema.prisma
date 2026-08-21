@@ -4140,6 +4140,24 @@ model OeeMinute {
   machineState   String?
   jobOrderStatus String
 
+  // ── The committed slot ────────────────────────────────────────────────────
+  /// The window the job order was PROMISED, from its own dates:
+  ///
+  ///   committedFrom = min(plannedStart, actualStart)
+  ///   committedTo   = actualEnd == null ? max(now, plannedEnd)
+  ///                                     : max(actualEnd, plannedEnd)
+  ///
+  /// These are the ONLY two things the retired `oee_schedule_minutes` table held
+  /// that this one did not — and neither is a measurement. They are properties
+  /// of the job order, carried here so the schedule basis is a second DENOMINATOR
+  /// over one store rather than a second store of the same minutes.
+  ///
+  /// NULL when the order has no slot at all (nothing planned and nothing started),
+  /// which is not measurable on that basis; the schedule read excludes those rows,
+  /// exactly as the separate writer used to skip them.
+  committedFrom DateTime?
+  committedTo   DateTime?
+
   // ── The time model. These six are mutually exclusive and sum to totalMin. ──
   /// The minute itself, clipped to the job order's actual occupancy of it.
   totalMin Float @default(0)

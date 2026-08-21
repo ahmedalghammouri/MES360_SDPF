@@ -45,7 +45,8 @@ export interface ScheduleSlice extends ScheduleResult {
 }
 
 /**
- * Reads `oee_schedule_minutes` and nothing else.
+ * Reads `oee_minutes` — the one store — and nothing else. The basis is a
+ * DENOMINATOR over those minutes, not a second copy of them.
  *
  * ── Why every query goes through a per-job-order stage ───────────────────────
  * The committed slot is a property of a JOB ORDER, and it is stamped on every
@@ -122,7 +123,21 @@ export class OeeScheduleService {
   constructor(private readonly prisma: PrismaService) {}
 
   private where(factoryId: string | null, from: Date, to: Date, scope: ScheduleScope): Prisma.Sql {
-    const parts: Prisma.Sql[] = [Prisma.sql`o."bucketStart" >= ${from} AND o."bucketStart" < ${to}`];
+    const parts: Prisma.Sql[] = [
+      Prisma.sql`o."bucketStart" >= ${from} AND o."bucketStart" < ${to}`,
+      // ── Reads the unified store ──────────────────────────────────────────
+      // This engine used to have a table of its own that was a copy of every
+      // measured column plus the two slot columns. Both writers ran a cron a
+      // minute apart over the same job orders, so the two stores could disagree
+      // about a minute for no reason a reader could ever see.
+      //
+      // The slot lives on `oee_minutes` now, and the only thing this predicate
+      // has to reproduce is the retired writer's one behavioural difference: it
+      // returned early for a job order with no slot, so those minutes never
+      // existed on this basis. They exist in the shared store, so they are
+      // excluded here instead — same rows, same answer.
+      Prisma.sql`o."committedFrom" IS NOT NULL AND o."committedTo" IS NOT NULL`,
+    ];
     if (factoryId) parts.push(Prisma.sql`o."factoryId" = ${factoryId}`);
     if (scope.machineId) parts.push(Prisma.sql`o."machineId" = ${scope.machineId}`);
     // An EMPTY list is a real answer — "no machine qualifies" — and must select
@@ -198,7 +213,7 @@ export class OeeScheduleService {
              COALESCE(SUM(o."goodParts"), 0)::float8           AS "goodParts",
              COALESCE(SUM(o."rejectedParts"), 0)::float8       AS "rejectedParts",
              COALESCE(SUM(o."theoreticalParts"), 0)::float8    AS "theoreticalParts"
-      FROM oee_schedule_minutes o
+      FROM oee_minutes o
       JOIN job_orders j ON j.id = o."jobOrderId"
       WHERE ${this.where(factoryId, from, to, scope)}
       GROUP BY o."jobOrderId"
@@ -407,7 +422,7 @@ export class OeeScheduleService {
                GREATEST(MIN(o."committedFrom"), ${from}) AS "slotFrom",
                LEAST(MAX(o."committedTo"), ${slotTo})    AS "slotTo",
                MIN(j."actualStart")                      AS "actualStart"
-        FROM oee_schedule_minutes o
+        FROM oee_minutes o
         JOIN job_orders j ON j.id = o."jobOrderId"
         WHERE ${this.where(factoryId, from, to, scope)}
         GROUP BY o."jobOrderId"
@@ -425,7 +440,7 @@ export class OeeScheduleService {
                COALESCE(SUM(o."goodParts"), 0)::float8           AS "goodParts",
                COALESCE(SUM(o."rejectedParts"), 0)::float8       AS "rejectedParts",
                COALESCE(SUM(o."theoreticalParts"), 0)::float8    AS "theoreticalParts"
-        FROM oee_schedule_minutes o
+        FROM oee_minutes o
         JOIN job_orders j ON j.id = o."jobOrderId"
         WHERE ${this.where(factoryId, from, to, scope)}
         GROUP BY 1, 2
@@ -484,7 +499,7 @@ export class OeeScheduleService {
       SELECT o."machineState" AS state,
              COALESCE(SUM(o."totalMin"), 0)::float8 AS minutes,
              COUNT(*)::int AS rows
-      FROM oee_schedule_minutes o WHERE ${this.where(factoryId, from, to, scope)}
+      FROM oee_minutes o WHERE ${this.where(factoryId, from, to, scope)}
       GROUP BY o."machineState" ORDER BY 2 DESC
     `);
   }

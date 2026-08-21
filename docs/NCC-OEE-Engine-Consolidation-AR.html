@@ -1,0 +1,709 @@
+<title>مرجع توحيد محرّكات OEE</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* ── Tokens ────────────────────────────────────────────────────────────────
+   Light is defined on bare :root so the un-stamped "system" state resolves.
+   Dark is redefined twice: once behind prefers-color-scheme (guarded so an
+   explicit light choice still wins) and once behind the explicit stamp.      */
+:root{
+  --ground:#F5F6F8; --surface:#FFFFFF; --surface-2:#FAFBFC; --surface-3:#F0F2F5;
+  --ink:#111722; --ink-2:#414B5C; --muted:#7B8494; --rule:#E3E7ED; --rule-2:#CFD6DF;
+  /* Three engines = three fixed identities. Validated as a categorical set:
+     light ΔE 20.3 normal / chroma+contrast pass; dark ΔE 22.2 normal, CVD 7.8
+     which is legal only WITH secondary encoding — every reference below also
+     names the engine in text, so hue is never the only signal.               */
+  --eng-old:#C2410C; --eng-std:#7E22CE; --eng-sch:#0369A1;
+  --eng-old-bg:#FFF1E9; --eng-std-bg:#F6EEFE; --eng-sch-bg:#E8F3FB;
+  --good:#15803D; --bad:#B91C1C; --neutral:#64748B;
+  --good-bg:#E9F6EE; --bad-bg:#FDECEC;
+  --shadow:0 1px 2px rgba(17,23,34,.05), 0 1px 3px rgba(17,23,34,.04);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0C1015; --surface:#141922; --surface-2:#1A202A; --surface-3:#1F2632;
+    --ink:#E8ECF2; --ink-2:#A8B2C1; --muted:#727D8E; --rule:#232A35; --rule-2:#2E3745;
+    --eng-old:#EA580C; --eng-std:#9333EA; --eng-sch:#0284C7;
+    --eng-old-bg:#2A1509; --eng-std-bg:#1F1030; --eng-sch-bg:#08202F;
+    --good:#22C55E; --bad:#F87171; --neutral:#94A3B8;
+    --good-bg:#0C2417; --bad-bg:#2B1213;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0C1015; --surface:#141922; --surface-2:#1A202A; --surface-3:#1F2632;
+  --ink:#E8ECF2; --ink-2:#A8B2C1; --muted:#727D8E; --rule:#232A35; --rule-2:#2E3745;
+  --eng-old:#EA580C; --eng-std:#9333EA; --eng-sch:#0284C7;
+  --eng-old-bg:#2A1509; --eng-std-bg:#1F1030; --eng-sch-bg:#08202F;
+  --good:#22C55E; --bad:#F87171; --neutral:#94A3B8;
+  --good-bg:#0C2417; --bad-bg:#2B1213;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"IBM Plex Sans Arabic",system-ui,"Segoe UI",sans-serif;
+  font-size:15px; line-height:1.75; font-weight:400;
+  direction:rtl; text-align:right;
+}
+code,.mono,kbd{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;direction:ltr;unicode-bidi:embed}
+code{
+  font-size:.86em; background:var(--surface-3); border:1px solid var(--rule);
+  border-radius:4px; padding:.1em .38em; color:var(--ink-2); white-space:nowrap;
+}
+
+/* ── Shell ─────────────────────────────────────────────────────────────── */
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 96px}
+.layout{display:block}
+@media (min-width:1080px){
+  .layout{display:grid;grid-template-columns:1fr 232px;gap:44px;align-items:start}
+}
+
+header.masthead{padding:56px 0 32px;border-bottom:2px solid var(--ink)}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 14px;
+}
+h1{
+  font-size:clamp(29px,4.6vw,46px); line-height:1.18; font-weight:700;
+  margin:0 0 14px; letter-spacing:-.015em; text-wrap:balance;
+}
+.standfirst{font-size:17px;line-height:1.72;color:var(--ink-2);max-width:64ch;margin:0}
+.meta{
+  margin-top:26px; display:flex; flex-wrap:wrap; gap:8px 22px;
+  font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--muted);
+}
+.meta b{color:var(--ink-2);font-weight:500}
+
+/* ── Table of contents ─────────────────────────────────────────────────── */
+nav.toc{margin:26px 0 0;font-size:13.5px}
+@media (min-width:1080px){
+  nav.toc{position:sticky;top:28px;margin-top:64px}
+}
+nav.toc p{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 12px;
+}
+nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+nav.toc a{
+  display:flex;gap:10px;padding:6px 10px;border-radius:6px;
+  color:var(--ink-2);text-decoration:none;line-height:1.45;
+  border-right:2px solid transparent;transition:background .12s,color .12s;
+}
+nav.toc a:hover{background:var(--surface-3);color:var(--ink);border-right-color:var(--eng-std)}
+nav.toc a:focus-visible{outline:2px solid var(--eng-sch);outline-offset:2px}
+nav.toc .n{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);padding-top:2px}
+
+/* ── Sections ──────────────────────────────────────────────────────────── */
+section{padding-top:52px;scroll-margin-top:24px}
+h2{
+  font-size:24px;line-height:1.3;font-weight:600;margin:0 0 6px;
+  letter-spacing:-.01em;text-wrap:balance;
+}
+h2 .num{
+  font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:400;
+  color:var(--muted);margin-left:10px;
+}
+.section-lede{color:var(--ink-2);margin:0 0 26px;max-width:70ch;font-size:14.5px}
+h3{font-size:16.5px;font-weight:600;margin:34px 0 10px;letter-spacing:-.005em}
+h4{font-size:14px;font-weight:600;margin:22px 0 8px;color:var(--ink-2)}
+p{margin:0 0 15px;max-width:72ch}
+ul,ol.body{margin:0 0 16px;padding-inline-start:22px;max-width:72ch}
+li{margin-bottom:7px}
+strong{font-weight:600}
+
+/* ── Verdict panel ─────────────────────────────────────────────────────── */
+.verdict{
+  background:var(--surface);border:1px solid var(--rule);border-radius:12px;
+  padding:26px 28px;box-shadow:var(--shadow);margin:0 0 26px;
+  border-top:3px solid var(--eng-std);
+}
+.verdict h3{margin:0 0 12px;font-size:18px}
+.verdict p:last-child{margin-bottom:0}
+.verdict .pick{
+  display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:17px;
+  color:var(--eng-std);margin-bottom:10px;
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
+.cards{display:grid;gap:14px;margin:22px 0 8px}
+@media (min-width:760px){.cards.three{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:640px){.cards.two{grid-template-columns:repeat(2,1fr)}}
+.card{
+  background:var(--surface);border:1px solid var(--rule);border-radius:10px;
+  padding:18px 20px;box-shadow:var(--shadow);
+}
+.card h4{margin:0 0 8px;font-size:14px;color:var(--ink)}
+.card p{font-size:13.5px;color:var(--ink-2);margin:0}
+.card.eng{border-top:3px solid var(--c)}
+.card.eng .tag{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--c);font-weight:500;
+}
+
+/* ── Engine chips: hue + name, never hue alone ─────────────────────────── */
+.chip{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:500;
+  padding:2px 8px;border-radius:20px;border:1px solid;
+}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.chip.old{color:var(--eng-old);border-color:var(--eng-old);background:var(--eng-old-bg)}
+.chip.std{color:var(--eng-std);border-color:var(--eng-std);background:var(--eng-std-bg)}
+.chip.sch{color:var(--eng-sch);border-color:var(--eng-sch);background:var(--eng-sch-bg)}
+
+/* ── Tables ────────────────────────────────────────────────────────────── */
+.scroller{
+  overflow-x:auto;margin:18px 0 8px;border:1px solid var(--rule);
+  border-radius:10px;background:var(--surface);box-shadow:var(--shadow);
+}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:11px 14px;text-align:right;vertical-align:top;border-bottom:1px solid var(--rule)}
+thead th{
+  background:var(--surface-2);font-weight:600;font-size:11.5px;color:var(--ink-2);
+  letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;
+  border-bottom:1px solid var(--rule-2);position:sticky;top:0;
+}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface-2)}
+td.num,th.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+caption{
+  caption-side:bottom;padding:11px 14px;font-size:12px;color:var(--muted);
+  text-align:right;border-top:1px solid var(--rule);
+}
+.w-nowrap{white-space:nowrap}
+
+/* ── Comparison figure ─────────────────────────────────────────────────── */
+figure{margin:22px 0;background:var(--surface);border:1px solid var(--rule);
+  border-radius:10px;padding:20px;box-shadow:var(--shadow)}
+figcaption{font-size:12.5px;color:var(--muted);margin-top:14px;line-height:1.6}
+.barrow{display:grid;grid-template-columns:132px 1fr;gap:12px;align-items:center;margin-bottom:9px}
+.barrow .lbl{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-2);text-align:left;direction:ltr}
+.bartrack{position:relative;height:26px;background:var(--surface-3);border-radius:5px;overflow:hidden}
+.barfill{height:100%;border-radius:5px;display:flex;align-items:center;padding-inline-start:9px}
+.barfill span{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;color:#fff;
+  text-shadow:0 1px 2px rgba(0,0,0,.35);
+}
+
+/* ── Callouts ──────────────────────────────────────────────────────────── */
+.note{
+  border-inline-start:3px solid var(--rule-2);padding:2px 16px;margin:20px 0;
+  color:var(--ink-2);font-size:14px;
+}
+.note.key{border-inline-start-color:var(--eng-std);background:var(--surface);
+  border:1px solid var(--rule);border-inline-start:3px solid var(--eng-std);
+  border-radius:8px;padding:16px 18px}
+.note.warn{border-inline-start-color:var(--bad);background:var(--bad-bg);
+  border-radius:8px;padding:14px 18px}
+.note p:last-child{margin-bottom:0}
+.note .label{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);display:block;margin-bottom:6px;
+}
+
+/* ── Formula block ─────────────────────────────────────────────────────── */
+pre.formula{
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.85;
+  background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;
+  padding:16px 18px;overflow-x:auto;direction:ltr;text-align:left;margin:16px 0;
+  color:var(--ink-2);
+}
+pre.formula b{color:var(--ink);font-weight:500}
+
+/* ── Status marks: colour + word, never colour alone ───────────────────── */
+.mark{font-weight:600;white-space:nowrap}
+.mark.y{color:var(--good)} .mark.n{color:var(--bad)} .mark.p{color:var(--neutral)}
+
+footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--rule);
+  font-size:12.5px;color:var(--muted)}
+a{color:var(--eng-sch)}
+</style>
+
+<div class="wrap">
+<header class="masthead">
+  <p class="eyebrow">SDPF · Powder Packing Line 1 · مرجع داخلى</p>
+  <h1>ثلاثة محرّكات OEE، وقرار واحد</h1>
+  <p class="standfirst">
+    النظام دلوقتى بيحسب OEE من <strong>ثلاثة مخازن مختلفة</strong>، وبيعرضها على أكثر من عشرين صفحة.
+    الورقة دى بتقارن المحرّكات التلاتة بالأرقام الحيّة، وبتخرّط كل صفحة داشبورد على الـ API اللى
+    بيغذّيها والمخزن اللى وراه — عشان نقرّر محرّك واحد يكمل، ونوحّد الصفحات عليه من غير ما يفضل
+    رقم مختلف عن التانى.
+  </p>
+  <p class="meta">
+    <span><b>التاريخ</b> ٢١ أغسطس ٢٠٢٦</span>
+    <span><b>الفرع</b> <span class="mono">ASSA_POC_SDPF</span></span>
+    <span><b>النطاق</b> ١٣٠ مسار · ٢٤ ملف يقرأ المحرّك القديم</span>
+    <span><b>الحالة</b> مرجع قبل التعديل — لا كود اتغيّر بسببها</span>
+  </p>
+</header>
+
+<div class="layout">
+<main>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="s0">
+  <h2><span class="num">٠</span>الخلاصة</h2>
+  <p class="section-lede">القرار الأول، والأدلّة بعده.</p>
+
+  <div class="verdict">
+    <span class="pick">◆ المحرّك المعيارى <span class="mono">oee_minutes</span> هو اللى يكمل</span>
+    <p>
+      ومحرّك الجدولة <strong>ما يتشالش — يتحوّل لمقام تانى فوق نفس المخزن</strong>، مش مخزن قائم بذاته.
+    </p>
+    <p style="margin-bottom:0">
+      السبب مش تفضيل: <code>oee_schedule_minutes</code> هو <code>oee_minutes</code> نفسه
+      <strong>زائد عمودين بس</strong> — <code>committedFrom</code> و<code>committedTo</code> —
+      والاتنين <strong>مشتقّين من تواريخ أمر التشغيل نفسه، مش مقاسين من الخط</strong>.
+      يعنى مافيش ولا قياس واحد فى مخزن الجدولة مش موجود فى المخزن المعيارى.
+    </p>
+  </div>
+
+  <div class="cards three">
+    <div class="card eng" style="--c:var(--eng-std)">
+      <span class="tag">يكمل</span>
+      <h4>المعيارى · <span class="mono">oee_minutes</span></h4>
+      <p>يقسّم على الوقت اللى عدّى فعلاً. مرجعه منشور (Insights Hub). قراءته كاملة لكل دقيقة مضت.</p>
+    </div>
+    <div class="card eng" style="--c:var(--eng-sch)">
+      <span class="tag">يتحوّل لمقام</span>
+      <h4>الجدولة · <span class="mono">oee_schedule_minutes</span></h4>
+      <p>يقسّم على الفترة الموعودة. سؤال مختلف ومشروع — لكنه لا يحتاج مخزن، يحتاج مقام.</p>
+    </div>
+    <div class="card eng" style="--c:var(--eng-old)">
+      <span class="tag">يُسحب تدريجياً</span>
+      <h4>القديم · <span class="mono">production_snapshots</span></h4>
+      <p>يغذّى ٢٤ ملف و٦ أماكن حساب مستقلّة. أكبر مصدر للتعارض، وأصعب واحد يتشال.</p>
+    </div>
+  </div>
+
+  <div class="note key">
+    <span class="label">النتيجة العملية</span>
+    <p style="margin-bottom:0">
+      مخزن واحد للدقائق المقاسة + مقامين للقراءة =
+      <strong>المحرّكان الجديدان يبقوا محرّك واحد</strong>، والزرار <span class="mono">OEE / OEE-TB</span>
+      يفضل شغّال زى ما هو من غير ما يقرا من مخزنين.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="s1">
+  <h2><span class="num">١</span>المحرّكات الثلاثة جنبًا إلى جنب</h2>
+  <p class="section-lede">
+    نفس الخط، نفس الدقائق الخام، ثلاث إجابات — لأن كل واحد بيقسّم على حاجة تانية.
+  </p>
+
+  <div class="scroller">
+    <table>
+      <thead>
+        <tr>
+          <th style="min-width:150px">الوجه</th>
+          <th style="min-width:210px"><span class="chip old">production_snapshots</span></th>
+          <th style="min-width:210px"><span class="chip std">oee_minutes</span></th>
+          <th style="min-width:210px"><span class="chip sch">oee_schedule_minutes</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">الكاتب</th>
+          <td><code>ProductionSnapshotService</code> — كرون كل دقيقة</td>
+          <td><code>OeeStandardWriter</code> — كرون كل دقيقة</td>
+          <td><code>OeeScheduleWriter</code> — كرون كل دقيقة</td>
+        </tr>
+        <tr>
+          <th scope="row">المقام (Availability)</th>
+          <td>الوقت المخطَّط <span class="mono">plannedMin</span></td>
+          <td>الوقت اللى عدّى فعلاً ناقص التوقّفات المخطَّطة</td>
+          <td><strong>الفترة الموعودة</strong> — بما فيها الجزء اللى لسه ماجاش</td>
+        </tr>
+        <tr>
+          <th scope="row">السؤال اللى بيجاوبه</th>
+          <td>خليط — اتغيّر أكتر من مرة</td>
+          <td>المعدّات اشتغلت كويس إزاى؟</td>
+          <td>الوعد اتنفّذ منه قد إيه؟</td>
+        </tr>
+        <tr>
+          <th scope="row">عدد الأعمدة</th>
+          <td class="num">~٤٠</td>
+          <td class="num">٢٥</td>
+          <td class="num">٢٧ <span style="color:var(--muted)">(٢٥ + عمودين)</span></td>
+        </tr>
+        <tr>
+          <th scope="row">قاعدة الخطوة الأخيرة</th>
+          <td><span class="mark p">جزئية</span> — عمود <code>isFinalStep</code> موجود، والاستخدام غير متّسق</td>
+          <td><span class="mark y">نعم</span> — مطبَّقة فى التجميع</td>
+          <td><span class="mark y">نعم</span> — نفس القاعدة</td>
+        </tr>
+        <tr>
+          <th scope="row">قواعد حالة الماكينة</th>
+          <td><span class="mark p">جزئية</span></td>
+          <td><span class="mark y">نعم</span> — مصنّف دقائق مشترك</td>
+          <td><span class="mark y">نعم</span> — <strong>نفس</strong> المصنّف بالحرف</td>
+        </tr>
+        <tr>
+          <th scope="row">تدقيق ذاتى (audit)</th>
+          <td><span class="mark n">لا</span></td>
+          <td><span class="mark y">نعم</span> — يبلّغ الانحراف بالدقيقة</td>
+          <td><span class="mark y">نعم</span></td>
+        </tr>
+        <tr>
+          <th scope="row">قراءة مستقبلية</th>
+          <td>لا تنطبق</td>
+          <td>لا تنطبق — النافذة تقف عند «الآن»</td>
+          <td>تمتدّ لآخر الفترة الموعودة</td>
+        </tr>
+        <tr>
+          <th scope="row">الصفحات اللى بيغذّيها</th>
+          <td class="num"><strong>٢٤</strong> ملف</td>
+          <td class="num">٣ صفحات</td>
+          <td class="num">٣ صفحات</td>
+        </tr>
+      </tbody>
+      <caption>
+        عدد الأعمدة من <code>schema.prisma</code>؛ عدد الملفّات من جرد استدعاءات الـ API فى
+        <code>apps/web/src/features</code>.
+      </caption>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="s2">
+  <h2><span class="num">٢</span>الأرقام الحيّة</h2>
+  <p class="section-lede">
+    نفس النافذة، نفس النطاق، نفس اللحظة — التلات نقط النهائية مقروءة من الـ API المنشور.
+  </p>
+
+  <figure>
+    <div class="barrow">
+      <span class="lbl">OLD · snapshots</span>
+      <div class="bartrack"><div class="barfill" style="width:32%;background:var(--eng-old)"><span>OEE 32.0%</span></div></div>
+    </div>
+    <div class="barrow">
+      <span class="lbl">NEW · standard</span>
+      <div class="bartrack"><div class="barfill" style="width:29.7%;background:var(--eng-std)"><span>OEE 29.7%</span></div></div>
+    </div>
+    <div class="barrow">
+      <span class="lbl">NEW · schedule</span>
+      <div class="bartrack"><div class="barfill" style="width:18.8%;background:var(--eng-sch)"><span>OEE 18.8%</span></div></div>
+    </div>
+    <figcaption>
+      القيمة مطبوعة على كل عمود، فاللون تعريف تانى مش الوحيد. المحور من ٠٪ إلى ١٠٠٪.
+    </figcaption>
+  </figure>
+
+  <div class="scroller">
+    <table>
+      <thead>
+        <tr><th>المحرّك</th><th class="num">OEE</th><th class="num">A</th><th class="num">P</th><th class="num">Q</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="chip old">/production/oee/calculate</span></td>
+            <td class="num">32.0%</td><td class="num">85.0%</td><td class="num">41.0%</td><td class="num">91.7%</td></tr>
+        <tr><td><span class="chip std">/oee-standard</span></td>
+            <td class="num">29.7%</td><td class="num">87.5%</td><td class="num">37.0%</td><td class="num">91.7%</td></tr>
+        <tr><td><span class="chip sch">/oee-schedule</span></td>
+            <td class="num">18.8%</td><td class="num">55.3%</td><td class="num">37.1%</td><td class="num">91.7%</td></tr>
+      </tbody>
+      <caption>٢١ أغسطس ٢٠٢٦، نطاق المصنع كله، نافذة اليوم. صفوف المخازن وقتها:
+        snapshots ٣٤٦٧ · standard ٣٢٣٨ · schedule ٣٢٣١.</caption>
+    </table>
+  </div>
+
+  <div class="note key">
+    <span class="label">الملاحظة الأهم فى الجدول</span>
+    <p style="margin-bottom:0">
+      <strong>الجودة متطابقة تماماً على التلاتة: ٩١.٧٪.</strong> يعنى الخلاف <em>مش</em> فى عدّ القطع
+      ولا فى الوحدات — دى اتوحّدت. الخلاف كله فى <strong>الوقت</strong>: على أى مقام بنقسّم، وأى دقيقة
+      بتتحسب توقّف. وده بالظبط اللى التوحيد لازم يحسمه.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="s3">
+  <h2><span class="num">٣</span>ليه الأرقام بتختلف</h2>
+  <p class="section-lede">
+    التلاتة بيضربوا نفس المعادلة. الفرق فى اللى بيتحطّ تحت الخط.
+  </p>
+
+  <pre class="formula">OEE = A × P × Q          ← <b>واحدة على التلاتة</b>
+
+A(old)      = runMin ÷ <b>plannedMin</b>                  الوقت المخطَّط
+A(standard) = operatingMin ÷ <b>operationalMin</b>        الوقت اللى عدّى − التوقّفات المخطَّطة
+A(schedule) = operatingMin ÷ <b>committedMin − …</b>      الفترة الموعودة كاملة</pre>
+
+  <h3>المقام هو الفرق</h3>
+  <p>
+    المحرّك المعيارى بيقرا <strong>٨٧.٥٪</strong> إتاحية ومحرّك الجدولة <strong>٥٥.٣٪</strong> على
+    نفس الدقائق بالضبط. مافيش دقيقة اتقاست غلط — الجدولة بتحاسب كمان على
+    <strong>الفترة اللى اتوعدنا بيها ولسه ماوصلناهاش</strong>، والمعيارى ما بيعرفش الفترة دى أصلاً.
+  </p>
+  <p>
+    والأداء متقارب (٣٧.٠٪ مقابل ٣٧.١٪) لأن الاتنين بيقسّموا القطع على نفس الطاقة النظرية.
+    فالمعامل الوحيد اللى بيفرّق فعلاً هو <strong>A</strong>.
+  </p>
+
+  <h3>والقديم فى النص، ومش لسبب مقصود</h3>
+  <p>
+    <span class="mono">plannedMin</span> بيتكتب من مصادر مختلفة حسب الحالة، فمقام المحرّك القديم
+    مش تعريف واحد ثابت — وده اللى بيخلّى قراءته بين الاتنين من غير ما تكون «الوسط» بمعنى مفيد.
+  </p>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="s4">
+  <h2><span class="num">٤</span>خريطة الصفحات ← الـ API ← المحرّك</h2>
+  <p class="section-lede">
+    كل صفحة بتعرض رقم OEE أو KPI إنتاج، والمسار اللى بيوصّلها بالمخزن.
+  </p>
+
+  <div class="scroller">
+    <table>
+      <thead>
+        <tr>
+          <th style="min-width:180px">الصفحة</th>
+          <th style="min-width:210px">المسار</th>
+          <th style="min-width:260px">الـ API</th>
+          <th style="min-width:120px">المحرّك</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>OEE</td><td class="mono">/production/oee</td><td class="mono">/production/oee/calculate · /oee/trend</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Machine OEE</td><td class="mono">/manufacturing/oee</td><td class="mono">/production/oee/calculate · /oee-records · /dashboard/overview</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Machine Status</td><td class="mono">/manufacturing/machine-status</td><td class="mono">/machine-status/availability</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Availability</td><td class="mono">/production/availability-analytics</td><td class="mono">/machine-status/availability</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Performance</td><td class="mono">/production/performance-analytics</td><td class="mono">/machine-status/performance</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Quality</td><td class="mono">/production/quality-analytics</td><td class="mono">/machine-status/quality</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Loss Tree &amp; TEEP</td><td class="mono">/production/loss-tree</td><td class="mono">/machine-status/analytics</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Schedule &amp; Capacity</td><td class="mono">/production/schedule-capacity</td><td class="mono">/production/oee/line · /kpi/master-schedule-attainment · /kpi/capacity-utilization</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Production KPIs</td><td class="mono">/production/kpi</td><td class="mono">/dashboard/kpis · /production/oee/calculate · /oee-records</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Machine KPIs</td><td class="mono">/manufacturing/kpi</td><td class="mono">/dashboard/kpis · /production/oee/calculate</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Dashboard</td><td class="mono">/dashboard</td><td class="mono">/dashboard/overview</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Command Center</td><td class="mono">/command-center</td><td class="mono">/dashboard/command-center</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Executive</td><td class="mono">/executive</td><td class="mono">/dashboard/executive</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Downtime Command</td><td class="mono">/downtime</td><td class="mono">/production/downtime/cockpit</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Factory Analytics</td><td class="mono">/analytics</td><td class="mono">/production/oee/calculate · /downtime/summary</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Insights Studio</td><td class="mono">/analytics/insights</td><td class="mono">/production/oee/calculate · /oee/trend</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>AI Intelligence</td><td class="mono">/ai</td><td class="mono">/production/oee/calculate · /oee/hierarchy</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Shop Floor</td><td class="mono">/shop-floor</td><td class="mono">/production/job-orders · /shifts/analysis</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Operator HMI</td><td class="mono">/operation-hub/shop-floor</td><td class="mono">/shifts/analysis</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Job Orders</td><td class="mono">/production/job-orders</td><td class="mono">/production/job-orders</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Work Orders</td><td class="mono">/production/orders</td><td class="mono">/production/work-orders</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Production Reports</td><td class="mono">/reports/production</td><td class="mono">/dashboard/kpis</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td>Report Builder</td><td class="mono">/reports/builder</td><td class="mono">/production/oee-records</td><td><span class="chip old">قديم</span></td></tr>
+        <tr style="background:var(--surface-2)"><td><strong>OEE Analysis</strong></td><td class="mono">/oee-analysis</td><td class="mono">/oee-standard · /oee-schedule</td><td><span class="chip std">معيارى</span> <span class="chip sch">جدولة</span></td></tr>
+        <tr style="background:var(--surface-2)"><td><strong>OEE Breakdown</strong></td><td class="mono">/oee-breakdown</td><td class="mono">/oee-standard · /oee-schedule</td><td><span class="chip std">معيارى</span> <span class="chip sch">جدولة</span></td></tr>
+        <tr style="background:var(--surface-2)"><td><strong>Live Shift</strong></td><td class="mono">/live-shift</td><td class="mono">/live-shift</td><td><span class="chip std">معيارى</span> <span class="chip sch">جدولة</span></td></tr>
+      </tbody>
+      <caption>
+        الصفوف المظلّلة هى الصفحات الثلاث المبنية على المحرّكين الجديدين. الباقى — <strong>٢٣ صفحة</strong> —
+        لسه على المحرّك القديم.
+      </caption>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="s5">
+  <h2><span class="num">٥</span>أماكن حساب OEE المستقلّة</h2>
+  <p class="section-lede">
+    مش المخازن بس اللى بتتعدّد — الحساب نفسه مكتوب فى أكتر من مكان.
+  </p>
+
+  <p>
+    <strong>١٤ ملف</strong> فى الـ API بيلمسوا حساب OEE. منهم <strong>٧ فيهم ضرب A×P×Q
+    بأيديهم</strong> بدل ما ينادوا الابتدائية المشتركة:
+  </p>
+
+  <div class="scroller">
+    <table>
+      <thead><tr><th style="min-width:280px">الملف</th><th class="num">حساب خاص</th><th>الحالة</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">historian/historian.service.ts</td><td class="num">6</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td class="mono">production/kpi.service.ts</td><td class="num">4</td><td><span class="chip old">قديم</span> — بينادى المشتركة ١٢ مرة كمان</td></tr>
+        <tr><td class="mono">production/oee-analytics.service.ts</td><td class="num">4</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td class="mono">production/oee.service.ts</td><td class="num">3</td><td>الابتدائية المشتركة نفسها</td></tr>
+        <tr><td class="mono">production/production.service.ts</td><td class="num">3</td><td><span class="chip old">قديم</span></td></tr>
+        <tr><td class="mono">shift/shift.service.ts</td><td class="num">1</td><td><span class="chip old">قديم</span> — يغذّى Shop Floor وHMI</td></tr>
+        <tr><td class="mono">oee-standard/oee-standard.calc.ts</td><td class="num">1</td><td><span class="chip std">معيارى</span> — نقّى، بلا وصول لقاعدة بيانات</td></tr>
+        <tr><td class="mono">oee-schedule/oee-schedule.calc.ts</td><td class="num">1</td><td><span class="chip sch">جدولة</span> — نقّى</td></tr>
+        <tr><td class="mono">oee-standard/line-basis.service.ts</td><td class="num">1</td><td>يركّب، ما بيعيدش الاشتقاق</td></tr>
+      </tbody>
+      <caption>«حساب خاص» = مرّات ظهور صيغة الضرب <code>(a/100)*(p/100)*(q/100)</code> أو ما يعادلها.</caption>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <span class="label">لماذا هذا هو الخطر الحقيقى</span>
+    <p style="margin-bottom:0">
+      توحيد <em>المخزن</em> من غير توحيد <em>الحساب</em> هيسيب ستّ نسخ من نفس المعادلة بتقرا من
+      مصدر واحد. أول تصحيح هيتطبّق على واحدة منهم، والباقى هيفضل غلط — وده بالظبط النمط اللى
+      اتكرّر فى الشهر اللى فات.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="s6">
+  <h2><span class="num">٦</span>الصفحات المكرّرة</h2>
+  <p class="section-lede">
+    صفحات بتجاوب على نفس السؤال بمسارين مختلفين — مرشّحة للدمج قبل التوحيد.
+  </p>
+
+  <div class="scroller">
+    <table>
+      <thead><tr><th style="min-width:180px">السؤال الواحد</th><th style="min-width:280px">الصفحات</th><th>الاقتراح</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>OEE على مستوى الماكينة</td>
+          <td class="mono">/production/oee<br>/manufacturing/oee</td>
+          <td>واحدة، بفلتر نطاق</td>
+        </tr>
+        <tr>
+          <td>مؤشّرات الإنتاج</td>
+          <td class="mono">/production/kpi<br>/manufacturing/kpi</td>
+          <td>واحدة</td>
+        </tr>
+        <tr>
+          <td>الإتاحية</td>
+          <td class="mono">/manufacturing/machine-status<br>/production/availability-analytics</td>
+          <td>الاتنين بيقروا <code>/machine-status/availability</code> — تبويب حىّ + تبويب تحليلى فى صفحة واحدة</td>
+        </tr>
+        <tr>
+          <td>لوحات عامة</td>
+          <td class="mono">/dashboard · /dashboard-center<br>/command-center · /executive</td>
+          <td>أربعة مداخل لنفس البيانات — مراجعة الجمهور لكل واحدة</td>
+        </tr>
+        <tr>
+          <td>تقارير الإنتاج</td>
+          <td class="mono">/reports/production<br>/production/reports<br>/manufacturing/reports</td>
+          <td>ثلاثة — تُدمج فى واحدة</td>
+        </tr>
+        <tr>
+          <td>شاشة العامل</td>
+          <td class="mono">/shop-floor<br>/operation-hub/shop-floor</td>
+          <td>الاتنين بيقروا <code>/shifts/analysis</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="s7">
+  <h2><span class="num">٧</span>خطة التوحيد</h2>
+  <p class="section-lede">
+    بالترتيب، وكل خطوة قابلة للتحقّق قبل اللى بعدها.
+  </p>
+
+  <h3>١ · دمج المحرّكين الجديدين فى واحد</h3>
+  <p>
+    نقل <code>committedFrom</code> و<code>committedTo</code> إلى <code>oee_minutes</code>،
+    وإلغاء <code>oee_schedule_minutes</code> وكاتبه. المقامان يبقوا اختيار قراءة —
+    وزرار <span class="mono">OEE / OEE-TB</span> يفضل شغّال زى ما هو.
+  </p>
+  <p><strong>التحقّق:</strong> <code>/oee-schedule</code> يرجّع نفس أرقامه بالظبط قبل وبعد النقل.</p>
+
+  <h3>٢ · ابتدائية حساب واحدة</h3>
+  <p>
+    كل مكان بيضرب A×P×Q بإيده ينادى <code>oee-standard.calc.ts</code>. الملفات النقيّة دى
+    ما بتلمسش قاعدة بيانات، فقابلة للاختبار من غير مخزن.
+  </p>
+  <p><strong>التحقّق:</strong> اختبار بنيوى يفشل لو ظهر ضرب A×P×Q جديد خارج الابتدائية.</p>
+
+  <h3>٣ · تحويل الـ APIs القديمة لتقرا المخزن الموحّد</h3>
+  <p>
+    <code>/production/oee/calculate</code> و<code>/dashboard/*</code> و<code>/machine-status/*</code>
+    و<code>/shifts/analysis</code> يفضلوا بنفس الشكل والاسم — بس يقروا من <code>oee_minutes</code>.
+    <strong>ولا صفحة واجهة تتغيّر فى الخطوة دى</strong>، فأى فرق فى الأرقام يبقى مصدره واضح.
+  </p>
+  <p><strong>التحقّق:</strong> جدول قبل/بعد لكل نقطة نهاية، على نفس النافذة.</p>
+
+  <h3>٤ · دمج الصفحات المكرّرة</h3>
+  <p>بعد ما الأرقام تبقى واحدة — مش قبل. دمج صفحتين بتقروا من محرّكين هيخفى الفرق بدل ما يحلّه.</p>
+
+  <h3>٥ · سحب المخزن القديم</h3>
+  <p>
+    <code>production_snapshots</code> يفضل يتكتب بالتوازى فترة، وبعدين يتوقف كاتبه.
+    الجدول نفسه يفضل للأرشيف.
+  </p>
+
+  <div class="note key">
+    <span class="label">المبدأ الحاكم</span>
+    <p style="margin-bottom:0">
+      كل خطوة بتخلّى عدد الأماكن اللى بتعرّف رقم واحد <strong>أقل</strong>. أى خطوة بتزوّده —
+      حتى مؤقتاً — بتتأجّل لحد ما تتقسم لخطوتين.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="s8">
+  <h2><span class="num">٨</span>ما لم تُحسم بعد</h2>
+  <p class="section-lede">قرارات محتاجة رأيك قبل الخطوة الأولى.</p>
+
+  <div class="cards two">
+    <div class="card">
+      <h4>جودة الخط: المخرَج أم عنق الزجاجة؟</h4>
+      <p>
+        المحرّك القديم بياخد السليم من <strong>المخرَج النهائى</strong>؛ والجديدان بياخدوه من
+        <strong>آخر محطة</strong> بعد آخر تصحيح. الاتنين بيدّوا نفس النتيجة على الخط ده لأن
+        المخرَج <em>هو</em> آخر محطة — لكن على خط بمخرجين متوازيين هيختلفوا.
+      </p>
+    </div>
+    <div class="card">
+      <h4>الـ Microstops</h4>
+      <p>
+        <span class="mono">microStopMin</span> مكتوب صفر فى المحرّكين الجديدين لحد ما يتحدّد
+        حدّ زمنى. المحرّك القديم عنده عمود بنفس الاسم وبنفس المشكلة.
+      </p>
+    </div>
+    <div class="card">
+      <h4>‏MSA وسعة الطاقة</h4>
+      <p>
+        <code>/production/kpi/*</code> بيحسب حيّاً من البيانات الأساسية، فمالوش تاريخ حقيقى ولا
+        اتجاه. محتاج يتكتب كلقطة زى الباقى.
+      </p>
+    </div>
+    <div class="card">
+      <h4>‏idealCycleTimeSec</h4>
+      <p>
+        الأداء كله واقف عليه، ولسه غير متحقَّق منه مع NCC (بند ٢٧). المسار بيدّى ثلاث سرعات
+        تصميمية مختلفة لخط متسلسل — وده مستحيل فيزيائياً.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p style="margin:0">
+    كل رقم فى الورقة دى مقروء من البِلد المنشور أو من الكود مباشرةً يوم ٢١ أغسطس ٢٠٢٦.
+    ما اتعدّلش أى كود بسبب الورقة — دى مرجع القرار، والتنفيذ بعده.
+  </p>
+</footer>
+
+</main>
+
+<nav class="toc" aria-label="محتويات">
+  <p>المحتويات</p>
+  <ol>
+    <li><a href="#s0"><span class="n">٠</span><span>الخلاصة</span></a></li>
+    <li><a href="#s1"><span class="n">١</span><span>المحرّكات الثلاثة</span></a></li>
+    <li><a href="#s2"><span class="n">٢</span><span>الأرقام الحيّة</span></a></li>
+    <li><a href="#s3"><span class="n">٣</span><span>ليه الأرقام بتختلف</span></a></li>
+    <li><a href="#s4"><span class="n">٤</span><span>خريطة الصفحات</span></a></li>
+    <li><a href="#s5"><span class="n">٥</span><span>أماكن الحساب</span></a></li>
+    <li><a href="#s6"><span class="n">٦</span><span>الصفحات المكرّرة</span></a></li>
+    <li><a href="#s7"><span class="n">٧</span><span>خطة التوحيد</span></a></li>
+    <li><a href="#s8"><span class="n">٨</span><span>ما لم تُحسم</span></a></li>
+  </ol>
+</nav>
+</div>
+</div>
