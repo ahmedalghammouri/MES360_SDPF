@@ -1007,7 +1007,11 @@ export class KpiService {
    * The loss minutes come from the standard engine's time model, which names the
    * same four buckets this shape has always carried.
    */
-  async snapshotScope(factoryId: string | null, from: Date, to: Date, machineIds: string[] | undefined) {
+  async snapshotScope(
+    factoryId: string | null, from: Date, to: Date, machineIds: string[] | undefined,
+    /** End of the requested period. See snapshotAggregate — `to` is clamped. */
+    slotTo?: Date,
+  ) {
     const n = (v: number | null | undefined) => v ?? 0;
     const r1 = (v: number) => Math.round(v * 10) / 10;
     // A node covering no machines — an empty area, or one whose only machine was
@@ -1023,7 +1027,7 @@ export class KpiService {
     const scope: OeeScope = machineIds ? { machineIds } : {};
     const [std, sch] = await Promise.all([
       this.oeeStandard.overview(factoryId, from, to, scope),
-      this.oeeSchedule.overview(factoryId, from, to, endOfPlantDay(to), scope),
+      this.oeeSchedule.overview(factoryId, from, to, slotTo ?? endOfPlantDay(to), scope),
     ]);
 
     return {
@@ -1117,11 +1121,21 @@ export class KpiService {
      * reading climb from low to true as the period runs, and dropping it turns
      * this basis into the standard one wearing a different name.
      *
-     * Passing `to` gave 34.0% / A 98.4% where the analysis page — which clips to
-     * the END of the selected period — gave 2.1% / A 6.0% for the same machine
-     * and window. The end of the plant day containing `to` reproduces the
-     * analysis page's rule for every period the filter can select, since they
-     * are all day-aligned; a caller with a sub-day window passes its own.
+     * Passing `to` gave 34.0% / A 98.4% where the analysis page — which clips
+     * to the END of the selected period — gave 2.1% / A 6.0% for the same
+     * machine and window.
+     *
+     * The period end is something only the CALLER knows: `to` has already been
+     * clamped, so it cannot be recovered here. Callers holding the raw `dateTo`
+     * pass `opts.slotTo`, computed exactly as the schedule controller computes
+     * it — plantBound(dateTo, 'end') — or the same request answered by two
+     * routes clips the slot differently.
+     *
+     * The fallback below is the end of the plant day containing `to`: right for
+     * the whole-day windows most callers build, WRONG for a sub-day one. A
+     * SHIFT window is exactly that case — asking for 19:30 → 02:00 gave a slot
+     * ending at 23:59 the following night, and the dashboards read OEE 6.0% /
+     * A 17.1% where /oee-schedule read 28.3% / 80.9% for the same request.
      */
     const slotTo = opts.slotTo ?? endOfPlantDay(to);
 
@@ -1278,7 +1292,7 @@ export class KpiService {
     to: Date,
     machineIds: string[] | undefined,
     bucket: 'hour' | 'day' = 'hour',
-    opts: { workOrderId?: string; productionOrderId?: string } = {},
+    opts: { workOrderId?: string; productionOrderId?: string; slotTo?: Date } = {},
   ) {
     return this.snapshotAggregate(factoryId, from, to, machineIds, bucket, opts);
   }
@@ -1872,6 +1886,10 @@ export class KpiService {
       // made any sub-day window an Invalid Date and a 500.
     const rawTo = plantBound(dateTo, 'end') ?? now;
     const to = rawTo > now ? now : rawTo;
+    // The unclamped end is the committed slot's end. It was computed here and
+    // discarded, so the tree's schedule figure was built on a guessed slot and
+    // read 6.0% / A 17.1% beside cards reading 28.3% / 80.9%.
+    const hierSlotTo = rawTo;
     const from = plantBound(dateFrom, 'start') ?? new Date(to.getTime() - 7 * 86_400_000);
     const factoryFilter = factoryId ? { factoryId } : {};
 
@@ -1991,7 +2009,7 @@ export class KpiService {
     // A node's metrics come from the fact store (snapshotScope, scope = its machine ids)
     // when SNAPSHOTS_READ is on, else from the live JO rollup. Shape is identical.
     const snapNode = async (id: string, name: string, code: string | null, type: string, ms: typeof machines, childNodes?: unknown[]) => {
-      const b = await this.snapshotScope(factoryId, from, to, ms.map(x => x.id));
+      const b = await this.snapshotScope(factoryId, from, to, ms.map((x) => x.id), hierSlotTo);
       return { id, name, code, type, oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality, oeeTb: b.oeeTb, availabilityTb: b.availabilityTb, output: b.totalCount, good: b.goodCount, losses: b.losses, children: childNodes ?? [] };
     };
 
@@ -2008,7 +2026,7 @@ export class KpiService {
       const all = ln.machines.map((m) => m.id);
 
       if (ln.cfg.oeeMethod !== 'BOTTLENECK') {
-        const b = await this.snapshotScope(factoryId, from, to, all);
+        const b = await this.snapshotScope(factoryId, from, to, all, hierSlotTo);
         return {
           id: ln.id, name: ln.name, code: ln.code, type: 'LINE',
           oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
@@ -2036,7 +2054,7 @@ export class KpiService {
         (slowest ? ln.machines.find((m) => m.id === slowest.machineId) ?? null : null);
 
       if (!bottleneck) {
-        const b = await this.snapshotScope(factoryId, from, to, all);
+        const b = await this.snapshotScope(factoryId, from, to, all, hierSlotTo);
         return {
           id: ln.id, name: ln.name, code: ln.code, type: 'LINE',
           oee: b.oee, availability: b.availability, performance: b.performance, quality: b.quality,
@@ -2061,8 +2079,8 @@ export class KpiService {
       const outfeeds = configured.length > 0 ? configured : ln.machines;
 
       const [bn, out] = await Promise.all([
-        this.snapshotScope(factoryId, from, to, [bottleneck.id]),
-        this.snapshotScope(factoryId, from, to, outfeeds.map((m) => m.id)),
+        this.snapshotScope(factoryId, from, to, [bottleneck.id], hierSlotTo),
+        this.snapshotScope(factoryId, from, to, outfeeds.map((m) => m.id), hierSlotTo),
       ]);
 
       const r = this.oee.lineOee({
@@ -2151,7 +2169,7 @@ export class KpiService {
     // Kept as a separate binding so the fact-store branch stays TYPED as carrying the
     // time-based pair. Collapsing both branches into one variable erases that and
     // forces a cast, which is how a missing field becomes a silent zero.
-    const plantSnap = useSnap ? await this.snapshotScope(factoryId, from, to, machineIds) : null;
+    const plantSnap = useSnap ? await this.snapshotScope(factoryId, from, to, machineIds, hierSlotTo) : null;
     const plant = plantSnap ?? this.aggregateJos(allJos, hierWin, hierStates, downtime as unknown as DtLite[]);
     // The fact store already carries the time-based pair; the live rollup derives it.
     // Either way the plant headline honours the toggle exactly like the tree does.

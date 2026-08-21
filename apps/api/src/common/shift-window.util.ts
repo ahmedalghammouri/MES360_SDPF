@@ -76,13 +76,28 @@ export function resolveShiftAt(
  * the REAL current shift (start → now), not "since midnight". Mirrors the logic in
  * ShiftService.getCurrentShiftStatus so every surface agrees on the shift window.
  */
-export async function currentShiftStart(
+export async function currentShiftWindow(
   prisma: PrismaService,
   factoryId: string | null,
-): Promise<Date | null> {
-  if (!factoryId) return null;
+): Promise<{ start: Date; end: Date } | null> {
+  /**
+   * A null factory is a SUPER_ADMIN, not "no factory".
+   *
+   * ── What returning null here did ─────────────────────────────────────────
+   * Every caller falls back to midnight when this yields nothing, so for an
+   * account with no factory of its own the "Shift" period silently became
+   * "since today 00:00" — with no error, no empty state, and the button still
+   * highlighted. On this plant that is the difference between 6,361 units and
+   * 2,649 for one machine, and it is why /production/oee/calculate?timeframe=
+   * shift disagreed with /oee-standard over the same shift: they were not
+   * looking at the same hours.
+   *
+   * The same defect has now been fixed three times in three places by resolving
+   * across factories instead of bailing. This is that resolution, in the shared
+   * helper, so the next caller inherits it.
+   */
   const templates = await prisma.shiftTemplate.findMany({
-    where: { factoryId, isActive: true },
+    where: { ...(factoryId ? { factoryId } : {}), isActive: true },
     orderBy: { startTime: 'asc' },
     select: { startTime: true, endTime: true, crossesMidnight: true },
   });
@@ -104,5 +119,22 @@ export async function currentShiftStart(
   // today → the active occurrence began on the previous calendar day.
   if (active.crossesMidnight && nowMin < e) startDt.setDate(startDt.getDate() - 1);
   else if (nowMin < s) startDt.setDate(startDt.getDate() - 1);
-  return startDt;
+
+  // The END of the same occurrence. The schedule basis divides by the slot an
+  // order was committed to, and for a shift window that slot runs to the end
+  // of the SHIFT — not to now, and not to midnight. Derived here beside the
+  // start so the two can never be resolved by different rules.
+  const endDt = new Date(startDt);
+  const lengthMin = active.crossesMidnight ? (24 * 60 - s) + e : e - s;
+  endDt.setMinutes(endDt.getMinutes() + lengthMin);
+
+  return { start: startDt, end: endDt };
+}
+
+/** The start of the running shift. A read of {@link currentShiftWindow}. */
+export async function currentShiftStart(
+  prisma: PrismaService,
+  factoryId: string | null,
+): Promise<Date | null> {
+  return (await currentShiftWindow(prisma, factoryId))?.start ?? null;
 }

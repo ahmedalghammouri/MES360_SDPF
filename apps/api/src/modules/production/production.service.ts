@@ -7,7 +7,7 @@ import { oeeIdentityOf } from '../../common/oee-identity.util';
 import { PrismaService } from '../../database/prisma.service';
 import { archivedWhere } from '../../common/archive.util';
 import { findProcessForSku } from '../../common/process-scope.util';
-import { currentShiftStart } from '../../common/shift-window.util';
+import { currentShiftStart, currentShiftWindow } from '../../common/shift-window.util';
 import { scheduleOps, makeWorkCalendar, type SchedOp } from '../scheduling/op-scheduler';
 import { OEEService } from './oee.service';
 import { KpiService } from './kpi.service';
@@ -18,6 +18,19 @@ import {
   toPieces, sumInPieces, UNIT_LADDER, type SkuPackaging,
 } from '../../common/units.util';
 import { resolveLocalRange, plantBound } from '../../common/plant-time.util';
+
+/**
+ * The end of the plant day a moment falls in.
+ *
+ * Deliberately identical to the one in OeeScheduleController: it is the fallback
+ * slot end, and if the two ever differ the same request answered by two routes
+ * clips the committed slot differently.
+ */
+function endOfLocalDay(d: Date): Date {
+  const e = new Date(d);
+  e.setHours(23, 59, 59, 999);
+  return e;
+}
 import type { WorkOrderStatus, Prisma } from '@prisma/client';
 import type {
   CreateWorkOrderDto, UpdateWorkOrderDto, CompleteWorkOrderDto,
@@ -2106,11 +2119,25 @@ export class ProductionService implements OnApplicationBootstrap {
     const now = new Date();
     let from: Date;
     let to: Date;
+    /**
+     * How far the committed slot reaches — set on every branch.
+     *
+     * Not derivable from `to`, which is clamped to now. Guessing it as the end
+     * of the plant day containing `to` is right for a whole-day window and
+     * wrong for a shift, which is precisely the window this endpoint is asked
+     * for most often.
+     */
+    let slotTo: Date;
     if (tf === 'shift') {
       // The REAL current shift window (start → now), resolved from shift templates —
       // not "since midnight". Falls back to today if no shift is configured.
       to = now;
-      from = (await currentShiftStart(this.prisma, factoryId)) ?? new Date(new Date().setHours(0, 0, 0, 0));
+      const shift = await currentShiftWindow(this.prisma, factoryId);
+      from = shift?.start ?? new Date(new Date().setHours(0, 0, 0, 0));
+      // The slot a shift's orders were committed to runs to the end of the
+      // SHIFT. Ending it at `now` would drop the unreached remainder, which is
+      // the whole difference between the two bases.
+      slotTo = shift?.end ?? endOfLocalDay(now);
     } else {
       // Parse date-only strings in SERVER-LOCAL time, not UTC.
       //
@@ -2130,6 +2157,7 @@ export class ProductionService implements OnApplicationBootstrap {
       // back as a 500. Any window narrower than a whole day broke this endpoint.
       const parsed = resolveLocalRange(dateFrom, dateTo, 1, now);
       to = parsed.to;
+      slotTo = parsed.slotTo;
       if (dateFrom) from = parsed.from;
       else {
         from = new Date(to);
@@ -2140,7 +2168,7 @@ export class ProductionService implements OnApplicationBootstrap {
     }
     const bucket: 'hour' | 'day' = tf === 'day' || tf === 'shift' ? 'hour' : 'day';
 
-    const a = await this.kpiService.oeeAnalytics(factoryId, from, to, machineIds, bucket, drill);
+    const a = await this.kpiService.oeeAnalytics(factoryId, from, to, machineIds, bucket, { ...drill, slotTo });
     return {
       current: a.current, // includes oee/availability/performance/quality + oeeTb/availabilityTb
       // flat aliases for the Machine OEE view + legacy consumers

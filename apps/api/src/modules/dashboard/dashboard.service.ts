@@ -4,7 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { toPieces } from '../../common/units.util';
 import { KpiService } from '../production/kpi.service';
 import { ShiftService } from '../shift/shift.service';
-import { currentShiftStart } from '../../common/shift-window.util';
+import { currentShiftStart, currentShiftWindow } from '../../common/shift-window.util';
 import { EnergyService } from '../energy/energy.service';
 
 @Injectable()
@@ -65,7 +65,7 @@ export class DashboardService {
       const rows = await Promise.all(
         factories.map(async (f) => {
           const [a, e] = await Promise.all([
-            this.kpi.oeeAnalytics(f.id, win.from, win.to, undefined, bucket),
+            this.kpi.oeeAnalytics(f.id, win.from, win.to, undefined, bucket, { slotTo: win.slotTo }),
             this.energy.getOverview(f.id).catch(() => null),
           ]);
           return {
@@ -87,7 +87,7 @@ export class DashboardService {
         if (!machineIds || machineIds.length === 0) {
           return { id: ar.id, code: ar.code, name: ar.name, nameAr: ar.nameAr, oee: 0, output: 0, costMtd: 0 };
         }
-        const a = await this.kpi.oeeAnalytics(factoryId, win.from, win.to, machineIds, bucket);
+        const a = await this.kpi.oeeAnalytics(factoryId, win.from, win.to, machineIds, bucket, { slotTo: win.slotTo });
         return { id: ar.id, code: ar.code, name: ar.name, nameAr: ar.nameAr, oee: a.current.oee, output: a.totalOutput, costMtd: 0 };
       }),
     );
@@ -123,15 +123,30 @@ export class DashboardService {
     const now = new Date();
     let from: Date;
     let to: Date = now;
+    /**
+     * How far the committed slot reaches.
+     *
+     * `to` is clamped to now so planned time does not accrue for hours that
+     * have not happened; the schedule basis needs the unclamped end, because
+     * the part of a slot an order has not reached yet is exactly what makes
+     * that reading climb. Left unset, the KPI layer guessed it as the end of
+     * the plant day, which is wrong for a shift — these dashboards read OEE
+     * 6.0% / A 17.1% against /oee-schedule's 28.3% / 80.9% for one request.
+     */
+    let slotTo: Date = now;
 
     if ((range?.timeframe ?? '').toLowerCase() === 'shift') {
       // Real current-shift window (start → now), resolved from shift templates.
-      from = (await currentShiftStart(this.prisma, factoryId)) ?? (() => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d; })();
+      const shift = await currentShiftWindow(this.prisma, factoryId);
+      from = shift?.start ?? (() => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d; })();
+      // The slot runs to the end of the SHIFT, not to now.
+      slotTo = shift?.end ?? (() => { const d = new Date(now); d.setHours(23, 59, 59, 999); return d; })();
     } else if (range?.dateFrom) {
       from = plantBound(range.dateFrom, 'start') ?? new Date();
       if (range.dateTo) {
         const end = plantBound(range.dateTo, 'end') ?? new Date();
         to = end < now ? end : now;
+        slotTo = end;
       }
     } else {
       from = new Date(now);
@@ -146,7 +161,7 @@ export class DashboardService {
     const prevTo = new Date(from.getTime());
     const prevFrom = new Date(from.getTime() - spanMs);
     const multiDay = spanMs > 36 * 3_600_000;
-    return { from, to, prevFrom, prevTo, spanMs, multiDay };
+    return { from, to, slotTo, prevFrom, prevTo, spanMs, multiDay };
   }
 
   /**
@@ -172,7 +187,7 @@ export class DashboardService {
     const rows = await Promise.all(
       factories.map(async (f) => {
         const [a, e, alarms, ncrs, maint] = await Promise.all([
-          this.kpi.oeeAnalytics(f.id, win.from, win.to, undefined, bucket),
+          this.kpi.oeeAnalytics(f.id, win.from, win.to, undefined, bucket, { slotTo: win.slotTo }),
           this.energy.getOverview(f.id).catch(() => null),
           this.prisma.alarmEvent.count({ where: { factoryId: f.id, resolvedAt: null } }),
           this.prisma.nCR.count({ where: { factoryId: f.id, status: 'OPEN' } }),
@@ -228,7 +243,7 @@ export class DashboardService {
     // machine grid — so per-machine OEE is LIVE (from job orders) instead of the stale
     // MachineCurrentStatus.oee snapshot.
     const bucket: 'hour' | 'day' = win.multiDay ? 'day' : 'hour';
-    const analytics = await this.kpi.oeeAnalytics(factoryId, win.from, win.to, machineIds, bucket);
+    const analytics = await this.kpi.oeeAnalytics(factoryId, win.from, win.to, machineIds, bucket, { slotTo: win.slotTo });
     const [kpis, machines, productionStatus, alarms] = await Promise.all([
       this.getKPIs(factoryId, machineIds, win, analytics),
       this.getMachineStatus(factoryId, machineIds, analytics),
@@ -331,7 +346,7 @@ export class DashboardService {
     // `today` is computed once in getOverview and shared. Only the previous-window
     // comparison + alarm counts are fetched here.
     const [prev, activeAlarms, prevAlarms] = await Promise.all([
-      this.kpi.oeeAnalytics(factoryId, prevFrom, prevTo, machineIds, bucket),
+      this.kpi.oeeAnalytics(factoryId, prevFrom, prevTo, machineIds, bucket, { slotTo: prevTo }),
       this.prisma.alarmEvent.count({ where: { ...factoryFilter, acknowledgedAt: null, resolvedAt: null } }),
       this.prisma.alarmEvent.count({ where: { ...factoryFilter, triggeredAt: { gte: prevFrom, lt: prevTo } } }),
     ]);

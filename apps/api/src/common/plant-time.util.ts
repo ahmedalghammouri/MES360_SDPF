@@ -173,10 +173,25 @@ export function resolveLocalRange(
   dateTo?: string,
   defaultDays = 7,
   now: Date = new Date(),
-): { from: Date; to: Date } {
+): { from: Date; to: Date; slotTo: Date } {
   const rawTo = plantBound(dateTo, 'end') ?? now;
   const to = rawTo > now ? now : rawTo;
   const from = plantBound(dateFrom, 'start')
     ?? new Date(to.getTime() - defaultDays * 86_400_000);
-  return { from, to };
+  /**
+   * The end of the requested PERIOD, before the clamp.
+   *
+   * `to` never runs past now, because planned production time must not accrue
+   * for hours that have not happened. The schedule basis needs the opposite
+   * bound: the part of a committed slot an order has not reached yet is what
+   * makes that reading climb from low to true as the period runs.
+   *
+   * It was already computed here and thrown away, so every caller that needed
+   * it re-derived it — and the re-derivations disagreed. Guessing it as "the
+   * end of the plant day containing `to`" is right for a whole-day window and
+   * wrong for a SHIFT: a request for 19:30 → 02:00 got a slot ending at 23:59
+   * the following night, and the dashboards read OEE 6.0% / A 17.1% where
+   * /oee-schedule read 28.3% / 80.9% for the same request.
+   */
+  return { from, to, slotTo: rawTo };
 }
