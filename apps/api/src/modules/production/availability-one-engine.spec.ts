@@ -87,7 +87,7 @@ describe('availability has one implementation', () => {
     for (const a of aggregates) {
       // Either the old guard, or a source that has no granularity to guard.
       const guarded = a.includes("granularity = 'MINUTE'");
-      const minuteStore = a.includes('oee_minutes') || a.includes('SNAPSHOT_COMPAT');
+      const minuteStore = a.includes('oee_minutes') || a.includes('MINUTE_FACTS');
       expect(guarded || minuteStore).toBe(true);
     }
   });
@@ -97,10 +97,10 @@ describe('availability has one implementation', () => {
    * If it ever grew a coarser row, every caller would double-count silently.
    */
   it('reads a projection of the minute store, one row per minute', () => {
-    expect(kpi).toContain('SNAPSHOT_COMPAT');
+    expect(kpi).toContain('MINUTE_FACTS');
     // Just the fragment, not the rest of the file: the doc comment above it
     // names the retired table, and matching that would be matching prose.
-    const after = kpi.split('SNAPSHOT_COMPAT = Prisma.sql')[1] ?? '';
+    const after = kpi.split('MINUTE_FACTS = Prisma.sql')[1] ?? '';
     const compat = after.slice(0, after.indexOf('`;'));
     expect(compat).toContain('FROM oee_minutes');
     // It must not read anything that could carry a rolled-up row.

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { KpiService, SNAPSHOT_COMPAT } from './kpi.service';
+import { KpiService, MINUTE_FACTS } from './kpi.service';
 import { resolveLocalRange } from '../../common/plant-time.util';
 import { currentShiftStart } from '../../common/shift-window.util';
 import { oeeIdentityOf } from '../../common/oee-identity.util';
@@ -327,7 +327,7 @@ export class OeeAnalyticsService {
   private async scopeQuantities(machineIds: string[], from: Date, to: Date) {
     const rows = await this.prisma.$queryRaw<Array<{ total: number; good: number; scrap: number }>>(Prisma.sql`
       WITH scoped AS (
-        SELECT * FROM ${SNAPSHOT_COMPAT} snap
+        SELECT * FROM ${MINUTE_FACTS} snap
         WHERE granularity = 'MINUTE'
           AND "machineId" IN (${Prisma.join(machineIds)})
           AND "bucketStart" >= ${from} AND "bucketStart" < ${to}

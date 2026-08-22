@@ -77,7 +77,6 @@ model Factory {
   areas                  Area[]
   productionLines        ProductionLine[]
   machines               Machine[]
-  productionSnapshots    ProductionSnapshot[]
   users                  User[]
   skus                   SKU[]
   productCategories      ProductCategory[]
@@ -296,7 +295,6 @@ model Machine {
   cycleTimes          MachineCycleTime[]
   downtimeCauses      DowntimeCause[]
   stateRecords        MachineStateRecord[]
-  productionSnapshots ProductionSnapshot[]
   downtimeEvents      DowntimeEvent[]
   oeeRecords          OEERecord[]
   maintenanceWOs      MaintenanceWO[]
@@ -893,7 +891,6 @@ model WorkOrder {
   downtimeEvents       DowntimeEvent[]
   materialConsumptions MaterialConsumption[]
   productionEvents     ProductionEvent[]
-  productionSnapshots  ProductionSnapshot[]
   inspectionResults    InspectionResult[]
   energyWOSummary      EnergyWOSummary?
   energyWOMachineKpis  EnergyWOMachineKpi[]
@@ -1161,7 +1158,6 @@ model ShiftInstance {
   workOrders          WorkOrder[]
   stateRecords        MachineStateRecord[]
   oeeRecords          OEERecord[]
-  productionSnapshots ProductionSnapshot[]
 
   @@index([factoryId, shiftDate])
   @@map("shift_instances")
@@ -1345,106 +1341,6 @@ model OEERecord {
   @@map("oee_records")
 }
 
-// ────────────────────────────────────────────────────────────────
-// ProductionSnapshot — immutable, dimension-classified, time-bucketed
-// FACT STORE for OEE/KPI + production (good/scrap/bad). Atomic row =
-// one (jobOrder × granularity × bucketStart). Carries every dimension FK
-// denormalised so any scope (shift/WO/PO/product/step/machine/line/area/
-// factory) and any window aggregates without joins.
-//
-// Double-count rule (a routed WO flows ONE batch through serial steps in
-// different units): scrap = SUM(scrapBase) over all steps; good = SUM(goodBase)
-// WHERE isFinalStep; total = good + scrap (derived). Identical to kpi.finalStepCounts.
-// ────────────────────────────────────────────────────────────────
-model ProductionSnapshot {
-  id String @id @default(uuid())
-
-  // time bucket
-  bucketStart DateTime
-  bucketEnd   DateTime
-  granularity String   @default("MINUTE") // MINUTE | HOUR | SHIFT | DAY | JO
-  isFinalized Boolean  @default(false) // false = live (upsertable); true = immutable
-
-  // dimensions (denormalised at write so reads never join)
-  factoryId         String
-  areaId            String?
-  lineId            String?
-  machineId         String?
-  jobOrderId        String
-  workOrderId       String
-  productionOrderId String?
-  skuId             String?
-  shiftInstanceId   String?
-  shiftTemplateId   String?
-  shiftCode         String?
-
-  // step classification
-  operationName String?
-  sequenceOrder Int     @default(0)
-  isFinalStep   Boolean @default(false) // last routing step → its good is the WO output
-
-  // counts — raw (as reported, in outputUnit)
-  outputUnit       String?
-  baseUnit         String?
-  goodRaw          Float   @default(0)
-  scrapRaw         Float   @default(0)
-  reworkRaw        Float   @default(0)
-  totalRaw         Float   @default(0)
-  plannedQtyOutRaw Float?
-
-  // counts — base-unit normalised (the ONLY count columns aggregation sums)
-  goodBase          Float  @default(0)
-  scrapBase         Float  @default(0)
-  reworkBase        Float  @default(0)
-  totalBase         Float  @default(0)
-  plannedQtyOutBase Float?
-
-  // time (minutes, window-clamped to this bucket)
-  plannedMin     Float  @default(0)
-  runMin         Float  @default(0)
-  downMin        Float  @default(0)
-  plannedDownMin Float  @default(0)
-  /// Stopped minutes that a MachineStateRule marks as NOT affecting OEE (starved,
-  /// blocked, or anything else the plant configures that way). Carved out of BOTH
-  /// runMin and plannedMin so the wait is neither charged nor credited.
-  externalMin    Float  @default(0)
-  /// Minutes the machine was inside a job order but reported NO state at all — no
-  /// status signal wired, or the gateway was silent. Not run time and not downtime:
-  /// unmeasured. Carved out of plannedMin so availability is never derived from time
-  /// nobody observed, and surfaced so the gap is visible rather than assumed away.
-  unmeasuredMin  Float  @default(0)
-  microStopMin   Float  @default(0)
-  idealCycleSec  Float?
-  idealRunMin    Float  @default(0) // earned minutes = idealCycleSec/60 × totalBase
-
-  // metrics (%) — schedule-based + time-based (AT-OEE)
-  availability   Float?
-  performance    Float?
-  quality        Float?
-  oee            Float?
-  availabilityTb Float?
-  oeeTb          Float?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  factory       Factory        @relation(fields: [factoryId], references: [id])
-  jobOrder      JobOrder       @relation(fields: [jobOrderId], references: [id], onDelete: Cascade)
-  workOrder     WorkOrder      @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
-  machine       Machine?       @relation(fields: [machineId], references: [id])
-  shiftInstance ShiftInstance? @relation(fields: [shiftInstanceId], references: [id])
-
-  @@unique([jobOrderId, granularity, bucketStart], name: "ux_snapshot_jo_bucket")
-  @@index([factoryId, granularity, bucketStart])
-  @@index([factoryId, bucketStart, isFinalStep])
-  @@index([machineId, bucketStart])
-  @@index([workOrderId, bucketStart])
-  @@index([productionOrderId, bucketStart])
-  @@index([lineId, bucketStart])
-  @@index([areaId, bucketStart])
-  @@index([shiftInstanceId])
-  @@map("production_snapshots")
-}
 
 // MACHINE RUNTIME HOURS (for PM scheduling)
 model MachineRuntimeHours {
@@ -3594,7 +3490,6 @@ model JobOrder {
   workCenter           WorkCenter?           @relation(fields: [workCenterId], references: [id])
   predecessor          JobOrder?             @relation("JOChain", fields: [predecessorId], references: [id])
   successors           JobOrder[]            @relation("JOChain")
-  productionSnapshots  ProductionSnapshot[]
   materials            JobOrderMaterial[]
   operator             User?                 @relation("JOOperator", fields: [operatorId], references: [id])
   scrapLogs            ScrapLog[]
@@ -4088,10 +3983,12 @@ enum WorkOrderStopTrigger {
 // ============================================================
 // OEE STANDARD ENGINE — the Insights Hub time model, one row per minute
 // ------------------------------------------------------------
-// A second, independent fact store. It exists beside production_snapshots
-// rather than replacing it because the two answer to different references, and
-// a plant that is being asked to trust a number must be able to see the
-// reference it was computed against.
+// THE fact store. It was built beside the plant's original one rather than
+// replacing it, so the two could be compared before either was trusted: over
+// every minute both covered, planned-stop and unmeasured minutes matched to the
+// digit, good and scrap totals matched per machine, and run-versus-down was
+// conserved. With that check made and recorded, the original was removed and
+// this is the only place a measured minute lives.
 //
 //   https://documentation.mindsphere.io/MindSphere/apps/insights-hub-oee/
 //

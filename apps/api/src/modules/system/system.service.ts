@@ -46,7 +46,6 @@ export class SystemService {
       genealogyLinks,
       energyWoSummaries,
       energyWoMachineKpis,
-      productionSnapshots,
       oeeRecords,
       machineStateRecords,
       machineRuntimeHours,
@@ -75,7 +74,6 @@ export class SystemService {
       this.prisma.genealogyLink.count(),
       this.prisma.energyWOSummary.count(),
       this.prisma.energyWOMachineKpi.count(),
-      this.prisma.productionSnapshot.count(),
       this.prisma.oEERecord.count(),
       this.prisma.machineStateRecord.count(),
       this.prisma.machineRuntimeHours.count(),
@@ -106,7 +104,6 @@ export class SystemService {
       genealogyLinks,
       energyWoSummaries,
       energyWoMachineKpis,
-      productionSnapshots,
       oeeRecords,
       machineStateRecords,
       machineRuntimeHours,
@@ -436,7 +433,6 @@ export class SystemService {
         //    it is keyed on machine/shift/date — so without deleting it here a
         //    "reset" left OEE charts, machine-state timelines and the snapshot
         //    fact store fully populated against orders that no longer exist.
-        const productionSnapshots = (await tx.productionSnapshot.deleteMany({})).count;
         const oeeRecords = (await tx.oEERecord.deleteMany({})).count;
         const machineStateRecords = (await tx.machineStateRecord.deleteMany({})).count;
         const machineRuntimeHours = (await tx.machineRuntimeHours.deleteMany({})).count;
@@ -469,7 +465,6 @@ export class SystemService {
           genealogyLinks,
           energyWoSummaries,
           energyWoMachineKpis,
-          productionSnapshots,
           oeeRecords,
           machineStateRecords,
           machineRuntimeHours,

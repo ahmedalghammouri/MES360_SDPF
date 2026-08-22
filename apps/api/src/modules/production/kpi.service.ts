@@ -158,7 +158,18 @@ export interface DailyFactTotals {
  *   idealRunMin -> parts / designSpeed, which is what the old column held
  *   microStopMin -> 0, because no threshold defines one yet
  */
-export const SNAPSHOT_COMPAT = Prisma.sql`(
+/**
+ * `oee_minutes` projected onto the column names the old fact store used.
+ *
+ * It was called SNAPSHOT_COMPAT while `production_snapshots` still existed,
+ * and the name outlived the table by long enough to be misleading: nothing
+ * here has ever read that table — this is a view over the minute store that
+ * lets callers written against the old columns keep working unchanged.
+ *
+ * Renamed now that the store is gone, so the last thing implying otherwise
+ * goes with it.
+ */
+export const MINUTE_FACTS = Prisma.sql`(
   SELECT
     o.id, o."bucketStart", o."factoryId", o."machineId",
     o."jobOrderId", o."workOrderId", o."shiftTemplateId", o."shiftCode",
@@ -869,7 +880,7 @@ export class KpiService {
              COALESCE(SUM("totalBase"), 0)::float8      AS "totalBase",
              COALESCE(SUM("goodBase"), 0)::float8       AS "goodBase",
              COALESCE(SUM("scrapBase"), 0)::float8      AS "scrapBase"
-      FROM ${SNAPSHOT_COMPAT} snap
+      FROM ${MINUTE_FACTS} snap
       WHERE granularity = 'MINUTE'
         AND "jobOrderId" IN (${Prisma.join(jobOrderIds)})
         ${window}
@@ -948,7 +959,7 @@ export class KpiService {
     return this.prisma.$queryRaw<Array<DailyFactTotals>>(Prisma.sql`
       WITH scoped AS (
         SELECT *, date_trunc('day', "bucketStart" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Riyadh') AS d
-        FROM ${SNAPSHOT_COMPAT} snap
+        FROM ${MINUTE_FACTS} snap
         WHERE granularity = 'MINUTE'
           AND "machineId" IN (${Prisma.join(machineIds)})
           AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
@@ -1556,7 +1567,7 @@ export class KpiService {
     const col = Prisma.raw(colSql[groupBy] ?? '"machineId"');
     const where = this.snapWhere(factoryId, from, to, machineIds);
     const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
-      WITH scoped AS (SELECT * FROM ${SNAPSHOT_COMPAT} snap WHERE ${where}),
+      WITH scoped AS (SELECT * FROM ${MINUTE_FACTS} snap WHERE ${where}),
            fin AS (SELECT ${col} AS gk, "workOrderId" AS wo, MAX("sequenceOrder") ms FROM scoped GROUP BY ${col}, "workOrderId")
       SELECT ${col} AS key, ${this.snapMetricCols('f')}
       FROM scoped s JOIN fin f ON f.gk = ${col} AND f.wo = s."workOrderId"

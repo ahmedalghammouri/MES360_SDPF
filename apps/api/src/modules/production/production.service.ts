@@ -462,7 +462,6 @@ export class ProductionService implements OnApplicationBootstrap {
     await this.prisma.$transaction([
       this.prisma.jobOrder.updateMany({ where: { id: { in: joIds } }, data: { predecessorId: null } }),
       this.prisma.materialConsumption.deleteMany({ where: { jobOrderId: { in: joIds } } }),
-      this.prisma.productionSnapshot.deleteMany({ where: { workOrderId: { in: ids } } }),
       this.prisma.jobOrder.deleteMany({ where: { workOrderId: { in: ids } } }),
       this.prisma.workOrder.deleteMany({ where: { id: { in: ids } } }),
     ]);

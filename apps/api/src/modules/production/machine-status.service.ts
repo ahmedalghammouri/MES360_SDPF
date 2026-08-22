@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { KpiService, SNAPSHOT_COMPAT } from './kpi.service';
+import { KpiService, MINUTE_FACTS } from './kpi.service';
 import { OeeStandardService } from '../oee-standard/oee-standard.service';
 import { resolveLocalRange } from '../../common/plant-time.util';
 import { currentShiftStart } from '../../common/shift-window.util';
@@ -369,7 +369,7 @@ export class MachineStatusService {
              COALESCE(SUM("scrapBase"), 0)::float  AS "scrapBase",
              COALESCE(SUM("reworkBase"), 0)::float AS "reworkBase",
              COALESCE(SUM("totalBase"), 0)::float  AS "totalBase"
-      FROM ${SNAPSHOT_COMPAT} snap
+      FROM ${MINUTE_FACTS} snap
       WHERE "machineId" IN (${Prisma.join(machineIds)})
         AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
       GROUP BY "machineId"
