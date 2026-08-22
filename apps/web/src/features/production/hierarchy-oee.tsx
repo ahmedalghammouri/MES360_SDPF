@@ -130,11 +130,15 @@ function NodeRow({ node, depth }: { node: OeeNode; depth: number }) {
 export function HierarchyOEE() {
   const { t } = useTranslation('production');
   const { filter, key } = useScope();
-  const { dateFrom, dateTo, key: timeKey } = useTimeRange();
+  const { params: timeParams, key: timeKey } = useTimeRange();
   const oeeMode = useOeeMode();
   const { data, isLoading } = useQuery({
     queryKey: ['production', 'oee-hierarchy', key, timeKey],
-    queryFn: () => api.get<HierResp>('/production/oee/hierarchy', { params: { ...filter, dateFrom, dateTo } }),
+    queryFn: () => api.get<HierResp>('/production/oee/hierarchy', {
+      // The whole period: Today and Shift share dateFrom/dateTo, and only
+      // `timeframe` tells them apart — the shift is resolved server-side.
+      params: { ...filter, ...timeParams },
+    }),
     staleTime: 30_000,
   });
 

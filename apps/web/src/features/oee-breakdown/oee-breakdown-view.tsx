@@ -72,7 +72,7 @@ type TabKey = (typeof TABS)[number]['key'];
 
 export function OeeBreakdownView() {
   const { filter, key: scopeKey, scope } = useScope();
-  const { dateFrom, dateTo, key: timeKey, label: rangeLabel } = useTimeRange();
+  const { params: timeParams, key: timeKey, label: rangeLabel } = useTimeRange();
   const { atOee } = useOeeMode();
   const { poNumber, woId, skuId, shiftTemplateId } = useOrderFilterStore();
   const { param: lineBasisParam, key: lineBasisKey } = useLineBasis();
@@ -93,7 +93,12 @@ export function OeeBreakdownView() {
   const q = useQuery({
     queryKey: ['oee-breakdown', engine, scopeKey, timeKey, dimKey, lineBasisKey],
     queryFn: () => api.get<Payload>(path, {
-      params: { dateFrom, dateTo, ...filter, ...dimensions, ...lineBasisParam },
+      // `timeParams` and not just the dates: Today and Shift produce the SAME
+      // dateFrom/dateTo — a shift is resolved server-side, from `timeframe`,
+      // because only the API holds the shift templates. Sending the dates alone
+      // made the two presets one button: identical numbers, identical charts,
+      // and the night shift's first hours missing from the view showing it.
+      params: { ...timeParams, ...filter, ...dimensions, ...lineBasisParam },
     }),
     refetchInterval: 60_000,
   });

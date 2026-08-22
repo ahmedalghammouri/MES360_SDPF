@@ -244,7 +244,10 @@ function DimensionsSection({ showShift }: { showShift: boolean }) {
   const { data } = useQuery({
     queryKey: ['oee-standard', 'dimensions', timeKey, key],
     queryFn: () => api.get<any>('/oee-standard/dimensions', {
-      params: { dateFrom: params.dateFrom, dateTo: params.dateTo, ...filter },
+      // The whole period, `timeframe` included. Picking the two date fields out
+      // of it dropped the only thing that distinguishes Shift from Today, so
+      // the filter lists covered a different window from the page they filter.
+      params: { ...params, ...filter },
     }),
     staleTime: 60_000,
   });

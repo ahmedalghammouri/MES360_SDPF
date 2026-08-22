@@ -237,7 +237,7 @@ function PrimaryKpiCard({
 export default function ProductionKpiView() {
   const { t } = useTranslation(['production', 'common']);
   const { filter, key } = useScope();
-  const { dateFrom, dateTo, key: timeKey } = useTimeRange();
+  const { params: timeParams, dateFrom, dateTo, key: timeKey } = useTimeRange();
 
   // Work-order metric filters now live in the global ScopePanel (Orders section).
   const { poNumber: poFilter, woId: woFilter } = useOrderFilterStore();
@@ -272,7 +272,7 @@ export default function ProductionKpiView() {
 
   const { data: oeeRecordsResp, isLoading: recordsLoading } = useQuery({
     queryKey: ['production', 'oee-records', timeKey, key],
-    queryFn: () => api.get<{ data: OeeRecord[]; total: number }>('/production/oee-records', { params: { limit: 365, ...filter, dateFrom, dateTo } }),
+    queryFn: () => api.get<{ data: OeeRecord[]; total: number }>('/production/oee-records', { params: { limit: 365, ...filter, ...timeParams } }),
     refetchInterval: 60_000,
   });
   const oeeRecords = Array.isArray(oeeRecordsResp?.data) ? oeeRecordsResp.data : [];
@@ -287,7 +287,9 @@ export default function ProductionKpiView() {
   const { data: oeeCalc } = useQuery({
     queryKey: ['production', 'oee-calc', timeKey, key, poId ?? '', woFilter],
     queryFn: () => api.get<any>('/production/oee/calculate', {
-      params: { ...filter, dateFrom, dateTo, productionOrderId: poId || undefined, workOrderId: woFilter || undefined },
+      // The whole period: Today and Shift share dateFrom/dateTo, and only
+      // `timeframe` tells them apart — the shift is resolved server-side.
+      params: { ...filter, ...timeParams, productionOrderId: poId || undefined, workOrderId: woFilter || undefined },
     }),
     refetchInterval: 60_000,
   });

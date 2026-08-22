@@ -122,7 +122,7 @@ const mins = (n: number | undefined) =>
 export function OeeAnalysisView() {
   const { t } = useTranslation('common');
   const { filter, key: scopeKey } = useScope();
-  const { dateFrom, dateTo, key: timeKey } = useTimeRange();
+  const { params: timeParams, key: timeKey } = useTimeRange();
   const { atOee } = useOeeMode();
   const { poNumber, woId, skuId, shiftTemplateId } = useOrderFilterStore();
   const { param: lineBasisParam, key: lineBasisKey } = useLineBasis();
@@ -151,7 +151,12 @@ export function OeeAnalysisView() {
   const q = useQuery({
     queryKey: ['oee-analysis', engine, scopeKey, timeKey, dimKey, lineBasisKey],
     queryFn: () => api.get<Payload>(path, {
-      params: { dateFrom, dateTo, ...filter, ...dimensions, ...lineBasisParam },
+      // `timeParams` and not just the dates: Today and Shift produce the SAME
+      // dateFrom/dateTo — a shift is resolved server-side, from `timeframe`,
+      // because only the API holds the shift templates. Sending the dates alone
+      // made the two presets one button: identical numbers, identical charts,
+      // and the night shift's first hours missing from the view showing it.
+      params: { ...timeParams, ...filter, ...dimensions, ...lineBasisParam },
     }),
     refetchInterval: 30_000,
   });
