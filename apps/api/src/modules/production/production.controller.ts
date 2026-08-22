@@ -107,7 +107,10 @@ export class ProductionController {
   // ────────────────────────────────────────────────────────────
 
   @Get('kpis')
-  @ApiOperation({ summary: 'Get production KPIs for current day' })
+  @ApiOperation({ summary: 'Production KPIs over the selected period (defaults to today)' })
+  @ApiQuery({ name: 'timeframe', required: false, description: 'shift | day | week | month' })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
   @ApiQuery({ name: 'areaId', required: false })
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'machineId', required: false })
@@ -116,8 +119,13 @@ export class ProductionController {
     @Query('areaId') areaId?: string,
     @Query('lineId') lineId?: string,
     @Query('machineId') machineId?: string,
+    @Query('timeframe') timeframe?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
   ) {
-    return this.productionService.getKPIs(user.factoryId, { areaId, lineId, machineId });
+    return this.productionService.getKPIs(
+      user.factoryId, { areaId, lineId, machineId }, timeframe, dateFrom, dateTo,
+    );
   }
 
   @Get('oee/calculate')

@@ -2063,6 +2063,9 @@ export class ProductionService implements OnApplicationBootstrap {
   async getKPIs(
     factoryId: string | null,
     scope?: { areaId?: string; lineId?: string; machineId?: string },
+    timeframe?: string,
+    dateFrom?: string,
+    dateTo?: string,
   ) {
     const factoryFilter = factoryId ? { factoryId } : {};
     const machineIds = await this.kpiService.resolveScopeMachineIds(factoryId, scope);
@@ -2074,12 +2077,39 @@ export class ProductionService implements OnApplicationBootstrap {
         : scope?.areaId
           ? { OR: [{ line: { areaId: scope.areaId } }, { jobOrders: { some: { machine: { line: { areaId: scope.areaId } } } } }] }
           : {};
-    const dayStart = new Date();
-    dayStart.setHours(0, 0, 0, 0);
+    /**
+     * The window this reports on.
+     *
+     * It used to be today, always: the endpoint accepted no date parameters at
+     * all, so a page set to the running SHIFT still showed a card measuring
+     * since midnight, under the shift's heading. The arithmetic was never
+     * wrong — it matched both engines exactly over its own window — but the
+     * window was not the one the reader had chosen, and no card said so.
+     *
+     * Resolved the same way every other production endpoint resolves it, so
+     * the same filter means the same hours here as everywhere else. Today
+     * remains the default when nothing is asked for.
+     */
+    const kpiNow = new Date();
+    const tf = String(timeframe || '').toLowerCase();
+    let winFrom: Date;
+    let winTo: Date = kpiNow;
+    let winSlotTo: Date;
+    if (tf === 'shift') {
+      const shift = await currentShiftWindow(this.prisma, factoryId);
+      winFrom = shift?.start ?? new Date(new Date().setHours(0, 0, 0, 0));
+      winSlotTo = shift?.end ?? endOfLocalDay(kpiNow);
+    } else if (dateFrom || dateTo) {
+      const parsed = resolveLocalRange(dateFrom, dateTo, 1, kpiNow);
+      winFrom = parsed.from; winTo = parsed.to; winSlotTo = parsed.slotTo;
+    } else {
+      winFrom = new Date(); winFrom.setHours(0, 0, 0, 0);
+      winSlotTo = endOfLocalDay(kpiNow);
+    }
 
     const [oee, totalOrders, inProgressOrders, completedOrders, plannedOrders, heldOrders] =
       await Promise.all([
-        this.kpiService.oeeAnalytics(factoryId, dayStart, new Date(), machineIds, 'hour'),
+        this.kpiService.oeeAnalytics(factoryId, winFrom, winTo, machineIds, 'hour', { slotTo: winSlotTo }),
         this.prisma.workOrder.count({ where: { ...factoryFilter, ...woScope, deletedAt: null } }),
         this.prisma.workOrder.count({ where: { ...factoryFilter, ...woScope, status: 'IN_PROGRESS' } }),
         this.prisma.workOrder.count({ where: { ...factoryFilter, ...woScope, status: 'COMPLETED' } }),

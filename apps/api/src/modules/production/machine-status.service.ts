@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { KpiService, SNAPSHOT_COMPAT } from './kpi.service';
+import { OeeStandardService } from '../oee-standard/oee-standard.service';
 import { resolveLocalRange } from '../../common/plant-time.util';
 import { currentShiftStart } from '../../common/shift-window.util';
 
@@ -46,6 +47,11 @@ export class MachineStatusService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly kpi: KpiService,
+    /**
+     * The scope-level factors come from the engine, not from a rollup of
+     * this file's own — see the `totals` blocks below.
+     */
+    private readonly oeeStandard: OeeStandardService,
   ) {}
 
   /** Machines in scope, in material-flow order so every view lists them alike. */
@@ -290,6 +296,16 @@ export class MachineStatusService {
     // read. This carried its own copy of the query — and, unlike the canonical one,
     // no `granularity = 'MINUTE'` filter, so any rollup row ever written would have
     // been summed on top of the minutes it was rolled up from.
+    /**
+     * The scope-level factors, from the engine.
+     *
+     * The per-machine rows below stay as they are — each one is a single
+     * machine, where every rollup rule agrees. It is the TOTALS that need the
+     * engine: summing several machines is where the rules diverge, and a
+     * header card that disagrees with the analysis page over the same window
+     * is the whole complaint.
+     */
+    const scopeFactors = await this.oeeStandard.overview(factoryId, from, to, { machineIds });
     const byId = await this.kpi.machineFactTotals(machineIds, from, to);
 
     const rows = machines.map((m) => {
@@ -324,7 +340,12 @@ export class MachineStatusService {
       totals: {
         runMin: this.r(sum.runMin),
         idealRunMin: this.r(sum.idealRunMin),
-        performancePct: Math.min(100, this.pct(sum.idealRunMin, sum.runMin)),
+        // From the engine. Rolling up as SUM(idealRunMin)/SUM(runMin) is not the
+        // same figure as the engine's SUM(parts)/SUM(theoretical): the two weight
+        // machines differently, and only coincide when every machine runs at the
+        // same design speed. On this line they read 42.2% and 40.5% for one
+        // window, on one page, under one caption.
+        performancePct: scopeFactors.performance ?? Math.min(100, this.pct(sum.idealRunMin, sum.runMin)),
         output: this.r(sum.totalBase),
       },
     };
@@ -370,6 +391,20 @@ export class MachineStatusService {
       };
     });
 
+    /**
+     * The scope-level quality, from the engine.
+     *
+     * Summing `good` across every machine counts one physical unit once per
+     * station it passed, so the numerator inflates while the scrap — which
+     * stays where it happened — does not. The engine credits good from the
+     * FINAL step of each work order. Over one window on this line that is the
+     * difference between 98.4% and 93.5%.
+     *
+     * The per-machine rows keep their own figure: for a single machine the
+     * question really is "of what this machine made, how much was good".
+     */
+    const scopeFactors = await this.oeeStandard.overview(factoryId, from, to, { machineIds });
+
     const series = await this.dailySeries(machineIds, from, to);
 
     const sum = perMachine.reduce((a, r) => ({
@@ -382,7 +417,9 @@ export class MachineStatusService {
       totals: {
         good: this.r(sum.good), scrap: this.r(sum.scrap), rework: this.r(sum.rework),
         total: this.r(sum.total),
-        qualityPct: this.pct(sum.good, sum.total),
+        qualityPct: scopeFactors.quality ?? this.pct(sum.good, sum.total),
+        // Scrap stays a plain ratio of what every machine threw away against
+        // what every machine handled — that IS a per-station question.
         scrapPct: this.pct(sum.scrap, sum.total),
       },
     };

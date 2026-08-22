@@ -62,6 +62,10 @@ const STATUS_KEYS = ['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'CANCELLE
 export function ProductionOverview() {
   const { t } = useTranslation(['production', 'common']);
   const { filter: scopeFilter, key: scopeKey } = useScope();
+  // The period the reader picked. This hook was imported and never called, so
+  // the KPI card below measured since midnight whatever the filter said — a
+  // shift heading over a whole-day number, with nothing to reveal the gap.
+  const { params: timeParams, key: timeKey } = useTimeRange();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
@@ -77,12 +81,12 @@ export function ProductionOverview() {
   });
 
   const { data: productionKPIs } = useQuery({
-    queryKey: ['production', 'kpis', scopeKey],
+    queryKey: ['production', 'kpis', scopeKey, timeKey],
     queryFn: () => api.get<{
       oee: number; availability: number; performance: number; quality: number;
       oeeTb?: number; availabilityTb?: number;
       totalOrders: number; completedOrders: number; inProgressOrders: number;
-    }>('/production/kpis', { params: scopeFilter }),
+    }>('/production/kpis', { params: { ...scopeFilter, ...timeParams } }),
     refetchInterval: 30_000,
   });
 
