@@ -103,17 +103,29 @@ function runSeed(file) {
     console.error('⚠ Machine status-tag seed skipped (non-fatal):', e?.message ?? e);
   }
 
-  // Backfill the ProductionSnapshot fact store from existing job-order history so
-  // dashboards have real per-shift/WO/PO/product history immediately. Idempotent
-  // (unique-key upserts). Uses the compiled service; non-fatal if dist isn't present.
+  // The ProductionSnapshot backfill used to run here. That store is deleted —
+  // table, model and writer — and `oee_minutes` is the only place a measured
+  // minute lives now. The require() outlived the deletion, throwing into its own
+  // catch on every boot and logging a warning about a module that is gone.
+
+  // Machine numbering — CONFIG, and convergent: the order comes from the ROUTING
+  // and codes are rewritten only where they disagree, so running it on every boot
+  // is safe and it self-heals a line left half-renumbered by a partial run. A
+  // retired machine is moved OUT of the numbering, never deleted.
   try {
-    const { ProductionSnapshotBackfill } = require('../dist/modules/historian/production-snapshot.backfill');
-    const pc = new PrismaClient();
-    const r = await new ProductionSnapshotBackfill().run(pc, { days: 90 });
-    await pc.$disconnect().catch(() => {});
-    console.log(`▶ ProductionSnapshot backfill: ${r.jobOrders} job orders → ${r.rows} rows`);
+    runSeed('renumber-machines.ts');
   } catch (e) {
-    console.error('⚠ ProductionSnapshot backfill skipped (non-fatal):', e?.message ?? e);
+    console.error('⚠ Machine renumbering skipped (non-fatal):', e?.message ?? e);
+  }
+
+  // Big Betti's PROCESSING signal — same contract as the status-tag seed above: it
+  // fills a gap so STARVED can be told apart from BREAKDOWN at the filler, which is
+  // impossible without it. Keyed on the tag code, so it converges rather than
+  // duplicating.
+  try {
+    runSeed('seed-m1-carton-pusher.ts');
+  } catch (e) {
+    console.error('⚠ Carton-pusher tag seed skipped (non-fatal):', e?.message ?? e);
   }
 
   console.log('\n✅ Init complete. Login: admin@mes360.sa');
