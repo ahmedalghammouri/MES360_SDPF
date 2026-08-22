@@ -4,7 +4,14 @@ import { PrismaService } from '../../database/prisma.service';
 import { KpiService } from '../production/kpi.service';
 import { EnergyService } from '../energy/energy.service';
 import { StorageService } from '../storage/storage.service';
-import { currentShiftStart } from '../../common/shift-window.util';
+import { currentShiftStart, currentShiftWindow } from '../../common/shift-window.util';
+
+/** End of the plant day a moment falls in — the fallback slot end. */
+function endOfToday(d: Date): Date {
+  const e = new Date(d);
+  e.setHours(23, 59, 59, 999);
+  return e;
+}
 import type {
   CreatePlantDashboardDto, UpdatePlantDashboardDto, WidgetDto, LiveSubscriptionDto,
 } from './dto/plant-dashboard.dto';
@@ -373,20 +380,33 @@ export class PlantDashboardsService {
   }
 
   // ── Live data (batched) ────────────────────────────────────────────────────
-  private windowFor(timeRange?: string): Promise<{ from: Date; to: Date }> | { from: Date; to: Date } {
+  /**
+   * The window a card asks for, and how far its committed slot reaches.
+   *
+   * `slotTo` is not `to`. `to` is now, because rows only exist once time has
+   * passed; the schedule basis needs the opposite bound, since the part of a
+   * slot an order has not reached yet is what makes that reading climb to true.
+   *
+   * Left unset, the KPI layer guessed it as the end of the plant day — and for
+   * a card set to `shift` that put the slot end at 23:59 on a shift ending at
+   * 07:30, so Availability read 0.1% on a running line and OEE read 0%.
+   */
+  private windowFor(timeRange?: string): Promise<{ from: Date; to: Date; slotTo: Date }> | { from: Date; to: Date; slotTo: Date } {
     const now = new Date();
     const startToday = new Date(now); startToday.setHours(0, 0, 0, 0);
     switch ((timeRange ?? 'today').toLowerCase()) {
       case 'shift':
         return (async () => {
-          const s = await currentShiftStart(this.prisma, null).catch(() => null);
-          return { from: s ?? startToday, to: now };
+          const shift = await currentShiftWindow(this.prisma, null).catch(() => null);
+          const endToday = new Date(now); endToday.setHours(23, 59, 59, 999);
+          // The slot a shift's orders were committed to runs to the END of the shift.
+          return { from: shift?.start ?? startToday, to: now, slotTo: shift?.end ?? endToday };
         })();
-      case 'week': { const f = new Date(now); f.setDate(f.getDate() - 7); return { from: f, to: now }; }
-      case 'month': { const f = new Date(now); f.setDate(f.getDate() - 30); return { from: f, to: now }; }
+      case 'week': { const f = new Date(now); f.setDate(f.getDate() - 7); return { from: f, to: now, slotTo: endOfToday(now) }; }
+      case 'month': { const f = new Date(now); f.setDate(f.getDate() - 30); return { from: f, to: now, slotTo: endOfToday(now) }; }
       case 'current':
       case 'today':
-      default: return { from: startToday, to: now };
+      default: return { from: startToday, to: now, slotTo: endOfToday(now) };
     }
   }
 
@@ -461,7 +481,7 @@ export class PlantDashboardsService {
    *  Each KPI plots its OWN metric — not just OEE. */
   private async resolveTrend(
     factoryId: string | null, metric: string, machineIds: string[],
-    win: { from: Date; to: Date }, timeRange?: string, scopeType?: string, scopeId?: string,
+    win: { from: Date; to: Date; slotTo: Date }, timeRange?: string, scopeType?: string, scopeId?: string,
   ): Promise<Array<{ x: string; y: number }>> {
     // Energy has its own daily series from the energy service.
     if (metric === 'ENERGY_CONSUMPTION') {
@@ -480,13 +500,13 @@ export class PlantDashboardsService {
 
   private async resolveKpi(
     factoryId: string | null, code: string, scopeType: string, scopeId: string,
-    machineIds: string[], win: { from: Date; to: Date },
+    machineIds: string[], win: { from: Date; to: Date; slotTo: Date },
   ): Promise<number> {
     const ids = machineIds.length ? machineIds : undefined;
     switch (code) {
       case 'OEE': case 'AVAILABILITY': case 'PERFORMANCE': case 'QUALITY':
       case 'OEE_TB': case 'AVAILABILITY_TB': case 'TOTAL_PRODUCTION': case 'GOOD_COUNT': case 'DOWNTIME': {
-        const a = await this.kpi.oeeAnalytics(factoryId, win.from, win.to, ids, 'hour');
+        const a = await this.kpi.oeeAnalytics(factoryId, win.from, win.to, ids, 'hour', { slotTo: win.slotTo });
         switch (code) {
           case 'OEE': return a.current.oee;
           case 'AVAILABILITY': return a.current.availability;

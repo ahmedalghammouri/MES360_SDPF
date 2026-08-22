@@ -141,7 +141,12 @@ export function widgetKpiCodes(w: Widget): string[] {
   switch (w.widgetType) {
     case 'kpiValue': return w.dataConfig?.kpiCode ? [String(w.dataConfig.kpiCode)] : [];
     case 'multiKpi': return (w.dataConfig?.kpis ?? []).map((k: any) => k.kpiCode).filter(Boolean);
-    case 'oeeSummary': return ['OEE', 'AVAILABILITY', 'PERFORMANCE', 'QUALITY'];
+    // Both bases, because the card is the one place a reader sees them side by
+    // side. OEE divides by the slot each order was COMMITTED to; OEE-TB by the
+    // time that actually went by. Performance and Quality do not depend on the
+    // time basis, so they are shown once.
+    case 'oeeSummary':
+      return ['OEE', 'AVAILABILITY', 'PERFORMANCE', 'QUALITY', 'OEE_TB', 'AVAILABILITY_TB'];
     case 'productionSummary': return ['TOTAL_PRODUCTION', 'GOOD_COUNT', 'REJECT_COUNT', 'DOWNTIME'];
     case 'equipmentStatus':
     case 'lineStatus': return ['STATE', 'OEE', 'SPEED'];

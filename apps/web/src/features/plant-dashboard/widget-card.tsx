@@ -122,14 +122,40 @@ function body(widget: Widget, live: LiveValue | undefined, thresholdColor: strin
       );
     case 'oeeSummary': {
       const v: any = (live as any)?.values ?? {};
+      /**
+       * Both bases on one card.
+       *
+       * The two are not meant to agree: OEE divides by the slot each order was
+       * COMMITTED to, so it climbs as the period runs; OEE-TB divides by the
+       * time that actually went by, so it is complete at every instant. The gap
+       * between them IS the schedule adherence, and putting them side by side is
+       * the only place a reader can see it without switching pages.
+       *
+       * Performance and Quality appear once because neither depends on the time
+       * basis — the parts made and the minutes spent running are the same either
+       * way.
+       */
+      const hasTb = v.OEE_TB != null || v.AVAILABILITY_TB != null;
       return (
-        <div className="grid grid-cols-2 gap-1.5 text-center">
-          {[['OEE', v.OEE], ['Avail', v.AVAILABILITY], ['Perf', v.PERFORMANCE], ['Qual', v.QUALITY]].map(([k, val]) => (
-            <div key={k as string} className="rounded bg-white/5 py-1">
-              <div className="text-sm font-bold tabular-nums">{fmt(val as number, 1, '%')}</div>
-              <div className="text-[9px] opacity-60 uppercase">{k}</div>
+        <div className="flex flex-col gap-1">
+          <div className="grid grid-cols-2 gap-1.5 text-center">
+            {[['OEE', v.OEE], ['Avail', v.AVAILABILITY], ['Perf', v.PERFORMANCE], ['Qual', v.QUALITY]].map(([k, val]) => (
+              <div key={k as string} className="rounded bg-white/5 py-1">
+                <div className="text-sm font-bold tabular-nums">{fmt(val as number, 1, '%')}</div>
+                <div className="text-[9px] opacity-60 uppercase">{k}</div>
+              </div>
+            ))}
+          </div>
+          {hasTb && (
+            <div className="grid grid-cols-2 gap-1.5 text-center">
+              {[['OEE-TB', v.OEE_TB], ['Avail-TB', v.AVAILABILITY_TB]].map(([k, val]) => (
+                <div key={k as string} className="rounded border border-white/10 bg-white/[0.02] py-1">
+                  <div className="text-xs font-semibold tabular-nums opacity-90">{fmt(val as number, 1, '%')}</div>
+                  <div className="text-[9px] opacity-50 uppercase">{k}</div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       );
     }
