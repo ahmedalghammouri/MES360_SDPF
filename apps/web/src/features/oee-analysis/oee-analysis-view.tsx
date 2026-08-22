@@ -30,6 +30,9 @@ import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { useOeeMode } from '@/hooks/use-oee-mode';
+import { MachineStatusView } from '@/features/manufacturing/machine-status-view';
+import { ScheduleCapacityView } from '@/features/production/schedule-capacity-view';
+import { HierarchyOEE } from '@/features/production/hierarchy-oee';
 import { useOrderFilterStore } from '@/store/order-filter-store';
 import { useLineBasis } from '@/hooks/use-line-basis';
 import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
@@ -90,6 +93,13 @@ const ANALYSES = [
   { key: 'quality', label: 'Quality', blurb: 'Detailed overview of quality and its most relevant KPIs.', ready: true },
   { key: 'loss', label: 'Loss overview', blurb: 'Investigate TEEP and the different losses.', ready: true },
   { key: 'downtime', label: 'Downtime analysis', blurb: 'Detailed analysis of downtime reasons.', ready: true },
+  // ── Absorbed pages ──────────────────────────────────────────────────────
+  // Each of these was a route of its own, reading an older endpoint. They ask
+  // period questions about the same scope and window as the tabs above, so a
+  // reader had to leave the page, re-pick the filter, and hope the two agreed.
+  { key: 'equipment', label: 'Equipment', blurb: 'Machine states over the period, and who lost the time.', ready: true },
+  { key: 'schedule', label: 'Schedule & capacity', blurb: 'Attainment against the plan, and how much of the rated capacity was used.', ready: true },
+  { key: 'tree', label: 'Factory tree', blurb: 'The same window rolled up the asset hierarchy, area by line by machine.', ready: true },
 ] as const;
 
 /**
@@ -267,6 +277,17 @@ export function OeeAnalysisView() {
               and is counted against them. Mid-slot this is a progress figure, not a verdict.
             </p>
           )}
+
+          {/*
+            The absorbed pages, rendered whole. Each still fetches its own
+            endpoint — attainment and capacity are stored KPIs with no engine
+            route, and the factory tree is a hierarchy roll-up — but all three
+            now project from the same two engines this page reads, so the tab
+            and the page around it can no longer disagree.
+          */}
+          {analysis === 'equipment' && <MachineStatusView />}
+          {analysis === 'schedule' && <ScheduleCapacityView />}
+          {analysis === 'tree' && <HierarchyOEE />}
 
           {analysis === 'loss' && (
             <LossPanel

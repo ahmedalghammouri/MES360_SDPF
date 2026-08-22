@@ -143,77 +143,47 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    // Each subject carries both readings on its own page now. The dedicated live
-    // screens under "Now" remain for wall displays, where a tab nobody is standing
-    // next to is a tab nobody can switch.
+    // ── The OEE section, and the whole of it ────────────────────────────────
+    // Nine entries stood here: OEE, Machine OEE, Equipment, Performance,
+    // Quality, Loss Tree & TEEP, Schedule & Capacity, plus Factory Analytics,
+    // Insights Studio and KPI Sheets in a group below. Every one of them asked
+    // a period question about the same scope and window, and five were plain
+    // duplicates of tabs that already existed on the analysis page.
+    //
+    // What they read is what settled it. Three pages call the two engines
+    // directly; the rest went through an older endpoint that projects from
+    // them. Same numbers now, but one more layer to keep honest and one more
+    // place for a reader to land on the wrong answer to the same question.
+    //
+    // So: one live page, one analysis page, one breakdown. The absorbed views
+    // are tabs, not deletions — no chart anybody relied on is gone.
     label: 'OEE',
     icon: Gauge,
-    appHref: '/production/oee',
+    appHref: '/live-shift',
     children: [
-      // Every entry here opens on two tabs — Now and Analytics — so a reader
-      // asking about a subject no longer has to know in advance which of two
-      // menu items holds the reading they want. The names are the subject, not
-      // the reading: "Availability", not "Availability Analytics".
-      { label: 'OEE',          href: '/production/oee',                    icon: LineChart },
-      // Machine Status and Availability were two entries opening the SAME live
-      // view, differing only in the chart set beneath it. They are one page with
-      // both chart sets as sub-tabs; the old Availability URL still resolves to
-      // it, so no written-down link broke, but the menu shows the subject once.
-      { label: 'Equipment',    href: '/manufacturing/machine-status',      icon: Activity },
-      { label: 'Performance',  href: '/production/performance-analytics',  icon: Gauge },
-      { label: 'Quality',      href: '/production/quality-analytics',      icon: ShieldCheck },
-      { label: 'Loss Tree & TEEP',    href: '/production/loss-tree',       icon: Layers },
-      { label: 'Schedule & Capacity', href: '/production/schedule-capacity', icon: Target },
-      // The second engine, kept visibly separate rather than folded in beside the
-      // others. It answers to a published reference and exists to be COMPARED
-      // with the items above; listing it as just another reading would lose the
-      // one thing that makes it useful.
-    ],
-  },
-  {
-    // Its own group because it is not one more reading of the line — it is the
-    // place the readings themselves are put side by side. Both engines live on
-    // one page and the OEE / OEE-TB button in the filter panel swaps between
-    // them, so the scope and period cannot differ between the two.
-    label: 'OEE Analysis Overview',
-    icon: Scale,
-    appHref: '/oee-analysis',
-    children: [
-      { label: 'Time Model & Bases', href: '/oee-analysis', icon: Scale },
-      // Same engine, same rules, no date filter — the window is the shift the
-      // clock says we are in. It sits here rather than under a "live" heading of
-      // its own because a reader comparing the shift to the week should not have
-      // to cross the menu to do it.
-      { label: 'Live Shift', href: '/live-shift', icon: Radio },
-      // The three breakdowns used to sit under whichever analysis was selected,
-      // so they were always present and never the subject. Given a page they can
-      // carry the charts that explain them.
-      { label: 'Breakdown', href: '/oee-breakdown', icon: Table2 },
+      // The only page that answers "what is happening NOW". The window is the
+      // running shift and the browser has no say in it.
+      { label: 'Live Shift', href: '/live-shift', icon: Radio, badge: 'Live', badgeVariant: 'default' },
+      // Nine analytical tabs on the two engines: Overview, Availability,
+      // Performance, Quality, Equipment, Loss overview, Downtime analysis,
+      // Schedule & capacity, Factory tree.
+      { label: 'OEE Analysis', href: '/oee-analysis', icon: Scale },
+      // Machines, job orders, shifts, KPI sheets — the same window, cut by
+      // whichever dimension the question is about.
+      { label: 'OEE Breakdown', href: '/oee-breakdown', icon: Table2 },
     ],
   },
   {
     label: 'Analytics & Reports',
     icon: BarChart3,
-    appHref: '/analytics',
+    appHref: '/reports/builder',
     children: [
-      {
-        label: 'Analysis',
-        icon: LayoutGrid,
-        children: [
-          { label: 'Factory Analytics', href: '/analytics',          icon: LayoutGrid },
-          { label: 'Insights Studio',   href: '/analytics/insights', icon: TrendingUp },
-        ],
-      },
-      {
-        label: 'KPIs',
-        icon: Gauge,
-        children: [
-          // Production KPIs and Machine KPIs were two entries reading the same
-          // window from the same store; the machine sheet's endpoints were a
-          // strict subset of the other's. One sheet, two cuts, both URLs live.
-          { label: 'KPI Sheets', href: '/production/kpi', icon: Gauge },
-        ],
-      },
+      // Analysis and KPIs are gone from here. Factory Analytics became the
+      // OEE Analysis page's Factory-tree tab, and KPI Sheets became a tab on
+      // OEE Breakdown — both were asking period questions about the same
+      // window through an older endpoint. Insights Studio went with them: it
+      // explored the same trend the analysis page charts. Reports stay: they
+      // are documents, not another reading of the line.
       {
         label: 'Reports',
         icon: FileText,

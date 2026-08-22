@@ -150,11 +150,12 @@ describe('live and analytics are separate by construction', () => {
     it.each([
       ['features/live/live-production-view.tsx', 'live'],
       ['features/live/live-machines-view.tsx', 'live'],
-      ['features/production/availability-analytics-view.tsx', 'analytics'],
-      ['features/production/performance-analytics-view.tsx', 'analytics'],
-      ['features/production/quality-analytics-view.tsx', 'analytics'],
-      ['features/production/loss-tree-view.tsx', 'analytics'],
+      // The four standalone analytics views these listed are gone: availability,
+      // performance, quality and loss are tabs on the analysis page now, declared
+      // analytical once by the page that owns them rather than four times over.
       ['features/production/schedule-capacity-view.tsx', 'analytics'],
+      ['features/oee-analysis/oee-analysis-view.tsx', 'analytics'],
+      ['features/oee-breakdown/oee-breakdown-view.tsx', 'analytics'],
     ])('%s declares itself as %s', (file, mode) => {
       // A page that skips this inherits whatever the last page set — which is how
       // a live screen ends up offering a date range it cannot honour.
@@ -162,68 +163,87 @@ describe('live and analytics are separate by construction', () => {
     });
   });
 
-  describe('every dashboard subject carries both readings', () => {
+  describe('one live page, two analytical pages, and nothing in between', () => {
     const web = join(__dirname, '../../../../web/src');
     const read = (rel: string) => readFileSync(join(web, rel), 'utf8');
-
-    it.each([
-      'features/production/oee-page.tsx',
-      'features/production/availability-page.tsx',
-      'features/production/performance-page.tsx',
-      'features/production/quality-page.tsx',
-      'features/production/loss-tree-page.tsx',
-      'features/production/schedule-capacity-page.tsx',
-      'features/manufacturing/machine-status-page.tsx',
-    ])('%s pairs a live half with an analytics half', (file) => {
-      // A subject with only one reading is the arrangement that started this: a
-      // reader had to know in advance which menu entry held the figure they
-      // wanted, and could not compare the two.
-      //
-      // Two shapes satisfy the rule. A subject with ONE analytical view passes a
-      // node; a subject that absorbed another's views passes an ARRAY of them,
-      // which the tab component renders as sub-tabs. And a page that delegates
-      // wholly to another subject's page — the old Availability route, kept so
-      // its URL still resolves — inherits both halves from the page it renders.
-      const src = read(file);
-      const delegates = /return <([A-Z][A-Za-z]*Page) \/>;/.exec(src);
-      if (delegates) {
-        // It must delegate to a page that itself satisfies the rule, or "one
-        // subject, both readings" is only true one level down and nowhere else.
-        expect(src).toMatch(/import \{ [A-Z][A-Za-z]*Page \}/);
-        return;
-      }
-      expect(src).toContain('LiveAnalyticsTabs');
-      expect(src).toMatch(/live=\{</);
-      expect(src).toMatch(/analytics=\{(<|\[)/);
-    });
+    const exists = (rel: string) => existsSync(join(web, rel));
 
     /**
-     * A merged subject keeps every view it absorbed.
+     * ── What this replaced ────────────────────────────────────────────────
+     * Every subject used to own a page with a Now tab and an Analytics tab:
+     * OEE, Equipment, Performance, Quality, Loss Tree, Schedule & Capacity,
+     * plus Factory Analytics, Insights Studio and KPI Sheets alongside. Nine
+     * routes, each asking a period question about the same scope and window,
+     * five of them plain duplicates of tabs that already existed.
      *
-     * The merge was tabs and not deletion precisely so no chart anybody relied
-     * on disappears. This fails if a sub-tab is quietly dropped later, which
-     * would turn the merge into the deletion it was chosen over.
+     * The split they enforced was real and still is — a value read as "now"
+     * must not be read as "the month". What changed is where the line falls.
+     * It is no longer per subject: ONE page answers "now", and the analytical
+     * pages carry every period question as tabs. So the rule guarded here moved
+     * from "each subject pairs both readings" to "the live page is live, the
+     * analytical pages are analytical, and neither borrows the other's
+     * question".
      */
-    it.each([
-      ['features/production/oee-page.tsx', ['ProductionOEEView', 'ManufacturingOeeView']],
-      ['features/manufacturing/machine-status-page.tsx', ['MachineStatusView', 'AvailabilityAnalyticsView']],
-      ['features/production/kpi-page.tsx', ['ProductionKpiView', 'ManufacturingKpiView']],
-      ['features/production/reports-page.tsx', ['ProductionReportsView', 'ManufacturingReportsView', 'ProductionReportView']],
-    ])('%s still renders every view it absorbed', (file, views) => {
-      const src = read(file);
-      for (const v of views) expect(src).toContain(v);
+    it('the deleted subject pages are gone, not merely unlinked', () => {
+      for (const f of [
+        'features/production/oee-page.tsx',
+        'features/production/availability-page.tsx',
+        'features/manufacturing/machine-status-page.tsx',
+        'features/production/performance-page.tsx',
+        'features/production/quality-page.tsx',
+        'features/production/loss-tree-page.tsx',
+        'features/production/schedule-capacity-page.tsx',
+        'features/production/kpi-page.tsx',
+        'features/analytics/factory-analytics-view.tsx',
+        'features/analytics/insights-studio-view.tsx',
+      ]) {
+        expect([f, exists(f)]).toEqual([f, false]);
+      }
     });
 
-    it('routes those pages at the subject URL, not a second one', () => {
-      // The tabbed page replaces the old analytics-only route rather than adding
-      // a sibling — two URLs for one subject is the split all over again.
+    it('Live Shift is the live page, and reads the live endpoint', () => {
+      expect(read('features/live-shift/use-live-shift.ts')).toContain("'/live-shift'");
+      const src = read('features/live-shift/live-shift-view.tsx');
+      expect(src).not.toContain("'/oee-standard'");
+      expect(src).not.toContain("'/oee-schedule'");
+    });
+
+    it('the analytical pages read the engines directly', () => {
+      for (const f of ['features/oee-analysis/oee-analysis-view.tsx',
+                       'features/oee-breakdown/oee-breakdown-view.tsx']) {
+        const src = read(f);
+        expect([f, src.includes("'/oee-standard'")]).toEqual([f, true]);
+        expect([f, src.includes("'/oee-schedule'")]).toEqual([f, true]);
+        expect([f, src.includes("useDeclareViewMode('analytics')")]).toEqual([f, true]);
+      }
+    });
+
+    it('the analysis page still renders everything it absorbed', () => {
+      const src = read('features/oee-analysis/oee-analysis-view.tsx');
+      for (const v of ['MachineStatusView', 'ScheduleCapacityView', 'HierarchyOEE']) {
+        expect([v, src.includes(v)]).toEqual([v, true]);
+      }
+      for (const t of ['equipment', 'schedule', 'tree']) {
+        expect([t, src.includes("key: '" + t + "'")]).toEqual([t, true]);
+      }
+    });
+
+    it('the breakdown page still renders everything it absorbed', () => {
+      const src = read('features/oee-breakdown/oee-breakdown-view.tsx');
+      expect(src).toContain('ProductionKpiView');
+      expect(src).toContain("key: 'kpis'");
+    });
+
+    it('the routes exist for exactly those three pages', () => {
       const app = join(web, 'app/(platform)');
-      for (const [route, comp] of [
-        ['production/oee/page.tsx', 'OeePage'],
-        ['production/availability-analytics/page.tsx', 'AvailabilityPage'],
-        ['manufacturing/machine-status/page.tsx', 'MachineStatusPage'],
-      ] as const) {
-        expect(readFileSync(join(app, route), 'utf8')).toContain(comp);
+      for (const r of ['live-shift', 'oee-analysis', 'oee-breakdown']) {
+        expect([r, existsSync(join(app, r, 'page.tsx'))]).toEqual([r, true]);
+      }
+      for (const r of ['production/oee', 'manufacturing/machine-status',
+                       'production/performance-analytics', 'production/quality-analytics',
+                       'production/loss-tree', 'production/schedule-capacity',
+                       'analytics', 'production/kpi']) {
+        expect([r, existsSync(join(app, r, 'page.tsx'))]).toEqual([r, false]);
       }
     });
   });

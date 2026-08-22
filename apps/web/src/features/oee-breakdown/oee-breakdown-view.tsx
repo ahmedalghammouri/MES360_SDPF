@@ -20,12 +20,13 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Cpu, ClipboardList, Clock } from 'lucide-react';
+import { AlertTriangle, Cpu, ClipboardList, Clock , Gauge} from 'lucide-react';
 
 import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { useOeeMode } from '@/hooks/use-oee-mode';
+import ProductionKpiView from '@/features/production/production-kpi-view';
 import { useLineBasis } from '@/hooks/use-line-basis';
 import { useOrderFilterStore } from '@/store/order-filter-store';
 import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
@@ -66,6 +67,14 @@ const TABS = [
     blurb: 'Whether the difference is the crew or the clock. Shifts are derived from the '
       + 'timestamp, so every minute is attributed whether or not anyone started a shift.',
   },
+  {
+    // Absorbed from its own route. The sheet asks the same window the same
+    // questions the tabs beside it do, through endpoints that now project
+    // from the same two engines — so it is a cut of this page, not a rival.
+    key: 'kpis', label: 'KPI sheets', icon: Gauge,
+    blurb: 'Work orders, attainment, capacity and first-pass yield beside the OEE '
+      + 'they came from.',
+  },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -105,7 +114,8 @@ export function OeeBreakdownView() {
 
   const d = q.data as Payload | undefined;
   const [tab, setTab] = React.useState<TabKey>('machines');
-  const rowsFor = (k: TabKey): Slice[] => (d?.[k] ?? []) as Slice[];
+  // The absorbed sheet has no slice rows of its own; it renders a whole view.
+  const rowsFor = (k: TabKey): Slice[] => (k === 'kpis' ? [] : ((d as never)?.[k] ?? [])) as Slice[];
 
   return (
     <div className="flex flex-col gap-3 p-3 md:p-4">
@@ -148,9 +158,11 @@ export function OeeBreakdownView() {
               <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
                 <Icon className="h-3.5 w-3.5" aria-hidden />
                 {t.label}
-                <span className="ms-0.5 rounded bg-muted px-1 text-[10px] tabular-nums text-muted-foreground">
-                  {n}
-                </span>
+                {t.key !== 'kpis' && (
+                  <span className="ms-0.5 rounded bg-muted px-1 text-[10px] tabular-nums text-muted-foreground">
+                    {n}
+                  </span>
+                )}
               </TabsTrigger>
             );
           })}
@@ -162,7 +174,7 @@ export function OeeBreakdownView() {
             <TabsContent key={t.key} value={t.key} className="flex flex-col gap-3">
               <p className="text-xs leading-relaxed text-muted-foreground">{t.blurb}</p>
 
-              {q.isLoading ? (
+              {t.key === 'kpis' ? <ProductionKpiView /> : q.isLoading ? (
                 <p className="rounded-lg border border-border/60 bg-card px-4 py-8 text-center text-xs text-muted-foreground">
                   Reading the window…
                 </p>
