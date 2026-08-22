@@ -33,7 +33,17 @@ export function useTimeRange() {
     const d = new Date(now);
     if (preset === 'week') d.setDate(now.getDate() - 7);
     else if (preset === 'month') d.setDate(now.getDate() - 30);
-    else d.setHours(0, 0, 0, 0); // today / shift
+    // Today AND shift both round down to midnight here, and that is not a
+    // mistake: a shift is not a client-side concept — only the server knows
+    // the templates — so `timeframe` carries the distinction and the API
+    // resolves the real shift window. These dates are the fallback for a
+    // plant with no shifts configured.
+    //
+    // It WAS a mistake for as long as the engine endpoints ignored
+    // `timeframe`: the two buttons then produced identical windows, identical
+    // charts and identical numbers, and the night shift's first four and a
+    // half hours were missing from the view that claimed to show it.
+    else d.setHours(0, 0, 0, 0);
     dateFrom = iso(d);
   }
 

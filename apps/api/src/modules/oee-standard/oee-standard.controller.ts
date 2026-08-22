@@ -6,11 +6,50 @@ import { OeeStandardWriter } from './oee-standard.writer';
 import { RejectReasonService } from './reject-reason.service';
 import { LineBasisService, type LineMethod } from './line-basis.service';
 import { StateTimelineService } from './state-timeline.service';
+import { PrismaService } from '../../database/prisma.service';
+import { currentShiftWindow } from '../../common/shift-window.util';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { resolveLocalRange } from '../../common/plant-time.util';
 
 interface RequestUser { id: string; factoryId: string | null }
+
+/**
+ * The window a request asks for, honouring `timeframe=shift`.
+ *
+ * ── Why this exists ─────────────────────────────────────────────────────────
+ * The filter panel's "Shift" and "Today" buttons sent IDENTICAL dates: the web
+ * helper derives dateFrom by rounding down to midnight for both presets, and
+ * distinguishes them only by a `timeframe` these controllers did not read. So
+ * the two buttons produced the same window, the same charts and the same
+ * numbers, and the night shift's first four and a half hours were missing from
+ * the view that claimed to show it.
+ *
+ * A shift is not a client-side concept — only the server knows the templates —
+ * so it is resolved here, by the same helper Live Shift and the production
+ * endpoints use. One resolver, or "the shift" means different hours per route.
+ *
+ * The slot end matters as much as the window: the schedule basis divides by the
+ * slot an order was committed to, and for a shift that slot runs to the END of
+ * the shift, not to now.
+ */
+async function resolveRequestWindow(
+  prisma: PrismaService,
+  factoryId: string | null,
+  timeframe: string | undefined,
+  dateFrom: string | undefined,
+  dateTo: string | undefined,
+): Promise<{ from: Date; to: Date; slotTo: Date }> {
+  const now = new Date();
+  if (String(timeframe ?? '').toLowerCase() === 'shift') {
+    const shift = await currentShiftWindow(prisma, factoryId);
+    if (shift) return { from: shift.start, to: now, slotTo: shift.end };
+    // No templates configured. Fall through to the dates rather than invent a
+    // shift — a made-up window is worse than the one the client asked for.
+  }
+  const { from, to, slotTo } = resolveLocalRange(dateFrom, dateTo, 1, now);
+  return { from, to, slotTo };
+}
 
 /**
  * The standard OEE engine, exposed on its own path.
@@ -22,10 +61,14 @@ interface RequestUser { id: string; factoryId: string | null }
  */
 @ApiTags('OEE Standard')
 @ApiBearerAuth('JWT-auth')
+
+
 @Controller('oee-standard')
 export class OeeStandardController {
   constructor(
     private readonly service: OeeStandardService,
+    /** Only for resolving `timeframe=shift` — see resolveRequestWindow. */
+    private readonly prisma: PrismaService,
     private readonly writer: OeeStandardWriter,
     private readonly timeline: StateTimelineService,
     private readonly rejects: RejectReasonService,
@@ -61,6 +104,7 @@ export class OeeStandardController {
   @ApiQuery({ name: 'machineId', required: false })
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'jobOrderId', required: false })
+  @ApiQuery({ name: 'timeframe', required: false, description: "shift — the RUNNING shift, resolved server-side. Otherwise the dates are used as given." })
   @ApiQuery({ name: 'shiftTemplateId', required: false })
   @ApiQuery({ name: 'shiftCode', required: false, description: 'The shift by code, as the minute rows carry it.' })
   @ApiQuery({
@@ -76,6 +120,7 @@ export class OeeStandardController {
     @CurrentUser() user: RequestUser,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('timeframe') timeframe?: string,
     @Query('granularity') granularity?: string,
     @Query('areaId') areaId?: string,
     @Query('machineId') machineId?: string,
@@ -89,7 +134,7 @@ export class OeeStandardController {
     @Query('workOrderId') workOrderId?: string,
     @Query('lineBasis') lineBasis?: string,
   ) {
-    const { from, to } = resolveLocalRange(dateFrom, dateTo, 1);
+    const { from, to } = await resolveRequestWindow(this.prisma, user.factoryId, timeframe, dateFrom, dateTo);
     const scope = this.scope({
       areaId, machineId, lineId, jobOrderId, shiftTemplateId, shiftCode,
       skuId, productionOrderId, productionOrderNumber, workOrderId,
@@ -145,6 +190,7 @@ export class OeeStandardController {
   @ApiQuery({ name: 'dateTo', required: false })
   async dimensions(
     @CurrentUser() user: RequestUser,
+    @Query('timeframe') timeframe?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('areaId') areaId?: string,
@@ -156,7 +202,10 @@ export class OeeStandardController {
     @Query('productionOrderNumber') productionOrderNumber?: string,
     @Query('workOrderId') workOrderId?: string,
   ) {
-    const { from, to } = resolveLocalRange(dateFrom, dateTo, 1);
+    // The same resolver as the overview above. The dimension lists populate
+    // the scope tree's filters, so they must cover the hours the page covers —
+    // otherwise Shift offers products and orders that only ran earlier today.
+    const { from, to } = await resolveRequestWindow(this.prisma, user.factoryId, timeframe, dateFrom, dateTo);
     return this.service.dimensions(user.factoryId, from, to, this.scope({
       areaId, machineId, lineId, shiftTemplateId, skuId, productionOrderId, productionOrderNumber, workOrderId,
     }));
