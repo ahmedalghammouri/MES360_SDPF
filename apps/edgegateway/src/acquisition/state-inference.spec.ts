@@ -31,6 +31,20 @@ describe('StateInferenceService', () => {
     materialTags: Array<{ machineId: string; signalRole: string; value: number; quality?: string }> = [],
   ) {
     const prisma = {
+      /**
+
+       * Rule 0 gates everything on there being work scheduled: a machine with
+
+       * no job order is IDLE and its tags are not consulted. These cases are all
+
+       * about a machine that IS working, so the mock says so — otherwise every
+
+       * one of them would assert against IDLE and prove nothing about the table.
+
+       */
+
+      jobOrder: { count: jest.fn().mockResolvedValue(1) },
+
       machine: {
         findUnique: jest.fn(({ where }: any) =>
           Promise.resolve({ ...LINE.find((m) => m.id === where.id)!, lineId: 'line-1' }),

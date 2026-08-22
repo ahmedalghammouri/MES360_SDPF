@@ -7,8 +7,8 @@
 //   • EDGECOUNTER01  — Modbus TCP  127.0.0.1:502  unit 1  (poll 100 ms)
 //        DI0 = TOTAL, DI1 = GOOD                     → M1 Big Betti  (INNER)
 //   • EDGECOUNTER02  — Modbus TCP  127.0.0.1:503  unit 1  (poll 100 ms)
-//        DI0 = TOTAL, DI1 = GOOD                     → M3 Cartomac   (CARTON)
-//        DI2 = TOTAL, DI3 = GOOD                     → M5 Uni-tech   (PALLET)
+//        DI0 = TOTAL, DI1 = GOOD                     → M2 Cartomac   (CARTON)
+//        DI2 = TOTAL, DI3 = GOOD                     → M4 Uni-tech   (PALLET)
 //   • pm5110M05      — Modbus RTU  serial  unit 1  19200 8E1
 //        16 Float32 holding regs (Schneider PM5110)  → Machine 5 energy meter
 //
@@ -81,8 +81,8 @@ const REJECT_PCT = process.env.SIM_REJECT_PCT ? Number(process.env.SIM_REJECT_PC
 //
 // The machine bindings below come from tag_definitions, NOT from guesswork:
 //   EDGECOUNTER01 :502  DI0/DI1 → M1 Big Betti        (Filling,    counts INNER)
-//   EDGECOUNTER02 :503  DI0/DI1 → M3 Cartomac         (Cartoning,  counts CARTON)
-//   EDGECOUNTER02 :503  DI2/DI3 → M5 Uni-tech Wrapping(Wrapping,   counts PALLET)
+//   EDGECOUNTER02 :503  DI0/DI1 → M2 Cartomac         (Cartoning,  counts CARTON)
+//   EDGECOUNTER02 :503  DI2/DI3 → M4 Uni-tech Wrapping(Wrapping,   counts PALLET)
 // M2 (Checkweigher) and M4 (Euro-Pack Robot) have no counter tags.
 //
 // ── Why each machine needs its OWN rate ──────────────────────────────────────
@@ -167,9 +167,9 @@ const TCP_DEVICES = [
     { label: 'M1 Filling',     total: 0, good: 1, piecesPerPulse: 1,   rejectPct: 2.0, feedsFrom: null,         feedsInto: 'filled' },
   ] },
   { name: 'EDGE_COUNTER_M03', port: PORT_2, machines: [
-    { label: 'M3 Cartoning',   total: 0, good: 1, piecesPerPulse: 4,   rejectPct: 0.5, feedsFrom: 'filled',     feedsInto: 'cartoned' },
-    { label: 'M4 Palletizing',           good: 2, piecesPerPulse: 160, rejectPct: 0,   feedsFrom: 'cartoned',   feedsInto: 'palletized' },
-    { label: 'M5 Wrapping',              good: 3, piecesPerPulse: 160, rejectPct: 0,   feedsFrom: 'palletized', feedsInto: null },
+    { label: 'M2 Cartoning',   total: 0, good: 1, piecesPerPulse: 4,   rejectPct: 0.5, feedsFrom: 'filled',     feedsInto: 'cartoned' },
+    { label: 'M3 Palletizing',           good: 2, piecesPerPulse: 160, rejectPct: 0,   feedsFrom: 'cartoned',   feedsInto: 'palletized' },
+    { label: 'M4 Wrapping',              good: 3, piecesPerPulse: 160, rejectPct: 0,   feedsFrom: 'palletized', feedsInto: null },
   ] },
 ];
 
@@ -202,11 +202,22 @@ const buffers = { filled: 0, cartoned: 0, palletized: 0 };
 // against NCC's document directly, with the offset applied once.
 const diAddress = (ioId) => ioId - 1;
 const SIGNALS = [
+  // Codes follow the line after the Checkweigher was retired and the machines
+  // renumbered: Cartomac M3->M2, Euro-Pack M4->M3, Uni-tech M5->M4. Codes here
+  // must match the DB or the control file stops the wrong machine.
   { code: 'M1', name: 'Big Betti',         port: PORT_1, ioId: 3, role: 'RUN_MODE' },
-  { code: 'M3', name: 'Cartomac',          port: PORT_1, ioId: 4, role: 'RUN_MODE' },
-  { code: 'M4', name: 'Euro-Pack Robot',   port: PORT_1, ioId: 5, role: 'RUN_MODE_PULSED' },
-  { code: 'M5', name: 'Uni-tech Table',    port: PORT_2, ioId: 5, role: 'PROCESSING' },
-  { code: 'M5', name: 'Uni-tech Wrapping', port: PORT_2, ioId: 6, role: 'RUN_MODE' },
+  /**
+   * Big Betti's carton pusher — the signal that makes ITS starvation visible.
+   *
+   * Without a PROCESSING bit the inference cannot tell a filler waiting for
+   * cartons from one that has faulted, and deliberately declines to guess. The
+   * pusher cycles once per pack, so it is up exactly while product moves.
+   */
+  { code: 'M1', name: 'Big Betti Carton Pusher', port: PORT_1, ioId: 6, role: 'PROCESSING' },
+  { code: 'M2', name: 'Cartomac',          port: PORT_1, ioId: 4, role: 'RUN_MODE' },
+  { code: 'M3', name: 'Euro-Pack Robot',   port: PORT_1, ioId: 5, role: 'RUN_MODE_PULSED' },
+  { code: 'M4', name: 'Uni-tech Table',    port: PORT_2, ioId: 5, role: 'PROCESSING' },
+  { code: 'M4', name: 'Uni-tech Wrapping', port: PORT_2, ioId: 6, role: 'RUN_MODE' },
 ].map((s) => ({ ...s, di: diAddress(s.ioId) }));
 
 /**
@@ -293,10 +304,10 @@ setInterval(readControl, 1000);
 readControl();
 
 /** Which production stage tells us whether a machine is actually processing. */
-const STAGE_OF = { M1: 'M1', M3: 'M3', M4: 'M4', M5: 'M5' };
+const STAGE_OF = { M1: 'M1', M2: 'M2', M3: 'M3', M4: 'M4' };
 
 /** Last time each stage actually produced a unit. */
-const lastProducedAt = { M1: Date.now(), M3: Date.now(), M4: Date.now(), M5: Date.now() };
+const lastProducedAt = { M1: Date.now(), M2: Date.now(), M3: Date.now(), M4: Date.now() };
 
 /**
  * How long after the last unit the PROCESSING signal stays up, PER STAGE.

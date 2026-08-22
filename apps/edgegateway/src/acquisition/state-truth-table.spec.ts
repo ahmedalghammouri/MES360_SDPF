@@ -38,9 +38,16 @@ describe('StateInferenceService — the truth table', () => {
     states: Record<string, string>;
     processing?: 0 | 1 | null;
     idleForMs?: number;
+    /** Rule 0: with no job order the machine is IDLE and no tag is read. */
+    scheduled?: boolean;
   }) {
     const { states, processing = null, idleForMs = 10 * 60_000 } = opts;
     const prisma: any = {
+      // Rule 0 gates everything on there being work scheduled: a machine with no
+      // job order is IDLE and its tags are never read. Every row of this table is
+      // about a machine that IS working, so the mock says so — otherwise all of
+      // them would assert against IDLE and prove nothing about the table.
+      jobOrder: { count: jest.fn().mockResolvedValue(opts.scheduled === false ? 0 : 1) },
       machine: {
         findUnique: jest.fn(async ({ where }: any) => ({
           ...LINE.find((m) => m.id === where.id)!, lineId: 'L1',
@@ -68,7 +75,9 @@ describe('StateInferenceService — the truth table', () => {
             : { value: processing, quality: 'GOOD', timestamp: new Date(Date.now() - idleForMs) }),
       },
     };
-    return new StateInferenceService(prisma as never);
+    const svc = new StateInferenceService(prisma as never);
+    // Returned alongside so a test can assert what was NOT consulted.
+    return Object.assign(svc, { __prisma: prisma });
   }
 
   const RUN = 'RUNNING';
@@ -179,5 +188,43 @@ describe('StateInferenceService — the truth table', () => {
     // a PLANNED stop into an EXTERNAL loss and changes what OEE excludes.
     const s = build({ states: { ...allRunning, m1: 'BREAKDOWN', m2: 'BREAKDOWN' } });
     await expect(s.classify(ME, 'CHANGEOVER')).resolves.toBe('CHANGEOVER');
+  });
+
+  /**
+   * Rule 0 — an unscheduled machine has nothing to say about itself.
+   *
+   * A machine with no job order is not RUNNING, not STARVED and not BROKEN: it
+   * is IDLE, and none of its tags are worth reading to decide that. Run Mode on
+   * at an unscheduled machine says the panel is powered; Run Mode off says
+   * somebody switched it off. Inferring either way manufactures downtime out of
+   * an idle plant.
+   *
+   * The elapsed time is not lost — it is exactly what the Energy module
+   * measures, and standby draw on an idle machine is a real cost that OEE has
+   * nothing to say about.
+   */
+  describe('no job order, no verdict', () => {
+    it.each(['RUNNING', 'BREAKDOWN', 'IDLE', 'STOPPED'])(
+      'reports IDLE for a raw %s when nothing is scheduled', async (raw) => {
+        const s2 = build({ states: allRunning, processing: 1, scheduled: false });
+        await expect(s2.classify(ME, raw)).resolves.toBe('IDLE');
+      });
+
+    it('does not read any tag to decide it', async () => {
+      const s2 = build({ states: allRunning, processing: 1, scheduled: false });
+      await s2.classify(ME, 'BREAKDOWN');
+      expect((s2 as never as { __prisma: any }).__prisma.tagDefinition.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('a PAUSED order still counts as scheduled — the stop is real', async () => {
+      // Mid-job and stopped is a stop on a real order, not an idle plant.
+      const s2 = build({ states: allRunning, processing: 1 });
+      await expect(s2.classify(ME, RUN)).resolves.not.toBe('IDLE');
+      expect((s2 as never as { __prisma: any }).__prisma.jobOrder.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: { in: ['EXECUTING', 'PAUSED'] } }),
+        }),
+      );
+    });
   });
 });

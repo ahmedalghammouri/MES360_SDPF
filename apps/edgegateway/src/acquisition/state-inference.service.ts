@@ -101,6 +101,13 @@ export class StateInferenceService {
   private topologyCache = new Map<string, { at: number; value: LineNeighbours }>();
   private static readonly TOPOLOGY_TTL_MS = 60_000;
 
+  /**
+   * A PAUSED order still counts as work scheduled: the machine is mid-job and
+   * whatever stopped it is a real stop on a real order, not an idle plant.
+   */
+  private workCache = new Map<string, { at: number; value: boolean }>();
+  private static readonly WORK_TTL_MS = 15_000;
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -108,6 +115,27 @@ export class StateInferenceService {
    * STARVED / BLOCKED when the context explains it.
    */
   async classify(machineId: string, rawState: string): Promise<string> {
+    /**
+     * Rule 0 — no job order, no verdict.
+     *
+     * A machine with nothing scheduled on it is not RUNNING, not STARVED and
+     * not BROKEN: it is IDLE, and none of its tags are worth reading to decide
+     * that. Run Mode being on at a machine with no work says the panel is
+     * powered, not that the line is producing; Run Mode being off says it was
+     * switched off, not that it failed.
+     *
+     * Inferring anything else here manufactures downtime out of an idle plant.
+     * Counting is already gated the same way — the counter only applies an edge
+     * when it has a job order to apply it TO — and the OEE writer never emits a
+     * minute for a machine with no step running. So this closes the last place
+     * where an unscheduled machine could still assert something about itself.
+     *
+     * The elapsed time is not lost: it is exactly what the Energy module
+     * measures, and standby consumption on an idle machine is a real cost that
+     * OEE has nothing to say about.
+     */
+    if (!(await this.hasWorkScheduled(machineId))) return 'IDLE';
+
     // Rule 1 — the machine said why itself. A status word that reports STARVED or
     // BLOCKED outright is a measurement, and nothing inferred may overrule it.
     if (rawState === 'STARVED' || rawState === 'BLOCKED') return rawState;
@@ -244,6 +272,25 @@ export class StateInferenceService {
    * on the strength of silence — over-reporting starvation moves real losses out
    * of OEE and flatters the equipment.
    */
+  /**
+   * Is there a step running on this machine right now?
+   *
+   * Cached briefly: this is asked on every poll for every machine, and a job
+   * order does not start and stop within a few seconds. The TTL is short
+   * enough that a machine goes live within one cache window of its order
+   * being released.
+   */
+  private async hasWorkScheduled(machineId: string): Promise<boolean> {
+    const hit = this.workCache.get(machineId);
+    if (hit && Date.now() - hit.at < StateInferenceService.WORK_TTL_MS) return hit.value;
+    const count = await this.prisma.jobOrder.count({
+      where: { machineId, status: { in: ['EXECUTING', 'PAUSED'] } },
+    });
+    const value = count > 0;
+    this.workCache.set(machineId, { at: Date.now(), value });
+    return value;
+  }
+
   private async processingNow(machineId: string): Promise<boolean | null> {
     const tag = await this.prisma.tagDefinition.findFirst({
       where: { machineId, isActive: true, signalRole: PROCESSING },

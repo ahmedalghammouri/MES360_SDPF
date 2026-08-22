@@ -30,6 +30,20 @@ describe('the processing idle clock', () => {
     function build(reading: Record<string, unknown>, feederState = 'BREAKDOWN') {
       const states: Record<string, string> = { m4: feederState, m5: 'RUNNING' };
       const prisma: any = {
+        /**
+
+         * Rule 0 gates everything on there being work scheduled: a machine with
+
+         * no job order is IDLE and its tags are not consulted. These cases are all
+
+         * about a machine that IS working, so the mock says so — otherwise every
+
+         * one of them would assert against IDLE and prove nothing about the table.
+
+         */
+
+        jobOrder: { count: jest.fn().mockResolvedValue(1) },
+
         machine: {
           findUnique: jest.fn(async ({ where }: any) => ({
             ...LINE.find((m) => m.id === where.id)!, lineId: 'L1',
