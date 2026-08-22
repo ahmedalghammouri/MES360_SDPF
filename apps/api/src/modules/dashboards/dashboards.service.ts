@@ -81,8 +81,30 @@ export class DashboardsService {
       deletedAt: null,
       isPublished: true,
       isTemplate: wantTemplates ? true : false,
+      /**
+       * Custom (Grafana) dashboards are not part of the catalogue.
+       *
+       * Excluded HERE and not only in the UI, because the filter chip was only
+       * ever a filter: with it removed the 63 rows in this database would have
+       * stayed visible under "All Sources", and the removal would have been
+       * cosmetic. Excluding at the query means it holds for any database the
+       * image is deployed against, which is what shipping it with the build
+       * has to mean.
+       *
+       * The rows are left in place rather than deleted: they carry somebody's
+       * saved panels, and hiding a catalogue entry is reversible where dropping
+       * it is not.
+       */
+      source: { not: DashboardSource.GRAFANA },
     };
 
+    // A caller asking for GRAFANA explicitly gets nothing — not "everything
+    // else". Dropping the filter and letting the exclusion above stand returned
+    // all 20 remaining rows, which reads as though the request was ignored.
+    // `list` returns an ARRAY; an object here type-checks only because the
+    // return type is inferred as a union, and would have reached the client as
+    // a shape nothing renders.
+    if (query.source === DashboardSource.GRAFANA) return [];
     if (query.source) filters.source = query.source;
     if (query.type) filters.type = query.type as never;
 

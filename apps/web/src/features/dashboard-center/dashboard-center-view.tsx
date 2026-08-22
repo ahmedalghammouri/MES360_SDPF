@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { useFactoryStore } from '@/store/factory-store';
 import { toast } from '@/components/ui/use-toast';
 import {
-  useDashboards, useDashboardCategories, useToggleFavorite, useCloneDashboard, useGrafanaHealth,
+  useDashboards, useDashboardCategories, useToggleFavorite, useCloneDashboard,
   type DashboardCatalogItem, type DashboardSource, type DashboardFilters,
 } from './use-dashboard-center';
 import { DashboardCard, resolveIcon } from './dashboard-card';
@@ -24,7 +24,10 @@ type Tab = 'all' | 'favorites' | 'templates';
 const SOURCE_FILTERS: { value: DashboardSource | 'ALL'; label: string }[] = [
   { value: 'ALL', label: 'All Sources' },
   { value: 'MES360_NATIVE', label: 'MES360°' },
-  { value: 'GRAFANA', label: 'Custom' },
+  // 'Custom' (Grafana) is gone. It filtered a source the catalogue no longer
+  // surfaces, so it was a control that could only ever return nothing — and it
+  // is removed at build time rather than hidden behind a flag, because a flag
+  // is a thing that gets switched back on by accident in a deployed image.
   { value: 'REPORT', label: 'Reports' },
   { value: 'EXTERNAL', label: 'External' },
 ];
@@ -49,7 +52,6 @@ export function DashboardCenterView() {
 
   const { data: categories } = useDashboardCategories();
   const { data: dashboards, isLoading, refetch, isFetching } = useDashboards(filters);
-  const { data: grafanaHealth } = useGrafanaHealth();
   const toggleFavorite = useToggleFavorite();
   const cloneDashboard = useCloneDashboard();
 
@@ -64,7 +66,7 @@ export function DashboardCenterView() {
       router.push(d.route);
       return;
     }
-    // Custom / external → embedded viewer (preserves MES360° chrome)
+    // External → embedded viewer (preserves MES360° chrome)
     router.push(`/dashboard-center/${d.id}`);
   }
 
@@ -100,22 +102,8 @@ export function DashboardCenterView() {
               {selectedFactory.code}
             </Badge>
           )}
-          {grafanaHealth && (
-            <Badge
-              variant="outline"
-              className={cn(
-                'h-8 gap-1.5 text-xs',
-                grafanaHealth.reachable ? 'text-success-400 border-success-500/30'
-                  : grafanaHealth.configured ? 'text-warning-400 border-warning-500/30'
-                  : 'text-muted-foreground',
-              )}
-              title={grafanaHealth.reachable ? t('dashboardCenter.grafanaConnected') : grafanaHealth.configured ? t('dashboardCenter.grafanaUnreachable') : t('dashboardCenter.grafanaNotConfigured')}
-            >
-              <span className={cn('w-1.5 h-1.5 rounded-full',
-                grafanaHealth.reachable ? 'bg-success-400' : grafanaHealth.configured ? 'bg-warning-400' : 'bg-muted-foreground')} />
-              Custom
-            </Badge>
-          )}
+          {/* The Grafana connectivity badge went with the Custom source: a status
+              light for a backend the catalogue no longer surfaces. */}
           <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={13} className={cn(isFetching && 'animate-spin')} />
             {t('dashboardCenter.refresh')}

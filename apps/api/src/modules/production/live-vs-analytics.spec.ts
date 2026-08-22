@@ -40,7 +40,10 @@ describe('live and analytics are separate by construction', () => {
     });
 
     it('derives its window from the shift templates', () => {
-      expect(live).toContain('currentShiftStart(');
+        // `currentShiftWindow` resolves both edges of the running shift. The start
+      // is the data window; the end is the committed slot the schedule basis
+      // divides by. `currentShiftStart` is a read of the same resolver.
+    expect(live).toMatch(/currentShift(Start|Window)\(/);
     });
 
     it('reads the one canonical aggregate, not a query of its own', () => {

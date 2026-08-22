@@ -115,8 +115,8 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Live Production', href: '/live/production', icon: Factory,  badge: 'Live', badgeVariant: 'default' },
       { label: 'Live Machines',   href: '/live/machines',   icon: Activity, badge: 'Live', badgeVariant: 'default' },
-      { label: 'Shop Floor',      href: '/shop-floor',      icon: Monitor },
-      { label: 'Downtime Center', href: '/downtime',        icon: PauseCircle },
+      // Shop Floor is an operator terminal — it lives in Operation Hub with the other floor screens.
+      // The Downtime command centre lives with the other cockpits, under Dashboards.
       { label: 'Alarms',          href: '/alarms',          icon: AlarmClock, dynamicKey: 'activeAlarms', badgeVariant: 'destructive' },
     ],
   },
@@ -244,6 +244,7 @@ const navItems: NavItem[] = [
     appHref: '/production',
     children: [
       { label: 'Overview', href: '/production', icon: Gauge },
+      { label: 'Manufacturing Hub', href: '/manufacturing',         icon: Cog             },
       {
         label: 'Orders',
         icon: ClipboardList,
@@ -259,43 +260,24 @@ const navItems: NavItem[] = [
         children: [
           { label: 'Batches & Lots',  href: '/production/batches',   icon: Boxes          },
           { label: 'Scrap Log Audit', href: '/production/scrap-log', icon: AlertTriangle, badge: 'Audit', badgeVariant: 'outline' },
+      { label: 'Downtime Management', href: '/production/downtime', icon: AlertTriangle, dynamicKey: 'openDowntime', badgeVariant: 'destructive' },
         ],
       },
     ],
   },
-  {
-    label: 'Manufacturing',
-    icon: Cog,
-    appHref: '/manufacturing',
-    children: [
-      { label: 'Manufacturing Hub', href: '/manufacturing',         icon: Cog             },
-      { label: 'Control Panel',     href: '/manufacturing/control', icon: SlidersHorizontal, badge: 'Live', badgeVariant: 'secondary' },
-      {
-        label: 'Engineering',
-        icon: Workflow,
-        children: [
-          { label: 'Mfg. Processes', href: '/production/processes', icon: Workflow     },
-          { label: 'Recipes',        href: '/production/recipes',   icon: FlaskConical },
-        ],
-      },
-    ],
-  },
-  {
-    label: 'Downtime',
-    icon: PauseCircle,
-    appHref: '/downtime',
-    children: [
-      { label: 'Downtime Command Center', href: '/downtime',            icon: PauseCircle,   badge: 'New', badgeVariant: 'default' },
-      { label: 'Downtime Management',     href: '/production/downtime', icon: AlertTriangle, dynamicKey: 'openDowntime', badgeVariant: 'destructive' },
-    ],
-  },
+  // The Manufacturing group is dissolved: its Control Panel is a floor terminal,
+  // and its processes and recipes are product definitions. What was left was one
+  // overview page, which belongs beside the orders it summarises.
+  // The Downtime group is dissolved. Its command centre sits with the other
+  // cockpits under Dashboards, and Downtime Management moved into Production —
+  // it is a working page about orders being interrupted, not a section.
   {
     label: 'Energy',
     icon: Zap,
     appHref: '/energy',
     children: [
       { label: 'Energy Dashboard',      href: '/energy',                icon: Zap   },
-      { label: 'Energy Command Center', href: '/energy/command-center', icon: Gauge, badge: 'New', badgeVariant: 'default' },
+      // The Energy command centre lives with the other cockpits, under Dashboards.
       { label: 'Energy Analytics',      href: '/energy/analytics',      icon: BarChart3, badge: 'New', badgeVariant: 'default' },
       {
         label: 'Monitoring',
@@ -405,7 +387,7 @@ const navItems: NavItem[] = [
           { label: 'Location Transfers', href: '/inventory/location-movements', icon: ArrowLeftRight },
         ],
       },
-      { label: 'Bill of Materials',   href: '/inventory/bom',     icon: GitMerge   },
+      // The bill of materials is a product DEFINITION — it lives in PLM & Engineering.
       { label: 'Reports & Analytics', href: '/inventory/reports', icon: BarChart3  },
     ],
   },
@@ -481,7 +463,7 @@ const navItems: NavItem[] = [
     appHref: '/hierarchy',
     children: [
       { label: 'Plant Hierarchy', href: '/hierarchy',     icon: GitBranch },
-      { label: 'Alarms',          href: '/alarms',        icon: AlarmClock, dynamicKey: 'activeAlarms', badgeVariant: 'destructive' },
+      // Alarms are a live signal — they live in Operations Now.
       { label: 'Notifications',   href: '/notifications', icon: Bell,       badgeDynamic: true, badgeVariant: 'destructive' },
     ],
   },

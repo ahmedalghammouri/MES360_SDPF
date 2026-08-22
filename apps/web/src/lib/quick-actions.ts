@@ -53,8 +53,12 @@ export const QUICK_ACTION_GROUPS: QuickActionGroup[] = [
     accent: 'text-fuchsia-400',
     icon: Gauge,
     actions: [
-      { label: 'OEE Analytics', href: '/production/oee',    icon: LineChart, tone: 'text-fuchsia-400' },
-      { label: 'Machine OEE',   href: '/manufacturing/oee', icon: Activity,  tone: 'text-violet-400' },
+      // The nine OEE routes became three. The six tiles that pointed at the
+      // others were still here after the routes were deleted — a launcher is a
+      // second copy of the navigation, and a copy is what goes stale.
+      { label: 'Live Shift',    href: '/live-shift',    icon: Activity,  tone: 'text-emerald-400' },
+      { label: 'OEE Analysis',  href: '/oee-analysis',  icon: LineChart, tone: 'text-fuchsia-400' },
+      { label: 'OEE Breakdown', href: '/oee-breakdown', icon: Layers,    tone: 'text-violet-400' },
     ],
   },
   {
@@ -62,10 +66,8 @@ export const QUICK_ACTION_GROUPS: QuickActionGroup[] = [
     accent: 'text-pink-400',
     icon: BarChart3,
     actions: [
-      { label: 'Factory Analytics', href: '/analytics',          icon: BarChart3, tone: 'text-pink-400' },
-      { label: 'Insights Studio',   href: '/analytics/insights', icon: LineChart, tone: 'text-fuchsia-400' },
-      { label: 'Production KPIs',   href: '/production/kpi',     icon: Gauge,     tone: 'text-emerald-400' },
-      { label: 'Machine KPIs',      href: '/manufacturing/kpi',  icon: Cpu,       tone: 'text-cyan-400' },
+      // Factory Analytics and the two KPI sheets are tabs on the OEE pages now;
+      // Insights Studio explored the same trend those pages chart.
       { label: 'Reports',           href: '/reports',            icon: FileText,  tone: 'text-purple-400' },
       { label: 'Report Builder',    href: '/reports/builder',    icon: FileBarChart, tone: 'text-violet-400' },
     ],
@@ -258,5 +260,5 @@ export const CORE_QUICK_ACTIONS: QuickAction[] = [
   { label: 'Maintenance Floor', href: '/maintenance-floor',     icon: Wrench,            tone: 'text-orange-400' },
   { label: 'Quality Floor',     href: '/quality-floor',         icon: ClipboardCheck,    tone: 'text-green-400' },
   { label: 'Downtime',          href: '/production/downtime',    icon: AlertTriangle,     tone: 'text-red-400' },
-  { label: 'Factory Analytics', href: '/analytics',             icon: BarChart3,         tone: 'text-fuchsia-400' },
+  { label: 'OEE Analysis',      href: '/oee-analysis',          icon: BarChart3,         tone: 'text-fuchsia-400' },
 ];

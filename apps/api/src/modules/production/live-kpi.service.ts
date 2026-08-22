@@ -4,7 +4,9 @@ import { PrismaService } from '../../database/prisma.service';
 import { KpiService, type MachineFactTotals } from './kpi.service';
 import { OEEService } from './oee.service';
 import { ScheduleKpiService } from './schedule-kpi.service';
-import { currentShiftStart } from '../../common/shift-window.util';
+import { currentShiftStart, currentShiftWindow } from '../../common/shift-window.util';
+import { OeeStandardService, type OeeScope } from '../oee-standard/oee-standard.service';
+import { OeeScheduleService } from '../oee-schedule/oee-schedule.service';
 import { toPieces, type SkuPackaging } from '../../common/units.util';
 
 /**
@@ -85,6 +87,15 @@ export class LiveKpiService {
     private readonly kpi: KpiService,
     private readonly oee: OEEService,
     private readonly scheduleKpi: ScheduleKpiService,
+    /**
+     * The factor pair comes from the engines, not from a rollup of the facts.
+     * `factorsFromFacts` publishes `availability` and `availabilityTb` as two
+     * bases when they are the same quantity — the six minute buckets sum to the
+     * total, so `total - planned - external - unmeasured` IS `run + down`. This
+     * screen and Live Shift would otherwise disagree about the running shift.
+     */
+    private readonly oeeStandard: OeeStandardService,
+    private readonly oeeSchedule: OeeScheduleService,
   ) {}
 
   /**
@@ -97,11 +108,16 @@ export class LiveKpiService {
    */
   private async shiftWindow(factoryId: string | null) {
     const to = new Date();
-    const start = await currentShiftStart(this.prisma, factoryId);
-    if (start) return { from: start, to, basis: 'SHIFT' as const };
+    const shift = await currentShiftWindow(this.prisma, factoryId);
+    // `slotTo` is the SHIFT's end, not now: the schedule basis divides by the
+    // slot an order was committed to, and the part not yet reached is what makes
+    // that reading climb to true as the shift runs.
+    if (shift) return { from: shift.start, to, slotTo: shift.end, basis: 'SHIFT' as const };
     const midnight = new Date(to);
     midnight.setHours(0, 0, 0, 0);
-    return { from: midnight, to, basis: 'DAY' as const };
+    const endOfDay = new Date(to);
+    endOfDay.setHours(23, 59, 59, 999);
+    return { from: midnight, to, slotTo: endOfDay, basis: 'DAY' as const };
   }
 
   /**
@@ -166,7 +182,29 @@ export class LiveKpiService {
       };
     });
 
-    const totals = this.rollup(facts);
+    /**
+     * The plant totals, from the two engines.
+     *
+     * `rollup` summed the facts and divided once, which is the right shape and
+     * the wrong pair: its two "bases" are the same denominator written two
+     * ways. Live Shift reads the engines, so this screen has to as well or the
+     * two live views disagree about the shift they are both watching.
+     */
+    const engineScope: OeeScope = { machineIds };
+    const [std, sch] = await Promise.all([
+      this.oeeStandard.overview(factoryId, win.from, win.to, engineScope),
+      this.oeeSchedule.overview(factoryId, win.from, win.to, win.slotTo, engineScope),
+    ]);
+    const summed = this.rollup(facts);
+    const totals = {
+      ...summed,
+      // The committed slot.
+      availability: sch.availability ?? 0, oee: sch.oee ?? 0,
+      // Elapsed less excused stops.
+      availabilityTb: std.availability ?? 0, oeeTb: std.oee ?? 0,
+      // Shared: neither depends on the time basis.
+      performance: std.performance ?? 0, quality: std.quality ?? 0,
+    };
 
     // ── The three figures that used to live on analytics pages ──────────────
     // They belong here: each is a reading of how the plant stands right now, and
