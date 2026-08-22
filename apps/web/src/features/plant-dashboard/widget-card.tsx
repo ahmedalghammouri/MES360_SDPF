@@ -135,7 +135,18 @@ function body(widget: Widget, live: LiveValue | undefined, thresholdColor: strin
        * basis — the parts made and the minutes spent running are the same either
        * way.
        */
-      const hasTb = v.OEE_TB != null || v.AVAILABILITY_TB != null;
+      /**
+       * The builder passes no `live` at all — it subscribes only in preview — so
+       * a card being designed has an empty value bag. Hiding the second row on
+       * "no TB value" therefore hid it in the one place it most needs to show:
+       * the canvas where somebody is sizing and placing the card.
+       *
+       * So the row is drawn whenever there is nothing live to contradict it, and
+       * hidden only when values DID arrive and genuinely carried no time-based
+       * pair — a scope that cannot answer on both bases.
+       */
+      const hasLive = Object.keys(v).length > 0;
+      const showTb = !hasLive || v.OEE_TB != null || v.AVAILABILITY_TB != null;
       return (
         <div className="flex flex-col gap-1">
           <div className="grid grid-cols-2 gap-1.5 text-center">
@@ -146,7 +157,7 @@ function body(widget: Widget, live: LiveValue | undefined, thresholdColor: strin
               </div>
             ))}
           </div>
-          {hasTb && (
+          {showTb && (
             <div className="grid grid-cols-2 gap-1.5 text-center">
               {[['OEE-TB', v.OEE_TB], ['Avail-TB', v.AVAILABILITY_TB]].map(([k, val]) => (
                 <div key={k as string} className="rounded border border-white/10 bg-white/[0.02] py-1">
