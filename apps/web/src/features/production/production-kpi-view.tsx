@@ -53,10 +53,22 @@ import { cn } from '@/lib/utils';
 // ---------------------------------------------------------------------------
 
 interface DashboardKpis {
-  oee: number;
-  availability: number;
-  performance: number;
-  quality: number;
+  /**
+   * NULLABLE, and typed that way deliberately.
+   *
+   * These come from the two engines, which keep "not measured" distinct from
+   * "measured at zero": a job order whose final step produced no units in the
+   * window has no quality and no OEE, and says so.
+   *
+   * They were typed `number` while the API had already started returning null,
+   * so `r.quality.toFixed(1)` compiled cleanly and threw at runtime — the page
+   * went white and the compiler had no reason to object. Widening the type is
+   * what makes the next such call a build error instead of a blank screen.
+   */
+  oee: number | null;
+  availability: number | null;
+  performance: number | null;
+  quality: number | null;
   // Time-based (OEE-TB) variant emitted by the backend alongside schedule-based OEE.
   oeeTb?: number;
   availabilityTb?: number;
@@ -442,6 +454,20 @@ export default function ProductionKpiView() {
     if (!oeeRecords) return [];
     return [...oeeRecords]
       .sort((a, b) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime())
+      /**
+       * A record with no measured quality is DROPPED, not plotted as zero.
+       *
+       * The records list projects the engines now, and the engines keep "not
+       * measured" distinct from "measured at zero" — a job order whose final
+       * step produced no units in the window has no quality, and returns null
+       * rather than a number. This line read `r.quality.toFixed(1)` and threw on
+       * the first such row, taking the whole page down with it.
+       *
+       * Coercing to 0 would have stopped the crash and drawn a false cliff to
+       * zero on the trend, which is worse than a shorter line: the chart would
+       * be reporting perfect scrap on an order that simply had nothing counted.
+       */
+      .filter((r): r is typeof r & { quality: number } => typeof r.quality === 'number')
       .map((r) => ({
         // Include time so same-day records don't collapse to one repeated axis label.
         date: new Date(r.recordDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
