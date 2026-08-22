@@ -1,7 +1,7 @@
 'use client';
 import { useTranslation } from 'react-i18next';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlarmClock, AlertTriangle, AlertOctagon, Info, Bell,
@@ -84,10 +84,24 @@ function alarmState(a: AlarmEvent): 'active' | 'acknowledged' | 'resolved' {
 
 // ── Component ───────────────────────────────────────────────────
 
+/** The paged envelope `/alarms` returns once `page` is supplied. */
+interface AlarmPage {
+  data: AlarmEvent[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export function AlarmsView() {
   const { t } = useTranslation('modules');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [activeOnly, setActiveOnly] = useState(false);
+  // 1-based. Reset by the effect below whenever a filter narrows the set —
+  // otherwise filtering while on page 9 lands the reader on an empty page and
+  // reads as "no alarms match".
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -105,11 +119,15 @@ export function AlarmsView() {
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['alarms', { severityFilter, activeOnly }],
+    queryKey: ['alarms', { severityFilter, activeOnly, page }],
     queryFn: () =>
-      api.get<AlarmEvent[]>('/alarms', {
+      // Paged on the SERVER. This plant holds 22,572 alarm events, so fetching
+      // a capped list and paging it in the browser would put page buttons on a
+      // truncated view and call that pagination.
+      api.get<AlarmPage | AlarmEvent[]>('/alarms', {
         params: {
-          limit: 200,
+          limit: PAGE_SIZE,
+          page,
           ...(severityFilter !== 'all' ? { severity: severityFilter } : {}),
           ...(activeOnly ? { active: true } : {}),
         },
@@ -117,7 +135,14 @@ export function AlarmsView() {
     refetchInterval: 30_000,
   });
 
-  const list: AlarmEvent[] = Array.isArray(alarms) ? alarms : [];
+  // The endpoint returns a bare array when unpaged and an envelope when paged;
+  // this page always pages, but the guard keeps it honest if that changes.
+  const list: AlarmEvent[] = Array.isArray(alarms) ? alarms : (alarms?.data ?? []);
+  const total = Array.isArray(alarms) ? list.length : (alarms?.total ?? 0);
+  const totalPages = Array.isArray(alarms) ? 1 : Math.max(1, alarms?.totalPages ?? 1);
+
+  // A filter change re-narrows the set, so the current page may no longer exist.
+  useEffect(() => { setPage(1); }, [severityFilter, activeOnly]);
 
   // ── Mutations ─────────────────────────────────────────────────
 
@@ -388,12 +413,42 @@ export function AlarmsView() {
           </div>
         )}
 
-        {/* Footer count */}
-        {list.length > 0 && (
-          <div className="text-xs text-muted-foreground text-center">
-            {t('alarms.count', { count: list.length })}
-            {activeOnly ? ` · ${t('alarms.activeOnly')}` : ''}
-            {severityFilter !== 'all' ? ` · ${t(`alarms.sev.${severityFilter}`, SEVERITY_CONFIG[severityFilter]?.label ?? severityFilter)}` : ''}
+        {/* ── Pager ──────────────────────────────────────────────────────────
+            Count first, then the controls: the reader wants to know how big the
+            set is before deciding whether to walk it. Prev/Next only, plus the
+            position — a numbered strip over 900 pages is a row of numbers nobody
+            can aim at. */}
+        {total > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+            <div>
+              {t('alarms.count', { count: total })}
+              {activeOnly ? ` · ${t('alarms.activeOnly')}` : ''}
+              {severityFilter !== 'all'
+                ? ` · ${t(`alarms.sev.${severityFilter}`, SEVERITY_CONFIG[severityFilter]?.label ?? severityFilter)}`
+                : ''}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline" size="sm" className="h-7 px-2 text-xs"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1 || isFetching}
+                >
+                  {t('common.previous', 'Previous')}
+                </Button>
+                <span className="tabular-nums">
+                  {t('common.pageOf', { page, totalPages, defaultValue: `${page} / ${totalPages}` })}
+                </span>
+                <Button
+                  variant="outline" size="sm" className="h-7 px-2 text-xs"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages || isFetching}
+                >
+                  {t('common.next', 'Next')}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

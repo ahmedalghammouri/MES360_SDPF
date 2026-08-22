@@ -111,8 +111,14 @@ const navItems: NavItem[] = [
   {
     label: 'Operations Now',
     icon: RadioTower,
-    appHref: '/live/production',
+    appHref: '/live-shift',
     children: [
+      // Live Shift leads, and is deliberately the ONE link that appears twice —
+      // here and under OEE. Everything else duplicated in this menu was two
+      // pages answering one question; this is one page answering two. Somebody
+      // asking "what is the plant doing now" starts here, and somebody reading
+      // OEE finds it beside the analysis it belongs to.
+      { label: 'Live Shift',      href: '/live-shift',      icon: Radio,    badge: 'Live', badgeVariant: 'default' },
       { label: 'Live Production', href: '/live/production', icon: Factory,  badge: 'Live', badgeVariant: 'default' },
       { label: 'Live Machines',   href: '/live/machines',   icon: Activity, badge: 'Live', badgeVariant: 'default' },
       // Shop Floor is an operator terminal — it lives in Operation Hub with the other floor screens.

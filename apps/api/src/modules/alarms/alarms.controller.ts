@@ -30,6 +30,8 @@ export class AlarmsController {
   @ApiQuery({ name: 'workOrderId', required: false })
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
+  @ApiQuery({ name: 'limit', required: false, description: 'Page size, capped at 500.' })
+  @ApiQuery({ name: 'page', required: false, description: '1-based. Supplying it returns { data, total, page, limit, totalPages }.' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   list(
     @CurrentUser() user: RequestUser,
@@ -41,6 +43,7 @@ export class AlarmsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('limit') limit?: string,
+    @Query('page') page?: string,
   ) {
     return this.alarms.list(user.factoryId, {
       machineId,
@@ -51,6 +54,9 @@ export class AlarmsController {
       from,
       to,
       limit: limit ? parseInt(limit, 10) : undefined,
+      // Opt-in: supplying `page` switches the response to { data, total, … }.
+      // Omitting it keeps the bare array the other callers expect.
+      page: page ? parseInt(page, 10) : undefined,
     });
   }
 

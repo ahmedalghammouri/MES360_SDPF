@@ -24,6 +24,8 @@ export class AlarmsService {
       from?: string;
       to?: string;
       limit?: number;
+      /** 1-based. Supplying it switches the response to the paged shape. */
+      page?: number;
     },
   ) {
     const where: any = {
@@ -43,12 +45,30 @@ export class AlarmsService {
         : {}),
     };
 
-    return this.prisma.alarmEvent.findMany({
-      where,
-      orderBy: { triggeredAt: 'desc' },
-      take: Math.min(filters.limit ?? 100, 500),
-      include: { machine: { select: { id: true, name: true, code: true } } },
-    });
+    const take = Math.min(filters.limit ?? 100, 500);
+    const include = { machine: { select: { id: true, name: true, code: true } } };
+    const orderBy = { triggeredAt: 'desc' } as const;
+
+    /**
+     * Paging is OPT-IN, and the response shape follows it.
+     *
+     * Without `page` this returns the bare array it always has, because two
+     * other callers consume it that way and a shape change would empty their
+     * lists silently. With `page` it returns the count too — which a table
+     * cannot page without: this plant holds 22,572 alarm events, so a client
+     * paging through a capped fetch would put page buttons on a truncated list
+     * and call it pagination.
+     */
+    if (filters.page == null) {
+      return this.prisma.alarmEvent.findMany({ where, orderBy, take, include });
+    }
+
+    const page = Math.max(1, Math.floor(filters.page));
+    const [data, total] = await Promise.all([
+      this.prisma.alarmEvent.findMany({ where, orderBy, take, skip: (page - 1) * take, include }),
+      this.prisma.alarmEvent.count({ where }),
+    ]);
+    return { data, total, page, limit: take, totalPages: Math.max(1, Math.ceil(total / take)) };
   }
 
   async kpis(factoryId: string | null) {
