@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
+import { useTimeRange } from '@/hooks/use-time-range';
 import { cn, formatPercent, formatNumber } from '@/lib/utils';
 
 // ─── TypeScript interfaces ────────────────────────────────────────────────────
@@ -239,9 +240,15 @@ function OverviewSkeleton() {
 export default function ManufacturingOverview() {
   const { t } = useTranslation('modules');
   const { filter: scopeFilter, key: scopeKey } = useScope();
+  // The period the reader picked. Without it this page asked /dashboard/overview
+  // for whatever that endpoint defaults to, so the filter panel's Today / Shift /
+  // Week buttons changed the scope tree above these cards and nothing in them.
+  const { params: timeParams, key: timeKey } = useTimeRange();
   const { data: overview, isLoading: overviewLoading } = useQuery<DashboardOverview>({
-    queryKey: ['dashboard-overview', scopeKey],
-    queryFn: () => api.get<DashboardOverview>('/dashboard/overview', { params: scopeFilter }),
+    queryKey: ['dashboard-overview', scopeKey, timeKey],
+    queryFn: () => api.get<DashboardOverview>('/dashboard/overview', {
+      params: { ...scopeFilter, ...timeParams },
+    }),
     refetchInterval: 15000,
   });
 

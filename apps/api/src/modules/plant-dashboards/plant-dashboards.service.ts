@@ -509,10 +509,31 @@ export class PlantDashboardsService {
           where: { ...(factoryId ? { factoryId } : {}), resolvedAt: null, ...(ids ? { machineId: { in: ids } } : {}) },
         });
       case 'SPEED': {
-        const rows = await this.prisma.machineCurrentStatus.findMany({
-          where: { ...(ids ? { machineId: { in: ids } } : {}) }, select: { actualSpeed: true },
-        });
-        return Math.round(rows.reduce((s, r) => s + (r.actualSpeed ?? 0), 0));
+        /**
+         * Current speed, from the minutes actually measured.
+         *
+         * It used to sum `machineCurrentStatus.actualSpeed`, which is NULL for
+         * every machine on this plant — nothing has ever written it — so the
+         * widget read 0 on a line that was running, and read it confidently.
+         *
+         * A rate needs a window: the last fifteen minutes of the one store.
+         * Short enough to mean "now" on a card that says Current, long enough
+         * that a machine between cartons does not read zero.
+         */
+        if (!ids || ids.length === 0) return 0;
+        const since = new Date(Date.now() - 15 * 60_000);
+        const [row] = await this.prisma.$queryRaw<Array<{ parts: number; mins: number }>>(Prisma.sql`
+          SELECT COALESCE(SUM(o."goodParts" + o."rejectedParts"), 0)::float8 AS parts,
+                 COALESCE(SUM(o."operatingMin"), 0)::float8                  AS mins
+          FROM oee_minutes o
+          WHERE o."machineId" IN (${Prisma.join(ids)})
+            AND o."bucketStart" >= ${since}
+        `);
+        // Per RUNNING minute, not per wall-clock minute: a machine stopped for
+        // ten of the fifteen was not running slowly, it was stopped — and the
+        // state indicator beside this number already says so.
+        const mins = row?.mins ?? 0;
+        return mins > 0 ? Math.round(((row?.parts ?? 0) / mins) * 60) : 0;
       }
       case 'ENERGY_CONSUMPTION': {
         const scope = scopeType === 'machine' ? { machineId: scopeId }

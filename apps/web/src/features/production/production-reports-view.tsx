@@ -14,6 +14,7 @@ import {
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useScope } from '@/hooks/use-scope';
+import { useTimeRange } from '@/hooks/use-time-range';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -92,9 +93,15 @@ const REPORT_CARDS = [
 export default function ProductionReportsView() {
   const { t } = useTranslation(['production', 'common']);
   const { filter, key } = useScope();
+  const { params: timeParams, key: timeKey } = useTimeRange();
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard', 'kpis', key],
-    queryFn: () => api.get<DashboardKPIs>('/dashboard/kpis', { params: filter }),
+    queryKey: ['dashboard', 'kpis', key, timeKey],
+    queryFn: () => api.get<DashboardKPIs>('/dashboard/kpis', {
+      // The reader's period. /dashboard/kpis is window-scoped, so calling it
+      // without one asked for whatever the endpoint defaults to while the filter
+      // panel sat above the page claiming otherwise.
+      params: { ...filter, ...timeParams },
+    }),
     staleTime: 30_000,
   });
 

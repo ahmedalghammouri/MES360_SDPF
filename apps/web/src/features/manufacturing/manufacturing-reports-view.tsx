@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/services/api.client';
+import { useTimeRange } from '@/hooks/use-time-range';
 import { cn, formatPercent } from '@/lib/utils';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -89,9 +90,15 @@ const REPORT_CARDS = [
 
 export default function ManufacturingReportsView() {
   const { t } = useTranslation('modules');
+  const { params: timeParams, key: timeKey } = useTimeRange();
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', 'kpis'],
-    queryFn: () => api.get<DashboardKPIs>('/dashboard/kpis'),
+    queryFn: () => api.get<DashboardKPIs>('/dashboard/kpis', {
+      // The reader's period. /dashboard/kpis is window-scoped, so calling it
+      // without one asked for whatever the endpoint defaults to while the filter
+      // panel sat above the page claiming otherwise.
+      params: { ...timeParams },
+    }),
     staleTime: 60_000,
   });
 
