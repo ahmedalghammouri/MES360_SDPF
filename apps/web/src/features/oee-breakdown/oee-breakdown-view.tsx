@@ -30,7 +30,7 @@ import ProductionKpiView from '@/features/production/production-kpi-view';
 import { useLineBasis } from '@/hooks/use-line-basis';
 import { useOrderFilterStore } from '@/store/order-filter-store';
 import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PageTabs } from '@/components/layout/page-tabs';
 import { cn } from '@/lib/utils';
 import { LineOeeCard, type LineOee } from '@/features/oee-analysis/line-oee-card';
 
@@ -149,29 +149,22 @@ export function OeeBreakdownView() {
           sum of the machine rows. */}
       <LineOeeCard data={d?.lineOee} />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-        <TabsList>
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            const n = rowsFor(t.key).length;
-            return (
-              <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
-                <Icon className="h-3.5 w-3.5" aria-hidden />
-                {t.label}
-                {t.key !== 'kpis' && (
-                  <span className="ms-0.5 rounded bg-muted px-1 text-[10px] tabular-nums text-muted-foreground">
-                    {n}
-                  </span>
-                )}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+      <PageTabs
+        label="Which breakdown"
+        value={tab}
+        onChange={(k) => setTab(k as TabKey)}
+        tabs={TABS.map((t) => ({
+          key: t.key, label: t.label, icon: t.icon, blurb: t.blurb,
+          // The absorbed sheet has no slice rows to count.
+          count: t.key === 'kpis' ? undefined : rowsFor(t.key).length,
+        }))}
+      />
 
-        {TABS.map((t) => {
-          const rows = rowsFor(t.key);
-          return (
-            <TabsContent key={t.key} value={t.key} className="flex flex-col gap-3">
+
+      {TABS.filter((t) => t.key === tab).map((t) => {
+        const rows = rowsFor(t.key);
+        return (
+          <div key={t.key} role="tabpanel" className="flex flex-col gap-3">
               <p className="text-xs leading-relaxed text-muted-foreground">{t.blurb}</p>
 
               {t.key === 'kpis' ? <ProductionKpiView /> : q.isLoading ? (
@@ -196,10 +189,9 @@ export function OeeBreakdownView() {
                   />
                 </>
               )}
-            </TabsContent>
-          );
-        })}
-      </Tabs>
+          </div>
+        );
+      })}
 
       <p className="flex items-start gap-1.5 px-1 text-[11px] leading-relaxed text-muted-foreground">
         <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden />

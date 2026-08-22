@@ -30,6 +30,7 @@ import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { useOeeMode } from '@/hooks/use-oee-mode';
+import { PageTabs } from '@/components/layout/page-tabs';
 import { MachineStatusView } from '@/features/manufacturing/machine-status-view';
 import { ScheduleCapacityView } from '@/features/production/schedule-capacity-view';
 import { HierarchyOEE } from '@/features/production/hierarchy-oee';
@@ -198,10 +199,8 @@ export function OeeAnalysisView() {
             </>
           ) : (
             <>
-              Dividing the measured minutes by the time that actually <b>went by</b>, against the{' '}
-              <a className="underline decoration-dotted underline-offset-4"
-                 href="https://documentation.mindsphere.io/MindSphere/apps/insights-hub-oee/OEE-standard-formulas.html"
-                 target="_blank" rel="noreferrer">Insights Hub standard formulas</a>. This answers{' '}
+              Dividing the measured minutes by the time that actually <b>went by</b>. This
+              answers{' '}
               <i>of the time it ran, how well did it run</i>.
             </>
           )}{' '}
@@ -211,25 +210,14 @@ export function OeeAnalysisView() {
       </header>
 
       {/* ── Which analysis ── */}
-      <div className="flex flex-wrap gap-2">
-        {ANALYSES.map((a) => (
-          <button
-            key={a.key}
-            onClick={() => a.ready && setAnalysis(a.key)}
-            disabled={!a.ready}
-            title={a.ready ? a.blurb : `${a.blurb} — not built yet`}
-            className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
-              analysis === a.key
-                ? 'border-primary/40 bg-primary/15 font-semibold text-primary'
-                : a.ready
-                  ? 'border-border/60 text-muted-foreground hover:text-foreground'
-                  : 'cursor-not-allowed border-dashed border-border/40 text-muted-foreground/50'
-            }`}
-          >
-            {a.label}{!a.ready && ' ·'}
-          </button>
-        ))}
-      </div>
+      <PageTabs
+        label="Which analysis"
+        value={analysis}
+        onChange={(k) => setAnalysis(k as (typeof ANALYSES)[number]['key'])}
+        tabs={ANALYSES.map((a) => ({
+          key: a.key, label: a.label, blurb: a.blurb, disabled: !a.ready,
+        }))}
+      />
 
       {q.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
       {q.isError && <p className="text-sm text-destructive">Could not load this window.</p>}
