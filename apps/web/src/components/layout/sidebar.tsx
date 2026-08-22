@@ -98,16 +98,29 @@ interface NavItem {
   section?: string;
 }
 
+/**
+ * The navigation, ordered by what somebody is DOING rather than by which
+ * subsystem owns the page.
+ *
+ * ---- Why these six ------------------------------------------------------
+ * The sections follow the operating cycle every plant runs on and every MES
+ * standard describes in some form: watch it, understand it, plan it, run it,
+ * assure it, supply it, and define the plant it all happens in. A reader who
+ * knows the job knows which section to open without knowing this product.
+ *
+ * What changed: the cockpits moved from Insights to Monitor, because a
+ * command centre answers "what is happening now" and Insights is where the
+ * period lives. Energy moved after the terminals it powers. Quality and
+ * Maintenance split away from Materials, which is a different question
+ * entirely. Eight duplicated links and two thin groups went earlier.
+ */
 const navItems: NavItem[] = [
   { label: 'Apps', href: '/apps', icon: Grip },
   { label: 'Plant Live Views', href: '/plant-live-view', icon: Monitor, permission: 'plant_dashboard:view' },
-
-  // ═══════════════ NOW ═══════════════
-  // What the plant is doing at this instant. These pages take NO time filter —
-  // their window is the shift that is running, decided by the server. They were
-  // split out because the same screen used to carry a live card beside a
-  // historical chart, and a reader could not tell which number was which.
-  { section: 'Now', label: 'Now' },
+  // What the plant is doing NOW. The cockpits belong here and not under
+  // Insights: a command centre answers "what is happening", which is the
+  // same question the live pages answer, at a different altitude.
+  { section: 'Monitor', label: 'Monitor' },
   {
     label: 'Operations Now',
     icon: RadioTower,
@@ -126,10 +139,6 @@ const navItems: NavItem[] = [
       { label: 'Alarms',          href: '/alarms',          icon: AlarmClock, dynamicKey: 'activeAlarms', badgeVariant: 'destructive' },
     ],
   },
-
-  // ═══════════════ INSIGHTS ═══════════════
-  // Decision-support apps: dashboards, OEE, analytics & reports, AI & benchmarks.
-  { section: 'Insights', label: 'Insights' },
   {
     label: 'Dashboards',
     icon: Gauge,
@@ -148,6 +157,9 @@ const navItems: NavItem[] = [
       { label: 'Dashboard Center', href: '/dashboard-center', icon: LayoutGrid },
     ],
   },
+  // What it DID, over a period you choose. Every page here carries the
+  // period control; none of them claims to be live.
+  { section: 'Analyze', label: 'Analyze' },
   {
     // ── The OEE section, and the whole of it ────────────────────────────────
     // Nine entries stood here: OEE, Machine OEE, Equipment, Performance,
@@ -213,10 +225,11 @@ const navItems: NavItem[] = [
       { label: 'AI Intelligence', href: '/ai', icon: Sparkles, badge: 'New', badgeVariant: 'default' },
     ],
   },
-
-  // ═══════════════ OPERATIONS ═══════════════
-  // Plan → produce → manufacture → downtime → energy → shop-floor execution.
-  { section: 'Operations', label: 'Operations' },
+  // The order lifecycle, in the sequence it actually runs: what is planned,
+  // what is being made, the terminals it is made on, and the energy that
+  // goes into making it. Energy sits last because it is a resource
+  // execution consumes, not a stage of it.
+  { section: 'Plan & Execute', label: 'Plan & Execute' },
   {
     label: 'Planning',
     icon: CalendarRange,
@@ -271,6 +284,17 @@ const navItems: NavItem[] = [
       },
     ],
   },
+  {
+    label: 'Operation Hub',
+    icon: TabletSmartphone,
+    appHref: '/shop-floor',
+    children: [
+      { label: 'Shop Floor',        href: '/shop-floor',            icon: Monitor,           badge: 'Live', badgeVariant: 'secondary', openNewTab: true },
+      { label: 'Control Panel',     href: '/manufacturing/control', icon: SlidersHorizontal, badge: 'Live', badgeVariant: 'secondary' },
+      { label: 'Maintenance Floor', href: '/maintenance-floor',     icon: Wrench,            badge: 'Tablet', badgeVariant: 'outline' },
+      { label: 'Quality Floor',     href: '/quality-floor',         icon: ClipboardCheck,    badge: 'Tablet', badgeVariant: 'outline' },
+    ],
+  },
   // The Manufacturing group is dissolved: its Control Panel is a floor terminal,
   // and its processes and recipes are product definitions. What was left was one
   // overview page, which belongs beside the orders it summarises.
@@ -296,48 +320,10 @@ const navItems: NavItem[] = [
       },
     ],
   },
-  {
-    label: 'Operation Hub',
-    icon: TabletSmartphone,
-    appHref: '/shop-floor',
-    children: [
-      { label: 'Shop Floor',        href: '/shop-floor',            icon: Monitor,           badge: 'Live', badgeVariant: 'secondary', openNewTab: true },
-      { label: 'Control Panel',     href: '/manufacturing/control', icon: SlidersHorizontal, badge: 'Live', badgeVariant: 'secondary' },
-      { label: 'Maintenance Floor', href: '/maintenance-floor',     icon: Wrench,            badge: 'Tablet', badgeVariant: 'outline' },
-      { label: 'Quality Floor',     href: '/quality-floor',         icon: ClipboardCheck,    badge: 'Tablet', badgeVariant: 'outline' },
-    ],
-  },
-
-  // ═══════════════ ASSET, QUALITY & MATERIALS ═══════════════
-  { section: 'Asset, Quality & Materials', label: 'Asset, Quality & Materials' },
-  {
-    label: 'Maintenance',
-    icon: Wrench,
-    appHref: '/maintenance',
-    children: [
-      { label: 'Overview',           href: '/maintenance',             icon: Gauge    },
-      { label: 'Reliability Center', href: '/maintenance/reliability', icon: Activity },
-      {
-        label: 'Work Management',
-        icon: ClipboardList,
-        children: [
-          { label: 'Maintenance Orders', href: '/maintenance/work-orders', icon: ClipboardList, dynamicKey: 'openMaintenance', badgeVariant: 'secondary' },
-          { label: 'Preventive Maint.',  href: '/maintenance/preventive',  icon: Calendar      },
-          { label: 'Maint. Scheduling',  href: '/maintenance/scheduling',  icon: CalendarClock },
-          { label: 'Maintenance Log',    href: '/maintenance/log',         icon: History       },
-        ],
-      },
-      {
-        label: 'Assets & Spares',
-        icon: Cpu,
-        children: [
-          { label: 'Assets & Equipment', href: '/maintenance/assets',      icon: Cpu           },
-          { label: 'Spare Parts',        href: '/maintenance/spare-parts', icon: PackageSearch },
-        ],
-      },
-      { label: 'Reports & Analytics', href: '/maintenance/reports', icon: BarChart3 },
-    ],
-  },
+  // The two functions that judge and keep the asset. Quality first: it is
+  // inline with production and gates the output. Maintenance follows,
+  // because it acts on what quality and availability reveal.
+  { section: 'Quality & Maintenance', label: 'Quality & Maintenance' },
   {
     label: 'Quality',
     icon: ShieldCheck,
@@ -366,6 +352,37 @@ const navItems: NavItem[] = [
       { label: 'Reports & Analytics', href: '/quality/reports', icon: BarChart3 },
     ],
   },
+  {
+    label: 'Maintenance',
+    icon: Wrench,
+    appHref: '/maintenance',
+    children: [
+      { label: 'Overview',           href: '/maintenance',             icon: Gauge    },
+      { label: 'Reliability Center', href: '/maintenance/reliability', icon: Activity },
+      {
+        label: 'Work Management',
+        icon: ClipboardList,
+        children: [
+          { label: 'Maintenance Orders', href: '/maintenance/work-orders', icon: ClipboardList, dynamicKey: 'openMaintenance', badgeVariant: 'secondary' },
+          { label: 'Preventive Maint.',  href: '/maintenance/preventive',  icon: Calendar      },
+          { label: 'Maint. Scheduling',  href: '/maintenance/scheduling',  icon: CalendarClock },
+          { label: 'Maintenance Log',    href: '/maintenance/log',         icon: History       },
+        ],
+      },
+      {
+        label: 'Assets & Spares',
+        icon: Cpu,
+        children: [
+          { label: 'Assets & Equipment', href: '/maintenance/assets',      icon: Cpu           },
+          { label: 'Spare Parts',        href: '/maintenance/spare-parts', icon: PackageSearch },
+        ],
+      },
+      { label: 'Reports & Analytics', href: '/maintenance/reports', icon: BarChart3 },
+    ],
+  },
+  // What goes in and where it went — stock on one side, genealogy on the
+  // other. Both answer questions about material, not about the line.
+  { section: 'Materials', label: 'Materials' },
   {
     label: 'Inventory & Materials',
     icon: Package,
@@ -407,9 +424,10 @@ const navItems: NavItem[] = [
       { label: 'Material Consumption', href: '/traceability/consumption', icon: Boxes     },
     ],
   },
-
-  // ═══════════════ ENGINEERING, PLANT & INTEGRATION ═══════════════
-  { section: 'Engineering, Plant & Integration', label: 'Engineering, Plant & Integration' },
+  // How the plant is DEFINED and how it is connected. Product and process
+  // definitions, the devices that report them, and the plant view that
+  // shows where everything sits.
+  { section: 'Engineering & IIoT', label: 'Engineering & IIoT' },
   {
     label: 'PLM & Engineering',
     icon: BookOpen,
