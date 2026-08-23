@@ -140,4 +140,119 @@ describe('the read path does not wait on the network', () => {
     expect(dev.outbox.length).toBeLessThanOrEqual(cap);
     expect(dev.dropped).toBeGreaterThan(0);
   });
+
+  /**
+   * Sampling and reporting are different rates, and the counter keeps the fast one.
+   *
+   * ── The defect this pins ────────────────────────────────────────────────────
+   * Once the read loop stopped waiting on the server it ran ~37 times a second,
+   * and every one of those cycles queued a database write, a status evaluation
+   * and an alarm check per tag — roughly 550 jobs a second across six tags,
+   * against a link that could carry a fraction of it. The gateway reported the
+   * result itself on 23 Aug 2026:
+   *
+   *   EDGECOUNTER01: 177723 queued write(s) discarded
+   *
+   * Counts survived that (they accumulate in memory and flush on their own
+   * timer) but machine state and alarms were in the discarded pile.
+   *
+   * The fix is that only COUNTING runs at wire speed. Reporting happens on a
+   * change, plus a heartbeat so a steady value still refreshes and time-based
+   * rules still run. These tests hold both halves: the counter must see every
+   * sample, and a value standing still must stop generating traffic.
+   */
+  describe('reporting is gated, counting is not', () => {
+    /**
+     * Doubles that return at once. The gating tests count HOW MANY times the
+     * server layer is asked, so the outbox must be allowed to empty between
+     * samples — measuring its length instead would just race the drain.
+     */
+    function fastBuild() {
+      const ingest: any = { ingest: jest.fn(async () => {}) };
+      const statusSvc: any = { process: jest.fn(async () => null) };
+      const alarms: any = { evaluate: jest.fn(async () => {}) };
+      const counter: any = { observe: jest.fn() };
+      const prisma: any = { device: { update: jest.fn(async () => ({})) } };
+      const mqtt: any = { publish: jest.fn(() => true) };
+      const energy: any = { process: jest.fn(async () => null) };
+      const mlog: any = { log: jest.fn() };
+      const poller = new ModbusPollerService(
+        prisma, mqtt, ingest, counter, energy, statusSvc, alarms, {} as any, { get: () => undefined } as any, mlog,
+      );
+      return { poller, ingest, statusSvc, alarms, counter };
+    }
+
+    /** Let the outbox drain settle before counting. */
+    const settle = () => new Promise((r) => setTimeout(r, 5));
+
+    function feed(dev: any, values: boolean[]) {
+      let i = 0;
+      dev.client.readTagsBlocked = jest.fn(async (bindings: any[]) => {
+        const v = values[Math.min(i, values.length - 1)];
+        i += 1;
+        const out = new Map();
+        for (const b of bindings) out.set(b.id, { raw: v, value: v, quality: 'GOOD', timestamp: new Date() });
+        return out;
+      });
+      return dev;
+    }
+
+    it('observes every sample even when the value never moves', async () => {
+      const { poller, counter } = fastBuild();
+      const dev = feed(runtime([tag('t1', 0)]), [true]);
+
+      for (let n = 0; n < 10; n += 1) { await (poller as any).pollDevice(dev); await settle(); }
+
+      // Ten reads, ten observations. Counting must never be gated: the edge it
+      // is watching for can only be seen in the sample it happens in.
+      expect(counter.observe).toHaveBeenCalledTimes(10);
+    });
+
+    it('stops asking the server while the value stands still', async () => {
+      const { poller, ingest, statusSvc, alarms } = fastBuild();
+      const dev = feed(runtime([tag('t1', 0)]), [true]);
+
+      for (let n = 0; n < 10; n += 1) { await (poller as any).pollDevice(dev); await settle(); }
+
+      // The first reading is new and is reported. The nine identical ones that
+      // follow it, inside the heartbeat window, say nothing new — and used to
+      // cost three server calls each.
+      expect(ingest.ingest).toHaveBeenCalledTimes(1);
+      expect(statusSvc.process).toHaveBeenCalledTimes(1);
+      expect(alarms.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports every value the gateway can see change', async () => {
+      const { poller, ingest } = fastBuild();
+      // Alternating on every sample — the worst case for a gate that batches.
+      const dev = feed(runtime([tag('t1', 0)]), [true, false, true, false, true, false]);
+
+      for (let n = 0; n < 6; n += 1) { await (poller as any).pollDevice(dev); await settle(); }
+
+      // Six distinct readings, six reports. A transition the wire showed us is
+      // never dropped — only repetition is.
+      expect(ingest.ingest).toHaveBeenCalledTimes(6);
+    });
+
+    it('still refreshes a motionless value on the heartbeat', async () => {
+      const { poller, ingest } = fastBuild();
+      const dev = feed(runtime([tag('t1', 0)]), [true]);
+      const beat = (ModbusPollerService as any).DISPATCH_HEARTBEAT_MS;
+
+      await (poller as any).pollDevice(dev); await settle();
+      expect(ingest.ingest).toHaveBeenCalledTimes(1);
+
+      // Time-based rules — a machine idle for long enough, a rate-mode publish —
+      // must keep running on a signal that has gone quiet, so the gate has to
+      // let one through eventually rather than only on change.
+      const realNow = Date.now;
+      Date.now = () => realNow() + beat + 1;
+      try {
+        await (poller as any).pollDevice(dev); await settle();
+      } finally {
+        Date.now = realNow;
+      }
+      expect(ingest.ingest).toHaveBeenCalledTimes(2);
+    });
+  });
 });

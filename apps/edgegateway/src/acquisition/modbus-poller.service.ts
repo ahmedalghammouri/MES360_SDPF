@@ -45,10 +45,10 @@ interface DeviceRuntime {
   intervalMs: number;
   timer: NodeJS.Timeout | null;
   busy: boolean;
-  /** Samples skipped because the previous cycle was still running. */
-  skipped?: number;
   /** Rate-limits the slow-cycle warning to one line a minute per device. */
   slowLoggedAt?: number;
+  /** The achieved sample period last reported, so a steady one is not re-reported. */
+  reportedRate?: number;
   /**
    * Work that has to leave the machine, waiting its turn OFF the read path.
    *
@@ -69,6 +69,12 @@ interface DeviceRuntime {
   dropLoggedAt?: number;
   /** Duration of the last Modbus round-trip alone, for the slow-cycle report. */
   lastReadMs?: number;
+  /** Duration of the last complete cycle, so the loop waits only the remainder. */
+  lastCycleMs?: number;
+  /** Cycles run since the last report, for the achieved sample period. */
+  cycles?: number;
+  /** When the achieved period was last measured from. */
+  cyclesSince?: number;
   signature: string; // detects config changes to trigger rebuild
 }
 
@@ -108,7 +114,7 @@ export class ModbusPollerService implements OnModuleDestroy {
 
   onModuleDestroy() {
     for (const d of this.devices.values()) {
-      if (d.timer) clearInterval(d.timer);
+      if (d.timer) { clearTimeout(d.timer); d.timer = null; }
       void d.client.disconnect();
     }
   }
@@ -167,7 +173,7 @@ export class ModbusPollerService implements OnModuleDestroy {
 
       // (Re)build this device's runtime.
       if (existing) {
-        if (existing.timer) clearInterval(existing.timer);
+        if (existing.timer) { clearTimeout(existing.timer); existing.timer = null; }
         await existing.client.disconnect().catch(() => undefined);
       }
 
@@ -300,7 +306,24 @@ export class ModbusPollerService implements OnModuleDestroy {
           : `${dev.ipAddress ?? '?'}:${dev.port ?? 502}`;
         this.mlog.log(dev.name, 'connect', (err as Error)?.message ?? String(err), { proto: dev.protocol, conn, unitId: dev.unitId ?? 1 });
       });
-      runtime.timer = setInterval(() => void this.pollDevice(runtime), runtime.intervalMs);
+      // A self-rescheduling loop, NOT setInterval.
+      //
+      // setInterval fires on a fixed grid and the gateway drops any tick whose
+      // predecessor is still running, so the real sample period was the interval
+      // ROUNDED UP to a multiple of itself: a 27 ms cycle on a 20 ms grid
+      // sampled every 40 ms, not every 27. The line's own log showed both
+      // numbers on 23 Aug 2026 without the two being connected.
+      //
+      // Waiting only the remainder AFTER each cycle instead means a device that
+      // cannot meet its interval simply runs as fast as it can, and one that can
+      // still keeps its configured rate.
+      const loop = async () => {
+        await this.pollDevice(runtime);
+        if (!this.devices.has(runtime.id) || runtime.timer === null) return;
+        const wait = Math.max(0, runtime.intervalMs - (runtime.lastCycleMs ?? 0));
+        runtime.timer = setTimeout(() => void loop(), wait);
+      };
+      runtime.timer = setTimeout(() => void loop(), runtime.intervalMs);
       this.devices.set(dev.id, runtime);
       this.logger.log(`Device "${dev.name}" loaded: ${tags.length} tag(s) @ ${runtime.intervalMs}ms`);
     }
@@ -331,7 +354,7 @@ export class ModbusPollerService implements OnModuleDestroy {
     // Drop devices no longer assigned to this gateway.
     for (const [id, d] of this.devices) {
       if (seen.has(id)) continue;
-      if (d.timer) clearInterval(d.timer);
+      if (d.timer) { clearTimeout(d.timer); d.timer = null; }
       await d.client.disconnect().catch(() => undefined);
       this.devices.delete(id);
     }
@@ -438,10 +461,9 @@ export class ModbusPollerService implements OnModuleDestroy {
 
   private async pollDevice(dev: DeviceRuntime) {
     if (dev.busy) {
-      // The previous cycle has not finished. Every skip is a sample not taken,
-      // and a counter pulse that opens and closes inside one is lost for good —
-      // so this is counted and reported rather than passed over in silence.
-      dev.skipped = (dev.skipped ?? 0) + 1;
+      // With the loop rescheduling itself after each cycle this should not be
+      // reachable; it stays as a re-entrancy guard for the config reload, which
+      // can start a second loop for the same device while one is mid-cycle.
       return;
     }
     dev.busy = true;
@@ -483,6 +505,20 @@ export class ModbusPollerService implements OnModuleDestroy {
           : typeof res.value === 'boolean' ? (res.value ? 1 : 0)
           : null;
 
+        // ── Counting comes first, on EVERY sample ───────────────────────────
+        // A pulse at this line's rate opens and closes in a few tens of
+        // milliseconds. The edge has to be taken from this sample, before any
+        // decision about reporting and before anything that can await. The
+        // write happens on the flush timer; see CounterService.observe.
+        if (tag.isCounter) this.counter.observe(tag.counterTag, res.raw, ts);
+        if (tag.energyRole && numeric !== null) energyRoleValues.set(tag.energyRole, numeric);
+
+        // ── Reporting is a slower, separate question ────────────────────────
+        // See {@link shouldDispatch}. The wire is read tens of times a second so
+        // an edge cannot hide between two looks; a value that has not moved does
+        // not need telling to a server across the plant's link at that rate.
+        if (!this.shouldDispatch(tag.tagId, numeric, cycleStart)) continue;
+
         const record: TagReadingRecord = {
           tagId: tag.tagId,
           factoryId: tag.factoryId,
@@ -514,14 +550,6 @@ export class ModbusPollerService implements OnModuleDestroy {
         // Configured alarms on this tag. Runs on every GOOD reading, not only on
         // status tags — a threshold on a temperature or a meter is the ordinary case.
         work.push(() => this.alarms.evaluate(tag.tagId, tag.machineId, numeric, ts));
-
-        // Counting is SYNCHRONOUS and first. A pulse at 120 parts a minute opens
-        // and closes in well under a second, so the edge has to be taken from
-        // this sample before anything that can await — otherwise the next read
-        // waits behind a database round-trip and the wave is sampled in pieces.
-        // The write happens on the flush timer; see CounterService.observe.
-        if (tag.isCounter) this.counter.observe(tag.counterTag, res.raw, ts);
-        if (tag.energyRole && numeric !== null) energyRoleValues.set(tag.energyRole, numeric);
       }
 
       // Hand the deferred work to the outbox and return to the wire. Nothing
@@ -541,16 +569,31 @@ export class ModbusPollerService implements OnModuleDestroy {
       }
 
       const took = Date.now() - cycleStart;
+      dev.lastCycleMs = took;
+      dev.cycles = (dev.cycles ?? 0) + 1;
       if (took > dev.intervalMs) {
-        // Reported once a minute per device: at 100 ms this would otherwise be
-        // ten lines a second, and a log nobody can read hides what it reports.
         const now = Date.now();
-        if (!dev.slowLoggedAt || now - dev.slowLoggedAt > 60_000) {
+        const since = dev.cyclesSince ?? now;
+        // What the device is ACTUALLY sampled at. This is the number that
+        // decides whether a pulse is visible; the configured interval is only a
+        // request, and on a device whose wire is slower it is never granted.
+        const achieved = dev.cycles && now > since
+          ? Math.round((now - since) / dev.cycles)
+          : took;
+
+        // Say it when it MEANS something. A device whose round-trip exceeds its
+        // interval is not a fault to re-report every minute for the life of the
+        // plant — it is a fixed property of that wire, and a line repeated 1,400
+        // times a day is one nobody reads. So: the first time, and thereafter
+        // only when the achieved rate has actually moved.
+        const drifted = dev.reportedRate === undefined
+          || Math.abs(achieved - dev.reportedRate) > Math.max(5, dev.reportedRate * 0.25);
+        if (drifted && (!dev.slowLoggedAt || now - dev.slowLoggedAt > 60_000)) {
           dev.slowLoggedAt = now;
+          dev.reportedRate = achieved;
           const readMs = dev.lastReadMs ?? 0;
-          const skipped = dev.skipped
-            ? ` — ${dev.skipped} sample(s) skipped since the last report`
-            : '';
+          // What the device is ACTUALLY sampled at, averaged over the reporting
+          const rate = ` — sampling every ${achieved}ms on average`;
           // Two very different situations produce an overrun, and telling them
           // apart is the whole value of this line. If the Modbus round-trip
           // alone exceeds the interval, the wire is the limit and the interval
@@ -561,14 +604,17 @@ export class ModbusPollerService implements OnModuleDestroy {
           this.logger.warn(
             readMs >= dev.intervalMs
               ? `${dev.name}: sampling at its limit — the Modbus round-trip alone takes ${readMs}ms, `
-                + `so its ${dev.intervalMs}ms interval cannot be met${skipped}. `
+                + `so its ${dev.intervalMs}ms interval cannot be met${rate}. `
                 + 'Effective sample rate is the round-trip, not the interval.'
               : `${dev.name}: poll cycle ${took}ms exceeds its ${dev.intervalMs}ms interval `
-                + `while the Modbus read took only ${readMs}ms${skipped}. `
+                + `while the Modbus read took only ${readMs}ms${rate}. `
                 + 'Something after the read is holding the loop; counter pulses '
                 + 'shorter than the overrun are being missed.',
           );
-          dev.skipped = 0;
+        }
+        if (now - since >= 60_000) {
+          dev.cyclesSince = now;
+          dev.cycles = 0;
         }
       }
       this.enqueue(dev, [() => this.markDevice(dev.id, anyError ? 'ERROR' : 'CONNECTED', anyError ? 'One or more tag reads failed' : null)]);
@@ -578,6 +624,37 @@ export class ModbusPollerService implements OnModuleDestroy {
     } finally {
       dev.busy = false;
     }
+  }
+
+  /**
+   * The value each tag was last reported to the server with, and when.
+   *
+   * Sampling and reporting are two different rates and used to be one. Counting
+   * needs the wire read many times a second — that is what makes a short pulse
+   * visible. Nothing downstream needs the same reading repeated at that rate:
+   * the current-value row, the historian, MQTT and the alarm evaluator all care
+   * about what the value IS and when it CHANGES.
+   *
+   * Conflating them queued roughly 550 jobs a second for six tags, far more
+   * than the plant's link could carry, and the overflow was discarded —
+   * 177,723 of them in nine minutes on 23 Aug 2026. Reporting on change, with a
+   * heartbeat so a steady value still refreshes and time-based rules still run,
+   * cuts that by well over an order of magnitude and drops nothing.
+   *
+   * No transition is lost: this is consulted on EVERY sample, so any value the
+   * gateway can see at all is reported the moment it appears. What it removes
+   * is repetition, not information.
+   */
+  private readonly dispatched = new Map<string, { value: number | null; at: number }>();
+  private static readonly DISPATCH_HEARTBEAT_MS = 1_000;
+
+  private shouldDispatch(tagId: string, numeric: number | null, now: number): boolean {
+    const last = this.dispatched.get(tagId);
+    if (last && last.value === numeric && now - last.at < ModbusPollerService.DISPATCH_HEARTBEAT_MS) {
+      return false;
+    }
+    this.dispatched.set(tagId, { value: numeric, at: now });
+    return true;
   }
 
   /**
