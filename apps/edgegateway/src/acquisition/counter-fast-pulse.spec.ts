@@ -24,7 +24,18 @@ import { CounterService } from './counter.service';
 describe('counting at speed', () => {
   const MACHINE = 'm1';
   const JOB = 'jo-1';
-  const CONFIG = { get: () => `${require('os').tmpdir()}/mes-counter-fast-spec` };
+  /**
+   * A FRESH state directory per service.
+   *
+   * This was one shared path, so the counter file survived not just between
+   * tests but between RUNS — a suite's result depended on how many times it had
+   * been run before. Counting tests whose numbers drift with history are worse
+   * than no counting tests.
+   */
+  let dirSeq = 0;
+  const freshConfig = () => ({
+    get: () => `${require('os').tmpdir()}/mes-counter-fast-spec-${process.pid}-${(dirSeq += 1)}`,
+  });
 
   const TAG = {
     id: 'tag-total', machineId: MACHINE, factoryId: 'f1',
@@ -40,7 +51,16 @@ describe('counting at speed', () => {
     };
     const jo = { actualQtyGood: 0, actualQtyRejected: 0 };
     const prisma: any = {
+      // The writer sends its whole batch through $transaction — the resolve pair
+      // as one round-trip, then every update as another. The double runs the
+      // promises it is handed, so the latency of a batch is ONE call, not N.
+      $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
       jobOrder: {
+        findMany: jest.fn(() => slow([{
+          id: JOB, machineId: MACHINE,
+          actualQtyGood: jo.actualQtyGood, actualQtyRejected: jo.actualQtyRejected,
+          manualQtyGood: 0, manualQtyRejected: 0,
+        }])),
         findFirst: jest.fn(() => slow({ id: JOB })),
         findUnique: jest.fn(() => slow({ ...jo, manualQtyGood: 0, manualQtyRejected: 0 })),
         update: jest.fn(({ data }: any) => {
@@ -55,6 +75,7 @@ describe('counting at speed', () => {
         }),
       },
       machineCurrentStatus: {
+        findMany: jest.fn(() => slow([{ machineId: MACHINE, state: 'RUNNING', goodCount: 0 }])),
         findUnique: jest.fn(() => slow({ state: 'RUNNING' })),
         upsert: jest.fn(() => slow({})),
         update: jest.fn(() => slow({})),
@@ -75,7 +96,7 @@ describe('counting at speed', () => {
 
   it('observe() does no I/O — it returns without awaiting anything', async () => {
     const { prisma } = build(500); // any await here would take half a second
-    const svc = new CounterService(prisma, CONFIG as never);
+    const svc = new CounterService(prisma, freshConfig() as never);
     await ready(svc);
 
     const started = Date.now();
@@ -88,7 +109,7 @@ describe('counting at speed', () => {
 
   it('counts every edge of a 2 Hz train, then writes the total once', async () => {
     const { prisma, jo } = build(40);
-    const svc = new CounterService(prisma, CONFIG as never);
+    const svc = new CounterService(prisma, freshConfig() as never);
     await ready(svc);
 
     // 120 parts a minute for a minute: 120 pulses, each a rise and a fall.
@@ -105,7 +126,7 @@ describe('counting at speed', () => {
 
   it('asks the database about a machine once per flush, not once per pulse', async () => {
     const { prisma } = build(5);
-    const svc = new CounterService(prisma, CONFIG as never);
+    const svc = new CounterService(prisma, freshConfig() as never);
     await ready(svc);
 
     for (let i = 0; i < 50; i += 1) {
@@ -125,8 +146,12 @@ describe('counting at speed', () => {
 
   it('keeps counting while the database is unreachable, and lands it on recovery', async () => {
     const { prisma, jo } = build(5);
-    prisma.jobOrder.findFirst = jest.fn(async () => { throw new Error('ECONNREFUSED'); });
-    const svc = new CounterService(prisma, CONFIG as never);
+    // The writer reaches the database through $transaction now — one batched
+    // round-trip for the whole flush. That is where an outage has to be
+    // simulated, and where it has to be survivable.
+    const realTx = prisma.$transaction;
+    prisma.$transaction = jest.fn(async () => { throw new Error('ECONNREFUSED'); });
+    const svc = new CounterService(prisma, freshConfig() as never);
     await ready(svc);
 
     for (let i = 0; i < 30; i += 1) {
@@ -136,7 +161,7 @@ describe('counting at speed', () => {
     await svc.flush();                       // outage: nothing written
     expect(jo.actualQtyGood + jo.actualQtyRejected).toBe(0);
 
-    prisma.jobOrder.findFirst = jest.fn(async () => ({ id: JOB }));
+    prisma.$transaction = realTx;
     await svc.flush();                       // recovered: the backlog lands
     expect(jo.actualQtyGood + jo.actualQtyRejected).toBeGreaterThan(0);
   });
