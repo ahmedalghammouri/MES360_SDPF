@@ -14,6 +14,7 @@ import { StatusService } from '../acquisition/status.service';
 import { METER_TEMPLATES, instantiateMeterTags, instantiateEdgeCounterTags, type EdgeCounterBlocks } from '@mes360/industrial-drivers';
 import { readConfigFile, writeConfigFile } from '../config/config-store';
 import { CountBalanceService } from './count-balance.service';
+import { LineBalanceService } from './line-balance.service';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
@@ -35,6 +36,7 @@ export class LocalApiController {
     private readonly config: ConfigService,
     private readonly statusSvc: StatusService,
     private readonly balance: CountBalanceService,
+    private readonly lineBalance: LineBalanceService,
   ) {}
 
   @Post('auth/login')
@@ -557,6 +559,96 @@ export class LocalApiController {
   @Get('count-balance')
   async countBalance() {
     return this.balance.balance();
+  }
+
+  /**
+   * The reconciled line — see {@link LineBalanceService}.
+   *
+   * Deliberately gateway-only. What a conveyor holds is plant-floor data that
+   * belongs to whoever can walk over and count it, and the corrections it
+   * produces should be watched from the same screen that shows the raw counts.
+   */
+  @Get('line-balance')
+  async lineBalanceView() {
+    return this.lineBalance.balance();
+  }
+
+  /** Current balance configuration, one row per machine on this factory's lines. */
+  @Get('line-balance/config')
+  async lineBalanceConfig() {
+    const factoryId = this.ctx.getFactoryId();
+    const machines = await this.prisma.machine.findMany({
+      where: { ...(factoryId ? { factoryId } : {}), isActive: true, code: { not: { startsWith: 'X-' } } },
+      select: { id: true, code: true, name: true, lineId: true },
+      orderBy: { code: 'asc' },
+    });
+    const cfg = await this.prisma.lineBalanceConfig.findMany({
+      where: factoryId ? { factoryId } : {},
+    });
+    const byMachine = new Map(cfg.map((c) => [c.machineId, c]));
+    return machines.map((m) => ({
+      machineId: m.id, code: m.code, name: m.name,
+      enabled: byMachine.get(m.id)?.enabled ?? true,
+      isAnchor: byMachine.get(m.id)?.isAnchor ?? false,
+      bufferToNextQty: byMachine.get(m.id)?.bufferToNextQty ?? null,
+      transitSec: byMachine.get(m.id)?.transitSec ?? null,
+      maxCorrectionPct: byMachine.get(m.id)?.maxCorrectionPct ?? 10,
+      applyAdjustment: byMachine.get(m.id)?.applyAdjustment ?? false,
+      configured: byMachine.has(m.id),
+    }));
+  }
+
+  /**
+   * Save one machine's balance settings.
+   *
+   * `isAnchor` is exclusive per factory: setting it here clears it everywhere
+   * else in the same write. Two references on one line would each be corrected
+   * towards the other, and the numbers would never settle.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch('line-balance/config/:machineId')
+  async saveLineBalance(
+    @Param('machineId') machineId: string,
+    @Body() body: {
+      enabled?: boolean; isAnchor?: boolean; bufferToNextQty?: number | null;
+      transitSec?: number | null; maxCorrectionPct?: number; applyAdjustment?: boolean;
+    },
+  ) {
+    const machine = await this.prisma.machine.findUnique({
+      where: { id: machineId }, select: { id: true, factoryId: true },
+    });
+    if (!machine) throw new BadRequestException('machine not found');
+
+    if (body.maxCorrectionPct !== undefined
+      && (!Number.isFinite(body.maxCorrectionPct) || body.maxCorrectionPct < 0 || body.maxCorrectionPct > 100)) {
+      throw new BadRequestException('maxCorrectionPct must be between 0 and 100');
+    }
+    if (body.bufferToNextQty !== undefined && body.bufferToNextQty !== null
+      && (!Number.isFinite(body.bufferToNextQty) || body.bufferToNextQty < 0)) {
+      throw new BadRequestException('bufferToNextQty must be zero or more');
+    }
+
+    const data = {
+      ...(body.enabled !== undefined && { enabled: body.enabled }),
+      ...(body.isAnchor !== undefined && { isAnchor: body.isAnchor }),
+      ...(body.bufferToNextQty !== undefined && { bufferToNextQty: body.bufferToNextQty }),
+      ...(body.transitSec !== undefined && { transitSec: body.transitSec }),
+      ...(body.maxCorrectionPct !== undefined && { maxCorrectionPct: body.maxCorrectionPct }),
+      ...(body.applyAdjustment !== undefined && { applyAdjustment: body.applyAdjustment }),
+    };
+
+    if (body.isAnchor) {
+      await this.prisma.lineBalanceConfig.updateMany({
+        where: { factoryId: machine.factoryId, machineId: { not: machineId } },
+        data: { isAnchor: false },
+      });
+    }
+
+    return this.prisma.lineBalanceConfig.upsert({
+      where: { machineId },
+      create: { machineId, factoryId: machine.factoryId, ...data },
+      update: data,
+    });
   }
 
   @Get('job-orders')

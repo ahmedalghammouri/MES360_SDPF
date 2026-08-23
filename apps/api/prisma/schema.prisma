@@ -326,6 +326,7 @@ model Machine {
   @@map("machines")
   oeeMinutes OeeMinute[]
   oeeScheduleMinutes OeeScheduleMinute[]
+  lineBalance       LineBalanceConfig?
 }
 
 enum MachineType {
@@ -3465,6 +3466,15 @@ model JobOrder {
   // overwrites manual scrap (and auto vs manual can be reconciled).
   manualQtyGood     Float   @default(0)
   manualQtyRejected Float   @default(0)
+
+  /// Line-balance correction, in this step's outputUnit. Kept SEPARATE from the
+  /// counted and manual quantities so a reconciled number can always be taken
+  /// apart into what a sensor measured, what an operator entered, and what the
+  /// balance inferred. Zero unless the line balancer is enabled for this machine.
+  balanceAdjGood     Float  @default(0)
+  balanceAdjRejected Float  @default(0)
+  /// When the balancer last touched this row — so a stale correction is visible.
+  balancedAt         DateTime?
   handoverQty       Float   @default(0) // qty actually transferred to next step
   handoverCriteria  Float? // min qty before successor becomes READY
   outputUnit        String? // PIECE, CARTON, PALLET — unit of plannedQtyOut / actualQtyGood
@@ -4237,4 +4247,87 @@ model OeeScheduleMinute {
   @@index([shiftTemplateId, bucketStart])
   @@index([workOrderId])
   @@map("oee_schedule_minutes")
+}
+
+
+/// ─────────────────────────────────────────────────────────────────────────────
+/// LINE BALANCE — how much a machine's count may be trusted, and what sits
+/// between it and the next one.
+///
+/// Machines on a packing line count in different units and different sensors
+/// miss different amounts. What makes their numbers comparable is the packaging
+/// ladder; what makes their DIFFERENCES interpretable is the conveyor between
+/// them, because material genuinely sits there. A gap no larger than the buffer
+/// is physics. A gap larger than the buffer is a counting error, and only that
+/// part is ever corrected.
+///
+/// Configured from the gateway's own admin page — this is plant floor data
+/// (how many cartons fit on a conveyor) that the person who can walk over and
+/// count them should own.
+model LineBalanceConfig {
+  id        String @id @default(uuid())
+  factoryId String
+  machineId String @unique
+
+  /// Off = this machine is measured and displayed but never corrected.
+  enabled  Boolean @default(true)
+  /// The reference. Its count is never adjusted; every correction propagates
+  /// outward from it. Exactly one per line.
+  isAnchor Boolean @default(false)
+
+  /// Units the conveyor AFTER this machine holds when full, in the line's common
+  /// unit. Null = unknown, and an unknown buffer is never guessed at: the link
+  /// is left unbalanced rather than assumed empty.
+  bufferToNextQty Float?
+  /// Seconds a unit takes to travel that buffer. Used to decide when the line
+  /// has drained, which is the moment a balance is exact.
+  transitSec      Int?
+
+  /// Hard ceiling on how far one machine may be moved, as a percent of its own
+  /// count. Beyond this the correction is clamped AND an alarm is raised — the
+  /// balancer must never become a place a broken sensor can hide.
+  maxCorrectionPct Float @default(10)
+
+  /// False = compute and show, change nothing. The commissioning position:
+  /// watch it against reality first, switch it on when it has earned that.
+  applyAdjustment Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  machine Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@index([factoryId])
+  @@map("line_balance_config")
+}
+
+/// Every correction the balancer has ever made, and why.
+///
+/// This is what separates a reconciled number from an invented one. A figure on
+/// a screen can always be taken back to the reading it came from, the gap that
+/// could not be explained by a conveyor, and the settings in force at the time.
+model CountAdjustment {
+  id         String   @id @default(uuid())
+  factoryId  String
+  jobOrderId String
+  machineId  String
+  at         DateTime @default(now())
+
+  /// The counter's own figure at the moment of adjustment, and the balanced one.
+  countedGood  Float
+  countedScrap Float
+  adjGood      Float
+  adjScrap     Float
+
+  /// Which machine the correction propagated from, and how it was arrived at.
+  anchorMachineId String?
+  reason          String
+  /// True when the correction hit its ceiling and was clamped.
+  clamped         Boolean @default(false)
+  /// What the balance would have been without the ceiling.
+  requestedGood   Float?
+
+  @@index([jobOrderId])
+  @@index([machineId, at])
+  @@map("count_adjustments")
 }

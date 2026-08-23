@@ -1,0 +1,240 @@
+import { LineBalanceService } from './line-balance.service';
+
+/**
+ * Balancing counters against the material between them.
+ *
+ * ── The rule being enforced ─────────────────────────────────────────────────
+ * Material is conserved. What left one machine either entered the next, or is
+ * still on the conveyor between them. So once the conveyor's capacity is known,
+ * the difference physics ALLOWS is a number — and only what exceeds it is a
+ * counting error.
+ *
+ * That makes these tests unusually worth writing, because the failure mode is a
+ * plausible-looking number. A balancer that corrects too eagerly invents
+ * production; one that corrects in the wrong direction accuses the wrong
+ * machine; one that quietly absorbs a large drift hides a broken sensor for
+ * months. Each of those renders perfectly on a dashboard.
+ */
+describe('line balance', () => {
+  const NCC = { unitsPerInner: 1, innersPerCarton: 4, cartonsPerPallet: 40, baseUnit: 'CARTON' };
+
+  /** Build a service over a fixed count picture and a fixed config. */
+  function build(
+    steps: Array<{ code: string; unit: string; good: number; reject?: number }>,
+    cfg: Array<Partial<Record<string, unknown>>> = [],
+  ) {
+    const counts: any = {
+      balance: async () => [{
+        workOrderId: 'wo-1', orderNumber: 'WO-1',
+        skuCode: 'S', skuName: 'S', packaging: NCC,
+        ladder: { PIECE: 1, INNER: 1, CARTON: 4, PALLET: 160 },
+        commonUnit: 'INNER',
+        steps: steps.map((s, i) => {
+          const mul = s.unit === 'CARTON' ? 4 : s.unit === 'PALLET' ? 160 : 1;
+          const reject = s.reject ?? 0;
+          return {
+            jobOrderId: `jo-${i}`, sequenceOrder: i + 1, operationName: 'Op',
+            machineId: s.code, machineCode: s.code, machineName: s.code,
+            unit: s.unit, good: s.good, reject, total: s.good + reject,
+            goodCommon: s.good * mul, rejectCommon: reject * mul,
+            totalCommon: (s.good + reject) * mul,
+            diffFromPrev: null, unconvertible: false,
+          };
+        }),
+      }],
+    };
+    const prisma: any = {
+      lineBalanceConfig: {
+        findMany: async () => cfg.map((c) => ({
+          machineId: c.machineId, enabled: c.enabled ?? true, isAnchor: c.isAnchor ?? false,
+          bufferToNextQty: c.bufferToNextQty ?? null, transitSec: null,
+          maxCorrectionPct: c.maxCorrectionPct ?? 10, applyAdjustment: false,
+        })),
+      },
+    };
+    return new LineBalanceService(prisma, { getFactoryId: () => 'f1' } as any, counts);
+  }
+
+  const at = (run: any, code: string) => run.steps.find((s: any) => s.machineCode === code);
+
+  it('leaves a gap the conveyor can hold completely alone', async () => {
+    // M2 made 1584 inners, M3 has palletised 1440. The other 144 are on the
+    // conveyor. This is the ordinary state of a running line, not an error, and
+    // a balancer that "fixed" it would be inventing a fault.
+    const svc = build(
+      [{ code: 'M2', unit: 'CARTON', good: 396 }, { code: 'M3', unit: 'PALLET', good: 9 }],
+      [{ machineId: 'M2', bufferToNextQty: 400 }, { machineId: 'M3', isAnchor: true }],
+    );
+    const [run] = await svc.balance();
+
+    expect(at(run, 'M2').verdict).toBe('BALANCED');
+    expect(at(run, 'M2').correction).toBe(0);
+    expect(at(run, 'M2').explainedByBuffer).toBe(144);
+    expect(at(run, 'M2').unexplained).toBe(0);
+  });
+
+  it('corrects a machine that reports less than the one after it processed', async () => {
+    // 1450 inners claimed by the filler; the cartoner turned 1584 into cartons.
+    // Material does not appear on a conveyor, so the filler is short by 134 AT
+    // LEAST — and 134 is exactly what it is credited with.
+    const svc = build(
+      [
+        { code: 'M1', unit: 'INNER', good: 1450 },
+        { code: 'M2', unit: 'CARTON', good: 396 },
+        { code: 'M3', unit: 'PALLET', good: 9 },
+      ],
+      [
+        { machineId: 'M1', bufferToNextQty: 200 },
+        { machineId: 'M2', bufferToNextQty: 400 },
+        { machineId: 'M3', isAnchor: true },
+      ],
+    );
+    const [run] = await svc.balance();
+
+    const m1 = at(run, 'M1');
+    expect(m1.verdict).toBe('CORRECTED');
+    expect(m1.correction).toBe(134);
+    expect(m1.balancedCommon).toBe(1584);
+  });
+
+  it('credits the MINIMUM, never the minimum plus an assumed buffer', async () => {
+    // The tempting extra step is to add the conveyor's contents on top, since
+    // there is probably material there too. That is the fabrication this design
+    // exists to refuse: the balance grants only what the line forces to be true.
+    const svc = build(
+      [{ code: 'M1', unit: 'INNER', good: 900 }, { code: 'M2', unit: 'INNER', good: 1000 }],
+      // A generous ceiling: this test is about WHAT is credited, not how much
+      // of it survives the cap, which the clamping test covers separately.
+      [{ machineId: 'M1', bufferToNextQty: 500, maxCorrectionPct: 100 }, { machineId: 'M2', isAnchor: true }],
+    );
+    const [run] = await svc.balance();
+
+    expect(at(run, 'M1').balancedCommon).toBe(1000);   // not 1000 + 500
+    expect(at(run, 'M1').correction).toBe(100);
+  });
+
+  it('never touches the anchor', async () => {
+    const svc = build(
+      [{ code: 'M1', unit: 'INNER', good: 500 }, { code: 'M2', unit: 'INNER', good: 900 }],
+      [{ machineId: 'M1', bufferToNextQty: 50 }, { machineId: 'M2', isAnchor: true }],
+    );
+    const [run] = await svc.balance();
+
+    expect(at(run, 'M2').verdict).toBe('ANCHOR');
+    expect(at(run, 'M2').correction).toBe(0);
+    expect(at(run, 'M2').balancedCommon).toBe(900);
+  });
+
+  it('clamps a correction at its ceiling and says what it refused', async () => {
+    // The whole point of the ceiling: a sensor drifting 22% is a maintenance
+    // problem, and a balancer that silently absorbed it would hide the fault it
+    // is meant to expose. So it is capped AND the requested figure is reported.
+    const svc = build(
+      [{ code: 'M1', unit: 'INNER', good: 1000 }, { code: 'M2', unit: 'INNER', good: 1220 }],
+      [
+        { machineId: 'M1', bufferToNextQty: 100, maxCorrectionPct: 5 },
+        { machineId: 'M2', isAnchor: true },
+      ],
+    );
+    const [run] = await svc.balance();
+
+    const m1 = at(run, 'M1');
+    expect(m1.verdict).toBe('CLAMPED');
+    expect(m1.requestedCorrection).toBe(220);
+    expect(m1.correction).toBe(50);                    // 5% of 1000
+    expect(m1.balancedCommon).toBe(1050);
+    expect(m1.reason).toContain('220');
+  });
+
+  it('refuses to balance a link whose buffer is unknown', async () => {
+    // An unmeasured conveyor is not an empty one. Guessing it holds nothing
+    // would turn every legitimate work-in-progress gap into a false correction.
+    const svc = build(
+      [{ code: 'M1', unit: 'INNER', good: 800 }, { code: 'M2', unit: 'INNER', good: 1000 }],
+      [{ machineId: 'M2', isAnchor: true }],
+    );
+    const [run] = await svc.balance();
+
+    expect(at(run, 'M1').verdict).toBe('UNCONFIGURED');
+    expect(at(run, 'M1').correction).toBe(0);
+    expect(at(run, 'M1').balancedCommon).toBe(800);
+  });
+
+  it('leaves a machine alone when its balancing is switched off', async () => {
+    const svc = build(
+      [{ code: 'M1', unit: 'INNER', good: 800 }, { code: 'M2', unit: 'INNER', good: 1000 }],
+      [
+        { machineId: 'M1', bufferToNextQty: 50, enabled: false },
+        { machineId: 'M2', isAnchor: true },
+      ],
+    );
+    const [run] = await svc.balance();
+
+    expect(at(run, 'M1').verdict).toBe('DISABLED');
+    expect(at(run, 'M1').correction).toBe(0);
+  });
+
+  it('corrects downstream too, and reads the buffer from the link before it', async () => {
+    // Propagation runs both ways from the anchor. Going forward, the conveyor
+    // that matters is the one BEFORE the machine — configured on its neighbour.
+    const svc = build(
+      [
+        { code: 'M1', unit: 'INNER', good: 1000 },
+        { code: 'M2', unit: 'INNER', good: 400 },
+      ],
+      [
+        { machineId: 'M1', isAnchor: true, bufferToNextQty: 100 },
+        { machineId: 'M2', bufferToNextQty: null },
+      ],
+    );
+    const [run] = await svc.balance();
+
+    const m2 = at(run, 'M2');
+    // 600 short, of which 100 can be on the conveyor → 500 is a miscount, but
+    // the 10% ceiling on 400 allows only 40.
+    expect(m2.explainedByBuffer).toBe(100);
+    expect(m2.unexplained).toBe(500);
+    expect(m2.verdict).toBe('CLAMPED');
+  });
+
+  it('falls back to the end of the line when no anchor is configured', async () => {
+    // The last step counts the biggest, slowest, least missable units, so it is
+    // the safest default reference — better than refusing to balance at all.
+    const svc = build(
+      [{ code: 'M1', unit: 'INNER', good: 900 }, { code: 'M2', unit: 'INNER', good: 1000 }],
+      [{ machineId: 'M1', bufferToNextQty: 0, maxCorrectionPct: 100 }],
+    );
+    const [run] = await svc.balance();
+
+    expect(run.anchorMachineId).toBe('M2');
+    expect(at(run, 'M2').verdict).toBe('ANCHOR');
+    expect(at(run, 'M1').correction).toBe(100);
+  });
+
+  it('reports the line total, so a drifting counter is visible at a glance', async () => {
+    const svc = build(
+      [
+        { code: 'M1', unit: 'INNER', good: 900 },
+        { code: 'M2', unit: 'INNER', good: 1000 },
+      ],
+      [{ machineId: 'M1', bufferToNextQty: 0, maxCorrectionPct: 100 }, { machineId: 'M2', isAnchor: true }],
+    );
+    const [run] = await svc.balance();
+    expect(run.totalCorrection).toBe(100);
+  });
+
+  it('caps at ten percent by default, so an unconfigured line is conservative', async () => {
+    // A machine with no ceiling set is not a machine with no ceiling. The
+    // default has to be tight enough that a badly drifting sensor reaches it
+    // and raises its hand, rather than being quietly smoothed over.
+    const svc = build(
+      [{ code: 'M1', unit: 'INNER', good: 1000 }, { code: 'M2', unit: 'INNER', good: 1500 }],
+      [{ machineId: 'M1', bufferToNextQty: 0 }, { machineId: 'M2', isAnchor: true }],
+    );
+    const [run] = await svc.balance();
+
+    expect(at(run, 'M1').requestedCorrection).toBe(500);
+    expect(at(run, 'M1').correction).toBe(100);
+    expect(at(run, 'M1').verdict).toBe('CLAMPED');
+  });
+});

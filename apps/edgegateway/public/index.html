@@ -157,6 +157,7 @@
       <nav>
         <div class="sec">Gateway</div>
         <button data-tab="overview" class="active" onclick="switchTab('overview')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Overview</button>
+        <button data-tab="linebal" onclick="switchTab('linebal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M5 7h14M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z"/></svg>Line Balance</button>
         <button data-tab="balance" onclick="switchTab('balance')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M5 7h14M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z"/></svg>Count Balance</button>
         <div class="sec">IIoT &amp; Connectivity</div>
         <button data-tab="devices" onclick="switchTab('devices')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>Devices</button>
@@ -213,6 +214,37 @@
           <div id="balRuns"></div>
         </section>
 
+        <section id="tab-linebal" class="hidden">
+          <div class="card">
+            <div class="card-h"><span class="ttl">Reconciled line</span>
+              <span style="color:hsl(var(--muted-fg));font-size:11.5px">refreshes every 1.5s</span></div>
+            <div style="padding:0 14px 12px;color:hsl(var(--muted-fg));font-size:12px;line-height:1.65">
+              One counter can be wrong; a whole line cannot, because material is conserved.
+              What left a machine either entered the next one or is still on the conveyor between them.
+              So a gap no larger than that conveyor is <b>physics</b> and is left alone &mdash; and only
+              what exceeds it is treated as a miscount. Corrections credit the <b>minimum</b> the line
+              forces to be true, never more, and one that hits its ceiling is clamped and reported
+              rather than absorbed.
+            </div>
+          </div>
+          <div id="lbRuns"></div>
+          <div class="card">
+            <div class="card-h"><span class="ttl">Configuration</span>
+              <span id="lbMsg" style="font-size:11.5px"></span>
+              <span style="color:hsl(var(--muted-fg));font-size:11.5px">gateway only &mdash; not editable from the web app</span></div>
+            <div style="padding:0 14px 10px;color:hsl(var(--muted-fg));font-size:12px;line-height:1.65">
+              <b>Buffer</b> is how many units the conveyor <i>after</i> that machine holds when full,
+              in the line&rsquo;s common unit. Leave it empty and the link is left unbalanced &mdash;
+              an unmeasured conveyor is never assumed to be empty.
+              <b>Apply</b> off means measure and show, change nothing.
+            </div>
+            <div class="tbl-wrap"><table><thead><tr>
+              <th>Machine</th><th>On</th><th>Anchor</th><th class="mono">Buffer after</th>
+              <th class="mono">Transit s</th><th class="mono">Max corr %</th><th>Apply</th><th></th>
+            </tr></thead><tbody id="lbCfg"></tbody></table></div>
+          </div>
+        </section>
+
         <section id="tab-devices" class="hidden">
           <div class="kpis" id="devKpis"></div>
           <div class="card"><div class="card-h"><span class="ttl">Modbus Devices</span><button class="sm" onclick="openDeviceForm()">+ Add Device</button></div>
@@ -265,7 +297,7 @@
 
 <script>
   const T={get:()=>localStorage.getItem('eg_token'),set:t=>localStorage.setItem('eg_token',t),clear:()=>localStorage.removeItem('eg_token')};
-  const TITLES={overview:['Overview','Live monitoring'],balance:['Count Balance','What each machine made, in one unit'],devices:['Devices','Modbus device configuration'],tags:['Tag Browser','Tag & counter configuration'],signals:['Signal Rules','How a signal becomes a state, and what it costs'],meters:['Energy Meters','Power-meter configuration'],settings:['Settings','Service connections']};
+  const TITLES={overview:['Overview','Live monitoring'],balance:['Count Balance','What each machine made, in one unit'],linebal:['Line Balance','Reconciling counters against the material between them'],devices:['Devices','Modbus device configuration'],tags:['Tag Browser','Tag & counter configuration'],signals:['Signal Rules','How a signal becomes a state, and what it costs'],meters:['Energy Meters','Power-meter configuration'],settings:['Settings','Service connections']};
   let timer=null,tab='overview',cache={devices:[],tags:[],machines:[],lines:[],areas:[]},prevVals={};
   function lineOpts(sel){return'<option value="">— select —</option>'+cache.lines.map(l=>`<option value="${l.id}" ${l.id===sel?'selected':''}>${esc(l.name)} (${esc(l.code)})</option>`).join('')}
   function areaOpts(sel){return'<option value="">— select —</option>'+cache.areas.map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)} (${esc(a.code)})</option>`).join('')}
@@ -304,9 +336,9 @@
     switchTab('overview');startPoll()}
 
   function switchTab(t){tab=t;document.querySelectorAll('nav button[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
-    ['overview','balance','devices','tags','signals','meters','settings'].forEach(s=>document.getElementById('tab-'+s).classList.toggle('hidden',s!==t));
+    ['overview','balance','linebal','devices','tags','signals','meters','settings'].forEach(s=>document.getElementById('tab-'+s).classList.toggle('hidden',s!==t));
     document.getElementById('pageTitle').textContent=TITLES[t][0];document.getElementById('pageSub').textContent=TITLES[t][1];
-    if(t==='overview')refreshOverview();if(t==='balance')loadBalance();if(t==='devices')loadDevices();if(t==='tags')loadTags();if(t==='signals')loadSignals();if(t==='meters')loadMeters();if(t==='settings')loadSettings()}
+    if(t==='overview')refreshOverview();if(t==='balance')loadBalance();if(t==='linebal')loadLineBal();if(t==='devices')loadDevices();if(t==='tags')loadTags();if(t==='signals')loadSignals();if(t==='meters')loadMeters();if(t==='settings')loadSettings()}
 
   // Polling (1.5s)
   function startPoll(){clearInterval(timer);tick();timer=setInterval(tick,1500)}
@@ -323,6 +355,7 @@
       // needs to see the edge count move while they are still standing there.
       else if(tab==='signals')loadPulse();
       else if(tab==='balance')loadBalance();
+      else if(tab==='linebal')loadLineBal();
     }catch{}
   }
 
@@ -561,6 +594,121 @@
       '<th class="mono">Total ('+esc(r.commonUnit)+')</th>'+
       '<th class="mono">Diff vs previous</th>'+
       '</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  }
+
+  // ── Line balance ──────────────────────────────────────────────────────────
+  // Shows what each machine counted, what the conveyor between them can explain,
+  // and what it could not. The last of those is the only part ever corrected.
+  const LB_VERDICT={
+    ANCHOR:['المرجع','var(--gold,38 92% 50%)'],
+    BALANCED:['متوازن','hsl(142 60% 40%)'],
+    CORRECTED:['صُحّح','hsl(38 92% 45%)'],
+    CLAMPED:['بلغ السقف','hsl(0 84% 58%)'],
+    UNCONFIGURED:['غير مضبوط','hsl(var(--muted-fg))'],
+    DISABLED:['موقوف','hsl(var(--muted-fg))'],
+  };
+
+  async function loadLineBal(){
+    try{
+      const [runs,cfg]=await Promise.all([api('/line-balance'),api('/line-balance/config')]);
+      renderLbRuns(runs);
+      if(!lbEditing)renderLbCfg(cfg);
+    }catch(e){
+      document.getElementById('lbRuns').innerHTML=
+        '<div class="card"><div style="padding:16px;color:hsl(var(--muted-fg))">'+esc(e.message||'Could not load')+'</div></div>';
+    }
+  }
+
+  function renderLbRuns(runs){
+    const host=document.getElementById('lbRuns');
+    if(!runs.length){
+      host.innerHTML='<div class="card"><div style="padding:16px;color:hsl(var(--muted-fg))">'+
+        'No job order is executing — a balance compares the steps of a running order.</div></div>';
+      return;
+    }
+    host.innerHTML=runs.map(r=>{
+      const u=esc(r.commonUnit);
+      const rows=r.steps.map(st=>{
+        const v=LB_VERDICT[st.verdict]||['—','hsl(var(--muted-fg))'];
+        const name=esc(st.machineCode||st.operationName||('#'+st.sequenceOrder));
+        // A correction of zero is the good outcome and should read as calm; the
+        // eye belongs on the ones that moved.
+        const corr=Math.abs(st.correction)<0.0005
+          ? '<span style="color:hsl(var(--muted-fg))">0</span>'
+          : '<b style="color:'+(st.correction>0?'hsl(38 92% 45%)':'hsl(0 84% 58%)')+'">'+
+            (st.correction>0?'+':'')+fmtQty(st.correction)+'</b>';
+        const clampNote=st.verdict==='CLAMPED'
+          ? '<div class="sub2" style="color:hsl(0 84% 58%)">طُلب '+fmtQty(st.requestedCorrection)+' — قُصَّ عند '+st.maxCorrectionPct+'%</div>'
+          : '';
+        return '<tr>'+
+          '<td>'+esc(String(st.sequenceOrder))+'</td>'+
+          '<td><b>'+name+'</b><div class="sub2">'+esc(st.operationName)+'</div></td>'+
+          '<td class="mono">'+fmtQty(st.goodCommon)+'</td>'+
+          '<td class="mono">'+(st.explainedByBuffer===null?'—':fmtQty(st.explainedByBuffer))+'</td>'+
+          '<td class="mono">'+(st.unexplained===null?'—':fmtQty(st.unexplained))+'</td>'+
+          '<td class="mono">'+fmtQty(st.balancedCommon)+'</td>'+
+          '<td class="mono">'+corr+'</td>'+
+          '<td><span style="color:'+v[1]+';font-weight:600;font-size:11.5px">'+v[0]+'</span>'+
+            '<div class="sub2">'+esc(st.reason)+'</div>'+clampNote+'</td>'+
+          '</tr>';
+      }).join('');
+      const total=r.totalCorrection;
+      return '<div class="card"><div class="card-h"><span class="ttl">'+esc(r.orderNumber||r.workOrderId)+
+        '</span><span style="color:hsl(var(--muted-fg));font-size:11.5px">'+
+        'وحدة الأساس <b>'+u+'</b> · مجموع التصحيح <b>'+(total>0?'+':'')+fmtQty(total)+'</b></span></div>'+
+        '<div class="tbl-wrap"><table><thead><tr>'+
+        '<th>#</th><th>Machine</th><th class="mono">Counted ('+u+')</th>'+
+        '<th class="mono">In buffer</th><th class="mono">Unexplained</th>'+
+        '<th class="mono">Balanced</th><th class="mono">Correction</th><th>Verdict</th>'+
+        '</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    }).join('');
+  }
+
+  // While a field has focus the poll must not redraw the table under the cursor.
+  let lbEditing=false;
+
+  function renderLbCfg(rows){
+    document.getElementById('lbCfg').innerHTML=rows.map(c=>{
+      const id=esc(c.machineId);
+      const chk=(k,v)=>'<input type="checkbox" id="lb_'+k+'_'+id+'"'+(v?' checked':'')+'>';
+      const num=(k,v,ph)=>'<input id="lb_'+k+'_'+id+'" value="'+(v===null||v===undefined?'':v)+
+        '" placeholder="'+ph+'" style="width:80px" onfocus="lbEditing=true">';
+      return '<tr>'+
+        '<td><b>'+esc(c.code)+'</b><div class="sub2">'+esc(c.name)+'</div></td>'+
+        '<td>'+chk('en',c.enabled)+'</td>'+
+        '<td>'+chk('an',c.isAnchor)+'</td>'+
+        '<td>'+num('buf',c.bufferToNextQty,'غير مضبوط')+'</td>'+
+        '<td>'+num('tr',c.transitSec,'—')+'</td>'+
+        '<td>'+num('mx',c.maxCorrectionPct,'10')+'</td>'+
+        '<td>'+chk('ap',c.applyAdjustment)+'</td>'+
+        '<td><button class="sm" onclick="saveLb(\''+id+'\')">حفظ</button></td>'+
+        '</tr>';
+    }).join('');
+  }
+
+  function lbMsg(text,colour){
+    const m=document.getElementById('lbMsg');
+    if(!m)return;
+    m.textContent=text; m.style.color=colour;
+    clearTimeout(m._t); m._t=setTimeout(()=>{m.textContent=''},4000);
+  }
+
+  async function saveLb(machineId){
+    const g=k=>document.getElementById('lb_'+k+'_'+machineId);
+    const numOrNull=el=>{const v=el.value.trim();return v===''?null:Number(v)};
+    try{
+      await api('/line-balance/config/'+machineId,{method:'PATCH',body:JSON.stringify({
+        enabled:g('en').checked,
+        isAnchor:g('an').checked,
+        bufferToNextQty:numOrNull(g('buf')),
+        transitSec:numOrNull(g('tr')),
+        maxCorrectionPct:Number(g('mx').value.trim()||10),
+        applyAdjustment:g('ap').checked,
+      })});
+      lbEditing=false;
+      lbMsg('✓ saved — in effect within seconds','hsl(var(--good))');
+      loadLineBal();
+    }catch(e){lbMsg(e.message||'save failed','hsl(var(--bad))')}
   }
 
   function renderSignals(){
