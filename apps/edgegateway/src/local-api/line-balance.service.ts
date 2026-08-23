@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GatewayContextService } from '../context/gateway-context.service';
 import { CountBalanceService, type BalanceRun, type BalanceStep } from './count-balance.service';
+import { toPieces, fromPieces, normaliseUnit, type LadderUnit, type SkuPackaging } from '@mes360/shared';
 
 /** How a machine's figure was arrived at. */
 export type BalanceVerdict =
@@ -18,7 +19,11 @@ export interface BalancedStep extends BalanceStep {
   isAnchor: boolean;
   enabled: boolean;
   applyAdjustment: boolean;
+  /** Capacity as ENTERED, in the unit it was measured in. */
   bufferToNextQty: number | null;
+  bufferUnit: string | null;
+  /** The same capacity converted to the line's common unit — what the maths uses. */
+  bufferCommon: number | null;
   maxCorrectionPct: number;
 
   /** Of the gap to the machine before it, how much the conveyor can hold. */
@@ -110,7 +115,8 @@ export class LineBalanceService {
       }
     }
 
-    const out: BalancedStep[] = steps.map((s) => this.blank(s, cfg.get(s.machineId ?? '')));
+    const out: BalancedStep[] = steps.map((s) =>
+      this.blank(s, cfg.get(s.machineId ?? ''), run.commonUnit, run.packaging));
     if (anchorIdx < 0) return this.wrap(run, out, null);
 
     out[anchorIdx].verdict = 'ANCHOR';
@@ -162,7 +168,7 @@ export class LineBalanceService {
   ): void {
     // Whose conveyor is it? Going upstream, the buffer after THIS machine. Going
     // downstream, the buffer after the machine before it.
-    const capacity = downstream ? neighbour.bufferToNextQty : step.bufferToNextQty;
+    const capacity = downstream ? neighbour.bufferCommon : step.bufferCommon;
 
     if (!step.enabled) {
       step.verdict = 'DISABLED';
@@ -228,13 +234,25 @@ export class LineBalanceService {
     }
   }
 
-  private blank(s: BalanceStep, c: any): BalancedStep {
+  private blank(s: BalanceStep, c: any, commonUnit: LadderUnit, packaging: SkuPackaging): BalancedStep {
+    // A capacity measured in cartons is converted here, once, against the same
+    // ladder every other quantity on this line goes through. Entering "3
+    // cartons" and having it silently compared against inners would be a wrong
+    // answer that looks completely reasonable on screen.
+    const qty = c?.bufferToNextQty ?? null;
+    const rung = normaliseUnit(c?.bufferUnit) ?? commonUnit;
+    const bufferCommon = qty === null
+      ? null
+      : fromPieces(toPieces(qty, rung, packaging), commonUnit, packaging);
+
     return {
       ...s,
       isAnchor: !!c?.isAnchor,
       enabled: c ? c.enabled : true,
       applyAdjustment: !!c?.applyAdjustment,
-      bufferToNextQty: c?.bufferToNextQty ?? null,
+      bufferToNextQty: qty,
+      bufferUnit: c?.bufferUnit ?? null,
+      bufferCommon,
       maxCorrectionPct: c?.maxCorrectionPct ?? 10,
       explainedByBuffer: null,
       unexplained: null,

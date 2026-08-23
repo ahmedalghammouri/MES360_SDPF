@@ -4275,10 +4275,19 @@ model LineBalanceConfig {
   /// outward from it. Exactly one per line.
   isAnchor Boolean @default(false)
 
-  /// Units the conveyor AFTER this machine holds when full, in the line's common
-  /// unit. Null = unknown, and an unknown buffer is never guessed at: the link
-  /// is left unbalanced rather than assumed empty.
+  /// How much the conveyor AFTER this machine holds when full. Null = unknown,
+  /// and an unknown buffer is never guessed at: the link is left unbalanced
+  /// rather than assumed empty.
   bufferToNextQty Float?
+  /// The unit that quantity is expressed in — PIECE / INNER / CARTON / PALLET.
+  ///
+  /// It is entered in whatever unit the person MEASURING it counted in, because
+  /// that is how a conveyor is actually surveyed: "three cartons fit between
+  /// these two machines", "one pallet waits before the wrapper". Asking for the
+  /// line's common unit instead makes every entry a mental conversion, and a
+  /// conveyor whose capacity is entered as 3 when it should have been 12 is a
+  /// silent, plausible-looking wrong answer. Null = already in the common unit.
+  bufferUnit      String?
   /// Seconds a unit takes to travel that buffer. Used to decide when the line
   /// has drained, which is the moment a balance is exact.
   transitSec      Int?

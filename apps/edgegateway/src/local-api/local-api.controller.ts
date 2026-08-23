@@ -11,6 +11,7 @@ import { ModbusPollerService } from '../acquisition/modbus-poller.service';
 import { BufferService } from '../acquisition/buffer.service';
 import { ModbusLogService } from '../acquisition/modbus-log.service';
 import { StatusService } from '../acquisition/status.service';
+import { CounterService } from '../acquisition/counter.service';
 import { METER_TEMPLATES, instantiateMeterTags, instantiateEdgeCounterTags, type EdgeCounterBlocks } from '@mes360/industrial-drivers';
 import { readConfigFile, writeConfigFile } from '../config/config-store';
 import { CountBalanceService } from './count-balance.service';
@@ -35,6 +36,7 @@ export class LocalApiController {
     private readonly auth: AuthService,
     private readonly config: ConfigService,
     private readonly statusSvc: StatusService,
+    private readonly counter: CounterService,
     private readonly balance: CountBalanceService,
     private readonly lineBalance: LineBalanceService,
   ) {}
@@ -568,6 +570,55 @@ export class LocalApiController {
    * belongs to whoever can walk over and count it, and the corrections it
    * produces should be watched from the same screen that shows the raw counts.
    */
+  /**
+   * Counter health — see {@link CounterService.counterDiagnostics}.
+   *
+   * The sibling comparison is the part that found the fault on this line. Two
+   * counters on ONE machine watch the same product stream, so their rates must
+   * agree. When one reports a fraction of the other, no amount of polling will
+   * reconcile them: the signals themselves are different shapes, and the answer
+   * is at the sensor.
+   */
+  @Get('counter-health')
+  async counterHealth() {
+    const diags = this.counter.counterDiagnostics();
+    const codes = await this.prisma.tagDefinition.findMany({
+      where: { id: { in: diags.map((d) => d.tagId) } },
+      select: { id: true, code: true, address: true, edgeType: true, machine: { select: { code: true } } },
+    });
+    const meta = new Map(codes.map((c) => [c.id, c]));
+
+    // Fastest counter per machine — the yardstick its siblings are held to.
+    const best = new Map<string, number>();
+    for (const d of diags) {
+      if (!d.machineId || d.edgesPerMin === null) continue;
+      best.set(d.machineId, Math.max(best.get(d.machineId) ?? 0, d.edgesPerMin));
+    }
+
+    return diags.map((d) => {
+      const peer = d.machineId ? best.get(d.machineId) ?? null : null;
+      const share = peer && peer > 0 && d.edgesPerMin !== null
+        ? Math.round((d.edgesPerMin / peer) * 100) : null;
+      return {
+        ...d,
+        code: meta.get(d.tagId)?.code ?? d.tagId,
+        address: meta.get(d.tagId)?.address ?? null,
+        edgeType: meta.get(d.tagId)?.edgeType ?? null,
+        machineCode: meta.get(d.tagId)?.machine?.code ?? null,
+        /** This counter's rate as a share of the busiest counter on its machine. */
+        peerSharePct: share,
+        /**
+         * What the counted pulse is probably really worth, when the signal is
+         * aliasing AND a sibling gives us the true rate. Capture probability is
+         * pulse width over sample interval, so the width follows from the share.
+         */
+        estimatedPulseMs: d.aliasing && share !== null && d.sampleIntervalMs
+          ? Math.round((share / 100) * d.sampleIntervalMs)
+          : null,
+      };
+    });
+  }
+
   @Get('line-balance')
   async lineBalanceView() {
     return this.lineBalance.balance();
@@ -591,6 +642,7 @@ export class LocalApiController {
       enabled: byMachine.get(m.id)?.enabled ?? true,
       isAnchor: byMachine.get(m.id)?.isAnchor ?? false,
       bufferToNextQty: byMachine.get(m.id)?.bufferToNextQty ?? null,
+      bufferUnit: byMachine.get(m.id)?.bufferUnit ?? null,
       transitSec: byMachine.get(m.id)?.transitSec ?? null,
       maxCorrectionPct: byMachine.get(m.id)?.maxCorrectionPct ?? 10,
       applyAdjustment: byMachine.get(m.id)?.applyAdjustment ?? false,
@@ -611,6 +663,7 @@ export class LocalApiController {
     @Param('machineId') machineId: string,
     @Body() body: {
       enabled?: boolean; isAnchor?: boolean; bufferToNextQty?: number | null;
+      bufferUnit?: string | null;
       transitSec?: number | null; maxCorrectionPct?: number; applyAdjustment?: boolean;
     },
   ) {
@@ -623,6 +676,10 @@ export class LocalApiController {
       && (!Number.isFinite(body.maxCorrectionPct) || body.maxCorrectionPct < 0 || body.maxCorrectionPct > 100)) {
       throw new BadRequestException('maxCorrectionPct must be between 0 and 100');
     }
+    if (body.bufferUnit !== undefined && body.bufferUnit !== null
+      && !['PIECE', 'INNER', 'CARTON', 'PALLET'].includes(body.bufferUnit)) {
+      throw new BadRequestException('bufferUnit must be a packaging-ladder unit');
+    }
     if (body.bufferToNextQty !== undefined && body.bufferToNextQty !== null
       && (!Number.isFinite(body.bufferToNextQty) || body.bufferToNextQty < 0)) {
       throw new BadRequestException('bufferToNextQty must be zero or more');
@@ -632,6 +689,7 @@ export class LocalApiController {
       ...(body.enabled !== undefined && { enabled: body.enabled }),
       ...(body.isAnchor !== undefined && { isAnchor: body.isAnchor }),
       ...(body.bufferToNextQty !== undefined && { bufferToNextQty: body.bufferToNextQty }),
+      ...(body.bufferUnit !== undefined && { bufferUnit: body.bufferUnit }),
       ...(body.transitSec !== undefined && { transitSec: body.transitSec }),
       ...(body.maxCorrectionPct !== undefined && { maxCorrectionPct: body.maxCorrectionPct }),
       ...(body.applyAdjustment !== undefined && { applyAdjustment: body.applyAdjustment }),

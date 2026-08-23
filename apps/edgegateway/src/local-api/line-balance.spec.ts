@@ -47,7 +47,7 @@ describe('line balance', () => {
       lineBalanceConfig: {
         findMany: async () => cfg.map((c) => ({
           machineId: c.machineId, enabled: c.enabled ?? true, isAnchor: c.isAnchor ?? false,
-          bufferToNextQty: c.bufferToNextQty ?? null, transitSec: null,
+          bufferToNextQty: c.bufferToNextQty ?? null, bufferUnit: c.bufferUnit ?? null, transitSec: null,
           maxCorrectionPct: c.maxCorrectionPct ?? 10, applyAdjustment: false,
         })),
       },
@@ -236,5 +236,44 @@ describe('line balance', () => {
     expect(at(run, 'M1').requestedCorrection).toBe(500);
     expect(at(run, 'M1').correction).toBe(100);
     expect(at(run, 'M1').verdict).toBe('CLAMPED');
+  });
+
+  it('converts a capacity from the unit it was measured in', async () => {
+    // SDPF's real conveyors, as they were counted on the floor:
+    //   M1 -> M2   12 inners
+    //   M2 -> M3    3 cartons  = 12 inners
+    //   M3 -> M4    1 pallet   = 160 inners
+    //
+    // Typed in those units, not converted by hand. Asking an engineer holding a
+    // tape measure to think in the line's common unit is how "3" gets entered
+    // where 12 was meant — a wrong number that looks entirely reasonable.
+    const svc = build(
+      [
+        { code: 'M1', unit: 'INNER', good: 1000 },
+        { code: 'M2', unit: 'CARTON', good: 247 },
+        { code: 'M3', unit: 'PALLET', good: 6 },
+        { code: 'M4', unit: 'PALLET', good: 5 },
+      ],
+      [
+        { machineId: 'M1', bufferToNextQty: 12, bufferUnit: 'INNER' },
+        { machineId: 'M2', bufferToNextQty: 3, bufferUnit: 'CARTON' },
+        { machineId: 'M3', bufferToNextQty: 1, bufferUnit: 'PALLET', isAnchor: true },
+      ],
+    );
+    const [run] = await svc.balance();
+
+    expect(at(run, 'M1').bufferCommon).toBe(12);
+    expect(at(run, 'M2').bufferCommon).toBe(12);     // 3 cartons
+    expect(at(run, 'M3').bufferCommon).toBe(160);    // 1 pallet
+  });
+
+  it('treats a capacity with no unit as already in the common unit', async () => {
+    // Rows saved before the unit existed must keep meaning what they meant.
+    const svc = build(
+      [{ code: 'M1', unit: 'INNER', good: 900 }, { code: 'M2', unit: 'INNER', good: 1000 }],
+      [{ machineId: 'M1', bufferToNextQty: 50 }, { machineId: 'M2', isAnchor: true }],
+    );
+    const [run] = await svc.balance();
+    expect(at(run, 'M1').bufferCommon).toBe(50);
   });
 });

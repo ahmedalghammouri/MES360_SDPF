@@ -227,20 +227,45 @@
               rather than absorbed.
             </div>
           </div>
+          <div class="card">
+            <div class="card-h"><span class="ttl">Counter health</span>
+              <span style="color:hsl(var(--muted-fg));font-size:11.5px">measured on the live signal</span></div>
+            <div style="padding:0 14px 10px;color:hsl(var(--muted-fg));font-size:12px;line-height:1.65">
+              A miscounting sensor is silent &mdash; it does not error, it just reports a smaller number.
+              Two things give it away. If the counted level <b>never lasts more than one sample</b>,
+              its real width is below the sample interval and the total is a floor, not a count.
+              And two counters on one machine watch the same product, so if one reports a fraction of
+              the other, the signals are different shapes and the answer is at the <b>sensor</b>,
+              not the poll rate.
+            </div>
+            <div class="tbl-wrap"><table><thead><tr>
+              <th>Tag</th><th>Machine</th><th>Role</th><th class="mono">Addr</th>
+              <th class="mono">Rate /min</th><th class="mono">vs peer</th>
+              <th class="mono">Active</th><th class="mono">Pulse (med / min)</th>
+              <th class="mono">Sample</th><th>Verdict</th>
+            </tr></thead><tbody id="chRows"></tbody></table></div>
+          </div>
           <div id="lbRuns"></div>
           <div class="card">
             <div class="card-h"><span class="ttl">Configuration</span>
               <span id="lbMsg" style="font-size:11.5px"></span>
               <span style="color:hsl(var(--muted-fg));font-size:11.5px">gateway only &mdash; not editable from the web app</span></div>
             <div style="padding:0 14px 10px;color:hsl(var(--muted-fg));font-size:12px;line-height:1.65">
-              <b>Buffer</b> is how many units the conveyor <i>after</i> that machine holds when full,
-              in the line&rsquo;s common unit. Leave it empty and the link is left unbalanced &mdash;
-              an unmeasured conveyor is never assumed to be empty.
-              <b>Apply</b> off means measure and show, change nothing.
+              <b>Conveyor capacity</b> is how much the belt <i>after</i> that machine holds when it is full &mdash;
+              entered in whatever unit you counted it in, so &ldquo;3 cartons&rdquo; is typed as
+              <code>3</code> with <code>CARTON</code> selected. The ladder converts it.
+              Leave it empty and that link is left unbalanced: an unmeasured conveyor is never
+              assumed to be empty.<br>
+              <b>Transit</b> is seconds for one unit to travel that belt &mdash; it does not affect the
+              correction, only when the line counts as drained. <b>Max corr %</b> is the ceiling:
+              past it the correction is clamped and reported instead of applied.
+              <b>Apply</b> records the correction against the job order; with it off, the balance is
+              measured and shown and nothing is written.
             </div>
             <div class="tbl-wrap"><table><thead><tr>
-              <th>Machine</th><th>On</th><th>Anchor</th><th class="mono">Buffer after</th>
-              <th class="mono">Transit s</th><th class="mono">Max corr %</th><th>Apply</th><th></th>
+              <th>Machine</th><th>On</th><th>Anchor</th>
+              <th class="mono">Conveyor capacity after this machine</th>
+              <th class="mono">Transit (sec)</th><th class="mono">Max corr %</th><th>Apply</th><th></th>
             </tr></thead><tbody id="lbCfg"></tbody></table></div>
           </div>
         </section>
@@ -610,13 +635,58 @@
 
   async function loadLineBal(){
     try{
-      const [runs,cfg]=await Promise.all([api('/line-balance'),api('/line-balance/config')]);
+      const [runs,cfg,health]=await Promise.all([
+        api('/line-balance'),api('/line-balance/config'),api('/counter-health')]);
+      renderCounterHealth(health);
       renderLbRuns(runs);
       if(!lbEditing)renderLbCfg(cfg);
     }catch(e){
       document.getElementById('lbRuns').innerHTML=
         '<div class="card"><div style="padding:16px;color:hsl(var(--muted-fg))">'+esc(e.message||'Could not load')+'</div></div>';
     }
+  }
+
+  const CH_VERDICT={
+    OK:['سليم','hsl(142 60% 40%)'],
+    MARGINAL:['على الحافّة','hsl(38 92% 45%)'],
+    ALIASING:['أقصر من العيّنة','hsl(0 84% 58%)'],
+    UNKNOWN:['لم يُقَس بعد','hsl(var(--muted-fg))'],
+  };
+
+  function renderCounterHealth(rows){
+    const host=document.getElementById('chRows');
+    if(!host)return;
+    if(!rows.length){
+      host.innerHTML='<tr><td colspan="10" style="color:hsl(var(--muted-fg))">'+
+        'No counter has been observed yet — a signal has to change before it can be measured.</td></tr>';
+      return;
+    }
+    host.innerHTML=rows.map(d=>{
+      const v=CH_VERDICT[d.verdict]||CH_VERDICT.UNKNOWN;
+      // A peer share far below 100% on a machine with two counters is the
+      // finding: same product, same rate, so the gap is the sensor.
+      const peer=d.peerSharePct===null?'—'
+        :'<b style="color:'+(d.peerSharePct>=90?'hsl(142 60% 40%)':d.peerSharePct>=60?'hsl(38 92% 45%)':'hsl(0 84% 58%)')+'">'
+          +d.peerSharePct+'%</b>';
+      const pulse=(d.medianActiveMs===null?'—':d.medianActiveMs+'ms')
+        +' / '+(d.shortestActiveMs===null?'—':d.shortestActiveMs+'ms'
+          +(d.shortestActiveSamples!==null?' ('+d.shortestActiveSamples+' smp)':''));
+      const est=d.estimatedPulseMs!==null
+        ? '<div class="sub2" style="color:hsl(0 84% 58%)">النبضة الحقيقيّة ~'+d.estimatedPulseMs+'ms — أقصر من أن تُلتقَط</div>'
+        : '';
+      return '<tr>'+
+        '<td><b>'+esc(d.code)+'</b>'+est+'</td>'+
+        '<td>'+esc(d.machineCode||'—')+'</td>'+
+        '<td class="mono">'+esc(d.counterRole||'—')+'</td>'+
+        '<td class="mono">'+esc(d.address===null?'—':String(d.address))+'</td>'+
+        '<td class="mono">'+(d.edgesPerMin===null?'—':fmtQty(d.edgesPerMin))+'</td>'+
+        '<td class="mono">'+peer+'</td>'+
+        '<td class="mono">'+(d.activePct===null?'—':d.activePct+'%')+'</td>'+
+        '<td class="mono">'+pulse+'</td>'+
+        '<td class="mono">'+(d.sampleIntervalMs===null?'—':d.sampleIntervalMs+'ms')+'</td>'+
+        '<td><span style="color:'+v[1]+';font-weight:600;font-size:11.5px">'+v[0]+'</span></td>'+
+        '</tr>';
+    }).join('');
   }
 
   function renderLbRuns(runs){
@@ -644,7 +714,10 @@
           '<td>'+esc(String(st.sequenceOrder))+'</td>'+
           '<td><b>'+name+'</b><div class="sub2">'+esc(st.operationName)+'</div></td>'+
           '<td class="mono">'+fmtQty(st.goodCommon)+'</td>'+
-          '<td class="mono">'+(st.explainedByBuffer===null?'—':fmtQty(st.explainedByBuffer))+'</td>'+
+          '<td class="mono">'+(st.explainedByBuffer===null?'—':fmtQty(st.explainedByBuffer))+
+          (st.bufferToNextQty!==null&&st.bufferUnit&&st.bufferCommon!==null
+            ? '<div class="sub2">سعة '+fmtQty(st.bufferToNextQty)+' '+esc(st.bufferUnit)+
+              ' = '+fmtQty(st.bufferCommon)+'</div>' : '')+'</td>'+
           '<td class="mono">'+(st.unexplained===null?'—':fmtQty(st.unexplained))+'</td>'+
           '<td class="mono">'+fmtQty(st.balancedCommon)+'</td>'+
           '<td class="mono">'+corr+'</td>'+
@@ -677,7 +750,11 @@
         '<td><b>'+esc(c.code)+'</b><div class="sub2">'+esc(c.name)+'</div></td>'+
         '<td>'+chk('en',c.enabled)+'</td>'+
         '<td>'+chk('an',c.isAnchor)+'</td>'+
-        '<td>'+num('buf',c.bufferToNextQty,'غير مضبوط')+'</td>'+
+        '<td>'+num('buf',c.bufferToNextQty,'not set')+
+          '<select id="lb_bu_'+id+'" style="width:86px;margin-inline-start:5px" onfocus="lbEditing=true">'+
+          ['PIECE','INNER','CARTON','PALLET'].map(u=>
+            '<option value="'+u+'"'+((c.bufferUnit||'')===u?' selected':'')+'>'+u+'</option>').join('')+
+          '</select></td>'+
         '<td>'+num('tr',c.transitSec,'—')+'</td>'+
         '<td>'+num('mx',c.maxCorrectionPct,'10')+'</td>'+
         '<td>'+chk('ap',c.applyAdjustment)+'</td>'+
@@ -701,6 +778,7 @@
         enabled:g('en').checked,
         isAnchor:g('an').checked,
         bufferToNextQty:numOrNull(g('buf')),
+        bufferUnit:g('bu').value,
         transitSec:numOrNull(g('tr')),
         maxCorrectionPct:Number(g('mx').value.trim()||10),
         applyAdjustment:g('ap').checked,

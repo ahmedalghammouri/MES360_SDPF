@@ -283,6 +283,12 @@ export class CounterService {
       return;
     }
 
+    // Registered on every reading, not only on an edge. A counter that has
+    // never pulsed used to be absent from this map entirely — so a DEAD sensor,
+    // the one most worth seeing, was the one thing the health view could not
+    // show. It is now listed with nothing to report, which is the finding.
+    this.tags.set(tag.id, tag);
+
     // A totalizer has no pulse to measure — the device did the counting and the
     // gateway reads a running total, so its sample rate is not in question.
     if (tag.edgeType !== 'TOTALIZER') this.measurePulse(tag, mem.lastRaw, raw);
@@ -294,14 +300,94 @@ export class CounterService {
     if (inc > 0) {
       mem.accumulated += inc;
       this.pending.add(tag.id);
-      this.tags.set(tag.id, tag);
       this.dirty = true;
     }
+  }
+
+
+  /**
+   * WHETHER A COUNTER CAN BE BELIEVED — measured, not assumed.
+   *
+   * A miscounting sensor is silent. It does not error; it reports a smaller
+   * number, and nothing about that number says it is wrong. The only way to
+   * know is to look at the SHAPE of the signal and compare it with how often
+   * the gateway is able to look.
+   *
+   * Two readings decide it. If the counted level never lasts more than one
+   * sample, its true width is unknown and BELOW the sample period — the counter
+   * is aliasing and its total is a floor, not a count. And if one counter on a
+   * machine reports a small fraction of what another on the same machine sees,
+   * the two are watching the same product stream and disagreeing, which points
+   * at the sensor rather than at the software.
+   *
+   * Both were measured by hand on SDPF's line on 23 Aug 2026: one input pulsed
+   * for ~17 ms and another for 607 ms on the same cartons, and the short one
+   * caught 5 of 28. This turns that one-off investigation into something the
+   * plant can read at any time.
+   */
+  counterDiagnostics(): Array<{
+    tagId: string; machineId: string | null; counterRole: string | null;
+    accumulated: number; observedMinutes: number; edgesPerMin: number | null;
+    sampleIntervalMs: number | null; activePct: number | null;
+    shortestActiveMs: number | null; shortestActiveSamples: number | null;
+    medianActiveMs: number | null; aliasing: boolean;
+    verdict: 'OK' | 'MARGINAL' | 'ALIASING' | 'UNKNOWN';
+  }> {
+    const out: Array<any> = [];
+    for (const [tagId, tag] of this.tags) {
+      const p = this.pulse.get(tagId);
+      const mem = this.cache.get(tagId);
+      const minutes = p ? (Date.now() - p.firstAt) / 60_000 : 0;
+      const interval = p && p.intervalN ? p.intervalSum / p.intervalN : null;
+
+      // The LIMITING level: whichever of the two the signal spends less time in.
+      // That one is what a poll interval has to beat, and it is the one a
+      // normally-closed sensor hides — its brief LOW, not its long rest.
+      const hi = p && p.highRuns ? p.highMs / p.highRuns : null;
+      const lo = p && p.lowRuns ? p.lowMs / p.lowRuns : null;
+      const limitIsHigh = hi !== null && (lo === null || hi <= lo);
+      const medianActive = hi === null ? lo : lo === null ? hi : Math.min(hi, lo);
+      const limRuns = p ? (limitIsHigh ? p.highRuns : p.lowRuns) : 0;
+      const limOne = p ? (limitIsHigh ? p.highOneSample : p.lowOneSample) : 0;
+
+      // "Aliasing" is a specific claim: the limiting level has NEVER been seen to
+      // last more than one sample, so its real width cannot be measured here and
+      // is smaller than the interval. Counts from it are a lower bound.
+      const aliasing = !!p && limRuns > 0 && limOne === limRuns;
+      let verdict: string = 'UNKNOWN';
+      if (p && limRuns > 0 && interval) {
+        if (aliasing) verdict = 'ALIASING';
+        else if (medianActive !== null && medianActive < interval * 3) verdict = 'MARGINAL';
+        else verdict = 'OK';
+      }
+
+      out.push({
+        tagId,
+        machineId: tag.machineId,
+        counterRole: tag.counterRole ?? null,
+        accumulated: mem?.accumulated ?? 0,
+        observedMinutes: Math.round(minutes * 10) / 10,
+        edgesPerMin: p && minutes > 0.05 ? Math.round((p.edges / 2 / minutes) * 10) / 10 : null,
+        sampleIntervalMs: interval === null ? null : Math.round(interval),
+        activePct: p && p.samplesSeen ? Math.round((p.highSamples / p.samplesSeen) * 100) : null,
+        shortestActiveMs: p && Number.isFinite(p.minMs) ? Math.round(p.minMs) : null,
+        shortestActiveSamples: p && Number.isFinite(p.minSamples) ? p.minSamples : null,
+        medianActiveMs: medianActive === null ? null : Math.round(medianActive),
+        aliasing,
+        verdict,
+      });
+    }
+    return out;
   }
 
   /** How long each counter tag has held its present level, and the shortest seen. */
   private readonly pulse = new Map<string, {
     since: number; samples: number; minMs: number; minSamples: number; reportedAt: number;
+    /** Everything needed to say whether this counter can be trusted at all. */
+    firstAt: number; edges: number; samplesSeen: number; highSamples: number;
+    highMs: number; highRuns: number; highOneSample: number;
+    lowMs: number; lowRuns: number; lowOneSample: number;
+    lastSampleAt: number; intervalSum: number; intervalN: number;
   }>();
   /** A level seen in this many samples or fewer is at the edge of being missed. */
   private static readonly ALIAS_SAMPLES = 2;
@@ -328,17 +414,44 @@ export class CounterService {
 
     let p = this.pulse.get(tag.id);
     if (!p) {
-      this.pulse.set(tag.id, { since: now, samples: 1, minMs: Infinity, minSamples: Infinity, reportedAt: 0 });
+      this.pulse.set(tag.id, {
+        since: now, samples: 1, minMs: Infinity, minSamples: Infinity, reportedAt: 0,
+        firstAt: now, edges: 0, samplesSeen: 1, highSamples: level ? 1 : 0,
+        highMs: 0, highRuns: 0, highOneSample: 0,
+        lowMs: 0, lowRuns: 0, lowOneSample: 0,
+        lastSampleAt: now, intervalSum: 0, intervalN: 0,
+      });
       return;
     }
 
+    p.samplesSeen += 1;
+    if (level) p.highSamples += 1;
+    if (now > p.lastSampleAt) { p.intervalSum += now - p.lastSampleAt; p.intervalN += 1; }
+    p.lastSampleAt = now;
+
     if (level === was) { p.samples += 1; return; }
+    p.edges += 1;
 
     // The level just ended — record how long it lasted.
     const heldMs = now - p.since;
     if (p.samples < p.minSamples || (p.samples === p.minSamples && heldMs < p.minMs)) {
       p.minSamples = p.samples;
       p.minMs = heldMs;
+    }
+    // BOTH levels are recorded, and this is the correction the plant's own
+    // capture forced. Detecting any edge means seeing the level before it and
+    // the level after it, so the limit is whichever of the two is SHORTER —
+    // not whichever happens to be "on".
+    //
+    // On a normally-closed sensor the resting state is HIGH and the event is a
+    // brief LOW. Measuring only the high side graded 2958 ms of rest and called
+    // a sensor healthy whose actual pulse was under one sample.
+    if (was) {
+      p.highMs += heldMs; p.highRuns += 1;
+      if (p.samples <= 1) p.highOneSample += 1;
+    } else {
+      p.lowMs += heldMs; p.lowRuns += 1;
+      if (p.samples <= 1) p.lowOneSample += 1;
     }
     p.since = now;
     p.samples = 1;
