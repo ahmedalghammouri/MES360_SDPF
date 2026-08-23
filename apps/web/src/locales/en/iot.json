@@ -145,6 +145,8 @@
     "etRising": "Rising (0→1)",
     "etFalling": "Falling (1→0)",
     "etChange": "Any change",
+    "etTotalizer": "Device totalizer (register)",
+    "etTotalizerHint": "The device counts the pulses itself and the gateway reads a running total. Use this when the pulse is too short to be seen reliably — the count no longer depends on how often the tag is polled.",
     "description": "Description",
     "historize": "Historize (store time-series in InfluxDB)",
     "machineStatusDriver": "Machine status driver (drives RUNNING / IDLE / stop)",

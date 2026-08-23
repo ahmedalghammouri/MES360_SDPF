@@ -392,7 +392,7 @@
     <div><label>Offset</label><input id="f_offset" value="${e.offset??''}" placeholder="0"></div>
     <div id="counterBox" style="display:${e.tagType==='COUNTER'?'contents':'none'}"><div class="section">Counter mapping — +1 per edge → running Job Order</div>
       <div><label>Counter Role</label><select id="f_role">${selOpts(['NONE','TOTAL','GOOD','BAD'],e.counterRole||'NONE')}</select></div>
-      <div><label>Edge Trigger</label><select id="f_edge">${selOpts(['RISING','FALLING','CHANGE'],e.edgeType||'RISING')}</select></div></div>
+      <div><label>Edge Trigger</label><select id="f_edge">${selOpts(['RISING','FALLING','CHANGE','TOTALIZER'],e.edgeType||'RISING')}</select></div></div>
     <div class="section">Publishing &amp; historian — emit on change or by fixed rate</div>
     <div><label>MQTT publish</label><select id="f_mqmode">${selOpts2([['CHANGE','On change'],['RATE','By rate (interval)']],e.mqttPublishMode||'CHANGE')}</select></div>
     <div><label>MQTT interval (sec)</label><input id="f_mqrate" value="${e.mqttPublishRateSec??''}" placeholder="0"></div>

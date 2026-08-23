@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { detectEdge, type CounterRole, type EdgeType } from '@mes360/industrial-drivers';
+import { detectEdge, totalizerDelta, totalizerWidth, type CounterRole, type EdgeType } from '@mes360/industrial-drivers';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -12,6 +12,8 @@ export interface CounterTag {
   factoryId: string;
   counterRole: CounterRole | null;
   edgeType: EdgeType;
+  /** Registers the value spans — sets the wrap point for a TOTALIZER. */
+  wordCount?: number | null;
 }
 
 export interface CountEvent {
@@ -204,9 +206,13 @@ export class CounterService {
       return;
     }
 
-    this.measurePulse(tag, mem.lastRaw, raw);
+    // A totalizer has no pulse to measure — the device did the counting and the
+    // gateway reads a running total, so its sample rate is not in question.
+    if (tag.edgeType !== 'TOTALIZER') this.measurePulse(tag, mem.lastRaw, raw);
 
-    const inc = detectEdge(mem.lastRaw, raw, tag.edgeType);
+    const inc = tag.edgeType === 'TOTALIZER'
+      ? totalizerDelta(mem.lastRaw, raw, totalizerWidth(tag.wordCount))
+      : detectEdge(mem.lastRaw, raw, tag.edgeType);
     mem.lastRaw = raw;
     if (inc > 0) {
       mem.accumulated += inc;

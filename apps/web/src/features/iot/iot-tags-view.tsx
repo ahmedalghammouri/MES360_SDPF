@@ -602,8 +602,12 @@ export function IotTagsView() {
                     <SelectItem value="RISING">{t('tform.etRising')}</SelectItem>
                     <SelectItem value="FALLING">{t('tform.etFalling')}</SelectItem>
                     <SelectItem value="CHANGE">{t('tform.etChange')}</SelectItem>
+                    <SelectItem value="TOTALIZER">{t('tform.etTotalizer')}</SelectItem>
                   </SelectContent>
                 </Select>
+                {form.edgeType === 'TOTALIZER' && (
+                  <p className="mt-1.5 text-xs text-muted-foreground">{t('tform.etTotalizerHint')}</p>
+                )}
               </div>
             </>
           )}

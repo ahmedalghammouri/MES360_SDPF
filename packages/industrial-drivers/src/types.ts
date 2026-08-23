@@ -14,7 +14,22 @@ export type CounterRole = 'TOTAL' | 'GOOD' | 'BAD' | 'NONE';
 export type Quality = 'GOOD' | 'BAD' | 'UNCERTAIN' | 'NOT_CONNECTED';
 
 /** How an edge is detected for COUNTER tags. */
-export type EdgeType = 'RISING' | 'FALLING' | 'CHANGE';
+/**
+ * How a counter tag turns readings into counts.
+ *
+ * RISING/FALLING/CHANGE watch a boolean LEVEL and count its transitions. They
+ * can only see a pulse the gateway happens to sample while it is present, so
+ * their accuracy is bounded by the poll rate — measured on this plant's line,
+ * a pulse lasting one sample or less, which cannot be counted reliably at any
+ * software setting.
+ *
+ * TOTALIZER reads a register the DEVICE accumulates, and counts the difference
+ * between readings. The device sees every pulse in hardware, so the count does
+ * not depend on when the gateway looks — poll it once a second or once a minute
+ * and the total is the same. It is the only mode that is correct for a signal
+ * faster than the transport.
+ */
+export type EdgeType = 'RISING' | 'FALLING' | 'CHANGE' | 'TOTALIZER';
 
 /** Word order for multi-register (32-bit) values. */
 export type WordOrder = 'BIG' | 'LITTLE';

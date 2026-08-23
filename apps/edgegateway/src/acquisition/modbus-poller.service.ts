@@ -219,6 +219,7 @@ export class ModbusPollerService implements OnModuleDestroy {
             factoryId: t.factoryId,
             counterRole: t.counterRole as any,
             edgeType: (t.edgeType as EdgeType) ?? 'RISING',
+            wordCount: t.wordCount ?? null,
           },
           energyRole: t.energyRole ?? null,
           historize: (t as any).historizationEnabled !== false,
