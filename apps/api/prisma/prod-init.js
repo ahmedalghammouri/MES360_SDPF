@@ -128,6 +128,16 @@ function runSeed(file) {
     console.error('⚠ Carton-pusher tag seed skipped (non-fatal):', e?.message ?? e);
   }
 
+  // How fast the counter devices are polled — plant data, not a constant. A
+  // pulse shorter than the interval is missed silently, which is how 44 cartons
+  // were recorded as 4. Only ever lowered, and only on devices carrying a
+  // counter tag, so a deliberately slowed device stays slowed.
+  try {
+    runSeed('counter-poll-rate.ts');
+  } catch (e) {
+    console.error('⚠ Counter poll rate skipped (non-fatal):', e?.message ?? e);
+  }
+
   console.log('\n✅ Init complete. Login: admin@mes360.sa');
 })().catch((e) => {
   console.error('❌ prod-init failed:', e);

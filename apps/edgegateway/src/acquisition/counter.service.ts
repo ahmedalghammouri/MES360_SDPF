@@ -204,6 +204,8 @@ export class CounterService {
       return;
     }
 
+    this.measurePulse(tag, mem.lastRaw, raw);
+
     const inc = detectEdge(mem.lastRaw, raw, tag.edgeType);
     mem.lastRaw = raw;
     if (inc > 0) {
@@ -211,6 +213,60 @@ export class CounterService {
       this.pending.add(tag.id);
       this.tags.set(tag.id, tag);
       this.dirty = true;
+    }
+  }
+
+  /** How long each counter tag has held its present level, and the shortest seen. */
+  private readonly pulse = new Map<string, {
+    since: number; samples: number; minMs: number; minSamples: number; reportedAt: number;
+  }>();
+  /** A level seen in this many samples or fewer is at the edge of being missed. */
+  private static readonly ALIAS_SAMPLES = 2;
+
+  /**
+   * Measure the geometry of the signal being counted.
+   *
+   * Whether a counter is accurate is not a question about the code — it is the
+   * relationship between how long the contact stays closed and how often the
+   * gateway looks. A pulse shorter than the poll interval is invisible no matter
+   * how the edge is detected, and it fails SILENTLY: the tag simply reads as a
+   * flat level and the count comes out low, which is exactly how 44 cartons were
+   * recorded as 4 on 23 Aug 2026.
+   *
+   * So the gateway measures it and says so. The shortest level it has actually
+   * observed, in milliseconds and in samples, is the number that decides whether
+   * a device's poll interval is fast enough — and it can only be known from the
+   * plant floor, not from a design document.
+   */
+  private measurePulse(tag: CounterTag, prevRaw: number | boolean | null, raw: number | boolean | null): void {
+    const level = raw === true || (typeof raw === 'number' && raw >= 1);
+    const was = prevRaw === true || (typeof prevRaw === 'number' && prevRaw >= 1);
+    const now = Date.now();
+
+    let p = this.pulse.get(tag.id);
+    if (!p) {
+      this.pulse.set(tag.id, { since: now, samples: 1, minMs: Infinity, minSamples: Infinity, reportedAt: 0 });
+      return;
+    }
+
+    if (level === was) { p.samples += 1; return; }
+
+    // The level just ended — record how long it lasted.
+    const heldMs = now - p.since;
+    if (p.samples < p.minSamples || (p.samples === p.minSamples && heldMs < p.minMs)) {
+      p.minSamples = p.samples;
+      p.minMs = heldMs;
+    }
+    p.since = now;
+    p.samples = 1;
+
+    if (p.minSamples <= CounterService.ALIAS_SAMPLES && now - p.reportedAt > 60_000) {
+      p.reportedAt = now;
+      this.logger.warn(
+        `counter ${tag.id}: shortest signal level seen lasted ${p.minSamples} sample(s) / ${p.minMs}ms. `
+        + 'A pulse is only counted reliably when the device is polled several times faster than it lasts '
+        + "— lower this device's poll interval, or counts will be low.",
+      );
     }
   }
 

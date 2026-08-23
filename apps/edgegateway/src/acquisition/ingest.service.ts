@@ -116,21 +116,45 @@ export class IngestService {
    * idleness begins. On any other write it is left alone, which is what makes an
    * hour of stillness survive a restart.
    */
+  /**
+   * Was this tag active at its previous write, and when was it last active —
+   * held in memory because this process is the only writer of these rows.
+   *
+   * Recognising the falling edge needs the previous value, and that used to be
+   * fetched from the database immediately before writing: two round-trips
+   * across the plant's internet link for every transition, on a path a counter
+   * edge was waiting behind. The gateway already knows what it last wrote, so
+   * it asks the server only once per tag — the first write after a restart,
+   * where the previous value genuinely lives only in the database.
+   */
+  private readonly activity = new Map<string, { wasActive: boolean; lastActiveAt: Date | null; at: number }>();
+
   private async writeCurrentValue(rec: TagReadingRecord): Promise<void> {
     const at = new Date(rec.timestamp);
     const active = (rec.numeric ?? 0) >= 1;
 
-    // Read before write so the falling edge can be recognised. This path is
-    // change-gated, so it runs on transitions rather than on every poll.
-    const prev = await this.prisma.tagCurrentValue
-      .findUnique({ where: { tagId: rec.tagId }, select: { value: true, lastActiveAt: true } })
-      .catch(() => null);
-    const wasActive = prev ? Number(prev.value) >= 1 || prev.value === 'true' : false;
+    let known = this.activity.get(rec.tagId);
+    if (!known) {
+      const prev = await this.prisma.tagCurrentValue
+        .findUnique({ where: { tagId: rec.tagId }, select: { value: true, lastActiveAt: true } })
+        .catch(() => null);
+      known = {
+        wasActive: prev ? Number(prev.value) >= 1 || prev.value === 'true' : false,
+        lastActiveAt: prev?.lastActiveAt ?? null,
+        at: prev ? 0 : -1,
+      };
+    } else if (at.getTime() < known.at) {
+      // A replay from the disk buffer, older than what has since been written.
+      // The row holds a newer reading; re-applying this one would move the tag
+      // backwards in time. Treat it as delivered and drop it.
+      return;
+    }
 
     // Active now, or active until this very reading. Anything else keeps what is
     // already recorded — including the "no change, just restarted" write that
     // caused this.
-    const lastActiveAt = active || wasActive ? at : (prev?.lastActiveAt ?? null);
+    const lastActiveAt = active || known.wasActive ? at : known.lastActiveAt;
+    this.activity.set(rec.tagId, { wasActive: active, lastActiveAt, at: at.getTime() });
 
     await this.prisma.tagCurrentValue.upsert({
       where: { tagId: rec.tagId },

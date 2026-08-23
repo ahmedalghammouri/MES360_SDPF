@@ -49,6 +49,26 @@ interface DeviceRuntime {
   skipped?: number;
   /** Rate-limits the slow-cycle warning to one line a minute per device. */
   slowLoggedAt?: number;
+  /**
+   * Work that has to leave the machine, waiting its turn OFF the read path.
+   *
+   * Everything here — current-value writes, historian points, MQTT, machine
+   * state, alarms — travels to a server on the far side of the plant's internet
+   * link. The read loop used to await it, so the interval between two Modbus
+   * samples was a WAN round-trip (~430 ms measured on site) rather than the
+   * 100 ms it was configured for, and every counter pulse shorter than that was
+   * invisible. The reads now hand work to this queue and go straight back to
+   * the wire; the queue drains at whatever speed the link allows.
+   */
+  outbox: Array<() => Promise<unknown>>;
+  /** True while {@link ModbusPollerService.drainOutbox} is running for this device. */
+  draining: boolean;
+  /** Jobs discarded because the link fell far enough behind to threaten memory. */
+  dropped: number;
+  /** Rate-limits the backlog warning to one line a minute per device. */
+  dropLoggedAt?: number;
+  /** Duration of the last Modbus round-trip alone, for the slow-cycle report. */
+  lastReadMs?: number;
   signature: string; // detects config changes to trigger rebuild
 }
 
@@ -265,6 +285,9 @@ export class ModbusPollerService implements OnModuleDestroy {
         intervalMs: dev.pollIntervalMs ?? defaultInterval,
         timer: null,
         busy: false,
+        outbox: [],
+        draining: false,
+        dropped: 0,
         signature,
       };
       // Establish the connection now, sequentially per device. Lazy-connecting
@@ -426,20 +449,21 @@ export class ModbusPollerService implements OnModuleDestroy {
     let anyError = false;
     const energyRoleValues = new Map<string, number>();
     /**
-     * Everything that can wait, gathered and settled AFTER the loop.
+     * Everything that can wait, deferred to the device outbox.
      *
-     * These used to be awaited one tag at a time inside it, so a device with
-     * eight tags paid eight sequential database round-trips before the next
-     * read could start — and `dev.busy` then skipped the cycles that arrived
-     * meanwhile. Running them together turns a sum of latencies into the
-     * longest one, and takes them off the path a counter edge travels.
+     * These were once awaited one tag at a time, then gathered and awaited
+     * together — which turned a sum of latencies into the longest one but still
+     * left the whole WAN round-trip standing between two Modbus samples. They
+     * are now queued and not awaited at all: see {@link DeviceRuntime.outbox}.
      */
-    const work: Array<Promise<unknown>> = [];
+    const work: Array<() => Promise<unknown>> = [];
     let lastTs = new Date().toISOString();
     try {
       // One coalesced set of block reads per cycle instead of a round-trip per
       // tag — the key to fast counter polling and light meter reads.
+      const readStart = Date.now();
       const results = await dev.client.readTagsBlocked(dev.tags.map((t) => t.binding));
+      dev.lastReadMs = Date.now() - readStart;
       for (const tag of dev.tags) {
         const res = results.get(tag.tagId);
         if (!res) continue;
@@ -477,19 +501,19 @@ export class ModbusPollerService implements OnModuleDestroy {
           historizationRateSec: tag.historizationRateSec,
           deadband: tag.deadband,
         };
-        work.push(this.ingest.ingest(record));
+        work.push(() => this.ingest.ingest(record));
 
         // Machine-status driver tag → derive and apply the live machine state,
         // which is what opens and closes downtime events. Counting is NOT gated
         // on it: a pulse that arrives is a unit that was made, and discarding it
         // because the state signal disagreed would lose real production.
         if (tag.isMachineStatus) {
-          work.push(this.statusSvc.process(tag.statusTag, numeric, ts));
+          work.push(() => this.statusSvc.process(tag.statusTag, numeric, ts));
         }
 
         // Configured alarms on this tag. Runs on every GOOD reading, not only on
         // status tags — a threshold on a temperature or a meter is the ordinary case.
-        work.push(this.alarms.evaluate(tag.tagId, tag.machineId, numeric, ts));
+        work.push(() => this.alarms.evaluate(tag.tagId, tag.machineId, numeric, ts));
 
         // Counting is SYNCHRONOUS and first. A pulse at 120 parts a minute opens
         // and closes in well under a second, so the edge has to be taken from
@@ -500,14 +524,20 @@ export class ModbusPollerService implements OnModuleDestroy {
         if (tag.energyRole && numeric !== null) energyRoleValues.set(tag.energyRole, numeric);
       }
 
-      // Settle the deferred work. `allSettled`, not `all`: one failing alarm
-      // evaluation must not discard the readings gathered beside it.
-      if (work.length) await Promise.allSettled(work);
+      // Hand the deferred work to the outbox and return to the wire. Nothing
+      // here is awaited: the next Modbus sample must not wait on a server.
+      if (work.length) this.enqueue(dev, work);
 
-      // Energy meter → write an EnergyReading (throttled) + publish for API enrichment.
+      // Energy meter → write an EnergyReading (throttled) + publish for API
+      // enrichment. Also a server round-trip, so it too leaves the read path.
       if (dev.meter && energyRoleValues.size) {
-        const ev = await this.energy.process(dev.meter, energyRoleValues, lastTs);
-        if (ev) this.mqtt.publish(`mes360/${dev.meter.factoryId}/energy/${ev.meterId}`, ev);
+        const meter = dev.meter;
+        const roles = new Map(energyRoleValues);
+        const at = lastTs;
+        this.enqueue(dev, [async () => {
+          const ev = await this.energy.process(meter, roles, at);
+          if (ev) this.mqtt.publish(`mes360/${meter.factoryId}/energy/${ev.meterId}`, ev);
+        }]);
       }
 
       const took = Date.now() - cycleStart;
@@ -517,20 +547,88 @@ export class ModbusPollerService implements OnModuleDestroy {
         const now = Date.now();
         if (!dev.slowLoggedAt || now - dev.slowLoggedAt > 60_000) {
           dev.slowLoggedAt = now;
+          const readMs = dev.lastReadMs ?? 0;
+          const skipped = dev.skipped
+            ? ` — ${dev.skipped} sample(s) skipped since the last report`
+            : '';
+          // Two very different situations produce an overrun, and telling them
+          // apart is the whole value of this line. If the Modbus round-trip
+          // alone exceeds the interval, the wire is the limit and the interval
+          // is simply set below what this device can do — the gateway is
+          // already sampling as fast as it can. If the round-trip is quick and
+          // the cycle is not, something after the read is holding the loop, and
+          // that is a defect.
           this.logger.warn(
-            `${dev.name}: poll cycle ${took}ms exceeds its ${dev.intervalMs}ms interval`
-            + `${dev.skipped ? ` — ${dev.skipped} sample(s) skipped since the last report` : ''}`
-            + '. Counter pulses shorter than the overrun are being missed.',
+            readMs >= dev.intervalMs
+              ? `${dev.name}: sampling at its limit — the Modbus round-trip alone takes ${readMs}ms, `
+                + `so its ${dev.intervalMs}ms interval cannot be met${skipped}. `
+                + 'Effective sample rate is the round-trip, not the interval.'
+              : `${dev.name}: poll cycle ${took}ms exceeds its ${dev.intervalMs}ms interval `
+                + `while the Modbus read took only ${readMs}ms${skipped}. `
+                + 'Something after the read is holding the loop; counter pulses '
+                + 'shorter than the overrun are being missed.',
           );
           dev.skipped = 0;
         }
       }
-      void this.markDevice(dev.id, anyError ? 'ERROR' : 'CONNECTED', anyError ? 'One or more tag reads failed' : null);
+      this.enqueue(dev, [() => this.markDevice(dev.id, anyError ? 'ERROR' : 'CONNECTED', anyError ? 'One or more tag reads failed' : null)]);
     } catch (err) {
       this.mlog.log(dev.name, 'poll', (err as Error)?.message ?? String(err));
-      await this.markDevice(dev.id, 'ERROR', (err as Error).message);
+      this.enqueue(dev, [() => this.markDevice(dev.id, 'ERROR', (err as Error).message)]);
     } finally {
       dev.busy = false;
+    }
+  }
+
+  /**
+   * The read path's only exit for work that needs the network.
+   *
+   * `dropped` exists because the alternative to discarding is unbounded growth:
+   * if the plant's link stalls for an hour at 10 samples a second, an unbounded
+   * queue ends the process. The oldest go first — for the bulk of this traffic
+   * (current values, live telemetry) that is also the correct choice, since a
+   * newer reading supersedes an older one. Counts are NOT in here: they are
+   * accumulated in memory by CounterService and persisted on its own flush, so
+   * a backlog costs freshness, never a unit of production.
+   */
+  private static readonly MAX_OUTBOX = 2_000;
+  private static readonly DRAIN_BATCH = 25;
+
+  private enqueue(dev: DeviceRuntime, jobs: Array<() => Promise<unknown>>) {
+    for (const job of jobs) {
+      if (dev.outbox.length >= ModbusPollerService.MAX_OUTBOX) {
+        dev.outbox.shift();
+        dev.dropped += 1;
+      }
+      dev.outbox.push(job);
+    }
+    if (!dev.draining) void this.drainOutbox(dev);
+  }
+
+  private async drainOutbox(dev: DeviceRuntime) {
+    dev.draining = true;
+    try {
+      while (dev.outbox.length) {
+        const batch = dev.outbox.splice(0, ModbusPollerService.DRAIN_BATCH);
+        // `allSettled`: one failing alarm evaluation must not discard the
+        // readings queued beside it. Each sink buffers its own failures to disk.
+        await Promise.allSettled(batch.map((job) => job()));
+      }
+    } catch (err) {
+      this.logger.error(`${dev.name}: outbox drain failed`, err as Error);
+    } finally {
+      dev.draining = false;
+      if (dev.dropped) {
+        const now = Date.now();
+        if (!dev.dropLoggedAt || now - dev.dropLoggedAt > 60_000) {
+          dev.dropLoggedAt = now;
+          this.logger.warn(
+            `${dev.name}: ${dev.dropped} queued write(s) discarded — the link to the `
+            + 'server is slower than this device is polled. Counts are unaffected.',
+          );
+          dev.dropped = 0;
+        }
+      }
     }
   }
 

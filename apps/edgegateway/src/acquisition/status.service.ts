@@ -161,6 +161,25 @@ export class StatusService {
   /** Recent transitions per tag, for signals whose meaning is in their rhythm. */
   private readonly edges = new Map<string, PulseState>();
 
+  /**
+   * This gateway's copy of `machineCurrentStatus.state` per machine.
+   *
+   * Reading that row from the server before every write put a WAN round-trip
+   * between two Modbus samples — at a 100 ms poll, ten a second per machine,
+   * and the delay a fast counter pulse was being lost inside.
+   *
+   * It is a cache and NOT a source of truth, because this process is not the
+   * only writer: maintenance, downtime and the IoT ingest in the API all write
+   * the same column. So it expires. Within the TTL the gateway trusts what it
+   * last wrote; after it, it asks the server again and sees any foreign change.
+   * The cost of the window is that a state set elsewhere may stand a few
+   * seconds longer before the signal re-asserts over it — the cost of removing
+   * it is the pulses. The gateway's own writes refresh the entry immediately,
+   * so a machine whose state is changing is never reading stale.
+   */
+  private readonly appliedState = new Map<string, { state: string | null; at: number }>();
+  private static readonly APPLIED_TTL_MS = 5_000;
+
   /** Configured rules, cached briefly so a poll loop is not a query storm. */
   private ruleCache = new Map<string, { at: number; rule: StateRule }>();
   private static readonly RULE_TTL_MS = 30_000;
@@ -330,8 +349,22 @@ export class StatusService {
     // explicit STARVED/BLOCKED from the status word passes through untouched.
     const state = await this.inference.classify(machineId, rawState);
 
-    const current = await this.prisma.machineCurrentStatus.findUnique({ where: { machineId }, select: { state: true } }).catch(() => null);
-    if (current?.state === state) {
+    // What this gateway last wrote for the machine. It is the only writer of
+    // that row, so after the first sighting the answer is already here — and
+    // asking the server for it on every poll put a WAN round-trip between two
+    // Modbus samples, which is where fast counter pulses were being lost.
+    const cached = this.appliedState.get(machineId);
+    let currentState: string | null;
+    if (cached && Date.now() - cached.at < StatusService.APPLIED_TTL_MS) {
+      currentState = cached.state;
+    } else {
+      const row = await this.prisma.machineCurrentStatus
+        .findUnique({ where: { machineId }, select: { state: true } })
+        .catch(() => null);
+      currentState = row?.state ?? null;
+      this.appliedState.set(machineId, { state: currentState, at: Date.now() });
+    }
+    if (currentState === state) {
       this.pending.delete(machineId); // settled back — nothing was waiting
       // First sighting of this machine since boot: the open history record may
       // still describe whatever it was doing before the gateway restarted. A
@@ -384,6 +417,7 @@ export class StatusService {
       create: { machineId, state: state as any, lastEventAt: when },
       update: { state: state as any, lastEventAt: when },
     });
+    this.appliedState.set(machineId, { state, at: Date.now() });
 
     let open = await this.prisma.downtimeEvent.findFirst({ where: { machineId, endTime: null } });
 
