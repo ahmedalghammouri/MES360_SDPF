@@ -58,6 +58,25 @@ interface CounterMem {
 export class CounterService {
   private readonly logger = new Logger(CounterService.name);
   private readonly cache = new Map<string, CounterMem>();
+
+  /** Tags with counted-but-unwritten edges, drained by {@link flush}. */
+  private readonly pending = new Set<string>();
+  /** Definitions seen by {@link observe}, so flush can act without the poller. */
+  private readonly tags = new Map<string, CounterTag>();
+  /** Tags being seeded from the DB right now — never seeded twice at once. */
+  private readonly seeding = new Set<string>();
+  /** Set when memory has moved ahead of the disk file. */
+  private dirty = false;
+
+  /**
+   * Job order + running state per machine.
+   *
+   * One second: long enough that several counters on one machine share a
+   * single pair of queries, short enough that starting a job order takes
+   * effect before anybody notices.
+   */
+  private readonly ctxCache = new Map<string, { at: number; value: { joId: string | null; running: boolean; dbUp: boolean } }>();
+  private static readonly CTX_TTL_MS = 1_000;
   private readonly stateFile: string;
 
   constructor(
@@ -145,6 +164,161 @@ export class CounterService {
         },
       })
       .catch((err) => this.logger.error(`Counter state persist failed (${tagId})`, err as Error));
+  }
+
+  /**
+   * Count an edge. SYNCHRONOUS, and deliberately so.
+   *
+   * ── The bug this exists for ─────────────────────────────────────────────────
+   * `process()` below did two fresh database queries — the executing job order
+   * and the machine's current state — plus a file write and up to two more
+   * writes, PER COUNTER TAG, PER POLL. The poller awaited all of that inline and
+   * skipped the next cycle while it ran (`if (dev.busy) return`).
+   *
+   * So the real sampling period was not the configured 100 ms; it was however
+   * long that chain took, and on a device with four counters it is far longer. A
+   * filler running 120 parts a minute emits a pulse every 500 ms, and pulses
+   * that open and close between two samples are simply never seen. The counts
+   * came out low and the input looked permanently TRUE, because the sampler was
+   * only ever awake for part of the wave.
+   *
+   * Nothing here touches the database or the disk. It reads the cache, compares
+   * against the previous raw level, and adds to an in-memory total. The poll
+   * loop can then run at its configured rate, and {@link flush} does the
+   * persisting on its own schedule.
+   *
+   * A tag not yet in the cache is SEEDED asynchronously and counts from the next
+   * cycle. Missing one edge on the very first poll of a tag's life is the price
+   * of never blocking the loop; missing them at 2 Hz forever is not.
+   */
+  observe(tag: CounterTag, raw: number | boolean | null, _ts: string): void {
+    if (!tag.machineId || !tag.counterRole || tag.counterRole === 'NONE') return;
+
+    const mem = this.cache.get(tag.id);
+    if (!mem) {
+      // First sighting. Seed from the DB in the background; do not block.
+      if (!this.seeding.has(tag.id)) {
+        this.seeding.add(tag.id);
+        void this.load(tag.id).finally(() => this.seeding.delete(tag.id));
+      }
+      return;
+    }
+
+    const inc = detectEdge(mem.lastRaw, raw, tag.edgeType);
+    mem.lastRaw = raw;
+    if (inc > 0) {
+      mem.accumulated += inc;
+      this.pending.add(tag.id);
+      this.tags.set(tag.id, tag);
+      this.dirty = true;
+    }
+  }
+
+  /**
+   * Write what {@link observe} counted. Called on a timer, not on the poll.
+   *
+   * The gate that used to run per pulse — is a job order executing, is the
+   * machine running — runs ONCE PER MACHINE here, from a short-lived cache. It
+   * is the same rule: an edge is only credited to a job order that exists and a
+   * machine that is running. What changed is how often the question is asked.
+   *
+   * A machine that stopped between the pulse and the flush keeps its count: the
+   * pulse is evidence a unit was made, and the state signal arriving a second
+   * later does not unmake it.
+   */
+  async flush(): Promise<CountEvent[]> {
+    if (this.pending.size === 0 && !this.dirty) return [];
+    const events: CountEvent[] = [];
+    const ids = [...this.pending];
+    this.pending.clear();
+
+    for (const tagId of ids) {
+      const tag = this.tags.get(tagId);
+      const mem = this.cache.get(tagId);
+      if (!tag || !mem || !tag.machineId) continue;
+
+      let ctx: { joId: string | null; running: boolean; dbUp: boolean };
+      try {
+        ctx = await this.machineContext(tag.machineId);
+      } catch {
+        // Database unreachable. The count stays in memory and on disk, and this
+        // tag is queued again so the whole backlog lands on reconnect.
+        this.pending.add(tagId);
+        continue;
+      }
+
+      if (ctx.dbUp && ctx.joId !== mem.jobOrderId) {
+        if (mem.jobOrderId) {
+          /**
+           * A real handover: one order ended and another began. Settle the old
+           * one's remainder, then start the new one from zero — its total must
+           * not inherit the previous order's parts.
+           */
+          if (mem.accumulated > mem.synced) {
+            await this.applyToJob(tag, mem.jobOrderId, mem.accumulated, mem.accumulated - mem.synced, new Date().toISOString())
+              .catch(() => undefined);
+          }
+          mem.accumulated = 0;
+          mem.synced = 0;
+        } else {
+          /**
+           * FIRST attribution, and the counts are kept.
+           *
+           * Edges are now taken before the order behind them is resolved — that
+           * is the point of the split — so between the gateway starting and the
+           * first flush, pulses accumulate against a null order. Treating that
+           * as a handover threw them away: every count from the first second of
+           * a shift vanished, and the tests here caught it before the line did.
+           *
+           * `synced` stays at zero so the whole accumulated total is written as
+           * this order's first delta.
+           */
+        }
+        mem.jobOrderId = ctx.joId;
+      }
+
+      if (ctx.dbUp && mem.jobOrderId && ctx.running && mem.accumulated > mem.synced) {
+        const delta = mem.accumulated - mem.synced;
+        const ev = await this.applyToJob(tag, mem.jobOrderId, mem.accumulated, delta, new Date().toISOString());
+        mem.synced = mem.accumulated;
+        await this.persistDb(tag.id, mem, new Date().toISOString());
+        if (ev) events.push(ev);
+      }
+    }
+
+    // One file write for the whole batch, not one per pulse.
+    if (this.dirty) { this.saveLocal(); this.dirty = false; }
+    return events;
+  }
+
+  /**
+   * Job order + running state for a machine, cached briefly.
+   *
+   * Asked once per machine per flush instead of twice per counter per poll. The
+   * TTL is short enough that a job order released now is credited within a
+   * second, and long enough that two counters on one machine share the answer.
+   */
+  private async machineContext(machineId: string) {
+    const hit = this.ctxCache.get(machineId);
+    if (hit && Date.now() - hit.at < CounterService.CTX_TTL_MS) return hit.value;
+
+    const jo = await this.prisma.jobOrder.findFirst({
+      where: { machineId, status: 'EXECUTING' },
+      orderBy: { actualStart: 'desc' },
+      select: { id: true },
+    });
+    const status = await this.prisma.machineCurrentStatus
+      .findUnique({ where: { machineId }, select: { state: true } })
+      .catch(() => null);
+
+    const value = {
+      joId: jo?.id ?? null,
+      // Unknown state counts as running: a pulse arrived, so something is.
+      running: !status?.state || status.state === 'RUNNING',
+      dbUp: true,
+    };
+    this.ctxCache.set(machineId, { at: Date.now(), value });
+    return value;
   }
 
   /**

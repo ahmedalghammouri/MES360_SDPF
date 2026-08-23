@@ -78,7 +78,6 @@ model Factory {
   areas                  Area[]
   productionLines        ProductionLine[]
   machines               Machine[]
-  productionSnapshots    ProductionSnapshot[]
   users                  User[]
   skus                   SKU[]
   productCategories      ProductCategory[]
@@ -138,6 +137,7 @@ model Factory {
   storageTransfers       StorageTransfer[]
 
   machineStateRules      MachineStateRule[]
+  scheduleAttainment     ScheduleAttainmentDaily[]
 
   plannedStopTemplates PlannedStopTemplate[]
   scheduleRules        ScheduleRule[]
@@ -145,6 +145,8 @@ model Factory {
 
 
   @@map("factories")
+  oeeMinutes OeeMinute[]
+  oeeScheduleMinutes OeeScheduleMinute[]
 }
 
 // ============================================================
@@ -294,7 +296,6 @@ model Machine {
   cycleTimes          MachineCycleTime[]
   downtimeCauses      DowntimeCause[]
   stateRecords        MachineStateRecord[]
-  productionSnapshots ProductionSnapshot[]
   downtimeEvents      DowntimeEvent[]
   oeeRecords          OEERecord[]
   maintenanceWOs      MaintenanceWO[]
@@ -324,6 +325,8 @@ model Machine {
 
 
   @@map("machines")
+  oeeMinutes OeeMinute[]
+  oeeScheduleMinutes OeeScheduleMinute[]
 }
 
 enum MachineType {
@@ -763,6 +766,7 @@ model ProductionOrder {
 
   @@index([factoryId, status])
   @@map("production_orders")
+  scheduleAttainment ScheduleAttainmentDaily[]
 }
 
 // ── RESCHEDULE GOVERNANCE ───────────────────────────────────────────────────
@@ -888,7 +892,6 @@ model WorkOrder {
   downtimeEvents       DowntimeEvent[]
   materialConsumptions MaterialConsumption[]
   productionEvents     ProductionEvent[]
-  productionSnapshots  ProductionSnapshot[]
   inspectionResults    InspectionResult[]
   energyWOSummary      EnergyWOSummary?
   energyWOMachineKpis  EnergyWOMachineKpi[]
@@ -1156,7 +1159,6 @@ model ShiftInstance {
   workOrders          WorkOrder[]
   stateRecords        MachineStateRecord[]
   oeeRecords          OEERecord[]
-  productionSnapshots ProductionSnapshot[]
 
   @@index([factoryId, shiftDate])
   @@map("shift_instances")
@@ -1340,106 +1342,6 @@ model OEERecord {
   @@map("oee_records")
 }
 
-// ────────────────────────────────────────────────────────────────
-// ProductionSnapshot — immutable, dimension-classified, time-bucketed
-// FACT STORE for OEE/KPI + production (good/scrap/bad). Atomic row =
-// one (jobOrder × granularity × bucketStart). Carries every dimension FK
-// denormalised so any scope (shift/WO/PO/product/step/machine/line/area/
-// factory) and any window aggregates without joins.
-//
-// Double-count rule (a routed WO flows ONE batch through serial steps in
-// different units): scrap = SUM(scrapBase) over all steps; good = SUM(goodBase)
-// WHERE isFinalStep; total = good + scrap (derived). Identical to kpi.finalStepCounts.
-// ────────────────────────────────────────────────────────────────
-model ProductionSnapshot {
-  id String @id @default(uuid())
-
-  // time bucket
-  bucketStart DateTime
-  bucketEnd   DateTime
-  granularity String   @default("MINUTE") // MINUTE | HOUR | SHIFT | DAY | JO
-  isFinalized Boolean  @default(false) // false = live (upsertable); true = immutable
-
-  // dimensions (denormalised at write so reads never join)
-  factoryId         String
-  areaId            String?
-  lineId            String?
-  machineId         String?
-  jobOrderId        String
-  workOrderId       String
-  productionOrderId String?
-  skuId             String?
-  shiftInstanceId   String?
-  shiftTemplateId   String?
-  shiftCode         String?
-
-  // step classification
-  operationName String?
-  sequenceOrder Int     @default(0)
-  isFinalStep   Boolean @default(false) // last routing step → its good is the WO output
-
-  // counts — raw (as reported, in outputUnit)
-  outputUnit       String?
-  baseUnit         String?
-  goodRaw          Float   @default(0)
-  scrapRaw         Float   @default(0)
-  reworkRaw        Float   @default(0)
-  totalRaw         Float   @default(0)
-  plannedQtyOutRaw Float?
-
-  // counts — base-unit normalised (the ONLY count columns aggregation sums)
-  goodBase          Float  @default(0)
-  scrapBase         Float  @default(0)
-  reworkBase        Float  @default(0)
-  totalBase         Float  @default(0)
-  plannedQtyOutBase Float?
-
-  // time (minutes, window-clamped to this bucket)
-  plannedMin     Float  @default(0)
-  runMin         Float  @default(0)
-  downMin        Float  @default(0)
-  plannedDownMin Float  @default(0)
-  /// Stopped minutes that a MachineStateRule marks as NOT affecting OEE (starved,
-  /// blocked, or anything else the plant configures that way). Carved out of BOTH
-  /// runMin and plannedMin so the wait is neither charged nor credited.
-  externalMin    Float  @default(0)
-  /// Minutes the machine was inside a job order but reported NO state at all — no
-  /// status signal wired, or the gateway was silent. Not run time and not downtime:
-  /// unmeasured. Carved out of plannedMin so availability is never derived from time
-  /// nobody observed, and surfaced so the gap is visible rather than assumed away.
-  unmeasuredMin  Float  @default(0)
-  microStopMin   Float  @default(0)
-  idealCycleSec  Float?
-  idealRunMin    Float  @default(0) // earned minutes = idealCycleSec/60 × totalBase
-
-  // metrics (%) — schedule-based + time-based (AT-OEE)
-  availability   Float?
-  performance    Float?
-  quality        Float?
-  oee            Float?
-  availabilityTb Float?
-  oeeTb          Float?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  factory       Factory        @relation(fields: [factoryId], references: [id])
-  jobOrder      JobOrder       @relation(fields: [jobOrderId], references: [id], onDelete: Cascade)
-  workOrder     WorkOrder      @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
-  machine       Machine?       @relation(fields: [machineId], references: [id])
-  shiftInstance ShiftInstance? @relation(fields: [shiftInstanceId], references: [id])
-
-  @@unique([jobOrderId, granularity, bucketStart], name: "ux_snapshot_jo_bucket")
-  @@index([factoryId, granularity, bucketStart])
-  @@index([factoryId, bucketStart, isFinalStep])
-  @@index([machineId, bucketStart])
-  @@index([workOrderId, bucketStart])
-  @@index([productionOrderId, bucketStart])
-  @@index([lineId, bucketStart])
-  @@index([areaId, bucketStart])
-  @@index([shiftInstanceId])
-  @@map("production_snapshots")
-}
 
 // MACHINE RUNTIME HOURS (for PM scheduling)
 model MachineRuntimeHours {
@@ -3589,7 +3491,6 @@ model JobOrder {
   workCenter           WorkCenter?           @relation(fields: [workCenterId], references: [id])
   predecessor          JobOrder?             @relation("JOChain", fields: [predecessorId], references: [id])
   successors           JobOrder[]            @relation("JOChain")
-  productionSnapshots  ProductionSnapshot[]
   materials            JobOrderMaterial[]
   operator             User?                 @relation("JOOperator", fields: [operatorId], references: [id])
   scrapLogs            ScrapLog[]
@@ -3601,6 +3502,8 @@ model JobOrder {
   downtimeEvents DowntimeEvent[]
 
   @@map("job_orders")
+  oeeMinutes OeeMinute[]
+  oeeScheduleMinutes OeeScheduleMinute[]
 }
 
 // Per-step scrap / rejection log — every increment of actualQtyRejected creates one entry
@@ -4075,4 +3978,264 @@ enum WorkOrderStopTrigger {
   PRODUCT_CHANGE
   ORDER_CHANGE
   ALWAYS
+}
+
+
+// ============================================================
+// OEE STANDARD ENGINE — the Insights Hub time model, one row per minute
+// ------------------------------------------------------------
+// THE fact store. It was built beside the plant's original one rather than
+// replacing it, so the two could be compared before either was trusted: over
+// every minute both covered, planned-stop and unmeasured minutes matched to the
+// digit, good and scrap totals matched per machine, and run-versus-down was
+// conserved. With that check made and recorded, the original was removed and
+// this is the only place a measured minute lives.
+//
+//   https://documentation.mindsphere.io/MindSphere/apps/insights-hub-oee/
+//
+// The time model, top to bottom. Each level is the one above it minus a loss,
+// and every minute of the clock lands in exactly one bucket:
+//
+//   Total time
+//    − planned stops        → scheduled, from PlannedStopTemplate + State Rules
+//   = Operational time      ── PlannedProductionTime, the availability denominator
+//    − availability losses  → unplanned downtime
+//   = Net production time   ── OperatingTime, the availability numerator
+//    − performance losses   ┐ derived at READ time from counts, never stored:
+//    − microstop losses     │ a single minute's output is lumpy and a per-minute
+//   = Net operational time  │ performance figure would be noise, not measurement
+//    − quality losses       ┘
+//   = Used operational time
+//
+// Only the PRIMITIVES are stored. Anything derivable from them is derived on
+// read, so a stored row can never disagree with the formula that reads it.
+//
+// Dimensions are deliberately few — job order, shift, machine. Everything else
+// (work order, product, line, area) is reachable by joining the job order, and
+// a dimension copied onto every minute row is a dimension that can go stale.
+// ============================================================
+
+/// One machine-minute, classified against the Insights Hub time model.
+/// Master Schedule Attainment, frozen per production order per day.
+///
+/// ── Why this is stored and capacity utilisation is not ──────────────────────
+/// Capacity utilisation is derived from `oee_minutes`, which is immutable once
+/// a minute closes — recomputing it tomorrow gives the same answer it gave
+/// today, so storing it would be storing a second copy of a settled fact.
+///
+/// Attainment is not like that. It divides what was PRODUCED by what was
+/// PLANNED, and the plan is editable: change a production order's `targetQty`
+/// or move its `plannedStart`, and every past day's attainment silently
+/// rewrites itself. A KPI whose history changes when somebody edits a plan is
+/// precisely the "two screens, two numbers" problem this whole consolidation
+/// exists to end — except here the two screens are the same screen, yesterday
+/// and today.
+///
+/// So each day's numerator and denominator are frozen as they stood. The grain
+/// is one row per ORDER per day, because that is the level the credit rule
+/// applies at — an order is credited at most its own scheduled quantity, so a
+/// roll-up of pre-credited rows is a plain sum, and a roll-up of raw quantities
+/// would let one order's overproduction mask another's shortfall.
+model ScheduleAttainmentDaily {
+  id  String   @id @default(uuid())
+  /// Plant-local midnight of the day being reported.
+  day DateTime
+
+  factoryId         String
+  productionOrderId String
+  /// Carried so a line or product roll-up is a filter rather than a join.
+  lineId String?
+  skuId  String?
+
+  /// All three in the SKU's base unit, so orders in different packaging add up.
+  scheduledQty Float @default(0)
+  actualQty    Float @default(0)
+  /// min(actualQty, scheduledQty) — the credit rule, applied before storage so
+  /// no reader can forget it.
+  creditedQty  Float @default(0)
+
+  /// False while the day is still running and the row may be re-upserted.
+  isFinalized Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  factory         Factory         @relation(fields: [factoryId], references: [id])
+  productionOrder ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([productionOrderId, day])
+  @@index([factoryId, day])
+  @@index([lineId, day])
+  @@map("schedule_attainment_daily")
+}
+
+model OeeMinute {
+  id String @id @default(uuid())
+
+  /// The minute this row accounts for: [bucketStart, bucketStart + 60s).
+  bucketStart DateTime
+  /// False while the minute is still in progress and may be re-upserted.
+  isFinalized Boolean @default(false)
+
+  factoryId  String
+  machineId  String
+  jobOrderId String
+  /// Carried so a work-order roll-up does not need a second query per row.
+  workOrderId String?
+
+  /// Which shift this minute fell in — DERIVED from the clock, not from anyone
+  /// pressing "start shift", so attribution never depends on an operator action.
+  shiftTemplateId String?
+  shiftCode       String?
+
+  /// The machine state that governed this minute, and the job order's status.
+  /// Kept because the classification below is only as readable as its reason.
+  machineState   String?
+  jobOrderStatus String
+
+  // ── The committed slot ────────────────────────────────────────────────────
+  /// The window the job order was PROMISED, from its own dates:
+  ///
+  ///   committedFrom = min(plannedStart, actualStart)
+  ///   committedTo   = actualEnd == null ? max(now, plannedEnd)
+  ///                                     : max(actualEnd, plannedEnd)
+  ///
+  /// These are the ONLY two things the retired `oee_schedule_minutes` table held
+  /// that this one did not — and neither is a measurement. They are properties
+  /// of the job order, carried here so the schedule basis is a second DENOMINATOR
+  /// over one store rather than a second store of the same minutes.
+  ///
+  /// NULL when the order has no slot at all (nothing planned and nothing started),
+  /// which is not measurable on that basis; the schedule read excludes those rows,
+  /// exactly as the separate writer used to skip them.
+  committedFrom DateTime?
+  committedTo   DateTime?
+
+  // ── The time model. These six are mutually exclusive and sum to totalMin. ──
+  /// The minute itself, clipped to the job order's actual occupancy of it.
+  totalMin Float @default(0)
+  /// Scheduled stops (breaks, cleaning) and states the plant marked as planned.
+  plannedStopMin Float @default(0)
+  /// Unplanned downtime that counts against this machine — the availability loss.
+  availabilityLossMin Float @default(0)
+  /// Stopped, but by the line rather than by the machine: starved, blocked, and
+  /// anything else a State Rule marks as downtime that does not affect OEE.
+  externalLossMin Float @default(0)
+  /// The machine reported no state at all. Neither running nor stopped — and
+  /// counting silence as either is the failure this column exists to prevent.
+  unmeasuredMin Float @default(0)
+  /// Net production time: the machine was running.
+  operatingMin Float @default(0)
+  /// The part of `availabilityLossMin` that came from stops shorter than the
+  /// machine's `downtimeThreshold`. A SUBSET, not a sixth bucket — it is not
+  /// subtracted from the availability loss, so the six above still sum to
+  /// totalMin and the audit still closes.
+  microStopMin Float @default(0)
+
+  // ── Counts, as deltas for this minute, in PIECES ──
+  goodParts     Float @default(0)
+  rejectedParts Float @default(0)
+
+  /// Parts this machine COULD have made in its operating minutes, at the design
+  /// speed of the product it was running. Stored per minute rather than derived
+  /// later because design speed changes with the product, and the reference is
+  /// explicit that a mixed window sums each product's own theoretical output.
+  theoreticalParts Float @default(0)
+  /// Parts per hour at 100% speed — kept for display and for auditing the above.
+  designSpeedPph Float?
+
+  createdAt DateTime @default(now())
+
+  factory  Factory  @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  machine  Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  jobOrder JobOrder @relation(fields: [jobOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([jobOrderId, bucketStart], name: "ux_oee_minute_jo_bucket")
+  @@index([machineId, bucketStart])
+  @@index([factoryId, bucketStart])
+  @@index([shiftTemplateId, bucketStart])
+  @@index([workOrderId])
+  @@map("oee_minutes")
+}
+
+
+// ============================================================
+// OEE SCHEDULE ENGINE — the same time model over the COMMITTED slot
+// ------------------------------------------------------------
+// A third store, and the only thing that differs from `oee_minutes` is where
+// Total time starts and stops:
+//
+//   committedFrom = min(plannedStart, actualStart)
+//   committedTo   = actualEnd == null ? max(now, plannedEnd)
+//                                     : max(actualEnd, plannedEnd)
+//
+// So the denominator is the WHOLE SLOT the order was committed to, not the part
+// of it that has gone by. Two consequences follow, and both are the point rather
+// than side effects:
+//
+//   • an order that started late is charged for the time between the slot
+//     opening and the machine actually starting;
+//   • an order still inside its slot is charged for the time it has not reached
+//     yet, so it reads low at the start and climbs as it runs.
+//
+// That makes this a reading of the SCHEDULE, not of the equipment. `oee_minutes`
+// answers "of the time it ran, how well did it run"; this answers "of the time
+// we promised, how much did we deliver". A plant needs both and they are not
+// meant to agree.
+//
+// The per-minute classification is identical, and is shared code rather than a
+// second copy — the two engines differ in one definition, and duplicating the
+// other twenty would reintroduce exactly the drift this project spent weeks
+// removing.
+// ============================================================
+
+/// One machine-minute, plus the committed slot the minute belongs to.
+model OeeScheduleMinute {
+  id String @id @default(uuid())
+
+  bucketStart DateTime
+  isFinalized Boolean @default(false)
+
+  factoryId   String
+  machineId   String
+  jobOrderId  String
+  workOrderId String?
+
+  shiftTemplateId String?
+  shiftCode       String?
+
+  machineState   String?
+  jobOrderStatus String
+
+  /// The committed slot. Identical on every row of a job order, so a read takes
+  /// MIN/MAX per job order and clips to the window — no second query, and no
+  /// chance of the slot disagreeing with the minutes that sit inside it.
+  committedFrom DateTime
+  committedTo   DateTime
+
+  // ── Elapsed time, classified exactly as the standard engine classifies it ──
+  totalMin            Float @default(0)
+  plannedStopMin      Float @default(0)
+  availabilityLossMin Float @default(0)
+  externalLossMin     Float @default(0)
+  unmeasuredMin       Float @default(0)
+  operatingMin        Float @default(0)
+
+  goodParts        Float @default(0)
+  rejectedParts    Float @default(0)
+  theoreticalParts Float @default(0)
+  designSpeedPph   Float?
+
+  createdAt DateTime @default(now())
+
+  factory  Factory  @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  machine  Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  jobOrder JobOrder @relation(fields: [jobOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([jobOrderId, bucketStart], name: "ux_oee_sched_jo_bucket")
+  @@index([machineId, bucketStart])
+  @@index([factoryId, bucketStart])
+  @@index([shiftTemplateId, bucketStart])
+  @@index([workOrderId])
+  @@map("oee_schedule_minutes")
 }

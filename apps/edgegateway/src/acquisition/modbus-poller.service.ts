@@ -45,6 +45,10 @@ interface DeviceRuntime {
   intervalMs: number;
   timer: NodeJS.Timeout | null;
   busy: boolean;
+  /** Samples skipped because the previous cycle was still running. */
+  skipped?: number;
+  /** Rate-limits the slow-cycle warning to one line a minute per device. */
+  slowLoggedAt?: number;
   signature: string; // detects config changes to trigger rebuild
 }
 
@@ -62,6 +66,10 @@ function transportFor(protocol: string): ModbusTransport {
  */
 @Injectable()
 export class ModbusPollerService implements OnModuleDestroy {
+  /** Drains counted edges to the database, off the poll path. */
+  private flushTimer: NodeJS.Timeout | null = null;
+  /** machineId → factoryId, so a flushed count can be published on its topic. */
+  private readonly factoryOfMachine = new Map<string, string>();
   private readonly logger = new Logger(ModbusPollerService.name);
   private readonly devices = new Map<string, DeviceRuntime>();
 
@@ -157,6 +165,7 @@ export class ModbusPollerService implements OnModuleDestroy {
       });
 
       const tags: PolledTag[] = dev.tagDefinitions.map((t) => {
+        if (t.machineId && t.factoryId) this.factoryOfMachine.set(t.machineId, t.factoryId);
         const binding: TagBinding = {
           id: t.id,
           code: t.code,
@@ -273,6 +282,29 @@ export class ModbusPollerService implements OnModuleDestroy {
       this.logger.log(`Device "${dev.name}" loaded: ${tags.length} tag(s) @ ${runtime.intervalMs}ms`);
     }
 
+    /**
+     * Counter writes, on their own clock.
+     *
+     * Edges are taken from every sample by CounterService.observe and land in
+     * memory; this drains them to the database. One second is a compromise the
+     * counts survive: a pulse is durable on disk the moment it is seen, so the
+     * only thing a crash between flushes costs is a second of latency on a
+     * number the job order picks up on the next drain.
+     */
+    if (!this.flushTimer) {
+      this.flushTimer = setInterval(() => {
+        void this.counter.flush()
+          .then((events) => {
+            for (const ev of events) {
+              // The event knows its machine, not its factory; the topic needs both.
+              const factoryId = this.factoryOfMachine.get(ev.machineId);
+              if (factoryId) this.mqtt.publish(`mes360/${factoryId}/jo/${ev.jobOrderId}/count`, ev);
+            }
+          })
+          .catch((err) => this.logger.warn(`counter flush failed: ${(err as Error).message}`));
+      }, 1_000);
+    }
+
     // Drop devices no longer assigned to this gateway.
     for (const [id, d] of this.devices) {
       if (seen.has(id)) continue;
@@ -382,10 +414,27 @@ export class ModbusPollerService implements OnModuleDestroy {
   }
 
   private async pollDevice(dev: DeviceRuntime) {
-    if (dev.busy) return; // skip if previous cycle still running
+    if (dev.busy) {
+      // The previous cycle has not finished. Every skip is a sample not taken,
+      // and a counter pulse that opens and closes inside one is lost for good —
+      // so this is counted and reported rather than passed over in silence.
+      dev.skipped = (dev.skipped ?? 0) + 1;
+      return;
+    }
     dev.busy = true;
+    const cycleStart = Date.now();
     let anyError = false;
     const energyRoleValues = new Map<string, number>();
+    /**
+     * Everything that can wait, gathered and settled AFTER the loop.
+     *
+     * These used to be awaited one tag at a time inside it, so a device with
+     * eight tags paid eight sequential database round-trips before the next
+     * read could start — and `dev.busy` then skipped the cycles that arrived
+     * meanwhile. Running them together turns a sum of latencies into the
+     * longest one, and takes them off the path a counter edge travels.
+     */
+    const work: Array<Promise<unknown>> = [];
     let lastTs = new Date().toISOString();
     try {
       // One coalesced set of block reads per cycle instead of a round-trip per
@@ -428,28 +477,32 @@ export class ModbusPollerService implements OnModuleDestroy {
           historizationRateSec: tag.historizationRateSec,
           deadband: tag.deadband,
         };
-        await this.ingest.ingest(record);
+        work.push(this.ingest.ingest(record));
 
         // Machine-status driver tag → derive and apply the live machine state,
         // which is what opens and closes downtime events. Counting is NOT gated
         // on it: a pulse that arrives is a unit that was made, and discarding it
         // because the state signal disagreed would lose real production.
         if (tag.isMachineStatus) {
-          await this.statusSvc.process(tag.statusTag, numeric, ts);
+          work.push(this.statusSvc.process(tag.statusTag, numeric, ts));
         }
 
         // Configured alarms on this tag. Runs on every GOOD reading, not only on
         // status tags — a threshold on a temperature or a meter is the ordinary case.
-        await this.alarms.evaluate(tag.tagId, tag.machineId, numeric, ts);
+        work.push(this.alarms.evaluate(tag.tagId, tag.machineId, numeric, ts));
 
-        if (tag.isCounter) {
-          const event = await this.counter.process(tag.counterTag, res.raw, ts);
-          if (event) {
-            this.mqtt.publish(`mes360/${tag.factoryId}/jo/${event.jobOrderId}/count`, event);
-          }
-        }
+        // Counting is SYNCHRONOUS and first. A pulse at 120 parts a minute opens
+        // and closes in well under a second, so the edge has to be taken from
+        // this sample before anything that can await — otherwise the next read
+        // waits behind a database round-trip and the wave is sampled in pieces.
+        // The write happens on the flush timer; see CounterService.observe.
+        if (tag.isCounter) this.counter.observe(tag.counterTag, res.raw, ts);
         if (tag.energyRole && numeric !== null) energyRoleValues.set(tag.energyRole, numeric);
       }
+
+      // Settle the deferred work. `allSettled`, not `all`: one failing alarm
+      // evaluation must not discard the readings gathered beside it.
+      if (work.length) await Promise.allSettled(work);
 
       // Energy meter → write an EnergyReading (throttled) + publish for API enrichment.
       if (dev.meter && energyRoleValues.size) {
@@ -457,7 +510,22 @@ export class ModbusPollerService implements OnModuleDestroy {
         if (ev) this.mqtt.publish(`mes360/${dev.meter.factoryId}/energy/${ev.meterId}`, ev);
       }
 
-      await this.markDevice(dev.id, anyError ? 'ERROR' : 'CONNECTED', anyError ? 'One or more tag reads failed' : null);
+      const took = Date.now() - cycleStart;
+      if (took > dev.intervalMs) {
+        // Reported once a minute per device: at 100 ms this would otherwise be
+        // ten lines a second, and a log nobody can read hides what it reports.
+        const now = Date.now();
+        if (!dev.slowLoggedAt || now - dev.slowLoggedAt > 60_000) {
+          dev.slowLoggedAt = now;
+          this.logger.warn(
+            `${dev.name}: poll cycle ${took}ms exceeds its ${dev.intervalMs}ms interval`
+            + `${dev.skipped ? ` — ${dev.skipped} sample(s) skipped since the last report` : ''}`
+            + '. Counter pulses shorter than the overrun are being missed.',
+          );
+          dev.skipped = 0;
+        }
+      }
+      void this.markDevice(dev.id, anyError ? 'ERROR' : 'CONNECTED', anyError ? 'One or more tag reads failed' : null);
     } catch (err) {
       this.mlog.log(dev.name, 'poll', (err as Error)?.message ?? String(err));
       await this.markDevice(dev.id, 'ERROR', (err as Error).message);
@@ -491,14 +559,37 @@ export class ModbusPollerService implements OnModuleDestroy {
     }
   }
 
+  /**
+   * Record a device's health — on CHANGE, or once a minute.
+   *
+   * This ran at the end of every poll cycle: at a 100 ms interval that is ten
+   * row updates a second per device, awaited inside the cycle, for a column
+   * nobody reads ten times a second. A status CHANGE still writes immediately,
+   * because that is the part anyone is watching for; a heartbeat that has not
+   * changed can wait a minute.
+   */
+  private readonly deviceHealth = new Map<string, { status: string; at: number }>();
+  private static readonly HEALTH_HEARTBEAT_MS = 60_000;
+
   private async markDevice(id: string, status: string, lastError: string | null) {
+    const last = this.deviceHealth.get(id);
+    const changed = !last || last.status !== status;
+    if (!changed && Date.now() - last.at < ModbusPollerService.HEALTH_HEARTBEAT_MS) return;
+    this.deviceHealth.set(id, { status, at: Date.now() });
     await this.prisma.device
       .update({ where: { id }, data: { status, lastSeenAt: new Date(), lastError } })
       .catch(() => undefined);
   }
 
-  /** Drain disk buffers periodically when sinks recover. */
-  @Interval('buffer-drain', 20_000)
+  /**
+   * Drain disk buffers when the sinks recover.
+   *
+   * Every three seconds, not twenty. A buffer only fills when a sink refuses,
+   * and the longer the gap between attempts the further behind it falls — at
+   * twenty seconds a gateway that briefly lost Postgres kept accumulating for
+   * nineteen of every twenty seconds it was already healthy again.
+   */
+  @Interval('buffer-drain', 3_000)
   async drain() {
     await this.ingest.drainBuffers().catch(() => undefined);
   }

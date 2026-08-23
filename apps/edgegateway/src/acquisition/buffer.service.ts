@@ -48,16 +48,34 @@ export class BufferService {
 
     const remaining: string[] = [];
     let drained = 0;
-    for (const line of lines) {
-      let ok = false;
-      try {
-        ok = await handler(JSON.parse(line));
-      } catch {
-        ok = false;
+
+    /**
+     * Drained in BATCHES, not one record at a time.
+     *
+     * This awaited each record in turn, so clearing a backlog cost the number of
+     * records TIMES the round-trip to the sink. A gateway that fell behind could
+     * not catch up — records arrived faster than a serial drain cleared them, and
+     * the file grew regardless of link speed, which is why a fast connection did
+     * not help.
+     *
+     * The batch is bounded so a large file cannot open thousands of concurrent
+     * writes and take down the sink it is trying to reach.
+     */
+    const BATCH = 50;
+    let refused = false;
+    for (let i = 0; i < lines.length; i += BATCH) {
+      if (refused) { remaining.push(...lines.slice(i)); break; }
+      const slice = lines.slice(i, i + BATCH);
+      const outcomes = await Promise.all(slice.map(async (line) => {
+        try { return [line, await handler(JSON.parse(line))] as const; }
+        catch { return [line, false] as const; }
+      }));
+      for (const [line, ok] of outcomes) {
+        if (ok) drained += 1;
+        else { remaining.push(line); refused = true; }
       }
-      if (ok) drained++;
-      else remaining.push(line);
     }
+
     writeFileSync(f, remaining.length ? remaining.join('\n') + '\n' : '');
     if (drained) this.logger.log(`Drained ${drained} buffered ${kind} record(s)`);
     return drained;
