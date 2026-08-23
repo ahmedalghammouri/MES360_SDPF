@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AcquisitionModule } from '../acquisition/acquisition.module';
 import { LocalApiController } from './local-api.controller';
 import { AuthService } from './auth.service';
+import { CountBalanceService } from './count-balance.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Module({
@@ -19,6 +20,6 @@ import { JwtAuthGuard } from './jwt-auth.guard';
     }),
   ],
   controllers: [LocalApiController],
-  providers: [AuthService, JwtAuthGuard],
+  providers: [AuthService, JwtAuthGuard, CountBalanceService],
 })
 export class LocalApiModule {}

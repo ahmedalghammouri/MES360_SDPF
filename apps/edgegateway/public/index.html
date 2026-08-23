@@ -121,6 +121,7 @@
   .theme-btn:hover{background:hsl(var(--muted)/.7);transform:none}
 
   /* Scrollable table body with sticky header */
+  .sub2{font-size:10.5px;color:hsl(var(--muted-fg));margin-top:1px}
   .tbl-wrap{max-height:440px;overflow:auto}
   .tbl-wrap thead th{position:sticky;top:0;z-index:2;background:hsl(var(--card2))}
   body.light .tbl-wrap thead th{background:hsl(174 16% 94%)}
@@ -156,6 +157,7 @@
       <nav>
         <div class="sec">Gateway</div>
         <button data-tab="overview" class="active" onclick="switchTab('overview')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Overview</button>
+        <button data-tab="balance" onclick="switchTab('balance')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M5 7h14M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z"/></svg>Count Balance</button>
         <div class="sec">IIoT &amp; Connectivity</div>
         <button data-tab="devices" onclick="switchTab('devices')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>Devices</button>
         <button data-tab="tags" onclick="switchTab('tags')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></svg>Tag Browser</button>
@@ -193,6 +195,22 @@
             <div class="tbl-wrap"><table><thead><tr><th>Work Order</th><th>Operation</th><th>Machine</th><th class="mono">Good</th><th class="mono">Bad</th><th class="mono">Total</th></tr></thead><tbody id="ovJobs"></tbody></table></div></div>
           <div class="card"><div class="card-h"><span class="ttl">Live tag values</span></div>
             <div class="tbl-wrap"><table><thead><tr><th>Tag</th><th>Role</th><th class="mono">Value</th><th>Unit</th><th>Updated</th></tr></thead><tbody id="ovTags"></tbody></table></div></div>
+        </section>
+
+        <section id="tab-balance" class="hidden">
+          <div class="card">
+            <div class="card-h"><span class="ttl">Material balance across the line</span>
+              <span style="color:hsl(var(--muted-fg));font-size:11.5px">refreshes every 1.5s</span></div>
+            <div style="padding:0 14px 12px;color:hsl(var(--muted-fg));font-size:12px;line-height:1.6">
+              Each machine counts in its own unit &mdash; the filler in inners, the cartoner in cartons,
+              the palletiser in pallets. Converted through the product&rsquo;s packaging ladder they become
+              comparable, and each row&rsquo;s <b>Diff</b> is what the machine before it made
+              <i>minus</i> what this one has handled.
+              A steady positive gap that is larger than the work sitting inside the machine is a counter
+              missing pulses.
+            </div>
+          </div>
+          <div id="balRuns"></div>
         </section>
 
         <section id="tab-devices" class="hidden">
@@ -247,7 +265,7 @@
 
 <script>
   const T={get:()=>localStorage.getItem('eg_token'),set:t=>localStorage.setItem('eg_token',t),clear:()=>localStorage.removeItem('eg_token')};
-  const TITLES={overview:['Overview','Live monitoring'],devices:['Devices','Modbus device configuration'],tags:['Tag Browser','Tag & counter configuration'],signals:['Signal Rules','How a signal becomes a state, and what it costs'],meters:['Energy Meters','Power-meter configuration'],settings:['Settings','Service connections']};
+  const TITLES={overview:['Overview','Live monitoring'],balance:['Count Balance','What each machine made, in one unit'],devices:['Devices','Modbus device configuration'],tags:['Tag Browser','Tag & counter configuration'],signals:['Signal Rules','How a signal becomes a state, and what it costs'],meters:['Energy Meters','Power-meter configuration'],settings:['Settings','Service connections']};
   let timer=null,tab='overview',cache={devices:[],tags:[],machines:[],lines:[],areas:[]},prevVals={};
   function lineOpts(sel){return'<option value="">— select —</option>'+cache.lines.map(l=>`<option value="${l.id}" ${l.id===sel?'selected':''}>${esc(l.name)} (${esc(l.code)})</option>`).join('')}
   function areaOpts(sel){return'<option value="">— select —</option>'+cache.areas.map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)} (${esc(a.code)})</option>`).join('')}
@@ -286,9 +304,9 @@
     switchTab('overview');startPoll()}
 
   function switchTab(t){tab=t;document.querySelectorAll('nav button[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
-    ['overview','devices','tags','signals','meters','settings'].forEach(s=>document.getElementById('tab-'+s).classList.toggle('hidden',s!==t));
+    ['overview','balance','devices','tags','signals','meters','settings'].forEach(s=>document.getElementById('tab-'+s).classList.toggle('hidden',s!==t));
     document.getElementById('pageTitle').textContent=TITLES[t][0];document.getElementById('pageSub').textContent=TITLES[t][1];
-    if(t==='overview')refreshOverview();if(t==='devices')loadDevices();if(t==='tags')loadTags();if(t==='signals')loadSignals();if(t==='meters')loadMeters();if(t==='settings')loadSettings()}
+    if(t==='overview')refreshOverview();if(t==='balance')loadBalance();if(t==='devices')loadDevices();if(t==='tags')loadTags();if(t==='signals')loadSignals();if(t==='meters')loadMeters();if(t==='settings')loadSettings()}
 
   // Polling (1.5s)
   function startPoll(){clearInterval(timer);tick();timer=setInterval(tick,1500)}
@@ -304,6 +322,7 @@
       // Refreshed on the same 1.5 s tick: someone flashing a lamp at the machine
       // needs to see the edge count move while they are still standing there.
       else if(tab==='signals')loadPulse();
+      else if(tab==='balance')loadBalance();
     }catch{}
   }
 
@@ -462,6 +481,88 @@
       }).join('')
     }catch{card.style.display='none'}
   }
+  // ── Count balance ─────────────────────────────────────────────────────────
+  // Machines on one line count in different units, so their raw numbers cannot
+  // be compared. Everything here is converted to the SMALLEST rung the line
+  // uses, which keeps every conversion a multiplication and never rounds.
+  function fmtQty(n){
+    if(n===null||n===undefined)return '—';
+    const r=Math.round(n*1000)/1000;
+    return r.toLocaleString(undefined,{maximumFractionDigits:3});
+  }
+
+  async function loadBalance(){
+    let runs;
+    try{runs=await api('/count-balance')}catch(e){
+      document.getElementById('balRuns').innerHTML=
+        '<div class="card"><div style="padding:16px;color:hsl(var(--muted-fg))">'+esc(e.message||'Could not load')+'</div></div>';
+      return;
+    }
+    const host=document.getElementById('balRuns');
+    if(!runs.length){
+      host.innerHTML='<div class="card"><div style="padding:16px;color:hsl(var(--muted-fg))">'+
+        'No job order is executing. Counts are compared across the steps of a running order, so start one to see the balance.'+
+        '</div></div>';
+      return;
+    }
+    host.innerHTML=runs.map(renderRun).join('');
+  }
+
+  function renderRun(r){
+    const u=esc(r.commonUnit);
+    // The ladder is shown, not just applied: a wrong conversion is nearly
+    // impossible to spot inside a total, and obvious next to "1 CARTON = 4 INNER".
+    // Stated in the unit actually being used, and rungs that convert 1-for-1
+    // are left out — "1 INNER = 1 INNER" is noise standing where a check should be.
+    const base=r.ladder[r.commonUnit]||1;
+    const ladder=['PIECE','INNER','CARTON','PALLET']
+      .filter(k=>k!==r.commonUnit&&r.ladder[k]>base)
+      .map(k=>'1 '+k+' = '+fmtQty(r.ladder[k]/base)+' '+r.commonUnit)
+      .join(' &nbsp;·&nbsp; ')||'every step already counts in '+r.commonUnit;
+
+    const rows=r.steps.map((st,i)=>{
+      const name=esc(st.machineCode||st.machineName||st.operationName||('Step '+st.sequenceOrder));
+      if(st.unconvertible){
+        return '<tr><td>'+esc(String(st.sequenceOrder))+'</td><td><b>'+name+'</b><div class="sub2">'+esc(st.operationName)+'</div></td>'+
+          '<td class="mono">'+fmtQty(st.good)+'</td><td class="mono">'+fmtQty(st.reject)+'</td>'+
+          '<td class="mono">'+fmtQty(st.total)+'</td><td>'+esc(st.unit)+'</td>'+
+          '<td colspan="4" style="color:hsl(var(--warn,38 92% 50%))">unit &ldquo;'+esc(st.unit)+'&rdquo; is not on the packaging ladder &mdash; cannot be compared</td></tr>';
+      }
+      let diff='<span style="color:hsl(var(--muted-fg))">&mdash;</span>';
+      if(i>0&&st.diffFromPrev!==null){
+        const d=st.diffFromPrev;
+        // Zero is the expected answer and should look calm. A shortfall is the
+        // one worth the eye; a negative means more came out than went in, which
+        // material cannot do, so it is flagged harder.
+        const col=Math.abs(d)<0.0005?'hsl(var(--muted-fg))':(d>0?'hsl(38 92% 50%)':'hsl(0 84% 60%)');
+        const sign=d>0?'+':'';
+        diff='<b style="color:'+col+'">'+sign+fmtQty(d)+'</b>';
+      }
+      return '<tr><td>'+esc(String(st.sequenceOrder))+'</td>'+
+        '<td><b>'+name+'</b><div class="sub2">'+esc(st.operationName)+'</div></td>'+
+        '<td class="mono">'+fmtQty(st.good)+'</td>'+
+        '<td class="mono">'+fmtQty(st.reject)+'</td>'+
+        '<td class="mono">'+fmtQty(st.total)+'</td>'+
+        '<td>'+esc(st.unit)+'</td>'+
+        '<td class="mono">'+fmtQty(st.goodCommon)+'</td>'+
+        '<td class="mono">'+fmtQty(st.totalCommon)+'</td>'+
+        '<td class="mono">'+diff+'</td></tr>';
+    }).join('');
+
+    return '<div class="card"><div class="card-h"><span class="ttl">'+
+      esc(r.orderNumber||r.workOrderId)+
+      (r.skuCode?' &nbsp;<span style="font-weight:500;color:hsl(var(--muted-fg))">'+esc(r.skuCode)+' &mdash; '+esc(r.skuName||'')+'</span>':'')+
+      '</span><span style="color:hsl(var(--muted-fg));font-size:11.5px">common unit: <b>'+esc(r.commonUnit)+'</b></span></div>'+
+      '<div style="padding:0 14px 10px;color:hsl(var(--muted-fg));font-size:11px">'+ladder+'</div>'+
+      '<div class="tbl-wrap"><table><thead><tr>'+
+      '<th>#</th><th>Machine</th>'+
+      '<th class="mono">Good</th><th class="mono">Bad</th><th class="mono">Total</th><th>Unit</th>'+
+      '<th class="mono">Good ('+esc(r.commonUnit)+')</th>'+
+      '<th class="mono">Total ('+esc(r.commonUnit)+')</th>'+
+      '<th class="mono">Diff vs previous</th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  }
+
   function renderSignals(){
     const sig=cache.tags.filter(x=>x.isMachineStatus||x.signalRole);
     document.getElementById('sigRows').innerHTML=sig.map(x=>`<tr>

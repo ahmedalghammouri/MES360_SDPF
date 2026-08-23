@@ -13,6 +13,7 @@ import { ModbusLogService } from '../acquisition/modbus-log.service';
 import { StatusService } from '../acquisition/status.service';
 import { METER_TEMPLATES, instantiateMeterTags, instantiateEdgeCounterTags, type EdgeCounterBlocks } from '@mes360/industrial-drivers';
 import { readConfigFile, writeConfigFile } from '../config/config-store';
+import { CountBalanceService } from './count-balance.service';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
@@ -33,6 +34,7 @@ export class LocalApiController {
     private readonly auth: AuthService,
     private readonly config: ConfigService,
     private readonly statusSvc: StatusService,
+    private readonly balance: CountBalanceService,
   ) {}
 
   @Post('auth/login')
@@ -545,6 +547,18 @@ export class LocalApiController {
   }
 
   @UseGuards(JwtAuthGuard)
+  /**
+   * The line's material balance — see {@link CountBalanceService}.
+   *
+   * On the gateway and not only in the MES because this is the number a
+   * technician needs while STANDING AT the line, comparing what a machine's own
+   * panel says with what the gateway counted from it.
+   */
+  @Get('count-balance')
+  async countBalance() {
+    return this.balance.balance();
+  }
+
   @Get('job-orders')
   async jobOrders() {
     const factoryId = this.ctx.getFactoryId();
