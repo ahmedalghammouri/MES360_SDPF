@@ -19,7 +19,7 @@ import {
   CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 
-import { Gauge, pctText } from './chart-kit';
+import { Gauge, pctText, TrendChart } from './chart-kit';
 
 export interface PerformanceTrendPoint {
   at: string;
@@ -108,27 +108,11 @@ export function PerformancePanel({
           {trend.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">No buckets in this window yet.</p>
           ) : (
-            <div className="h-[180px] w-full">
-              <ResponsiveContainer>
-                <LineChart data={trend.map((p) => ({ t: hhmm(p.at), performance: p.performance }))}
-                  margin={{ top: 6, right: 16, bottom: 0, left: 0 }}>
-                  <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
-                  <XAxis dataKey="t" stroke="hsl(var(--border))" tickLine={false} minTickGap={24}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} stroke="hsl(var(--border))" tickLine={false} width={38} unit="%"
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                  <Tooltip cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '3 3' }}
-                    content={({ active, payload, label }: any) => active && payload?.length ? (
-                      <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-                        <div className="mb-0.5 font-medium">{label}</div>
-                        <div className="font-mono tabular-nums">{pctText(payload[0].value)}</div>
-                      </div>
-                    ) : null} />
-                  <Line type="monotone" dataKey="performance" stroke="var(--viz-1)" strokeWidth={2}
-                    dot={{ r: 4, strokeWidth: 0 }} activeDot={{ r: 5 }} connectNulls isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <TrendChart
+              data={trend.map((p) => ({ t: hhmm(p.at), performance: p.performance }))}
+              height={220}
+              series={[{ key: 'performance', name: 'Performance', colour: 'var(--viz-2)', emphasis: true }]}
+            />
           )}
         </section>
       </div>

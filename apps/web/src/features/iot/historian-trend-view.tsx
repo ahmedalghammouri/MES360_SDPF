@@ -512,7 +512,7 @@ export function HistorianTrendView() {
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   {selected.map((s) => (
                     <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={colorFor(s.key)}
-                          dot={false} strokeWidth={1.6} connectNulls isAnimationActive={false} />
+                          dot={false} strokeWidth={1.6} connectNulls={false} isAnimationActive={false} />
                   ))}
                 </LineChart>
               </ResponsiveContainer>

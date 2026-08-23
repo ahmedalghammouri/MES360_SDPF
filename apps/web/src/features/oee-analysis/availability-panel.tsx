@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-import { Gauge, STATUS, SEGMENT_COLOUR, SEGMENT_LABEL, dur, type SegmentKind } from './chart-kit';
+import { Gauge, STATUS, SEGMENT_COLOUR, SEGMENT_LABEL, dur, type SegmentKind, TrendChart } from './chart-kit';
 
 export interface AvailabilityTrendPoint {
   at: string;
@@ -83,31 +83,11 @@ export function AvailabilityPanel({
           {data.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">No buckets in this window yet.</p>
           ) : (
-            <div className="h-[180px] w-full">
-              <ResponsiveContainer>
-                <LineChart data={data} margin={{ top: 6, right: 16, bottom: 0, left: 0 }}>
-                  <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
-                  <XAxis dataKey="t" stroke="hsl(var(--border))" tickLine={false} minTickGap={24}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} stroke="hsl(var(--border))" tickLine={false} width={38} unit="%"
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                  <Tooltip
-                    cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '3 3' }}
-                    content={({ active, payload, label }: any) =>
-                      active && payload?.length ? (
-                        <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-                          <div className="mb-0.5 font-medium">{label}</div>
-                          <div className="font-mono tabular-nums">
-                            {payload[0].value == null ? '—' : `${Number(payload[0].value).toFixed(1)}%`}
-                          </div>
-                        </div>
-                      ) : null}
-                  />
-                  <Line type="monotone" dataKey="availability" stroke="var(--viz-1)" strokeWidth={2}
-                    dot={{ r: 4, strokeWidth: 0 }} activeDot={{ r: 5 }} connectNulls isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <TrendChart
+              data={data}
+              height={220}
+              series={[{ key: 'availability', name: 'Availability', colour: 'var(--viz-1)', emphasis: true }]}
+            />
           )}
         </section>
       </div>

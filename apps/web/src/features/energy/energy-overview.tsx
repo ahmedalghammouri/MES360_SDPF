@@ -599,11 +599,11 @@ export function EnergyOverview() {
                     strokeWidth={2}
                     /* show dots when sparse — a single point with dot={false} renders nothing */
                     dot={chartData.length <= 3 ? { r: 3 } : false}
-                    connectNulls
+                    connectNulls={false}
                     name={type.replace(/_/g, ' ')}
                   />
                 )) : (
-                  <Area type="monotone" dataKey="value" stroke="#4c7571" fill="url(#energyGrad)" strokeWidth={2} dot={chartData.length <= 3 ? { r: 3 } : false} connectNulls />
+                  <Area type="monotone" dataKey="value" stroke="#4c7571" fill="url(#energyGrad)" strokeWidth={2} dot={chartData.length <= 3 ? { r: 3 } : false} connectNulls={false} />
                 )}
                 {energyTypes.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
               </AreaChart>

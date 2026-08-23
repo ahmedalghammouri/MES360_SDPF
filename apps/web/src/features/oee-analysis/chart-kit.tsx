@@ -10,6 +10,12 @@
  * stays in the panel that owns it.
  */
 import React from 'react';
+import {
+  ResponsiveContainer, CartesianGrid, XAxis, YAxis, Legend,
+  Tooltip as RTooltip, LineChart, Line, AreaChart, Area, BarChart, Bar,
+} from 'recharts';
+
+import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
 
 export type SegmentKind = 'running' | 'planned' | 'external' | 'downtime' | 'unmeasured';
 
@@ -197,6 +203,155 @@ export function TimeModel({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ── The trend chart every analytical page draws ─────────────────────────── */
+
+export interface TrendSeries {
+  key: string;
+  name: string;
+  colour: string;
+  /** The headline series is drawn heavier than the factors it is made of. */
+  emphasis?: boolean;
+}
+
+/**
+ * Crosshair tooltip. Values in ink, identity carried by the swatch beside them.
+ *
+ * A series with no value in this bucket is listed as "—" rather than omitted:
+ * the reader asked what happened at this moment, and "not measured" is an
+ * answer. Silently dropping the row makes a gap look like a rendering fault.
+ */
+function TrendTip({ active, payload, label, unit = '%' }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-md border border-border/60 bg-popover px-3 py-2 shadow-md">
+      <div className="mb-1 text-[11px] font-medium text-muted-foreground">{label}</div>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} className="flex items-center gap-2 text-xs">
+          <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: p.color }} />
+          <span className="text-muted-foreground">{p.name}</span>
+          <span className="ms-auto font-medium tabular-nums text-foreground">
+            {p.value == null ? '—' : `${Number(p.value).toFixed(1)}${unit}`}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One time series chart, in whichever form the reader picked.
+ *
+ * ── Why the form is a preference and not a per-page decision ────────────────
+ * The filter panel has carried an Area / Line / Bar switch for as long as these
+ * pages have existed, and every OEE chart ignored it — each one hardcoded a
+ * LineChart. A control that does nothing is worse than no control: it teaches
+ * the reader that the panel is decorative.
+ *
+ * ── Gaps are the point ──────────────────────────────────────────────────────
+ * `connectNulls` is OFF, deliberately and everywhere. The engines return null
+ * for a bucket they could not measure — an hour with no parts counted has no
+ * Performance and no Quality — and bridging that draws a straight line THROUGH
+ * time the plant has no measurement for. On this line the 11:00 bucket has
+ * availability and nothing else, and the bridged version showed availability as
+ * one unbroken line while the other three appeared to stop for no reason.
+ *
+ * A gap says "not measured". A line through it says "we know, and it was fine".
+ * Only one of those is true.
+ *
+ * Zero is NOT a gap: a machine that genuinely produced nothing is measured, and
+ * its zero belongs on the chart.
+ */
+export function TrendChart({
+  data,
+  series,
+  xKey = 't',
+  height = 280,
+  domain = [0, 100],
+  unit = '%',
+  empty = 'No buckets in this window yet.',
+}: {
+  data: Array<Record<string, unknown>>;
+  series: readonly TrendSeries[];
+  xKey?: string;
+  height?: number;
+  domain?: [number, number];
+  unit?: string;
+  empty?: string;
+}) {
+  const trendType = useDashboardPrefsStore((s) => s.trendType);
+
+  if (!data || data.length === 0) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">{empty}</p>;
+  }
+
+  const grid = (
+    <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
+  );
+  const axes = (
+    <>
+      <XAxis dataKey={xKey} stroke="hsl(var(--border))" tickLine={false} minTickGap={24}
+        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+      <YAxis domain={domain} stroke="hsl(var(--border))" tickLine={false} width={38} unit={unit}
+        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+    </>
+  );
+  const overlay = (
+    <>
+      <RTooltip content={<TrendTip unit={unit} />}
+        cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '3 3' }} />
+      {series.length > 1 && (
+        <Legend iconType="plainline" wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+      )}
+    </>
+  );
+
+  return (
+    <div className="w-full" style={{ height }}>
+      <ResponsiveContainer>
+        {trendType === 'bar' ? (
+          <BarChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }} barGap={2}>
+            {grid}{axes}{overlay}
+            {series.map((s) => (
+              // A rounded data-end reads as the end of a quantity; the flat foot
+              // stays on the baseline it is measured from.
+              <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.colour} radius={[4, 4, 0, 0]}
+                isAnimationActive={false} />
+            ))}
+          </BarChart>
+        ) : trendType === 'area' ? (
+          <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+            <defs>
+              {series.map((s) => (
+                <linearGradient key={s.key} id={`fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={s.colour} stopOpacity={0.28} />
+                  <stop offset="100%" stopColor={s.colour} stopOpacity={0.02} />
+                </linearGradient>
+              ))}
+            </defs>
+            {grid}{axes}{overlay}
+            {series.map((s) => (
+              <Area key={s.key} type="monotone" dataKey={s.key} name={s.name}
+                stroke={s.colour} strokeWidth={s.emphasis ? 2.5 : 2}
+                fill={`url(#fill-${s.key})`} connectNulls={false}
+                dot={{ r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+            ))}
+          </AreaChart>
+        ) : (
+          <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+            {grid}{axes}{overlay}
+            {series.map((s) => (
+              <Line key={s.key} type="monotone" dataKey={s.key} name={s.name}
+                stroke={s.colour} strokeWidth={s.emphasis ? 2.5 : 2}
+                connectNulls={false}
+                dot={{ r: 4, strokeWidth: 0 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+            ))}
+          </LineChart>
+        )}
+      </ResponsiveContainer>
     </div>
   );
 }

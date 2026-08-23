@@ -14,7 +14,7 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 
-import { Gauge, dur, type SegmentKind } from './chart-kit';
+import { Gauge, dur, type SegmentKind, TrendChart, type TrendSeries } from './chart-kit';
 import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
 
 export interface TrendPoint {
@@ -50,7 +50,7 @@ export interface ProductionDetails {
  * contrast warning is why this chart always carries a legend and the page
  * always carries the tables.
  */
-const SERIES = [
+const SERIES: TrendSeries[] = [
   { key: 'availability', name: 'Availability', colour: 'var(--viz-1)' },
   { key: 'performance', name: 'Performance', colour: 'var(--viz-2)' },
   { key: 'quality', name: 'Quality', colour: 'var(--viz-3)' },
@@ -142,31 +142,10 @@ export function OverviewPanel({
           Each point is one bucket of the selected period. Click a name in the legend to hide
           that line.
         </p>
-        {data.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No buckets in this window yet.
-          </p>
-        ) : (
-          <div className="h-[280px] w-full">
-            <ResponsiveContainer>
-              <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-                <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
-                <XAxis dataKey="t" stroke="hsl(var(--border))" tickLine={false}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} minTickGap={24} />
-                <YAxis domain={[0, 100]} stroke="hsl(var(--border))" tickLine={false} width={38}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} unit="%" />
-                <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '3 3' }} />
-                <Legend iconType="plainline" wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                {SERIES.map((s) => (
-                  <Line key={s.key} type="monotone" dataKey={s.key} name={s.name}
-                    stroke={s.colour} strokeWidth={s.key === 'oee' ? 2.5 : 2}
-                    dot={{ r: 4, strokeWidth: 0 }} activeDot={{ r: 5 }}
-                    connectNulls isAnimationActive={false} />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+        <TrendChart
+          data={data}
+          series={SERIES.map((s) => ({ ...s, emphasis: s.key === 'oee' }))}
+        />
       </section>
 
       {/* ── Four totals: tiles, not a chart of four bars ── */}
