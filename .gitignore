@@ -70,3 +70,10 @@ apps/edgegateway/src/generated/
 
 # Baseline captures — machine- and moment-specific, regenerated on demand.
 apps/api/.baselines/
+
+# Excel lock files — created while a workbook is open, never wanted in the repo
+~$*
+
+# Chart CSV exports, downloaded from the trend toolbar. Reproducible from the
+# page at any time; committing one freezes a window nobody asked to keep.
+/oee-overview-*.csv
