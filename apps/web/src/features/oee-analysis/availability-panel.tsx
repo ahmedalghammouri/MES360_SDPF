@@ -87,6 +87,7 @@ export function AvailabilityPanel({
               data={data}
               height={220}
               series={[{ key: 'availability', name: 'Availability', colour: 'var(--viz-1)', emphasis: true }]}
+              exportName="availability"
             />
           )}
         </section>

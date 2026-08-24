@@ -112,6 +112,7 @@ export function PerformancePanel({
               data={trend.map((p) => ({ t: hhmm(p.at), performance: p.performance }))}
               height={220}
               series={[{ key: 'performance', name: 'Performance', colour: 'var(--viz-2)', emphasis: true }]}
+              exportName="performance"
             />
           )}
         </section>

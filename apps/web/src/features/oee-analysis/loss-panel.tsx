@@ -51,6 +51,7 @@ export function LossPanel({
               data={trend.map((p) => ({ t: hhmm(p.at), teep: p.teep }))}
               height={220}
               series={[{ key: 'teep', name: 'TEEP', colour: 'var(--viz-7)', emphasis: true }]}
+              exportName="teep"
             />
           )}
         </section>

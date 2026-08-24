@@ -27,7 +27,7 @@ import { AlertTriangle, PackageCheck } from 'lucide-react';
 import { useScope } from '@/hooks/use-scope';
 import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
-import { Gauge, dur, stateColour, STATUS, pctText } from '@/features/oee-analysis/chart-kit';
+import { Gauge, dur, stateColour, STATUS, pctText, TrendChart } from '@/features/oee-analysis/chart-kit';
 import { cn } from '@/lib/utils';
 
 import { LineOeeCard } from '@/features/oee-analysis/line-oee-card';
@@ -292,6 +292,24 @@ function Stat({
  * chart and the factor chart are separate rows of the same grid: two charts, one
  * axis each, which is the only honest way to put a percentage beside a count.
  */
+/**
+ * The four factors, and the two counts, named once.
+ *
+ * OEE is drawn heavier than the three numbers it is made of, so the headline
+ * reads as the conclusion rather than as a fourth peer.
+ */
+const FACTOR_SERIES = [
+  { key: 'availability', name: 'Availability', colour: 'var(--viz-1)' },
+  { key: 'performance', name: 'Performance', colour: 'var(--viz-2)' },
+  { key: 'quality', name: 'Quality', colour: 'var(--viz-3)' },
+  { key: 'oee', name: 'OEE', colour: 'var(--viz-4)', emphasis: true },
+] as const;
+
+const OUTPUT_SERIES = [
+  { key: 'good', name: 'Good', colour: STATUS.good },
+  { key: 'rejected', name: 'Rejected', colour: STATUS.bad },
+] as const;
+
 function TrendPanel() {
   const { range, setRange, data, isFetching } = useRange('shift');
   const points = (data?.trend ?? []).map((p) => ({
@@ -319,41 +337,32 @@ function TrendPanel() {
       {points.length === 0 ? (
         <Empty>No minutes recorded in this window yet.</Empty>
       ) : (
-        <div className="grid gap-3 xl:grid-cols-2">
-          <div>
-            <p className="mb-1 text-[11px] font-medium text-muted-foreground">OEE and its factors (%)</p>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={points} margin={{ top: 4, right: 8, bottom: 0, left: -18 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="at" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" minTickGap={24} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip content={<PctTip />} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Line type="monotone" dataKey="availability" name="Availability" stroke="var(--viz-1)" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="performance" name="Performance" stroke="var(--viz-2)" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="quality" name="Quality" stroke="var(--viz-3)" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="oee" name="OEE" stroke="var(--viz-4)" strokeWidth={3} dot={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div>
-            <p className="mb-1 text-[11px] font-medium text-muted-foreground">Output per bucket (pieces)</p>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={points} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="at" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" minTickGap={24} />
-                  <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip content={<CountTip />} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="good" name="Good" fill={STATUS.good} radius={[3, 3, 0, 0]} maxBarSize={22} />
-                  <Bar dataKey="rejected" name="Rejected" fill={STATUS.bad} radius={[3, 3, 0, 0]} maxBarSize={22} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+        <div className="grid gap-5 xl:grid-cols-2">
+          {/*
+            Two charts, one axis each. A percentage and a piece count share no
+            scale, and normalising the counts to their own maximum to fit them
+            under one axis would draw a shape that is not the data.
+          */}
+          <TrendChart
+            title="OEE and its factors"
+            data={points}
+            xKey="at"
+            height={210}
+            series={FACTOR_SERIES}
+            exportName="shift-oee"
+          />
+          <TrendChart
+            title="Output per bucket"
+            data={points}
+            xKey="at"
+            height={210}
+            domain="auto"
+            unit=""
+            decimals={0}
+            series={OUTPUT_SERIES}
+            exportName="shift-output"
+            empty="Nothing counted in this window yet."
+          />
         </div>
       )}
     </Panel>

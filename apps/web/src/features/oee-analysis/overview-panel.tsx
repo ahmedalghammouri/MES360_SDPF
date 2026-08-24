@@ -145,6 +145,7 @@ export function OverviewPanel({
         <TrendChart
           data={data}
           series={SERIES.map((s) => ({ ...s, emphasis: s.key === 'oee' }))}
+          exportName="oee-overview"
         />
       </section>
 

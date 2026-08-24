@@ -89,6 +89,7 @@ export function QualityPanel({
               data={trend.map((p) => ({ t: hhmm(p.at), quality: p.quality }))}
               height={220}
               series={[{ key: 'quality', name: 'Quality', colour: 'var(--viz-3)', emphasis: true }]}
+              exportName="quality"
             />
           )}
         </section>

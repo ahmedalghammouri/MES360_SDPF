@@ -12,7 +12,7 @@
 import React from 'react';
 import {
   ResponsiveContainer, CartesianGrid, XAxis, YAxis, Legend,
-  Tooltip as RTooltip, LineChart, Line, AreaChart, Area, BarChart, Bar,
+  Tooltip as RTooltip, LineChart, Line, AreaChart, Area, BarChart, Bar, Brush,
 } from 'recharts';
 
 import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
@@ -215,6 +215,14 @@ export interface TrendSeries {
   colour: string;
   /** The headline series is drawn heavier than the factors it is made of. */
   emphasis?: boolean;
+  /** Plot against the right-hand axis — for a series in different units. */
+  axis?: 'left' | 'right';
+}
+
+/** A bucket size the reader can switch a chart to. */
+export interface TrendBucket {
+  value: string;
+  label: string;
 }
 
 /**
@@ -224,17 +232,21 @@ export interface TrendSeries {
  * the reader asked what happened at this moment, and "not measured" is an
  * answer. Silently dropping the row makes a gap look like a rendering fault.
  */
-function TrendTip({ active, payload, label, unit = '%' }: any) {
+function TrendTip({ active, payload, label, unit = '%', decimals = 1 }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-md border border-border/60 bg-popover px-3 py-2 shadow-md">
-      <div className="mb-1 text-[11px] font-medium text-muted-foreground">{label}</div>
+    <div className="min-w-[168px] rounded-md border border-border/60 bg-popover px-3 py-2 shadow-lg">
+      <div className="mb-1.5 border-b border-border/50 pb-1 text-[11px] font-medium text-muted-foreground">
+        {label}
+      </div>
       {payload.map((p: any) => (
-        <div key={p.dataKey} className="flex items-center gap-2 text-xs">
+        <div key={p.dataKey} className="flex items-center gap-2 py-[1px] text-xs">
           <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: p.color }} />
           <span className="text-muted-foreground">{p.name}</span>
           <span className="ms-auto font-medium tabular-nums text-foreground">
-            {p.value == null ? '—' : `${Number(p.value).toFixed(1)}${unit}`}
+            {p.value == null ? '—' : `${Number(p.value).toLocaleString(undefined, {
+              minimumFractionDigits: 0, maximumFractionDigits: decimals,
+            })}${unit}`}
           </span>
         </div>
       ))}
@@ -242,28 +254,116 @@ function TrendTip({ active, payload, label, unit = '%' }: any) {
   );
 }
 
+/** Compact axis numbers: 12.4k rather than 12400, which crowds a narrow chart. */
+function axisNumber(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1_000_000) return `${(v / 1_000_000).toFixed(a >= 10_000_000 ? 0 : 1)}M`;
+  if (a >= 1_000) return `${(v / 1_000).toFixed(a >= 10_000 ? 0 : 1)}k`;
+  return String(Math.round(v * 10) / 10);
+}
+
 /**
- * One time series chart, in whichever form the reader picked.
+ * Hand the reader the numbers behind the picture.
  *
- * ── Why the form is a preference and not a per-page decision ────────────────
- * The filter panel has carried an Area / Line / Bar switch for as long as these
- * pages have existed, and every OEE chart ignored it — each one hardcoded a
- * LineChart. A control that does nothing is worse than no control: it teaches
- * the reader that the panel is decorative.
+ * A trend answers "what shape was the shift". The next question is always "what
+ * exactly, and can I put it in a report" — and re-typing figures off a chart is
+ * where transcription errors come from. Values are written unrounded, because
+ * this file is for arithmetic, not for reading.
+ */
+function exportCsv(
+  name: string,
+  data: Array<Record<string, unknown>>,
+  series: readonly TrendSeries[],
+  xKey: string,
+): void {
+  const cell = (v: unknown) => {
+    if (v == null) return '';
+    const t = String(v);
+    return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const head = ['period', ...series.map((s) => s.name)].map(cell).join(',');
+  const rows = data.map((d) => [cell(d[xKey]), ...series.map((s) => cell(d[s.key]))].join(','));
+  // A BOM, so Excel opens a UTF-8 file with Arabic labels intact instead of mojibake.
+  const blob = new Blob([`﻿${head}\n${rows.join('\n')}\n`], {
+    type: 'text/csv;charset=utf-8;',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name}-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** One segmented control, used for both the form switch and the bucket switch. */
+function Segmented<T extends string>({
+  value, options, onChange, label,
+}: {
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  onChange: (v: T) => void;
+  label: string;
+}) {
+  return (
+    <div role="group" aria-label={label}
+      className="inline-flex items-center rounded-md border border-border/60 bg-muted/40 p-[2px]">
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <button key={o.value} type="button" onClick={() => onChange(o.value)}
+            aria-pressed={on}
+            className={[
+              'rounded-[4px] px-2 py-[3px] text-[11px] font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              on ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            ].join(' ')}>
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const FORM_OPTIONS = [
+  { value: 'area' as const, label: 'Area' },
+  { value: 'line' as const, label: 'Line' },
+  { value: 'bar' as const, label: 'Bar' },
+];
+
+/**
+ * One time series chart — the only one in this app.
+ *
+ * ── What a trend has to carry ───────────────────────────────────────────────
+ * A picture of a shift is not an analysis. Reading one means asking WHEN
+ * something happened, HOW MUCH it was, and what it looks like at a different
+ * resolution — and then taking the numbers away. A chart that renders a shape
+ * and nothing else forces the reader back to the database for every one of
+ * those, which is what "not professional" means in practice.
+ *
+ * So every trend in the app carries the same six things, and none of them is
+ * optional per page: labelled axes, a crosshair reading every series at the
+ * hovered moment, a legend that hides a series on click, a form switch, a zoom
+ * that narrows the window without redrawing the page, and an export.
  *
  * ── Gaps are the point ──────────────────────────────────────────────────────
  * `connectNulls` is OFF, deliberately and everywhere. The engines return null
  * for a bucket they could not measure — an hour with no parts counted has no
  * Performance and no Quality — and bridging that draws a straight line THROUGH
- * time the plant has no measurement for. On this line the 11:00 bucket has
- * availability and nothing else, and the bridged version showed availability as
- * one unbroken line while the other three appeared to stop for no reason.
+ * time the plant has no measurement for.
  *
  * A gap says "not measured". A line through it says "we know, and it was fine".
  * Only one of those is true.
  *
  * Zero is NOT a gap: a machine that genuinely produced nothing is measured, and
  * its zero belongs on the chart.
+ *
+ * ── The form switch is local, seeded globally ───────────────────────────────
+ * The filter panel sets the house style and every chart follows it. Changing it
+ * ON a chart changes only that chart, because the reader comparing two panels
+ * wants one of them in bars and is not asking to restyle the application.
  */
 export function TrendChart({
   data,
@@ -272,86 +372,211 @@ export function TrendChart({
   height = 280,
   domain = [0, 100],
   unit = '%',
+  decimals = 1,
   empty = 'No buckets in this window yet.',
+  title,
+  bucket,
+  buckets,
+  onBucketChange,
+  exportName,
+  zoom = true,
+  toolbar = true,
+  rightDomain,
+  rightUnit,
 }: {
   data: Array<Record<string, unknown>>;
   series: readonly TrendSeries[];
   xKey?: string;
   height?: number;
-  domain?: [number, number];
+  /** `'auto'` lets the values set the scale — for counts rather than percentages. */
+  domain?: [number, number] | 'auto';
   unit?: string;
+  decimals?: number;
   empty?: string;
+  title?: string;
+  /** Bucket controls appear only when the page can actually re-bucket its data. */
+  bucket?: string;
+  buckets?: readonly TrendBucket[];
+  onBucketChange?: (b: string) => void;
+  /** Enables the CSV button, and names the file. */
+  exportName?: string;
+  zoom?: boolean;
+  toolbar?: boolean;
+  rightDomain?: [number, number] | 'auto';
+  rightUnit?: string;
 }) {
-  const trendType = useDashboardPrefsStore((s) => s.trendType);
+  const globalForm = useDashboardPrefsStore((s) => s.trendType);
+  const [form, setForm] = React.useState(globalForm);
+  // Follow the house style when it changes, until this chart is told otherwise.
+  React.useEffect(() => setForm(globalForm), [globalForm]);
+
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  /**
+   * The zoomed window, as bucket indices.
+   *
+   * Narrowing redraws the chart over fewer buckets rather than scaling the marks
+   * — so the axis ticks and the crosshair keep reading the real values instead
+   * of a stretched picture of them.
+   */
+  const [range, setRange] = React.useState<[number, number] | null>(null);
+
+  const shown = React.useMemo(
+    () => series.filter((s) => !hidden.has(s.key)),
+    [series, hidden],
+  );
+
+  const toggle = React.useCallback((key: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      // Never let the last series be hidden — an empty chart with a legend
+      // reads as a failure rather than as a choice the reader just made.
+      if (next.has(key)) next.delete(key);
+      else if (next.size < series.length - 1) next.add(key);
+      return next;
+    });
+  }, [series.length]);
+
+  const hasBuckets = !!(buckets?.length && onBucketChange);
+  const zoomed = range !== null;
+
+  const head = toolbar && (title || hasBuckets || exportName || zoomed || true) ? (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      {title && <h3 className="text-sm font-semibold">{title}</h3>}
+      <div className="ms-auto flex flex-wrap items-center gap-2">
+        {zoomed && (
+          <button type="button" onClick={() => setRange(null)}
+            className="rounded-md border border-border/60 px-2 py-[3px] text-[11px] font-medium
+                       text-muted-foreground transition-colors hover:text-foreground
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Reset zoom
+          </button>
+        )}
+        {hasBuckets && (
+          <Segmented label="Bucket size" value={bucket ?? buckets![0].value}
+            options={buckets!.map((b) => ({ value: b.value, label: b.label }))}
+            onChange={(v) => { setRange(null); onBucketChange!(v); }} />
+        )}
+        <Segmented label="Chart form" value={form} options={FORM_OPTIONS} onChange={setForm} />
+        {exportName && (
+          <button type="button" onClick={() => exportCsv(exportName, data, series, xKey)}
+            title="Download these buckets as CSV"
+            className="rounded-md border border-border/60 px-2 py-[3px] text-[11px] font-medium
+                       text-muted-foreground transition-colors hover:text-foreground
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            CSV
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   if (!data || data.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">{empty}</p>;
+    return (
+      <div>
+        {head}
+        <p className="py-8 text-center text-sm text-muted-foreground">{empty}</p>
+      </div>
+    );
   }
 
   const grid = (
-    <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
+    <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.35} strokeDasharray="3 3"
+      vertical={false} />
   );
+
   const axes = (
     <>
-      <XAxis dataKey={xKey} stroke="hsl(var(--border))" tickLine={false} minTickGap={24}
+      <XAxis dataKey={xKey} stroke="hsl(var(--border))" tickLine={false} minTickGap={28}
+        height={22} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+      <YAxis yAxisId="left" domain={domain === 'auto' ? ['auto', 'auto'] : domain}
+        stroke="hsl(var(--border))" tickLine={false} width={46}
+        tickFormatter={(v: number) => `${axisNumber(v)}${unit}`}
         tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-      <YAxis domain={domain} stroke="hsl(var(--border))" tickLine={false} width={38} unit={unit}
-        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-    </>
-  );
-  const overlay = (
-    <>
-      <RTooltip content={<TrendTip unit={unit} />}
-        cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '3 3' }} />
-      {series.length > 1 && (
-        <Legend iconType="plainline" wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+      {rightUnit !== undefined && (
+        <YAxis yAxisId="right" orientation="right"
+          domain={rightDomain === 'auto' || !rightDomain ? ['auto', 'auto'] : rightDomain}
+          stroke="hsl(var(--border))" tickLine={false} width={46}
+          tickFormatter={(v: number) => `${axisNumber(v)}${rightUnit}`}
+          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
       )}
     </>
   );
 
+  const overlay = (
+    <>
+      <RTooltip content={<TrendTip unit={unit} decimals={decimals} />}
+        cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '3 3' }} />
+      {series.length > 1 && (
+        <Legend iconType="plainline" verticalAlign="bottom" height={26}
+          wrapperStyle={{ fontSize: 11, paddingTop: 6, cursor: 'pointer' }}
+          onClick={(e: any) => toggle(String(e.dataKey ?? e.value))}
+          formatter={(value: string, entry: any) => (
+            <span style={{ opacity: hidden.has(String(entry?.dataKey)) ? 0.4 : 1 }}>{value}</span>
+          )} />
+      )}
+      {zoom && data.length > 6 && (
+        <Brush dataKey={xKey} height={22} travellerWidth={8}
+          stroke="hsl(var(--border))" fill="hsl(var(--muted))" fillOpacity={0.3}
+          startIndex={range?.[0]} endIndex={range?.[1]}
+          onChange={(r: any) => {
+            if (r?.startIndex === 0 && r?.endIndex === data.length - 1) setRange(null);
+            else if (typeof r?.startIndex === 'number') setRange([r.startIndex, r.endIndex]);
+          }} />
+      )}
+    </>
+  );
+
+  const axisOf = (s: TrendSeries) => (s.axis === 'right' && rightUnit !== undefined ? 'right' : 'left');
+  const margin = { top: 8, right: rightUnit !== undefined ? 8 : 16, bottom: 0, left: 0 };
+
   return (
-    <div className="w-full" style={{ height }}>
-      <ResponsiveContainer>
-        {trendType === 'bar' ? (
-          <BarChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }} barGap={2}>
-            {grid}{axes}{overlay}
-            {series.map((s) => (
-              // A rounded data-end reads as the end of a quantity; the flat foot
-              // stays on the baseline it is measured from.
-              <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.colour} radius={[4, 4, 0, 0]}
-                isAnimationActive={false} />
-            ))}
-          </BarChart>
-        ) : trendType === 'area' ? (
-          <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-            <defs>
-              {series.map((s) => (
-                <linearGradient key={s.key} id={`fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={s.colour} stopOpacity={0.28} />
-                  <stop offset="100%" stopColor={s.colour} stopOpacity={0.02} />
-                </linearGradient>
+    <div>
+      {head}
+      {/* The brush and legend need room of their own, or they eat the plot. */}
+      <div className="w-full" style={{ height: height + (zoom && data.length > 6 ? 26 : 0) }}>
+        <ResponsiveContainer>
+          {form === 'bar' ? (
+            <BarChart data={data} margin={margin} barGap={2}>
+              {grid}{axes}{overlay}
+              {shown.map((s) => (
+                // A rounded data-end reads as the end of a quantity; the flat
+                // foot stays on the baseline it is measured from.
+                <Bar key={s.key} yAxisId={axisOf(s)} dataKey={s.key} name={s.name}
+                  fill={s.colour} radius={[4, 4, 0, 0]} isAnimationActive={false} />
               ))}
-            </defs>
-            {grid}{axes}{overlay}
-            {series.map((s) => (
-              <Area key={s.key} type="monotone" dataKey={s.key} name={s.name}
-                stroke={s.colour} strokeWidth={s.emphasis ? 2.5 : 2}
-                fill={`url(#fill-${s.key})`} connectNulls={false}
-                dot={{ r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} isAnimationActive={false} />
-            ))}
-          </AreaChart>
-        ) : (
-          <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-            {grid}{axes}{overlay}
-            {series.map((s) => (
-              <Line key={s.key} type="monotone" dataKey={s.key} name={s.name}
-                stroke={s.colour} strokeWidth={s.emphasis ? 2.5 : 2}
-                connectNulls={false}
-                dot={{ r: 4, strokeWidth: 0 }} activeDot={{ r: 5 }} isAnimationActive={false} />
-            ))}
-          </LineChart>
-        )}
-      </ResponsiveContainer>
+            </BarChart>
+          ) : form === 'area' ? (
+            <AreaChart data={data} margin={margin}>
+              <defs>
+                {series.map((s) => (
+                  <linearGradient key={s.key} id={`fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={s.colour} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={s.colour} stopOpacity={0.02} />
+                  </linearGradient>
+                ))}
+              </defs>
+              {grid}{axes}{overlay}
+              {shown.map((s) => (
+                <Area key={s.key} yAxisId={axisOf(s)} type="monotone" dataKey={s.key} name={s.name}
+                  stroke={s.colour} strokeWidth={s.emphasis ? 2.5 : 2}
+                  fill={`url(#fill-${s.key})`} connectNulls={false}
+                  dot={false} activeDot={{ r: 5 }} isAnimationActive={false} />
+              ))}
+            </AreaChart>
+          ) : (
+            <LineChart data={data} margin={margin}>
+              {grid}{axes}{overlay}
+              {shown.map((s) => (
+                <Line key={s.key} yAxisId={axisOf(s)} type="monotone" dataKey={s.key} name={s.name}
+                  stroke={s.colour} strokeWidth={s.emphasis ? 2.5 : 2}
+                  connectNulls={false}
+                  dot={data.length <= 60 ? { r: 3, strokeWidth: 0 } : false}
+                  activeDot={{ r: 5 }} isAnimationActive={false} />
+              ))}
+            </LineChart>
+          )}
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
