@@ -138,6 +138,20 @@ function runSeed(file) {
     console.error('⚠ Counter poll rate skipped (non-fatal):', e?.message ?? e);
   }
 
+  // Give every shift template a ScheduleRule.
+  //
+  // Recurrence moved out of ShiftTemplate.days into ScheduleRule, and the
+  // planned-stop generator reads only the new column. A shift that was never
+  // migrated therefore looked like a shift with NO recurrence, and every
+  // planned stop attached to it produced zero events while reporting success —
+  // a break configured correctly, on a shift configured correctly, appearing
+  // nowhere. Convergent: a template that already has a rule is skipped.
+  try {
+    runSeed('migrate-planned-stops.ts');
+  } catch (e) {
+    console.error('⚠ Shift recurrence migration skipped (non-fatal):', e?.message ?? e);
+  }
+
   console.log('\n✅ Init complete. Login: admin@mes360.sa');
 })().catch((e) => {
   console.error('❌ prod-init failed:', e);

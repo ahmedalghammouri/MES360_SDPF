@@ -133,4 +133,50 @@ describe('materialising planned stops', () => {
 
     expect(hhmm(created[0].startTime)).toBe('10:00');     // 06:00 + 4h
   });
+
+  it('uses the shift’s legacy `days` when it has no ScheduleRule yet', async () => {
+    // The defect that made a correctly configured break appear nowhere.
+    //
+    // Recurrence moved from ShiftTemplate.days into ScheduleRule, and the
+    // schema says days is "retained only so existing rows keep working until
+    // they are migrated". The generator read scheduleRule and nothing else, so
+    // an unmigrated shift looked like a shift with NO recurrence — and every
+    // stop on it produced zero events while reporting success.
+    //
+    // Both of this plant's shifts carried days = [6,0,1,2,3,4] and a null
+    // scheduleRuleId, so nothing a user could do on the Planned Stops page
+    // would ever have produced an event.
+    const { svc, created } = build({
+      shiftTemplateId: 's1',
+      shiftTemplate: {
+        startTime: '07:30',
+        scheduleRule: null,                       // never migrated
+        days: [6, 0, 1, 2, 3, 4],                 // the real working week
+      },
+      scheduleRuleId: null, scheduleRule: null,
+      startOffsetMin: 330,
+    });
+
+    const res = await svc.materialise(FACTORY, { dateFrom: '2026-08-24' });
+
+    expect(res.notScheduled).toEqual([]);
+    expect(res.created).toBe(1);
+    expect(hhmm(created[0].startTime)).toBe('13:00');   // 07:30 + 5h30
+  });
+
+  it('still reports a shift with no recurrence anywhere', async () => {
+    // Falling back to `days` must not become "assume every day". A shift that
+    // genuinely has no working days set produces nothing, and is named.
+    const { svc, created } = build({
+      shiftTemplateId: 's1',
+      shiftTemplate: { startTime: '07:30', scheduleRule: null, days: [] },
+      scheduleRuleId: null, scheduleRule: null,
+      startOffsetMin: 60,
+    });
+
+    const res = await svc.materialise(FACTORY, { dateFrom: '2026-08-24' });
+
+    expect(created).toHaveLength(0);
+    expect(res.notScheduled).toContain('BRK');
+  });
 });

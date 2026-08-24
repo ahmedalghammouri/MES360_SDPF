@@ -332,7 +332,9 @@ export class PlannedStopService {
     for (const tpl of templates) {
       // A stop inside a shift inherits the shift's recurrence; a standalone one
       // carries its own. Either way the days come from a rule, never from code.
-      const rule = tpl.shiftTemplateId ? tpl.shiftTemplate?.scheduleRule : tpl.scheduleRule;
+      const rule = tpl.shiftTemplateId
+        ? (tpl.shiftTemplate?.scheduleRule ?? legacyDaysRule(tpl.shiftTemplate))
+        : tpl.scheduleRule;
       if (!rule) { noSchedule.push(tpl.code); continue; }
 
       const targets = await this.resolveTargets(fid, tpl);
@@ -481,4 +483,30 @@ export class PlannedStopService {
     }
     return Math.max(0, total - stops);
   }
+}
+
+/**
+ * A shift's recurrence when it still lives in the legacy `days` column.
+ *
+ * `ScheduleRule` replaced `ShiftTemplate.days`, and the schema says in as many
+ * words that `days` is "retained only so existing rows keep working until they
+ * are migrated". This code did not keep that promise: it read `scheduleRule`
+ * and nothing else, so a shift that had never been migrated looked like a shift
+ * with NO recurrence — and every planned stop attached to it produced zero
+ * events while reporting success.
+ *
+ * That is how a break configured correctly, on a shift configured correctly,
+ * showed up nowhere at all. On this plant both shifts carried
+ * `days = [6,0,1,2,3,4]` — the real working week — and `scheduleRuleId = null`.
+ *
+ * The migration still needs to run, and now does on every boot. This exists so
+ * the answer does not depend on whether it has.
+ */
+function legacyDaysRule(
+  shift: { days?: unknown } | null | undefined,
+): { daysOfWeek: unknown; startDate: null; endDate: null; isPerpetual: true; oneOffDate: null; isActive: true } | null {
+  const days = shift?.days;
+  const list = Array.isArray(days) ? days : null;
+  if (!list || list.length === 0) return null;
+  return { daysOfWeek: list, startDate: null, endDate: null, isPerpetual: true, oneOffDate: null, isActive: true };
 }
