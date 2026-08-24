@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { toFactoryDayKey } from '@/lib/datetime';
+import { toFactoryDayKey, formatDateTime, dateTimeLocalToIso } from '@/lib/datetime';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { CalendarPlus, Plus, Trash2, ShieldOff, Coffee, Sparkles, Timer } from 'lucide-react';
@@ -76,11 +76,18 @@ export function PlannedDowntimeManager() {
   const pdValid = !!pd.causeId && !!pd.scope && !!pd.date && /^([01]\d|2[0-3]):([0-5]\d)$/.test(pd.time) && Number(pd.durationMinutes) > 0;
   const submitPd = () => {
     if (!pd.scope) return;
+    // An unparseable date/time must not be sent as "now" — the API would accept
+    // it and the planner would never learn their entry was discarded.
+    const startTime = dateTimeLocalToIso(`${pd.date}T${pd.time}`);
+    if (!startTime) return;
     addPlannedMut.mutate({
       causeId: pd.causeId,
       scopeType: pd.scope.type,
       scopeId: pd.scope.id,
-      startTime: new Date(`${pd.date}T${pd.time}:00`).toISOString(),
+      // The typed time is PLANT-local. `new Date('2026-08-24T13:00')` reads it in
+      // the BROWSER's zone, so a planner working from anywhere but the plant was
+      // scheduling a different instant than the one they typed.
+      startTime,
       durationMinutes: Number(pd.durationMinutes),
       notes: pd.notes.trim() || undefined,
     }, { onSuccess: () => setAddPdOpen(false) });
@@ -170,7 +177,13 @@ export function PlannedDowntimeManager() {
               const Icon = causeIcon(e.category);
               return (
                 <tr key={e.id} className="border-t border-border/50">
-                  <td className="px-4 py-2 tabular-nums">{e.startTime.slice(0, 16).replace('T', ' ')}</td>
+                  {/*
+                    Rendered in the FACTORY's zone, not sliced out of the ISO
+                    string. Slicing shows the stored UTC instant verbatim, so a
+                    break at 13:00 in Riyadh read 10:00 on screen — a correct
+                    value displayed three hours early, every row of the table.
+                  */}
+                  <td className="px-4 py-2 tabular-nums">{formatDateTime(e.startTime)}</td>
                   <td className="px-4 py-2">{e.machine?.name ?? '—'} <span className="text-muted-foreground font-mono text-xs">{e.machine?.code}</span></td>
                   <td className="px-4 py-2">{e.cause?.name ?? '—'}</td>
                   <td className="px-4 py-2">
