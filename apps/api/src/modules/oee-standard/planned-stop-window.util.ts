@@ -29,6 +29,8 @@ export interface StopDefinition {
   scope: PlannedStopScope;
   shiftTemplateId: string | null;
   startOffsetMin: number | null;
+  /** Plant wall-clock "HH:MM" for a stop on its own schedule. */
+  startTimeLocal?: string | null;
   isActive: boolean;
   /** Machines and lines this stop applies to. Empty for FACTORY scope. */
   targets: Array<{ machineId: string | null; lineId: string | null }>;
@@ -84,20 +86,59 @@ export function stopWindowsForShift(
 ): StopWindow[] {
   const out: StopWindow[] = [];
   for (const def of defs) {
-    if (def.shiftTemplateId !== shift.templateId) continue;
-    if (def.startOffsetMin == null) continue; // unplaceable — never guessed at
     if (!(def.durationMinutes > 0)) continue;
     if (!appliesTo(def, place)) continue;
 
-    const start = new Date(shift.shiftStart.getTime() + def.startOffsetMin * MIN);
-    out.push({
-      code: def.code,
-      name: def.name,
-      start,
-      end: new Date(start.getTime() + def.durationMinutes * MIN),
-    });
+    for (const start of placementsIn(def, shift)) {
+      out.push({
+        code: def.code,
+        name: def.name,
+        start,
+        end: new Date(start.getTime() + def.durationMinutes * MIN),
+      });
+    }
   }
   return out;
+}
+
+/**
+ * Every clock position this definition can occupy around this shift.
+ *
+ * ── Why a standalone stop is here at all ────────────────────────────────────
+ * Availability only ever excludes time somebody set aside, so a planned stop
+ * OEE cannot see is not a small omission — it is a break the plant takes daily
+ * and is charged for. Only shift-bound stops used to be placed: a standalone
+ * one had no `shiftTemplateId`, never matched, and was absent from every
+ * availability figure while still appearing as downtime in the Downtime
+ * module. One definition, two answers, and the quieter one was wrong.
+ *
+ * ── Why two candidates ──────────────────────────────────────────────────────
+ * A standalone stop recurs at a wall-clock time each day and a shift can cross
+ * midnight, so the occurrence on the shift's own day AND the one on the next
+ * are both offered. Neither is filtered here: a window outside the bucket being
+ * measured contributes nothing when it is intersected, so the arithmetic
+ * already decides which one applies and a containment test here would only be
+ * a second, less reliable copy of that decision.
+ *
+ * Which DAYS it runs on belongs to the schedule rule and is enforced where the
+ * events are materialised. The question here is only where on the clock it sits.
+ */
+function placementsIn(def: StopDefinition, shift: ResolvedShift): Date[] {
+  if (def.shiftTemplateId) {
+    // Inside a shift, and only inside THAT shift.
+    if (def.shiftTemplateId !== shift.templateId) return [];
+    if (def.startOffsetMin == null) return []; // unplaceable — never guessed at
+    return [new Date(shift.shiftStart.getTime() + def.startOffsetMin * MIN)];
+  }
+
+  const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(def.startTimeLocal ?? '');
+  if (!m) return []; // no shift and no clock time — nowhere to put it
+  const intoDay = (Number(m[1]) * 60 + Number(m[2])) * MIN;
+
+  // `shiftDate` is midnight of the day the occurrence began, in plant terms —
+  // the same base every other placement in this file counts from.
+  const day0 = shift.shiftDate.getTime();
+  return [new Date(day0 + intoDay), new Date(day0 + 24 * 60 * MIN + intoDay)];
 }
 
 /**

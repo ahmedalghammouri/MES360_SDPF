@@ -170,7 +170,7 @@ export class OeeStandardWriter {
         where: { factoryId: fid, isActive: true },
         select: {
           id: true, code: true, name: true, durationMinutes: true, scope: true,
-          shiftTemplateId: true, startOffsetMin: true, isActive: true,
+          shiftTemplateId: true, startOffsetMin: true, startTimeLocal: true, isActive: true,
           targets: { select: { machineId: true, lineId: true } },
         },
       });

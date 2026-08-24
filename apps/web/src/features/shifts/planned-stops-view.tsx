@@ -52,7 +52,7 @@ const emptyStop = {
   code: '', name: '', durationMinutes: '30',
   attachTo: 'SHIFT' as 'SHIFT' | 'SCHEDULE',
   shiftTemplateId: '', scheduleRuleId: '',
-  startOffsetMin: '0',
+  startOffsetMin: '0', startTimeLocal: '',
   scope: 'LINE' as 'FACTORY' | 'LINE' | 'MACHINE',
   targetIds: [] as string[],
   category: 'PLANNED_BREAK',
@@ -184,6 +184,7 @@ export function PlannedStopsView() {
       shiftTemplateId: s.shiftTemplateId ?? '',
       scheduleRuleId: s.scheduleRuleId ?? '',
       startOffsetMin: String(s.startOffsetMin ?? 0),
+      startTimeLocal: s.startTimeLocal ?? '',
       scope: s.scope ?? 'LINE',
       targetIds: (s.targets ?? []).map((x: any) => x.machineId ?? x.lineId).filter(Boolean),
       category: s.category ?? 'PLANNED_BREAK',
@@ -200,6 +201,7 @@ export function PlannedStopsView() {
       shiftTemplateId: f.attachTo === 'SHIFT' ? f.shiftTemplateId || null : null,
       scheduleRuleId: f.attachTo === 'SCHEDULE' ? f.scheduleRuleId || null : null,
       startOffsetMin: Number(f.startOffsetMin) || 0,
+      startTimeLocal: f.attachTo === 'SCHEDULE' ? (f.startTimeLocal || null) : null,
       scope: f.scope,
       category: f.category,
       causeId: f.causeId || null,
@@ -209,7 +211,12 @@ export function PlannedStopsView() {
   };
 
   const stopValid = !!(stopForm.code && stopForm.name && Number(stopForm.durationMinutes) > 0
-    && (stopForm.attachTo === 'SHIFT' ? stopForm.shiftTemplateId : stopForm.scheduleRuleId));
+    && (stopForm.attachTo === 'SHIFT'
+      ? stopForm.shiftTemplateId
+      // A stop on its own schedule has no shift to be measured from, so without
+      // a clock time there is nowhere on the day to put it. The server refuses
+      // it; refusing here too means the reader is told before they lose the form.
+      : stopForm.scheduleRuleId && /^([01]?\d|2[0-3]):[0-5]\d$/.test(stopForm.startTimeLocal)));
 
   const targetOptions = stopForm.scope === 'MACHINE' ? machines : lines;
 
@@ -400,7 +407,16 @@ export function PlannedStopsView() {
                           offset: Math.round((s.startOffsetMin ?? 0) / 60 * 10) / 10,
                         })
                       : s.scheduleRule
-                        ? s.scheduleRule.name
+                        // The clock time is the whole point of the row: a
+                        // schedule name says WHICH DAYS, and says nothing about
+                        // when on the day the line actually stops.
+                        ? <>
+                            <span className="font-medium tabular-nums">{s.startTimeLocal ?? '—'}</span>
+                            <span className="text-muted-foreground"> · {s.scheduleRule.name}</span>
+                            {!s.startTimeLocal && (
+                              <div className="text-amber-500">{t('plannedStops.noStartTime')}</div>
+                            )}
+                          </>
                         : <span className="text-amber-500">{t('plannedStops.noSchedule')}</span>}
                   </TableCell>
                   <TableCell className="text-xs">
@@ -634,6 +650,13 @@ export function PlannedStopsView() {
               </div>
             </>
           ) : (
+            <>
+            <div className="col-span-2">
+              <Label>{t('plannedStops.startTime')}</Label>
+              <Input type="time" className="mt-1" value={stopForm.startTimeLocal}
+                onChange={(e) => setStopForm(f => ({ ...f, startTimeLocal: e.target.value }))} />
+              <p className="text-[11px] text-muted-foreground mt-1">{t('plannedStops.startTimeHelp')}</p>
+            </div>
             <div className="col-span-2">
               <Label>{t('plannedStops.schedule')}</Label>
               <Select value={stopForm.scheduleRuleId} onValueChange={(v) => setStopForm(f => ({ ...f, scheduleRuleId: v }))}>
@@ -645,6 +668,7 @@ export function PlannedStopsView() {
                 </SelectContent>
               </Select>
             </div>
+            </>
           )}
 
           <div className="col-span-2 border-t border-border/40 pt-3">

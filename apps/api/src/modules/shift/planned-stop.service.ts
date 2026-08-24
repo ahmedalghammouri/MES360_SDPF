@@ -151,11 +151,12 @@ export class PlannedStopService {
         causeId: dto.causeId ?? null,
         category: (dto.category ?? 'PLANNED_BREAK') as never,
         shiftTemplateId: dto.shiftTemplateId ?? null,
-        // Stored for BOTH kinds. Inside a shift it is minutes after the shift
-        // starts; standalone it is minutes after midnight. Discarding it for a
-        // standalone stop — which an earlier version did — silently moved every
-        // one of them to 00:00, losing the time the user actually chose.
+        // Minutes after the SHIFT starts, and only that. It used to double as
+        // "minutes after midnight" for a standalone stop, so one column carried
+        // two meanings and a stop with neither set landed at 00:00 without
+        // anyone choosing it. A standalone stop now states its own clock time.
         startOffsetMin: Number(dto.startOffsetMin ?? 0),
+        startTimeLocal: dto.shiftTemplateId ? null : (dto.startTimeLocal ?? null),
         scheduleRuleId: dto.shiftTemplateId ? null : (dto.scheduleRuleId ?? null),
         description: dto.description ?? null,
         isActive: dto.isActive !== false,
@@ -200,6 +201,7 @@ export class PlannedStopService {
         ...(dto.causeId !== undefined && { causeId: dto.causeId }),
         ...(dto.category !== undefined && { category: dto.category as never }),
         ...(dto.startOffsetMin !== undefined && { startOffsetMin: Number(dto.startOffsetMin) }),
+        ...(dto.startTimeLocal !== undefined && { startTimeLocal: dto.startTimeLocal || null }),
         ...(dto.scheduleRuleId !== undefined && { scheduleRuleId: dto.scheduleRuleId }),
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
@@ -265,6 +267,18 @@ export class PlannedStopService {
         'Attach the stop to a shift template, or give it its own schedule.',
       );
     }
+    // A stop on its own schedule has no shift to be measured from, so without a
+    // clock time there is nowhere on the day to put it. Refused at the door
+    // rather than accepted and then silently skipped at generation — a stop
+    // saved successfully and producing nothing is the worse of the two.
+    if (!dto.shiftTemplateId) {
+      const t = dto.startTimeLocal;
+      if (!t || !/^([01]?\d|2[0-3]):[0-5]\d$/.test(String(t))) {
+        throw new BadRequestException(
+          'A stop on its own schedule needs a start time (HH:MM) — there is no shift to count from.',
+        );
+      }
+    }
   }
 
   // ── Materialising ─────────────────────────────────────────────────────────
@@ -324,9 +338,10 @@ export class PlannedStopService {
       const targets = await this.resolveTargets(fid, tpl);
       if (targets.length === 0) { noSchedule.push(tpl.code); continue; }
 
+      let placeable = true;
       for (const day of occurrencesBetween(rule, from, to)) {
         const start = this.startOf(tpl, day);
-        if (!start) continue;
+        if (!start) { placeable = false; break; }
         const end = new Date(start.getTime() + tpl.durationMinutes * 60_000);
 
         for (const machineId of targets) {
@@ -356,6 +371,7 @@ export class PlannedStopService {
           created++;
         }
       }
+      if (!placeable) noSchedule.push(tpl.code);
     }
 
     return {
@@ -379,13 +395,26 @@ export class PlannedStopService {
    * `plantWallClockToUtc` was introduced. Same helper, same reason.
    */
   private startOf(
-    tpl: { shiftTemplate?: { startTime: string } | null; startOffsetMin: number | null },
+    tpl: {
+      shiftTemplate?: { startTime: string } | null;
+      startOffsetMin: number | null;
+      startTimeLocal?: string | null;
+    },
     day: Date,
   ): Date | null {
-    const base = tpl.shiftTemplate?.startTime ?? '00:00';
-    if (!/^\d{1,2}:\d{2}$/.test(base)) return null;
+    // A stop inside a shift is placed from that shift's start. A standalone one
+    // is placed by its own wall-clock time. There is no third case, and there
+    // is deliberately no fallback: this used to read `?? '00:00'`, so a stop
+    // with no shift was materialised at MIDNIGHT — a downtime event at a time
+    // nobody chose, on every machine it targeted. Returning null instead sends
+    // it to `notScheduled`, where the user is told about it.
+    const base = tpl.shiftTemplate?.startTime ?? tpl.startTimeLocal ?? null;
+    if (!base || !/^\d{1,2}:\d{2}$/.test(base)) return null;
     const wallClock = plantWallClockToUtc(day, base);
-    return new Date(wallClock.getTime() + (tpl.startOffsetMin ?? 0) * 60_000);
+    // The offset counts from a SHIFT start. A standalone stop's own time is
+    // already the answer, so adding an offset to it would move it twice.
+    const offset = tpl.shiftTemplate ? (tpl.startOffsetMin ?? 0) : 0;
+    return new Date(wallClock.getTime() + offset * 60_000);
   }
 
   /**

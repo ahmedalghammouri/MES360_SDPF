@@ -3865,6 +3865,19 @@ model PlannedStopTemplate {
 
   /// On its own recurrence, independent of any shift.
   scheduleRuleId String?
+  /// Plant wall-clock start, "HH:MM", for a stop on its OWN schedule.
+  ///
+  /// A stop inside a shift is placed by `startOffsetMin` from that shift's
+  /// start. A standalone one has no shift to count from, and used to be
+  /// materialised at MIDNIGHT because the generator fell back to "00:00" when
+  /// there was no shift — a downtime event at a time nobody chose, on every
+  /// machine it targeted, subtracted from the Downtime module while OEE ignored
+  /// it entirely. Two wrong answers from one definition, disagreeing with each
+  /// other.
+  ///
+  /// Null now means UNPLACEABLE, and an unplaceable stop is reported and
+  /// skipped rather than guessed onto the clock.
+  startTimeLocal String?
 
   isActive    Boolean  @default(true)
   description String?
