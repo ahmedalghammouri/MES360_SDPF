@@ -18,7 +18,7 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { AlertTriangle, Target } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -144,6 +144,9 @@ export function ScheduleCapacityView() {
     }),
     enabled: !!lineId,
     staleTime: 30_000,
+    // Keep the previous window on screen while the next is fetched, so a
+    // filter change updates the figures instead of unmounting the view.
+    placeholderData: keepPreviousData,
   });
 
   const msa = useQuery({
@@ -152,6 +155,9 @@ export function ScheduleCapacityView() {
       params: { timeframe, dateFrom, dateTo, lineId: filter.lineId },
     }),
     staleTime: 30_000,
+    // Keep the previous window on screen while the next is fetched, so a
+    // filter change updates the figures instead of unmounting the view.
+    placeholderData: keepPreviousData,
   });
 
   const capacity = useQuery({
@@ -160,6 +166,9 @@ export function ScheduleCapacityView() {
       params: { timeframe, dateFrom, dateTo, ...filter },
     }),
     staleTime: 30_000,
+    // Keep the previous window on screen while the next is fetched, so a
+    // filter change updates the figures instead of unmounting the view.
+    placeholderData: keepPreviousData,
   });
 
   const unwrap = <T,>(q: { data: unknown }) => ((q.data as any)?.data ?? q.data) as T | undefined;

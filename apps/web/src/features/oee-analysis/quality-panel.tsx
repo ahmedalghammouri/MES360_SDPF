@@ -95,7 +95,7 @@ export function QualityPanel({
             <p className="py-10 text-center text-sm text-muted-foreground">No buckets in this window yet.</p>
           ) : (
             <TrendChart
-              data={trend.map((p) => ({ t: hhmm(p.at), quality: p.quality }))}
+              data={trend.map((p) => ({ at: p.at, t: hhmm(p.at), quality: p.quality }))}
               height={220}
               series={[{ key: 'quality', name: 'Quality', colour: 'var(--viz-3)', emphasis: true }]}
               exportName="quality"

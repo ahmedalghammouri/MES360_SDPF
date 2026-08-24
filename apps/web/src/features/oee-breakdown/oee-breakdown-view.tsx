@@ -19,7 +19,7 @@
  * that agree today.
  */
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { AlertTriangle, Cpu, ClipboardList, Clock , Gauge} from 'lucide-react';
 
 import { api } from '@/services/api.client';
@@ -110,6 +110,9 @@ export function OeeBreakdownView() {
       params: { ...timeParams, ...filter, ...dimensions, ...lineBasisParam },
     }),
     refetchInterval: 60_000,
+    // Keep the previous window on screen while the next is fetched, so a
+    // filter change updates the figures instead of unmounting the view.
+    placeholderData: keepPreviousData,
   });
 
   const d = q.data as Payload | undefined;

@@ -116,7 +116,7 @@ export function PerformancePanel({
             <p className="py-10 text-center text-sm text-muted-foreground">No buckets in this window yet.</p>
           ) : (
             <TrendChart
-              data={trend.map((p) => ({ t: hhmm(p.at), performance: p.performance }))}
+              data={trend.map((p) => ({ at: p.at, t: hhmm(p.at), performance: p.performance }))}
               height={220}
               series={[{ key: 'performance', name: 'Performance', colour: 'var(--viz-2)', emphasis: true }]}
               exportName="performance"

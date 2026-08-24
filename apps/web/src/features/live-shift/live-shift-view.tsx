@@ -316,7 +316,11 @@ const OUTPUT_SERIES = [
 function TrendPanel() {
   const { range, setRange, data, isFetching } = useRange('shift');
   const points = (data?.trend ?? []).map((p) => ({
-    at: clock(p.at),
+    // `at` stays the RAW instant and `t` carries the axis label. They used to
+    // be one field holding the formatted clock, which left the CSV export with
+    // no timestamp to lead with — "07:00" does not sort, join or plot.
+    at: p.at,
+    t: clock(p.at),
     oee: p.oee, availability: p.availability, performance: p.performance, quality: p.quality,
     good: p.counts?.good ?? 0,
     rejected: p.counts?.rejected ?? 0,
@@ -349,7 +353,7 @@ function TrendPanel() {
           <TrendChart
             title="OEE and its factors"
             data={points}
-            xKey="at"
+            
             height={210}
             series={FACTOR_SERIES}
             exportName="shift-oee"
@@ -357,7 +361,7 @@ function TrendPanel() {
           <TrendChart
             title="Output per bucket"
             data={points}
-            xKey="at"
+            
             height={210}
             domain="auto"
             unit=""

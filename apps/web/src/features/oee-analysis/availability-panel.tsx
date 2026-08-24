@@ -71,6 +71,9 @@ export function AvailabilityPanel({
     : distribution;
 
   const data = trend.map((p) => ({
+    // `at` rides along unplotted so the CSV export can lead with a real
+    // timestamp — "07:00" on its own is not one. See exportCsv in chart-kit.
+    at: p.at,
     t: hhmm(p.at),
     availability: p.availability,
     ...Object.fromEntries(STACK.map((s) => [s.key, p.time?.[s.key] ?? 0])),

@@ -15,7 +15,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import {
   Activity, Gauge, ShieldCheck, Clock, AlertTriangle, Info,
 } from 'lucide-react';
@@ -79,6 +79,9 @@ export function MachineStatusView() {
     queryKey: ['machine-status', 'availability', scopeKey, timeKey],
     queryFn: () => api.get('/machine-status/availability', { params: query }),
     staleTime: 20_000,
+    // Keep the previous window on screen while the next is fetched, so a
+    // filter change updates the figures instead of unmounting the view.
+    placeholderData: keepPreviousData,
     enabled: tab === 'availability',
     // Bounded: without a cap the tab spins for ever on a failing request and
     // the reader never learns anything went wrong.
@@ -89,6 +92,9 @@ export function MachineStatusView() {
     queryKey: ['machine-status', 'performance', scopeKey, timeKey],
     queryFn: () => api.get('/machine-status/performance', { params: query }),
     staleTime: 20_000,
+    // Keep the previous window on screen while the next is fetched, so a
+    // filter change updates the figures instead of unmounting the view.
+    placeholderData: keepPreviousData,
     enabled: tab === 'performance',
     // Bounded: without a cap the tab spins for ever on a failing request and
     // the reader never learns anything went wrong.
@@ -99,6 +105,9 @@ export function MachineStatusView() {
     queryKey: ['machine-status', 'quality', scopeKey, timeKey],
     queryFn: () => api.get('/machine-status/quality', { params: query }),
     staleTime: 20_000,
+    // Keep the previous window on screen while the next is fetched, so a
+    // filter change updates the figures instead of unmounting the view.
+    placeholderData: keepPreviousData,
     enabled: tab === 'quality',
     // Bounded: without a cap the tab spins for ever on a failing request and
     // the reader never learns anything went wrong.

@@ -14,6 +14,7 @@ import ReactECharts from 'echarts-for-react';
 import { useTheme } from 'next-themes';
 
 import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
+import { toDate, formatDateTime } from '@/lib/datetime';
 
 export type SegmentKind = 'running' | 'planned' | 'external' | 'downtime' | 'unmeasured';
 
@@ -250,8 +251,36 @@ function exportCsv(
     const t = String(v);
     return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
   };
-  const head = ['period', ...series.map((s) => s.name)].map(cell).join(',');
-  const rows = data.map((d) => [cell(d[xKey]), ...series.map((s) => cell(d[s.key]))].join(','));
+
+  /*
+   * The axis label alone is not a timestamp.
+   *
+   * "11:00" is enough to read a chart, where the row's position carries the
+   * day. In a file it is not: a month of buckets exports thirty rows labelled
+   * "11:00" that no longer sort, join or plot, and two of them can be a day
+   * apart. So each row leads with the instant it actually covers — an ISO
+   * timestamp for arithmetic and joins, then the plant-local date-time a
+   * person reads, then the axis label the chart showed. All three, because a
+   * file that is one of them is a file somebody has to come back and ask
+   * about.
+   *
+   * `at` is the raw instant every panel now carries alongside its label. When
+   * a caller has not supplied one the timestamp columns are simply absent,
+   * rather than being faked from the label.
+   */
+  const hasInstant = data.some((d) => d.at != null);
+  const head = [
+    ...(hasInstant ? ['timestamp', 'local_time'] : []),
+    'period',
+    ...series.map((s) => s.name),
+  ].map(cell).join(',');
+  const rows = data.map((d) => [
+    ...(hasInstant
+      ? [cell(toDate(d.at as string)?.toISOString()), cell(formatDateTime(d.at as string))]
+      : []),
+    cell(d[xKey]),
+    ...series.map((s) => cell(d[s.key])),
+  ].join(','));
   // A BOM, so Excel opens a UTF-8 file with Arabic labels intact instead of mojibake.
   const blob = new Blob([`﻿${head}\n${rows.join('\n')}\n`], {
     type: 'text/csv;charset=utf-8;',
@@ -407,14 +436,17 @@ export function resolveChartColour(colour: string, isDark: boolean): string {
  * or the handles on the slider beneath it — both native to ECharts'
  * `dataZoom`, not a bolted-on approximation of it), and a CSV export.
  *
- * ── An incomplete bucket is not on the chart at all ────────────────────────
+ * ── An incomplete bucket keeps its place and loses its values ──────────────
  * A bucket the engine could not measure is sent as `null`, and a bucket where
- * even one plotted series is `null` is dropped from `rows` before anything is
- * drawn — not bridged with a line, and not left as a visible break either.
- * Both of those still read as "the chart has an opinion about this moment";
- * the true answer is that the moment has no reading to show, the same as if
- * it were never in the window. It never reaches the CSV export either, so a
- * downloaded file has no half-populated row to explain.
+ * even one plotted series is `null` has ALL its values blanked — but the
+ * bucket itself stays, at its own position on the time axis.
+ *
+ * Removing it instead would close the hole: the surviving points slide
+ * together and the chart draws a continuous, fully-measured period that never
+ * happened. Keeping it blank holds the gap open at its real width, and
+ * `connectNulls: false` stops the line bridging across it. The CSV carries
+ * the same row with empty cells, so the file and the chart agree on which
+ * moments have no reading.
  *
  * Zero is NOT incomplete: a machine that genuinely produced nothing is
  * measured, and its zero belongs on the chart same as any other reading.
@@ -483,18 +515,32 @@ export function TrendChart({
   // from "some complete buckets" to "none" in one render — so the rule has to
   // hold structurally rather than by nobody noticing.
 
-  // A bucket where even ONE of the plotted series has no reading is dropped
-  // outright, not drawn with a break in it — a half-answered row is not a
-  // fact about the plant the way a fully-measured zero is, and showing it as
-  // a gap in an otherwise-continuous line reads as one series failed rather
-  // than as "this moment has nothing to say". The CSV export reads this same
-  // filtered list, so an incomplete bucket is absent from the file rather
-  // than present with a blank cell.
+  // A bucket missing even ONE of the plotted series is BLANKED, never removed.
+  //
+  // The distinction matters more than it looks. Removing the bucket closes the
+  // hole in the axis, so the surviving points slide together and an hour the
+  // plant could not measure is drawn as though it never existed — the chart
+  // then claims a continuous, fully-measured period that did not happen.
+  // Keeping the bucket with no values holds its place in time: the gap stays
+  // visible, at its real width, and the line breaks across it instead of
+  // bridging a moment nothing is known about.
+  //
+  // The whole row is blanked rather than just the absent series, because the
+  // factors are read together — Availability alone at an hour with no
+  // Performance or Quality invites reading a partial answer as a full one.
   const rows = React.useMemo(
-    () => data.filter((d) => series.every((s) => d[s.key] != null)),
+    () => data.map((d) => {
+      if (series.every((s) => d[s.key] != null)) return d;
+      const blank: Record<string, unknown> = { ...d };
+      for (const s of series) blank[s.key] = null;
+      return blank;
+    }),
     [data, series],
   );
-  const dropped = data.length - rows.length;
+  const blanked = React.useMemo(
+    () => data.reduce((n, d) => (series.every((s) => d[s.key] != null) ? n : n + 1), 0),
+    [data, series],
+  );
 
   // Resolved ONCE, here — every downstream read of a series' colour (the
   // palette array, the area gradients, the zoom slider's filler) uses this,
@@ -580,11 +626,15 @@ export function TrendChart({
         const axisIndex = s.axis === 'right' && rightUnit !== undefined ? 1 : 0;
         const base = {
           name: s.name,
-          // `rows` already excludes any bucket missing a reading for this or
-          // any other plotted series, so every value reaching the chart here
-          // is real.
-          data: rows.map((d) => d[s.key]),
+          // Blanked buckets arrive here as null and keep their slot on the
+          // axis, so the gap is drawn at its true width.
+          data: rows.map((d) => d[s.key] ?? null),
           yAxisIndex: axisIndex,
+          // Load-bearing, not decorative: without it a line would be drawn
+          // straight THROUGH a blanked bucket, asserting a value for a moment
+          // the plant has no reading for. It is ECharts' default, and named
+          // explicitly so it cannot be lost to a later refactor.
+          connectNulls: false,
         };
         if (form === 'bar') {
           return { ...base, type: 'bar', barMaxWidth: 28, itemStyle: { borderRadius: [3, 3, 0, 0] } };
@@ -643,20 +693,7 @@ export function TrendChart({
     return (
       <div>
         {head}
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          {/*
-            "No buckets" and "every bucket was incomplete" are different facts,
-            and saying the first when the second is true sends the reader
-            looking for a window problem they do not have. The count is the
-            actionable part: it says the plant reported SOMETHING here, and
-            names how much was set aside for missing a factor.
-          */}
-          {dropped > 0
-            ? `All ${dropped} bucket${dropped === 1 ? '' : 's'} in this window were incomplete — `
-              + `each was missing a reading for at least one of ${series.map((s) => s.name).join(', ')}, `
-              + 'so none can be plotted.'
-            : empty}
-        </p>
+        <p className="py-8 text-center text-sm text-muted-foreground">{empty}</p>
       </div>
     );
   }
@@ -667,13 +704,15 @@ export function TrendChart({
       <ReactECharts option={option} notMerge style={{ height, width: '100%' }} />
       {/*
         Buckets the plant reported but could not fully measure. Stated rather
-        than silently omitted: a reader comparing this chart to the shift log
-        needs to know the line has gaps in it, and roughly how many.
+        than left for the reader to infer from the gaps: knowing HOW MUCH of
+        the window is unmeasured is what says whether the shape is worth
+        drawing a conclusion from.
       */}
-      {dropped > 0 && (
+      {blanked > 0 && (
         <p className="mt-2 text-[11px] text-muted-foreground">
-          {dropped} of {data.length} buckets are not plotted — each was missing a reading for at
-          least one series, and a partly-measured bucket is not a point on this chart.
+          {blanked} of {data.length} buckets have no reading and are left blank — each was missing
+          at least one of {series.map((s) => s.name).join(', ')}. They keep their place on the
+          axis, so the gaps show where the window is unmeasured rather than closing up.
         </p>
       )}
     </div>

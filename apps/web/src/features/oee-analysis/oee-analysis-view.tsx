@@ -22,7 +22,7 @@
  * not meant to agree, and the gap between them IS the schedule adherence.
  */
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 
@@ -224,6 +224,21 @@ export function OeeAnalysisView() {
       params: { ...timeParams, ...filter, ...dimensions, ...lineBasisParam, ...(bucket ? { bucket } : {}) },
     }),
     refetchInterval: 30_000,
+    /*
+     * Keep the figures on screen while the next window is fetched.
+     *
+     * Without this, every scope, period, order or bucket change blanks
+     * `q.data` for the duration of the request. The whole page is behind
+     * `{d && …}`, so it unmounts — gauges, charts, tables, the Gantt — and
+     * remounts a moment later. That reads as a full page reload for what is
+     * only a change of window, it throws away the chart instances rather than
+     * updating their data, and it makes every filter feel expensive.
+     *
+     * The previous answer stays up, marked stale by `isFetching`, and is
+     * replaced in place when the new one lands. Same pattern the live screens
+     * already use — see use-live-shift's `placeholderData`.
+     */
+    placeholderData: keepPreviousData,
   });
 
   const [analysis, setAnalysis] = React.useState<(typeof ANALYSES)[number]['key']>('overview');
@@ -273,7 +288,19 @@ export function OeeAnalysisView() {
         }))}
       />
 
+      {/*
+        `isLoading` is now the FIRST load only — afterwards the previous window
+        stays on screen while the next one is fetched. `isFetching` is what
+        says the figures below are a moment out of date, and it has to be
+        shown: numbers that quietly belong to the previous filter, with nothing
+        saying so, are worse than a spinner.
+      */}
       {q.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {!q.isLoading && q.isFetching && (
+        <p className="text-xs text-muted-foreground">
+          Updating — the figures below are the previous window until this one arrives.
+        </p>
+      )}
       {q.isError && <p className="text-sm text-destructive">Could not load this window.</p>}
 
       {d && (

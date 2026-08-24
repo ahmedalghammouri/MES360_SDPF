@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { LayoutGrid, GitBranch, Cpu, ChevronRight, ChevronDown, Layers } from 'lucide-react';
 import { api } from '@/services/api.client';
@@ -140,6 +140,9 @@ export function HierarchyOEE() {
       params: { ...filter, ...timeParams },
     }),
     staleTime: 30_000,
+    // Keep the previous window on screen while the next is fetched, so a
+    // filter change updates the figures instead of unmounting the view.
+    placeholderData: keepPreviousData,
   });
 
   if (isLoading) {
