@@ -25,6 +25,7 @@ import { api } from '@/services/api.client';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { SystemDangerZone } from './system-danger-zone';
+import { PlannedStopMaterialisation } from './planned-stop-materialisation';
 
 const makePasswordSchema = (t: (key: string) => string) =>
   z
@@ -399,7 +400,15 @@ export function SettingsView() {
             </div>
           )}
 
-          {activeSection === 'system' && <SystemDangerZone />}
+          {activeSection === 'system' && (
+            <div className="space-y-6">
+              {/* Ordinary factory-wide settings first, then the destructive
+                  actions. A toggle sitting inside a danger zone reads as
+                  dangerous, and this one is not. */}
+              <PlannedStopMaterialisation />
+              <SystemDangerZone />
+            </div>
+          )}
         </div>
       </div>
     </div>

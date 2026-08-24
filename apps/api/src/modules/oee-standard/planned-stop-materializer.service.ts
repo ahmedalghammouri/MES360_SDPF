@@ -116,7 +116,20 @@ export class PlannedStopMaterializerService {
     const to = new Date(startOfDay(new Date(now.getTime() + 7 * 24 * 3_600_000)).getTime());
 
     try {
-      const factories = await this.prisma.factory.findMany({ select: { id: true } });
+      // Opt-in, per factory. Materialising the schedule is right for a plant
+      // whose breaks repeat on a rule and wrong for one that plans day by day,
+      // and that is not something the code can decide — so it is a setting,
+      // and it is OFF until somebody turns it on.
+      //
+      // A factory that switches it off keeps whatever was already written; the
+      // rows are removed by the same screen that made them, not silently on
+      // the next tick. Turning a feature off should stop it acting, not delete
+      // what it did while it was on.
+      const factories = await this.prisma.factory.findMany({
+        where: { plannedStopMaterialisation: true },
+        select: { id: true },
+      });
+      if (factories.length === 0) return;
       for (const f of factories) {
         await this.materialize(f.id, from, to);
       }

@@ -84,4 +84,35 @@ export class SystemController {
   setDisplayUnit(@CurrentUser() user: RequestUser, @Body() body: { displayUnit: string }) {
     return this.systemService.setDisplayUnit(user.factoryId ?? null, body?.displayUnit);
   }
+
+  // ────────────────────────────────────────────────────────────
+  // PLANNED-STOP MATERIALISATION
+  // ────────────────────────────────────────────────────────────
+
+  @Get('planned-stop-materialisation')
+  @ApiOperation({
+    summary: 'Whether the shift schedule is written into machine state history',
+    description:
+      'When on, planned-stop TEMPLATES author machine_state_records hourly, so the timeline and '
+      + 'the OEE arithmetic agree inside a scheduled window instead of disagreeing. Right for a '
+      + 'plant whose breaks repeat on a rule; wrong for one that plans day by day and books dated '
+      + 'downtime events instead. Off by default.',
+  })
+  getPlannedStopMaterialisation(@CurrentUser() user: RequestUser) {
+    return this.systemService.getPlannedStopMaterialisation(user.factoryId ?? null);
+  }
+
+  @Patch('planned-stop-materialisation')
+  @ApiOperation({
+    summary: 'Turn schedule materialisation on or off',
+    description:
+      'Switching off stops the hourly writer and LEAVES the records it already wrote — removing '
+      + 'them is a separate, deliberate act, not something a toggle does on your behalf.',
+  })
+  setPlannedStopMaterialisation(
+    @CurrentUser() user: RequestUser,
+    @Body() body: { enabled?: boolean },
+  ) {
+    return this.systemService.setPlannedStopMaterialisation(user.factoryId ?? null, !!body?.enabled);
+  }
 }

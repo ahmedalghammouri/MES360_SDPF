@@ -519,6 +519,38 @@ export class SystemService {
     return { displayUnit: f?.displayUnit ?? 'PIECE', ladder };
   }
 
+  // ────────────────────────────────────────────────────────────
+  // PLANNED-STOP MATERIALISATION — off unless a plant asks for it
+  // ────────────────────────────────────────────────────────────
+
+  async getPlannedStopMaterialisation(factoryId: string | null): Promise<{ enabled: boolean }> {
+    if (!factoryId) return { enabled: false };
+    const f = await this.prisma.factory.findUnique({
+      where: { id: factoryId },
+      select: { plannedStopMaterialisation: true },
+    });
+    return { enabled: f?.plannedStopMaterialisation ?? false };
+  }
+
+  /**
+   * Turn the writer on or off.
+   *
+   * Switching OFF stops the hourly job and leaves the rows it already wrote.
+   * Deleting them here would be a second, unasked-for action hiding behind a
+   * toggle — and on a plant that had been running this for weeks it would
+   * rewrite the timeline for every one of those weeks. Removing them is the
+   * materialiser's own job, run deliberately.
+   */
+  async setPlannedStopMaterialisation(factoryId: string | null, enabled: boolean) {
+    if (!factoryId) throw new BadRequestException('No factory in scope.');
+    const f = await this.prisma.factory.update({
+      where: { id: factoryId },
+      data: { plannedStopMaterialisation: enabled },
+      select: { plannedStopMaterialisation: true },
+    });
+    return { enabled: f.plannedStopMaterialisation };
+  }
+
   async setDisplayUnit(factoryId: string | null, unit: string) {
     if (!factoryId) throw new BadRequestException('No factory in scope.');
     const rung = normaliseUnit(unit);

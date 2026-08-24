@@ -68,6 +68,14 @@ model Factory {
   // Deliberately separate from SKU.baseUnit, which governs inventory stock and
   // must not be repurposed for display.
   displayUnit  String   @default("INNER")
+  /// Write the shift schedule into machine state history.
+  ///
+  /// OFF by default, deliberately. Turning it on makes planned-stop
+  /// TEMPLATES author `machine_state_records`, which is the right shape only
+  /// for a plant whose breaks genuinely repeat on a rule. A plant that plans
+  /// day by day should book dated downtime events instead, and would find a
+  /// recurring template writing windows nobody scheduled.
+  plannedStopMaterialisation Boolean @default(false)
   isActive     Boolean  @default(true)
   metadata     Json?
   createdAt    DateTime @default(now())
