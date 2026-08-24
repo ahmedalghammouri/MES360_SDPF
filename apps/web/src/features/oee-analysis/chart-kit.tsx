@@ -244,7 +244,7 @@ function TrendTip({ active, payload, label, unit = '%', decimals = 1 }: any) {
           <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: p.color }} />
           <span className="text-muted-foreground">{p.name}</span>
           <span className="ms-auto font-medium tabular-nums text-foreground">
-            {p.value == null ? '—' : `${Number(p.value).toLocaleString(undefined, {
+            {p.value == null ? '—' : `${Number(p.value).toLocaleString('en-US', {
               minimumFractionDigits: 0, maximumFractionDigits: decimals,
             })}${unit}`}
           </span>

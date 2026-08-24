@@ -77,11 +77,8 @@ function TrendTooltip({ active, payload, label }: any) {
   );
 }
 
-/**
- * Bucket sizes offered on the trend. "Auto" is first and is the default: the
- * timeframe already implies a sensible size, and most readers want that.
- */
-const BUCKETS = [
+/** Full bucket list — the fallback when the caller has not narrowed it to the selected period. */
+const DEFAULT_BUCKETS = [
   { value: 'auto', label: 'Auto' },
   { value: 'hour', label: 'Hour' },
   { value: 'day', label: 'Day' },
@@ -92,11 +89,18 @@ const BUCKETS = [
 export function OverviewPanel({
   oee, availability, performance, quality, trend, production, timeline,
   operationalMin, usedOperationalMin, machines, windowStart, windowEnd,
-  bucket, onBucketChange,
+  bucket, onBucketChange, allowedBuckets,
 }: {
   /** Bucket size in force; undefined = chosen from the timeframe. */
   bucket?: string;
   onBucketChange?: (b: string) => void;
+  /**
+   * Which sizes are worth offering for the period currently selected —
+   * computed by the caller from the main Period filter, so "Month" is never
+   * on the menu while looking at "Today". Falls back to the full list if the
+   * caller has not computed one, so this component still works on its own.
+   */
+  allowedBuckets?: ReadonlyArray<{ value: string; label: string }>;
   oee: number | null; availability: number | null; performance: number | null; quality: number | null;
   trend: TrendPoint[];
   production: ProductionDetails;
@@ -175,7 +179,7 @@ export function OverviewPanel({
           series={SERIES.map((s) => ({ ...s, emphasis: s.key === 'oee' }))}
           exportName="oee-overview"
           bucket={bucket ?? 'auto'}
-          buckets={onBucketChange ? BUCKETS : undefined}
+          buckets={onBucketChange ? (allowedBuckets ?? DEFAULT_BUCKETS) : undefined}
           onBucketChange={onBucketChange ? (b) => onBucketChange(b === 'auto' ? '' : b) : undefined}
         />
       </section>

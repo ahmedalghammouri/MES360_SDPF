@@ -152,6 +152,17 @@ function runSeed(file) {
     console.error('⚠ Shift recurrence migration skipped (non-fatal):', e?.message ?? e);
   }
 
+  // Close orphaned open machine_state_records — the data left behind by a
+  // concurrency race in the edge gateway's status writer, fixed in
+  // status.service.ts but not retroactive. Convergent: a machine with at most
+  // one open record is skipped, so this is a no-op after the first boot that
+  // runs it.
+  try {
+    runSeed('repair-orphaned-state-records.ts');
+  } catch (e) {
+    console.error('⚠ Orphaned state record repair skipped (non-fatal):', e?.message ?? e);
+  }
+
   console.log('\n✅ Init complete. Login: admin@mes360.sa');
 })().catch((e) => {
   console.error('❌ prod-init failed:', e);

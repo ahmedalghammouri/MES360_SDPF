@@ -150,12 +150,49 @@ export class StatusService {
     if (!tag.machineId || numeric === null) return null;
     const state = await this.derive(tag, numeric);
     if (!state) return null;
+    const machineId = tag.machineId;
     try {
-      await this.apply(tag.factoryId, tag.machineId, state, new Date(ts));
+      await this.serialized(machineId, () => this.apply(tag.factoryId, machineId, state, new Date(ts)));
     } catch (err) {
-      this.logger.error(`status apply failed for machine ${tag.machineId}`, err as Error);
+      this.logger.error(`status apply failed for machine ${machineId}`, err as Error);
     }
     return state;
+  }
+
+  /**
+   * One state transition for a machine at a time, however many callers ask.
+   *
+   * `apply()` reads the machine's current state and its open history record,
+   * then writes both — several `await`s apart. The outbox this gateway drains
+   * batches deferred work and runs a whole batch with `Promise.allSettled`,
+   * DELIBERATELY concurrent: most of what it carries — an ingest write, an
+   * alarm check — is independent per tag and gains nothing from waiting in
+   * line.
+   *
+   * A machine's own state transitions are not independent of each other. Two
+   * `apply()` calls for the SAME machine, close enough together to land in one
+   * batch, interleave: both read "no open record matches this state" before
+   * either has written, so both close — or fail to find — the same row and
+   * both create a new one. Closing only ever finds the LATEST open record, so
+   * every earlier duplicate is orphaned open forever, accumulating minutes
+   * nobody is measuring. Fourteen such records were found open on one machine
+   * across a single shift — all but the last still reading RUNNING three hours
+   * after the machine had gone IDLE, which is what made "Where the time went"
+   * show a stopped machine as running.
+   *
+   * So StatusService enforces its own invariant rather than trusting every
+   * caller never to race it: transitions for one machine queue behind each
+   * other here, in arrival order, while different machines still run fully in
+   * parallel — this costs nothing in throughput and closes the race at its
+   * root rather than at whichever caller happened to expose it.
+   */
+  private readonly machineQueue = new Map<string, Promise<unknown>>();
+
+  private serialized<T>(machineId: string, fn: () => Promise<T>): Promise<T> {
+    const prior = this.machineQueue.get(machineId) ?? Promise.resolve();
+    const run = prior.catch(() => undefined).then(fn);
+    this.machineQueue.set(machineId, run.catch(() => undefined));
+    return run;
   }
 
   /** Recent transitions per tag, for signals whose meaning is in their rhythm. */

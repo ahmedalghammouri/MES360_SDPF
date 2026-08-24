@@ -40,7 +40,12 @@ export interface Distribution {
 
 type RankBy = 'duration' | 'occurrence';
 
-const num = (n: number) => Math.round(n).toLocaleString();
+// 'en-US' pinned, not the runtime default: `.toLocaleString()` with no
+// locale follows Node's ICU default on the server and the visitor's OWN
+// BROWSER LANGUAGE on the client — an Arabic-language browser renders
+// different digit grouping than the server, which is a hydration text
+// mismatch (React error #418) on every number this formats.
+const num = (n: number) => Math.round(n).toLocaleString('en-US');
 
 export function DowntimePanel({
   distribution, timeline, machines, windowStart, windowEnd,

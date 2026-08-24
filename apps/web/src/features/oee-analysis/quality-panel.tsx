@@ -16,6 +16,7 @@ import {
 import { Info } from 'lucide-react';
 
 import { Gauge, pctText, STATUS, TrendChart } from './chart-kit';
+import { formatDateTime } from '@/lib/datetime';
 
 export interface QualityTrendPoint {
   at: string;
@@ -37,7 +38,12 @@ const hhmm = (iso: string) => {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
-const num = (n: number) => Math.round(n).toLocaleString();
+// 'en-US' pinned, not the runtime default: `.toLocaleString()` with no
+// locale follows Node's ICU default on the server and the visitor's OWN
+// BROWSER LANGUAGE on the client — an Arabic-language browser renders
+// different digit grouping than the server, which is a hydration text
+// mismatch (React error #418) on every number this formats.
+const num = (n: number) => Math.round(n).toLocaleString('en-US');
 
 /**
  * The Pareto bars, in RANK order.
@@ -104,7 +110,12 @@ export function QualityPanel({
           <Stat label="Rejected" value={`${num(counts.rejected)} pcs`} tone="bad" />
           <Stat label="Reject rate" value={rejectRate == null ? '—' : `${rejectRate.toFixed(2)}%`} tone="bad" />
           <Stat label="Highest rejects at"
-            value={worst && worst.rejected > 0 ? new Date(worst.at).toLocaleString() : '—'}
+            // Factory time, not `.toLocaleString()`: that reads the runtime's
+            // default locale AND timezone, which is Node's default on the
+            // server and the visitor's own browser on the client — two
+            // different clocks producing two different strings for the same
+            // instant, the exact mismatch behind React's hydration error #418.
+            value={worst && worst.rejected > 0 ? formatDateTime(worst.at) : '—'}
             note={worst && worst.rejected > 0 ? `${num(worst.rejected)} pcs in that bucket` : undefined} />
         </div>
         {/* The bar is the same ratio as the numbers above it — for the glance,

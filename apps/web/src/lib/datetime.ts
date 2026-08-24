@@ -224,20 +224,30 @@ export function dateTimeLocalToIso(
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 }
 
-/** "24 Aug" — a day bucket's label, in factory time. */
+/**
+ * "24 Aug" — a day bucket's label, in factory time.
+ *
+ * Hand-built like every other formatter in this file, and deliberately NOT
+ * `new Intl.DateTimeFormat(undefined, …)`: `undefined` means "the runtime's
+ * default locale", which is Node's ICU default during server rendering and
+ * the visitor's OWN BROWSER LANGUAGE on the client. A Saudi factory's browser
+ * set to Arabic renders different digits and separators than the server's
+ * default — an exact text mismatch between the server-rendered HTML and the
+ * client's first paint, which is React's hydration error #418 by name. Every
+ * other formatter here already avoids this; these two did not, and this page's
+ * chart used them for its axis labels.
+ */
 export function formatDayShort(value: Date | string | number | null | undefined, timeZone?: string): string {
   const d = toDate(value);
   if (!d) return '';
-  return new Intl.DateTimeFormat(undefined, {
-    timeZone: timeZone ?? getFactoryTimeZone(), day: 'numeric', month: 'short',
-  }).format(d);
+  const p = zonedParts(d, timeZone ?? getFactoryTimeZone());
+  return `${p.day} ${MONTHS[p.month - 1]}`;
 }
 
-/** "Aug 2026" — a month bucket's label, in factory time. */
+/** "Aug 2026" — a month bucket's label, in factory time. Same reasoning as {@link formatDayShort}. */
 export function formatMonth(value: Date | string | number | null | undefined, timeZone?: string): string {
   const d = toDate(value);
   if (!d) return '';
-  return new Intl.DateTimeFormat(undefined, {
-    timeZone: timeZone ?? getFactoryTimeZone(), month: 'short', year: 'numeric',
-  }).format(d);
+  const p = zonedParts(d, timeZone ?? getFactoryTimeZone());
+  return `${MONTHS[p.month - 1]} ${p.year}`;
 }

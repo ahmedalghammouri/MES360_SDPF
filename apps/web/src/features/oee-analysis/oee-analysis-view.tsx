@@ -133,7 +133,7 @@ const mins = (n: number | undefined) =>
 export function OeeAnalysisView() {
   const { t } = useTranslation('common');
   const { filter, key: scopeKey } = useScope();
-  const { params: timeParams, key: timeKey } = useTimeRange();
+  const { params: timeParams, key: timeKey, preset, dateFrom: rangeFrom, dateTo: rangeTo } = useTimeRange();
   const { atOee } = useOeeMode();
   const { poNumber, woId, skuId, shiftTemplateId } = useOrderFilterStore();
   const { param: lineBasisParam, key: lineBasisKey } = useLineBasis();
@@ -167,7 +167,51 @@ export function OeeAnalysisView() {
    * weeks. Naming one overrides that, and the choice is part of the query key
    * because two bucket sizes are two different answers, not two views of one.
    */
+  /**
+   * Which bucket sizes make sense for the SELECTED PERIOD.
+   *
+   * Offering "Month" while looking at "Today" is what produced the complaint
+   * this exists to fix: one bar for a day that has not finished, bucketed by a
+   * unit thirty times wider than the window itself. The period the reader
+   * already chose in the main filter implies the resolutions worth offering —
+   * this narrows the list to those, rather than trusting the reader to avoid a
+   * combination the data cannot make sense of.
+   */
+  const allowedBuckets = React.useMemo(() => {
+    const ALL = [
+      { value: 'auto', label: 'Auto' },
+      { value: 'hour', label: 'Hour' },
+      { value: 'day', label: 'Day' },
+      { value: 'week', label: 'Week' },
+      { value: 'month', label: 'Month' },
+    ] as const;
+    const spanDays = (() => {
+      const a = new Date(rangeFrom).getTime();
+      const b = new Date(rangeTo).getTime();
+      return Number.isFinite(a) && Number.isFinite(b) ? Math.max(1, Math.round((b - a) / 86_400_000) + 1) : 1;
+    })();
+    const allow: Set<string> =
+      preset === 'today' || preset === 'shift' ? new Set(['auto', 'hour'])
+      : preset === 'week' ? new Set(['auto', 'hour', 'day'])
+      : preset === 'month' ? new Set(['auto', 'day', 'week'])
+      // Custom range: size the offer to how wide it actually is, the same
+      // reasoning applied to the named presets above.
+      : spanDays <= 2 ? new Set(['auto', 'hour'])
+      : spanDays <= 14 ? new Set(['auto', 'hour', 'day'])
+      : spanDays <= 62 ? new Set(['auto', 'day', 'week'])
+      : new Set(['auto', 'week', 'month']);
+    return ALL.filter((b) => allow.has(b.value));
+  }, [preset, rangeFrom, rangeTo]);
+
   const [bucket, setBucket] = React.useState<string | undefined>(undefined);
+  // A manual bucket choice belongs to the period it was made for. Switching
+  // "Today" for "Month" and keeping a hand-picked "Month" bucket size on top
+  // of it means one bar for the whole window — a choice made for a different
+  // question, silently carried into this one. The filter panel's own Period
+  // control already implies a sensible bucket (see the server's default in
+  // production.service.ts); overriding it is a per-view decision that should
+  // not survive the reader moving to a different view.
+  React.useEffect(() => setBucket(undefined), [timeKey]);
 
   const q = useQuery({
     queryKey: ['oee-analysis', engine, scopeKey, timeKey, dimKey, lineBasisKey, bucket ?? 'auto'],
@@ -344,7 +388,7 @@ export function OeeAnalysisView() {
 
           {analysis === 'overview' && (
             <OverviewPanel
-              bucket={bucket} onBucketChange={setBucket}
+              bucket={bucket} onBucketChange={setBucket} allowedBuckets={allowedBuckets}
               oee={d.oee} availability={d.availability}
               performance={d.performance} quality={d.quality}
               trend={d.trend ?? []}

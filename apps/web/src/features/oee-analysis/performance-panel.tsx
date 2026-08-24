@@ -43,7 +43,12 @@ const hhmm = (iso: string) => {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
-const num = (n: number) => Math.round(n).toLocaleString();
+// 'en-US' pinned, not the runtime default: `.toLocaleString()` with no
+// locale follows Node's ICU default on the server and the visitor's OWN
+// BROWSER LANGUAGE on the client — an Arabic-language browser renders
+// different digit grouping than the server, which is a hydration text
+// mismatch (React error #418) on every number this formats.
+const num = (n: number) => Math.round(n).toLocaleString('en-US');
 
 /** Parts per minute, or null when there were no minutes to spread them over. */
 const perMinute = (parts: number, minutes: number) => (minutes > 0 ? parts / minutes : null);
@@ -254,7 +259,8 @@ function GoalCard({
   shortfall: number | null; unit: string; decimals?: number; note?: string;
 }) {
   const fmt = (n: number | null) =>
-    n == null ? '—' : n.toLocaleString(undefined, { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+    // 'en-US', not undefined — see num() above for why.
+    n == null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
   const ratio = produced != null && goal != null && goal > 0 ? Math.min(1, produced / goal) : 0;
   const over = shortfall != null && shortfall < 0;
 
