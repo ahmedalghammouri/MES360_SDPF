@@ -13,7 +13,9 @@ import React from 'react';
 
 import { Gauge, dur, type SegmentKind, TrendChart, type TrendSeries } from './chart-kit';
 import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
-import { toDate, formatTime, formatDayShort, formatMonth } from '@/lib/datetime';
+import {
+  toDate, formatTime, formatDayShort, formatMonth, formatDateTimeShort, toFactoryDayKey,
+} from '@/lib/datetime';
 
 export interface TrendPoint {
   at: string;
@@ -96,13 +98,22 @@ export function OverviewPanel({
    * chart of twelve points all reading 00:00 is what a fixed clock format
    * produces once the bucket grows. Formatted in FACTORY time, like every other
    * date on screen — see lib/datetime.
+   *
+   * An hour-bucketed (or un-bucketed "auto") trend still needs the DATE once
+   * the window crosses a calendar day — "11:00" said thirty times over a month
+   * is thirty different hours wearing one label, indistinguishable on the
+   * axis and in the tooltip. Checked once from the data actually returned,
+   * not from the requested period, so a short auto-bucket window still gets
+   * the plain time it deserves.
    */
+  const spansMultipleDays = trend.length > 1
+    && toFactoryDayKey(trend[0]!.at) !== toFactoryDayKey(trend[trend.length - 1]!.at);
   const labelOf = (iso: string) => {
     const d = toDate(iso);
     if (!d) return '';
     if (bucket === 'month') return formatMonth(d);
     if (bucket === 'week' || bucket === 'day') return formatDayShort(d);
-    return formatTime(d);
+    return spansMultipleDays ? formatDateTimeShort(d) : formatTime(d);
   };
   const data = trend.map((p) => ({ ...p, t: labelOf(p.at) }));
 

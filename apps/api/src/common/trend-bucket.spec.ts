@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 
-import { TREND_BUCKETS, isTrendBucket, truncPlant, truncPlantExpr } from './trend-bucket.util';
+import { TREND_BUCKETS, isTrendBucket, truncPlant, truncPlantExpr, defaultTrendBucket } from './trend-bucket.util';
 
 /**
  * Which units a trend may be read at, and whose midnight a bucket starts on.
@@ -70,5 +70,31 @@ describe('trend buckets', () => {
     // and zone are bound. That split is what keeps `Prisma.raw` safe here.
     expect(sqlOf(truncPlant('hour'))).toContain('o."bucketStart"');
     expect(sqlOf(truncPlant('day', 'x."at"'))).toContain('x."at"');
+  });
+
+  describe('defaultTrendBucket', () => {
+    const days = (n: number) => n * 86_400_000;
+
+    // A shift or a couple of days still wants an hour — anything coarser
+    // flattens the one shape a short window has.
+    it('picks hour for a window of two days or less', () => {
+      expect(defaultTrendBucket(days(0))).toBe('hour');
+      expect(defaultTrendBucket(days(1))).toBe('hour');
+      expect(defaultTrendBucket(days(2))).toBe('hour');
+    });
+
+    // A week through a couple of months — the "Month" preset's own window —
+    // wants a day per point: a shift-run plant's ~700 hourly points collapse
+    // to ~30, and the reading is a day's average rather than a shift's noise.
+    it('picks day for a window from just over two days through two months', () => {
+      expect(defaultTrendBucket(days(2) + 1)).toBe('day');
+      expect(defaultTrendBucket(days(14))).toBe('day');
+      expect(defaultTrendBucket(days(62))).toBe('day');
+    });
+
+    it('picks week beyond two months, where a day is still too fine a grain', () => {
+      expect(defaultTrendBucket(days(62) + 1)).toBe('week');
+      expect(defaultTrendBucket(days(365))).toBe('week');
+    });
   });
 });

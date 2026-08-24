@@ -17,6 +17,22 @@ export function isTrendBucket(v: unknown): v is TrendBucket {
 }
 
 /**
+ * The bucket size to use when the caller has not asked for one.
+ *
+ * Mirrors the thresholds the web app's own bucket-size menu narrows to per
+ * period (`allowedBuckets` in `oee-analysis-view.tsx`) — the same reasoning
+ * applied as a DEFAULT rather than a menu of choices: a month read hourly is
+ * ~700 points with no shape a reader can hold, the same month read daily is
+ * thirty.
+ */
+export function defaultTrendBucket(spanMs: number): TrendBucket {
+  const days = spanMs / 86_400_000;
+  if (days <= 2) return 'hour';
+  if (days <= 62) return 'day';
+  return 'week';
+}
+
+/**
  * Truncate a stored instant to a bucket, IN PLANT TIME.
  *
  * ── Why the timezone matters here and not obviously ─────────────────────────

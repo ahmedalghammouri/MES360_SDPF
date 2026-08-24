@@ -11,6 +11,7 @@ import { currentShiftWindow } from '../../common/shift-window.util';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { plantBound, resolveLocalRange } from '../../common/plant-time.util';
+import { isTrendBucket, defaultTrendBucket, type TrendBucket } from '../../common/trend-bucket.util';
 
 interface RequestUser { id: string; factoryId: string | null }
 
@@ -87,7 +88,12 @@ export class OeeScheduleController {
   @ApiOperation({ summary: 'The committed-slot time model, per machine, job order and shift' })
   @ApiQuery({ name: 'dateFrom', required: false, description: 'YYYY-MM-DD, plant-local' })
   @ApiQuery({ name: 'dateTo', required: false, description: 'YYYY-MM-DD, plant-local' })
-  @ApiQuery({ name: 'granularity', required: false, description: 'hour | day' })
+  @ApiQuery({
+    name: 'bucket', required: false,
+    description: 'hour | day | week | month — the trend granularity. Absent means a size picked '
+      + 'from how wide the window is (see defaultTrendBucket).',
+  })
+  @ApiQuery({ name: 'granularity', required: false, description: 'Deprecated alias for `bucket`, and only ever hour | day.' })
   @ApiQuery({ name: 'areaId', required: false })
   @ApiQuery({ name: 'machineId', required: false })
   @ApiQuery({ name: 'lineId', required: false })
@@ -109,6 +115,7 @@ export class OeeScheduleController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('timeframe') timeframe?: string,
+    @Query('bucket') bucketQuery?: string,
     @Query('granularity') granularity?: string,
     @Query('areaId') areaId?: string,
     @Query('machineId') machineId?: string,
@@ -142,7 +149,14 @@ export class OeeScheduleController {
     };
     const f = user.factoryId;
 
-    const g = granularity === 'day' ? 'day' : 'hour';
+    // `bucket` is the name the web app's own bucket-size menu sends;
+    // `granularity` is kept as an alias but was always capped at hour|day —
+    // widened here to the full set `trend()` already supports. Neither given
+    // means the window's own width picks the size, not a hardcoded hour.
+    const requestedBucket = bucketQuery ?? granularity;
+    const g: TrendBucket = isTrendBucket(requestedBucket)
+      ? requestedBucket
+      : defaultTrendBucket(to.getTime() - from.getTime());
     // The request picks the METHOD; the line keeps deciding which machine is its
     // constraint and where units are counted.
     const basisMethod: LineMethod | null =
