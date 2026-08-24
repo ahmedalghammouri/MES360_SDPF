@@ -84,20 +84,20 @@ describe('applying the line balance', () => {
     // -160 into a pallet column would be wrong by a factor of 160.
     const { svc, jo } = build(
       [
-        { code: 'M3', unit: 'PALLET', good: 108 },
-        { code: 'M4', unit: 'PALLET', good: 119 },
+        { code: 'M3', unit: 'PALLET', good: 10 },
+        { code: 'M4', unit: 'PALLET', good: 13 },
       ],
-      [cfg('M3', { isAnchor: true, bufferToNextQty: 1, bufferUnit: 'PALLET' }), cfg('M4')],
+      [cfg('M3', { isAnchor: true, bufferToNextQty: 1, bufferUnit: 'PALLET' }), cfg('M4', { maxCorrectionPct: 100 })],
     );
 
     await svc.applyBalances();
 
-    // M4 says it wrapped 119 pallets; M3 only made 108. A belt holds material
-    // back, it never creates it — so the conveyor explains nothing here and M4
-    // is brought down to exactly what was fed to it. 11 pallets, inside its
-    // 10% ceiling (11.9), so all of it applies.
-    expect(jo['jo-1'].adj).toBe(-11);
-    expect(jo['jo-1'].good).toBe(108);
+    // 13 wrapped against 10 palletised. One belt of allowance puts its bound
+    // at 11 pallets, so two of them have no explanation. The balance works in
+    // inners, so -320 there has to land as -2 here.
+
+    expect(jo['jo-1'].adj).toBe(-2);
+    expect(jo['jo-1'].good).toBe(11);
   });
 
   it('changes nothing on a second pass over an unchanged line', async () => {
@@ -226,12 +226,12 @@ describe('applying the line balance', () => {
     // that cannot exist, and it would be carried into every report downstream.
     const { svc, jo, journal } = build(
       [
-        { code: 'M3', unit: 'PALLET', good: 9 },
-        { code: 'M4', unit: 'PALLET', good: 7 },
+        { code: 'M3', unit: 'PALLET', good: 10 },
+        { code: 'M4', unit: 'PALLET', good: 12 },
       ],
       [
         cfg('M3', { isAnchor: true, bufferToNextQty: 1, bufferUnit: 'PALLET' }),
-        cfg('M4'),
+        cfg('M4', { maxCorrectionPct: 5 }),
       ],
     );
 
@@ -250,18 +250,18 @@ describe('applying the line balance', () => {
     // pallet it is short by is now well inside the ceiling.
     const { svc, jo } = build(
       [
-        { code: 'M3', unit: 'PALLET', good: 42 },
-        { code: 'M4', unit: 'PALLET', good: 40 },
+        { code: 'M3', unit: 'PALLET', good: 10 },
+        { code: 'M4', unit: 'PALLET', good: 12 },
       ],
       [
         cfg('M3', { isAnchor: true, bufferToNextQty: 1, bufferUnit: 'PALLET' }),
-        cfg('M4'),
+        cfg('M4', { maxCorrectionPct: 20 }),
       ],
     );
 
     await svc.applyBalances();
 
-    expect(jo['jo-1'].adj).toBe(1);
-    expect(jo['jo-1'].good).toBe(41);
+    expect(jo['jo-1'].adj).toBe(-1);
+    expect(jo['jo-1'].good).toBe(11);
   });
 });

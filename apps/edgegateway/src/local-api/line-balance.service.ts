@@ -129,111 +129,88 @@ export class LineBalanceService implements OnModuleInit {
     out[anchorIdx].reason = 'المرجع — لا يُعدَّل';
     out[anchorIdx].balancedCommon = out[anchorIdx].goodCommon;
 
-    // ── Upstream: from the anchor back to the head of the line ──────────────
-    // Each machine is measured against what the one AFTER it actually handled.
-    for (let i = anchorIdx - 1; i >= 0; i -= 1) {
-      const here = out[i];
-      const next = out[i + 1];
-      const downstreamHandled = next.balancedCommon + next.rejectCommon;
-      this.reconcile(here, here.goodCommon - downstreamHandled, downstreamHandled, next);
-    }
+    // ── Every machine against the ANCHOR, never against its neighbour ───────
+    //
+    // Material flows M1 -> M2 -> M3 -> M4, and at any instant the belts between
+    // two machines hold what the first made and the second has not taken yet.
+    // So a machine BEFORE the anchor must stand AHEAD of it by everything on the
+    // belts in between, and a machine AFTER it must stand behind by the same
+    // reasoning:
+    //
+    //     upstream i    good_i  >=  anchor + (capacity of every belt i..anchor)
+    //     downstream i  good_i  <=  anchor + (capacity of every belt anchor..i)
+    //
+    // This replaces a chain that measured each machine against its NEIGHBOUR'S
+    // CORRECTED figure. That chain had two faults. It carried one machine's
+    // error into the judgement of the next — the whole point of naming a
+    // reference is that it, and nothing else, is what the line is measured
+    // against. And because each link was settled before the next was considered,
+    // every machine ended up pulled onto the same number: the corrections did
+    // not enforce a limit, they enforced equality, which is not what a balance
+    // is for.
+    //
+    // A machine that already satisfies its bound is now left completely alone.
+    const anchorGood = out[anchorIdx].goodCommon;
+    const anchorHandled = out[anchorIdx].goodCommon + out[anchorIdx].rejectCommon;
 
-    // ── Downstream: from the anchor to the tail ─────────────────────────────
-    for (let i = anchorIdx + 1; i < out.length; i += 1) {
-      const here = out[i];
-      const prev = out[i - 1];
-      const upstreamMade = prev.balancedCommon;
-      // Here the buffer belongs to the link BEFORE this machine, so its capacity
-      // is configured on the machine before it.
-      this.reconcile(here, upstreamMade - here.totalCommon, upstreamMade, prev, true);
+    for (let i = 0; i < out.length; i += 1) {
+      if (i === anchorIdx) continue;
+      const step = out[i];
+
+      if (!step.enabled) {
+        step.verdict = 'DISABLED';
+        step.reason = 'الموازنة موقوفة لهذه الماكينة';
+        continue;
+      }
+      if (step.unconvertible) {
+        step.verdict = 'UNCONFIGURED';
+        step.reason = 'وحدة خارج سلّم التعبئة — لا تُقارَن';
+        continue;
+      }
+
+      // Every belt between this machine and the anchor. One unmeasured belt
+      // anywhere in that run makes the whole allowance unknown, and an unknown
+      // allowance is never guessed at.
+      const upstream = i < anchorIdx;
+      const from = upstream ? i : anchorIdx;
+      const to = upstream ? anchorIdx : i;
+      let cum = 0;
+      let known = true;
+      for (let k = from; k < to; k += 1) {
+        const cap = out[k].bufferCommon;
+        if (cap === null || cap === undefined) { known = false; break; }
+        cum += cap;
+      }
+      step.explainedByBuffer = known ? cum : null;
+
+      if (!known) {
+        step.verdict = 'UNCONFIGURED';
+        step.reason = 'سعة أحد السيور حتى المرجع غير مضبوطة — الماكينة تُترك دون موازنة';
+        continue;
+      }
+
+      // The line the machine must not cross, and which side of it is a fault.
+      const limit = upstream ? anchorHandled + cum : anchorGood + cum;
+      const short = upstream ? limit - step.goodCommon : step.goodCommon - limit;
+
+      if (short <= 0) {
+        step.unexplained = 0;
+        step.verdict = 'BALANCED';
+        step.reason = upstream
+          ? `${this.n(step.goodCommon)} ≥ المرجع ${this.n(anchorHandled)} + بافر ${this.n(cum)} — لا تصحيح`
+          : `${this.n(step.goodCommon)} ≤ المرجع ${this.n(anchorGood)} + بافر ${this.n(cum)} — لا تصحيح`;
+        continue;
+      }
+
+      step.unexplained = short;
+      this.applyCorrection(step, upstream ? short : -short,
+        upstream
+          ? `أقلّ من المرجع ${this.n(anchorHandled)} + بافر ${this.n(cum)} بمقدار ${this.n(short)}`
+          : `أكثر من المرجع ${this.n(anchorGood)} + بافر ${this.n(cum)} بمقدار ${this.n(short)}`);
     }
 
     const anchorMachineId = steps[anchorIdx].machineId;
     return this.wrap(run, out, anchorMachineId);
-  }
-
-  /**
-   * One machine against its neighbour.
-   *
-   * `gap` is signed and its sign is the whole argument:
-   *
-   *   gap > 0 — more came out of the upstream machine than the downstream one
-   *             accounted for. A conveyor holding material explains this, up to
-   *             its capacity. Past that, someone is counting wrong.
-   *
-   *   gap < 0 — the downstream machine handled MORE than the upstream one says
-   *             it produced. No conveyor explains that; material does not
-   *             appear. The upstream counter is short, by at least this much.
-   */
-  private reconcile(
-    step: BalancedStep,
-    gap: number,
-    neighbourFigure: number,
-    neighbour: BalancedStep,
-    downstream = false,
-  ): void {
-    // Whose conveyor is it? Going upstream, the buffer after THIS machine. Going
-    // downstream, the buffer after the machine before it.
-    const capacity = downstream ? neighbour.bufferCommon : step.bufferCommon;
-
-    if (!step.enabled) {
-      step.verdict = 'DISABLED';
-      step.reason = 'الموازنة موقوفة لهذه الماكينة';
-      return;
-    }
-    if (step.unconvertible) {
-      step.verdict = 'UNCONFIGURED';
-      step.reason = 'وحدة خارج سلّم التعبئة — لا تُقارَن';
-      return;
-    }
-    if (capacity === null || capacity === undefined) {
-      step.verdict = 'UNCONFIGURED';
-      step.reason = 'سعة السير غير مضبوطة — الوصلة تُترك دون موازنة';
-      return;
-    }
-
-    // WHICH WAY a correction points depends on which side of the neighbour this
-    // machine sits, and the two are mirror images:
-    //
-    //   upstream   gap = this.good - neighbourHandled
-    //              surplus beyond the belt -> THIS machine counted HIGH  (-)
-    //              deficit                 -> THIS machine counted LOW   (+)
-    //
-    //   downstream gap = neighbourMade - this.total
-    //              surplus beyond the belt -> THIS machine counted LOW   (+)
-    //              deficit                 -> THIS machine counted HIGH  (-)
-    //
-    // The same gap means opposite things about the machine being judged, and
-    // getting this backwards does not fail loudly — it produces a correction of
-    // the right size pointed at the wrong end of the line.
-    const surplusSign = downstream ? 1 : -1;
-
-    if (gap >= 0) {
-      const explained = Math.min(gap, capacity);
-      const unexplained = gap - explained;
-      step.explainedByBuffer = explained;
-      step.unexplained = unexplained;
-      if (unexplained <= 0) {
-        step.verdict = 'BALANCED';
-        step.reason = `الفارق ${this.n(gap)} ويسعه السير (${this.n(capacity)})`;
-        return;
-      }
-      this.applyCorrection(step, surplusSign * unexplained,
-        `فائض ${this.n(gap)} يتجاوز سعة السير ${this.n(capacity)} بمقدار ${this.n(unexplained)}`);
-      return;
-    }
-
-    // Negative gap. Nothing physical produces this — a belt holds material back,
-    // it does not create it, so no capacity is subtracted here.
-    const short = -gap;
-    step.explainedByBuffer = 0;
-    step.unexplained = short;
-    // The MINIMUM the neighbour proves, and not one unit more. Adding an assumed
-    // buffer here is exactly the fabrication this whole design refuses.
-    this.applyCorrection(step, -surplusSign * short,
-      downstream
-        ? `عالجت ${this.n(step.totalCommon)} بينما أنتجت السابقة ${this.n(neighbourFigure)}`
-        : `التالية عالجت ${this.n(neighbourFigure)} بينما عدّت هذه ${this.n(step.goodCommon)}`);
   }
 
   /** Apply a correction, honouring the ceiling and reporting when it bites. */
