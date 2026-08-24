@@ -217,4 +217,51 @@ describe('applying the line balance', () => {
     await svc.applyBalances();
     expect(jo['jo-0'].adj).toBe(90);
   });
+
+  it('never writes a fraction of a pallet', async () => {
+    // Found by running it: the wrapper came out with balanceAdjGood = +0.7.
+    // The balance works in the line's SMALLEST unit, where its answer is exact —
+    // and converting that back into pallets or cartons lands between two whole
+    // numbers. A fractional count is not a small inaccuracy; it is a quantity
+    // that cannot exist, and it would be carried into every report downstream.
+    const { svc, jo, journal } = build(
+      [
+        { code: 'M3', unit: 'PALLET', good: 9 },
+        { code: 'M4', unit: 'PALLET', good: 7 },
+      ],
+      [
+        cfg('M3', { isAnchor: true, bufferToNextQty: 1, bufferUnit: 'PALLET' }),
+        cfg('M4'),
+      ],
+    );
+
+    await svc.applyBalances();
+
+    // It wants +1 pallet; the 10% ceiling on 7 allows only 0.7 of one. Truncated
+    // to zero — the correction waits until it is a whole pallet rather than
+    // booking part of one.
+    expect(jo['jo-1'].adj).toBe(0);
+    expect(Number.isInteger(jo['jo-1'].good)).toBe(true);
+    expect(journal).toHaveLength(0);
+  });
+
+  it('applies the correction once it amounts to a whole unit', async () => {
+    // Same line, further into the shift: 10% of 40 pallets is 4, so the single
+    // pallet it is short by is now well inside the ceiling.
+    const { svc, jo } = build(
+      [
+        { code: 'M3', unit: 'PALLET', good: 42 },
+        { code: 'M4', unit: 'PALLET', good: 40 },
+      ],
+      [
+        cfg('M3', { isAnchor: true, bufferToNextQty: 1, bufferUnit: 'PALLET' }),
+        cfg('M4'),
+      ],
+    );
+
+    await svc.applyBalances();
+
+    expect(jo['jo-1'].adj).toBe(1);
+    expect(jo['jo-1'].good).toBe(41);
+  });
 });

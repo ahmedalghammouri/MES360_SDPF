@@ -306,15 +306,27 @@ export class LineBalanceService implements OnModuleInit {
         // off by a factor of 160.
         const rung = normaliseUnit(step.unit);
         if (!rung) continue;
-        const adjOwnUnit = fromPieces(
+        // WHOLE UNITS ONLY, and truncated toward zero.
+        //
+        // A first run on the line produced `balanceAdjGood = +0.7` on the
+        // wrapper — seven tenths of a pallet. Nothing wraps seven tenths of a
+        // pallet. The balance works in the line's smallest unit, so a correction
+        // that is exact there lands as a fraction once converted back into
+        // pallets or cartons, and a fractional count is not a small
+        // inaccuracy — it is a quantity that cannot exist.
+        //
+        // Truncating rather than rounding keeps the conservative direction this
+        // whole design rests on: a correction is never larger than what the line
+        // forces, and a partial unit simply waits until it is a whole one.
+        const adjOwnUnit = Math.trunc(fromPieces(
           toPieces(step.correction, run.commonUnit, run.packaging), rung, run.packaging,
-        );
+        ));
 
         const prev = this.appliedAdj.get(step.jobOrderId) ?? null;
         const delta = adjOwnUnit - (prev ?? 0);
-        // Below half a unit there is nothing to say, and writing it every 15
-        // seconds for the life of a shift would be noise in the journal.
-        if (Math.abs(delta) < 0.5) continue;
+        // Whole units only, so anything left is genuinely nothing to say — and
+        // writing it every 15 seconds for a shift would be noise in the journal.
+        if (delta === 0) continue;
 
         ops.push(this.prisma.jobOrder.update({
           where: { id: step.jobOrderId },
@@ -336,9 +348,9 @@ export class LineBalanceService implements OnModuleInit {
             anchorMachineId: run.anchorMachineId,
             reason: step.reason,
             clamped: step.verdict === 'CLAMPED',
-            requestedGood: fromPieces(
+            requestedGood: Math.trunc(fromPieces(
               toPieces(step.requestedCorrection, run.commonUnit, run.packaging), rung, run.packaging,
-            ),
+            )),
           },
         }));
         this.appliedAdj.set(step.jobOrderId, adjOwnUnit);

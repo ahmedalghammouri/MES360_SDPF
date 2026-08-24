@@ -310,4 +310,59 @@ describe('line balance', () => {
     expect(at(run, 'M1').correction).toBe(66);
     expect(at(run, 'M1').balancedCommon).toBe(17292);
   });
+
+  it('lets the head of the line stand above the anchor by ALL the belts between them', async () => {
+    // The physical claim, in the plant's words: if M1 -> M2 holds 12 inners and
+    // M2 -> M3 holds 40 cartons, then with the anchor at M3 the filler should be
+    // allowed to sit 12 + 40x4 = 172 inners ahead of it, and NOT be corrected
+    // down for it. That material is real; it is on the belts.
+    //
+    // Nothing sums the buffers. It falls out of the chain: each machine is
+    // measured against its NEIGHBOUR, so an allowance granted at one link is
+    // already inside the figure the next link is measured against. Which is
+    // also why each row takes one belt and not a running total — entering the
+    // sum here would allow 12 + 172 and correct nothing, ever.
+    const svc = build(
+      [
+        { code: 'M1', unit: 'INNER', good: 1612 },   // 172 ahead of the anchor
+        { code: 'M2', unit: 'CARTON', good: 400 },   // = 1600, 160 ahead
+        { code: 'M3', unit: 'PALLET', good: 9 },     // = 1440, the anchor
+      ],
+      [
+        { machineId: 'M1', bufferToNextQty: 12, bufferUnit: 'INNER' },
+        { machineId: 'M2', bufferToNextQty: 40, bufferUnit: 'CARTON' },
+        { machineId: 'M3', isAnchor: true },
+      ],
+    );
+    const [run] = await svc.balance();
+
+    expect(at(run, 'M2').verdict).toBe('BALANCED');
+    expect(at(run, 'M2').correction).toBe(0);
+    expect(at(run, 'M1').verdict).toBe('BALANCED');
+    expect(at(run, 'M1').correction).toBe(0);
+
+    // The cumulative allowance, never written down anywhere: 1612 - 1440 = 172.
+    expect(at(run, 'M1').balancedCommon - at(run, 'M3').balancedCommon).toBe(172);
+  });
+
+  it('still corrects the ONE unit that exceeds the accumulated allowance', async () => {
+    // One inner past what every belt between here and the anchor can hold. The
+    // chain has to notice that, or the allowance becomes a place to hide drift.
+    const svc = build(
+      [
+        { code: 'M1', unit: 'INNER', good: 1613 },   // 173 ahead — one too many
+        { code: 'M2', unit: 'CARTON', good: 400 },
+        { code: 'M3', unit: 'PALLET', good: 9 },
+      ],
+      [
+        { machineId: 'M1', bufferToNextQty: 12, bufferUnit: 'INNER' },
+        { machineId: 'M2', bufferToNextQty: 40, bufferUnit: 'CARTON' },
+        { machineId: 'M3', isAnchor: true },
+      ],
+    );
+    const [run] = await svc.balance();
+
+    expect(at(run, 'M1').correction).toBe(-1);
+    expect(at(run, 'M1').balancedCommon - at(run, 'M3').balancedCommon).toBe(172);
+  });
 });
