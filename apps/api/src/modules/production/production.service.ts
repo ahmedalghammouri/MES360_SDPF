@@ -476,13 +476,48 @@ export class ProductionService implements OnApplicationBootstrap {
     });
     if (!wo) throw new NotFoundException('Work order not found');
 
-    const started = !!wo.actualStart || ['IN_PROGRESS', 'COMPLETED'].includes(wo.status);
+    /*
+     * "Did anything actually happen?" — asked of the evidence, not of one field.
+     *
+     * `wo.actualStart` was the only test, and it is a weak proxy: a job order
+     * carries its own actualStart, and starting one does not stamp the work
+     * order. So a work order could look untouched while its steps had run,
+     * booked minutes into oee_minutes and had scrap logged against them.
+     *
+     * That mattered because scrap_logs.jobOrderId is ON DELETE RESTRICT — the
+     * only FK into job_orders that is. The purge deletes job orders without
+     * clearing scrap, so Postgres refused, the whole transaction rolled back,
+     * and the reader got an opaque foreign-key error with no way to act on it.
+     * The delete simply did not work.
+     *
+     * Archiving instead is not a workaround; it is the existing rule applied to
+     * the right question. Work that produced something has history, and history
+     * is preserved rather than destroyed. Deleting the scrap log to force the
+     * delete through would erase a record of waste to tidy a list.
+     */
+    const [startedJobOrders, scrapLogs] = await Promise.all([
+      this.prisma.jobOrder.count({ where: { workOrderId: id, actualStart: { not: null } } }),
+      this.prisma.scrapLog.count({ where: { jobOrder: { workOrderId: id } } }),
+    ]);
+
+    const started = !!wo.actualStart
+      || ['IN_PROGRESS', 'COMPLETED'].includes(wo.status)
+      || startedJobOrders > 0
+      || scrapLogs > 0;
     if (started) {
       // Started work has production history — preserve it by archiving (hidden
       // everywhere, including APS) rather than destroying the audit trail.
       await this.prisma.workOrder.update({ where: { id }, data: { archivedAt: new Date() } });
-      this.logger.log(`WO ${wo.orderNumber} archived (work had started — history preserved)`);
-      return { action: 'archived' as const, orderNumber: wo.orderNumber };
+      // Say WHICH evidence, so "why was this archived instead of deleted?" has
+      // an answer without a database session.
+      const why = [
+        wo.actualStart ? 'the work order had started' : null,
+        startedJobOrders > 0 ? `${startedJobOrders} job order(s) had started` : null,
+        scrapLogs > 0 ? `${scrapLogs} scrap log(s) recorded` : null,
+        ['IN_PROGRESS', 'COMPLETED'].includes(wo.status) ? `status ${wo.status}` : null,
+      ].filter(Boolean).join(', ');
+      this.logger.log(`WO ${wo.orderNumber} archived — history preserved (${why})`);
+      return { action: 'archived' as const, orderNumber: wo.orderNumber, reason: why };
     }
     // Not started → hard-delete the WO and all its job orders (+ their children).
     await this.purgeWorkOrders([wo.id]);
@@ -583,7 +618,7 @@ export class ProductionService implements OnApplicationBootstrap {
           // stated in the ORDER unit (CARTON) while work-order output is counted in
           // pieces, and dividing one by the other produced a 361% completion that was
           // then hidden by a Math.min(99, …) cap.
-          sku: { select: { name: true, code: true, itemNumber: true, brand: true, weight: true, weightUnit: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } },
+          sku: { select: { id: true, name: true, code: true, itemNumber: true, brand: true, weight: true, weightUnit: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } },
           workOrders: {
             where: { deletedAt: null },
             select: {
@@ -617,7 +652,7 @@ export class ProductionService implements OnApplicationBootstrap {
     const po = await this.prisma.productionOrder.findFirst({
       where: { id, ...factoryFilter, deletedAt: null },
       include: {
-        sku: { select: { name: true, code: true, itemNumber: true, brand: true, weight: true, weightUnit: true, packagingType: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } },
+        sku: { select: { id: true, name: true, code: true, itemNumber: true, brand: true, weight: true, weightUnit: true, packagingType: true, unitsPerInner: true, innersPerCarton: true, cartonsPerPallet: true, baseUnit: true } },
         workOrders: {
           where: { deletedAt: null },
           orderBy: { createdAt: 'asc' },

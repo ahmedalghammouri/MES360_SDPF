@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AttainmentSnapshotService } from './attainment-snapshot.service';
+import { CycleTimeSyncService } from './cycle-time-sync.service';
 import { ApsModule } from '../aps/aps.module';
 import { OeeStandardModule } from '../oee-standard/oee-standard.module';
 import { OeeScheduleModule } from '../oee-schedule/oee-schedule.module';
@@ -28,6 +29,7 @@ import { HistorianModule } from '../historian/historian.module';
   imports: [ApsModule, HistorianModule, OeeStandardModule, OeeScheduleModule],
   controllers: [LiveController, MachineStatusController, ProductionController, DowntimeController, RecipeController, TraceabilityController, MaterialRequestController],
   providers: [
+    CycleTimeSyncService,
     AttainmentSnapshotService,LiveKpiService, MachineStatusService, OeeAnalyticsService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService, WorkOrderSchedulerService, MaterialRequestService],
   exports: [
     AttainmentSnapshotService,LiveKpiService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService],

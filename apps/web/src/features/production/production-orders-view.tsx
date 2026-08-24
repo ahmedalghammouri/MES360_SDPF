@@ -249,7 +249,24 @@ function POFormDialog({ open, onClose, initial }: POFormDialogProps) {
   });
 
   function handleSubmit() {
-    if (!form.orderNumber || !form.skuId || !form.targetQty || !form.plannedStart || !form.plannedEnd) {
+    /*
+     * Only require what this form actually shows.
+     *
+     * The guard used to demand orderNumber and skuId in BOTH modes, and the
+     * edit form renders neither — the order number is in the title and the
+     * product is a read-only line. So the reader saw every visible field
+     * filled in, pressed Save, and got "Required fields missing" pointing at
+     * nothing. Which one was empty depended on the API: skuId is seeded from
+     * `initial.sku.id`, and the production-order query did not select `id`.
+     *
+     * Both halves are fixed — the query now returns it — but the guard stays
+     * scoped to the mode, because a form must never block on a field it does
+     * not offer. That is not a validation failure; it is a dead end.
+     */
+    const missing = isEdit
+      ? !form.targetQty || !form.plannedStart || !form.plannedEnd
+      : !form.orderNumber || !form.skuId || !form.targetQty || !form.plannedStart || !form.plannedEnd;
+    if (missing) {
       toast({ variant: 'destructive', title: t('po.toast.requiredMissing') }); return;
     }
     const dto: any = {
