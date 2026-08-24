@@ -436,20 +436,24 @@ export function resolveChartColour(colour: string, isDark: boolean): string {
  * or the handles on the slider beneath it — both native to ECharts'
  * `dataZoom`, not a bolted-on approximation of it), and a CSV export.
  *
- * ── An incomplete bucket keeps its place and loses its values ──────────────
- * A bucket the engine could not measure is sent as `null`, and a bucket where
- * even one plotted series is `null` has ALL its values blanked — but the
- * bucket itself stays, at its own position on the time axis.
+ * ── A missing reading blanks its own series, and nothing else ──────────────
+ * A bucket the engine could not measure a factor for sends that factor as
+ * `null`. The bucket keeps its slot on the time axis, that one series is
+ * absent there, and every other series is drawn normally.
  *
- * Removing it instead would close the hole: the surviving points slide
+ * Removing the bucket would close the hole — the surviving points slide
  * together and the chart draws a continuous, fully-measured period that never
- * happened. Keeping it blank holds the gap open at its real width, and
- * `connectNulls: false` stops the line bridging across it. The CSV carries
- * the same row with empty cells, so the file and the chart agree on which
- * moments have no reading.
+ * happened. Blanking the whole row would throw away readings that exist: a
+ * day the line ran but shipped nothing has a real Availability and no
+ * Quality, and voiding all four to keep the row tidy loses the measured half.
+ * `connectNulls: false` stops any line bridging its own gap.
  *
- * Zero is NOT incomplete: a machine that genuinely produced nothing is
- * measured, and its zero belongs on the chart same as any other reading.
+ * The consequence is deliberate and is stated under the chart: the lines do
+ * not all cover the same buckets. A gap in one is that measure being absent,
+ * which is not the same claim as a value of zero.
+ *
+ * Zero is NOT missing: a machine that genuinely produced nothing is measured,
+ * and its zero belongs on the chart same as any other reading.
  *
  * ── The form switch is local, seeded globally ───────────────────────────────
  * The filter panel sets the house style and every chart follows it. Changing
@@ -515,29 +519,39 @@ export function TrendChart({
   // from "some complete buckets" to "none" in one render — so the rule has to
   // hold structurally rather than by nobody noticing.
 
-  // A bucket missing even ONE of the plotted series is BLANKED, never removed.
+  // A missing reading blanks ITS OWN series, and nothing else.
   //
-  // The distinction matters more than it looks. Removing the bucket closes the
-  // hole in the axis, so the surviving points slide together and an hour the
-  // plant could not measure is drawn as though it never existed — the chart
-  // then claims a continuous, fully-measured period that did not happen.
-  // Keeping the bucket with no values holds its place in time: the gap stays
-  // visible, at its real width, and the line breaks across it instead of
-  // bridging a moment nothing is known about.
+  // Two rules were tried before this one and both lost information:
   //
-  // The whole row is blanked rather than just the absent series, because the
-  // factors are read together — Availability alone at an hour with no
-  // Performance or Quality invites reading a partial answer as a full one.
+  //   Removing the bucket closed the hole in the axis. The surviving points
+  //   slid together, so a window with unmeasured stretches drew as a
+  //   continuous, fully-measured period — the chart asserted more than the
+  //   plant knew.
+  //
+  //   Blanking the whole row destroyed measurements that exist. A day where
+  //   the line ran but shipped nothing has a real Availability and no
+  //   Quality; voiding all four to keep the row "consistent" throws away the
+  //   half that was measured. At hour granularity that damage hides in the
+  //   crowd — most hours are complete — but a month grouped by day is two or
+  //   thirty points, and one absent factor emptied the entire chart.
+  //
+  // So each series is plotted exactly where it has a reading and absent
+  // everywhere else. The bucket always keeps its slot on the axis, so gaps
+  // stay open at their true width, and `connectNulls: false` stops any line
+  // bridging one.
   const rows = React.useMemo(
     () => data.map((d) => {
       if (series.every((s) => d[s.key] != null)) return d;
       const blank: Record<string, unknown> = { ...d };
-      for (const s of series) blank[s.key] = null;
+      for (const s of series) if (blank[s.key] == null) blank[s.key] = null;
       return blank;
     }),
     [data, series],
   );
-  const blanked = React.useMemo(
+  // Buckets that are not fully measured — some series present, some absent.
+  // Counted for the note under the chart, which is what tells a reader the
+  // lines they are comparing do not all cover the same buckets.
+  const partial = React.useMemo(
     () => data.reduce((n, d) => (series.every((s) => d[s.key] != null) ? n : n + 1), 0),
     [data, series],
   );
@@ -708,11 +722,11 @@ export function TrendChart({
         the window is unmeasured is what says whether the shape is worth
         drawing a conclusion from.
       */}
-      {blanked > 0 && (
+      {partial > 0 && (
         <p className="mt-2 text-[11px] text-muted-foreground">
-          {blanked} of {data.length} buckets have no reading and are left blank — each was missing
-          at least one of {series.map((s) => s.name).join(', ')}. They keep their place on the
-          axis, so the gaps show where the window is unmeasured rather than closing up.
+          {partial} of {data.length} buckets are missing at least one reading. Each series is drawn
+          only where it was measured and breaks where it was not, so the lines do not all cover the
+          same buckets — a gap in one is that measure being absent, not a value of zero.
         </p>
       )}
     </div>

@@ -61,6 +61,17 @@ interface Slice {
   bars: Bar[];
 }
 interface Payload extends Slice {
+  /**
+   * The bucket the SERVER actually grouped by — not the one the reader asked
+   * for, which may have been "auto" or a size the window cannot support.
+   *
+   * The server is the only authority on this: it resolves "auto" from the
+   * window's own width, and it is the one that ran the `date_trunc`. The page
+   * used to label the trend from its own local guess instead, which is how a
+   * chart of two DAY buckets ended up with "23 Aug 06:00" on the axis — a
+   * clock time under a point covering twenty-four hours.
+   */
+  granularity: 'hour' | 'day' | 'week' | 'month';
   window: { from: string; to: string };
   audit: { ok: boolean; bucketsMin: number; bucketDriftMin: number; identityDriftMin: number };
   machines: Slice[];
@@ -416,6 +427,10 @@ export function OeeAnalysisView() {
           {analysis === 'overview' && (
             <OverviewPanel
               bucket={bucket} onBucketChange={setBucket} allowedBuckets={allowedBuckets}
+              // What the server actually grouped by. The axis labels follow
+              // THIS, never the requested value — "auto" is not a bucket, and
+              // a request the window could not honour is not one either.
+              effectiveBucket={d.granularity}
               oee={d.oee} availability={d.availability}
               performance={d.performance} quality={d.quality}
               trend={d.trend ?? []}

@@ -69,10 +69,17 @@ const DEFAULT_BUCKETS = [
 export function OverviewPanel({
   oee, availability, performance, quality, trend, production, timeline,
   operationalMin, usedOperationalMin, machines, windowStart, windowEnd,
-  bucket, onBucketChange, allowedBuckets,
+  bucket, onBucketChange, allowedBuckets, effectiveBucket,
 }: {
   /** Bucket size in force; undefined = chosen from the timeframe. */
   bucket?: string;
+  /**
+   * What the SERVER grouped by, which is the only thing the axis may be
+   * labelled from. The requested `bucket` can be "auto" (not a bucket at all)
+   * or a size the window could not honour; labelling from it drew clock times
+   * under points that each covered a whole day.
+   */
+  effectiveBucket?: 'hour' | 'day' | 'week' | 'month';
   onBucketChange?: (b: string) => void;
   /**
    * Which sizes are worth offering for the period currently selected —
@@ -108,11 +115,18 @@ export function OverviewPanel({
    */
   const spansMultipleDays = trend.length > 1
     && toFactoryDayKey(trend[0]!.at) !== toFactoryDayKey(trend[trend.length - 1]!.at);
+  // The SERVER's bucket, never the requested one. `bucket` may be undefined or
+  // "auto" — neither is a grouping — and a request the window could not honour
+  // is not what the numbers were grouped by either. Falling back to the
+  // request only when the server said nothing keeps older responses working.
+  const grouping = effectiveBucket
+    ?? (bucket === 'month' || bucket === 'week' || bucket === 'day' || bucket === 'hour'
+      ? bucket : undefined);
   const labelOf = (iso: string) => {
     const d = toDate(iso);
     if (!d) return '';
-    if (bucket === 'month') return formatMonth(d);
-    if (bucket === 'week' || bucket === 'day') return formatDayShort(d);
+    if (grouping === 'month') return formatMonth(d);
+    if (grouping === 'week' || grouping === 'day') return formatDayShort(d);
     return spansMultipleDays ? formatDateTimeShort(d) : formatTime(d);
   };
   const data = trend.map((p) => ({ ...p, t: labelOf(p.at) }));
@@ -160,8 +174,17 @@ export function OverviewPanel({
       <section className="rounded-lg border border-border/60 bg-card p-4">
         <h2 className="mb-1 text-sm font-semibold">Over time</h2>
         <p className="mb-3 text-xs text-muted-foreground">
-          Each point is one bucket of the selected period. Click a name in the legend to hide
-          that line.
+          {/*
+            Naming the grouping the SERVER used, not the button that was
+            pressed. "Auto" tells a reader nothing about what a point covers,
+            and a point covering a day is read very differently from one
+            covering an hour — each is an average over its own span, not a
+            sample taken at that instant.
+          */}
+          {grouping
+            ? <>Each point is <b>one {grouping}</b>, aggregated over every minute in it.</>
+            : <>Each point is one bucket of the selected period.</>}
+          {' '}Click a name in the legend to hide that line.
         </p>
         <TrendChart
           data={data}
