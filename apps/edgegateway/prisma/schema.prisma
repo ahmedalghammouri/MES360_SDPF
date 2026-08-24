@@ -414,6 +414,9 @@ enum MachineState {
   BREAKDOWN
   SETUP
   CHANGEOVER
+  /// Bringing the line up to speed at the head of a shift. Intended work, and
+  /// still a loss — one of the six big losses — so its rule charges OEE.
+  STARTUP
   STARVED
   BLOCKED
   OFFLINE
@@ -1248,6 +1251,10 @@ enum DowntimeCategory {
   PLANNED_MAINTENANCE
   PLANNED_CLEANING
   PLANNED_BREAK
+  /// Bringing the line up at the head of a shift. Its own category rather than
+  /// folded into CHANGEOVER: a changeover is between products, a startup is
+  /// before the first one.
+  STARTUP
   EXTERNAL
   OTHER
 }

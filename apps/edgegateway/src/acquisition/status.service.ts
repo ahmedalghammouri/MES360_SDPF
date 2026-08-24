@@ -14,6 +14,10 @@ const DEFAULT_STATUS_MAP: Record<string, string> = {
   '7': 'BLOCKED',
   '8': 'OFFLINE',
   '9': 'MAINTENANCE',
+  // Appended, never inserted. These codes are what a PLC actually writes into
+  // the status word, so renumbering one to keep the list tidy would silently
+  // re-label every historical reading that used it.
+  '10': 'STARTUP',
 };
 
 /**
@@ -49,6 +53,10 @@ const FALLBACK_RULES: Record<string, StateRule> = {
   MAINTENANCE:  { isDowntime: true,  isPlanned: true,  affectsOEE: false, reasonCode: 'PLANNED_MAINTENANCE', category: 'PLANNED_MAINTENANCE', debounceSeconds: 0 },
   SETUP:        { isDowntime: true,  isPlanned: true,  affectsOEE: true,  reasonCode: 'CHANGEOVER', category: 'CHANGEOVER', debounceSeconds: 0 },
   CHANGEOVER:   { isDowntime: true,  isPlanned: true,  affectsOEE: true,  reasonCode: 'CHANGEOVER', category: 'CHANGEOVER', debounceSeconds: 0 },
+  // Intended (isPlanned) and still charged (affectsOEE) — start-up loss is one
+  // of the six big losses. Matches the API's rule exactly; the classifier reads
+  // affectsOEE now, so the two disagreeing would move the reading.
+  STARTUP:      { isDowntime: true,  isPlanned: true,  affectsOEE: true,  reasonCode: 'CHANGEOVER', category: 'STARTUP', debounceSeconds: 0 },
   STARVED:      { isDowntime: true,  isPlanned: false, affectsOEE: false, reasonCode: 'STARVED', category: 'MATERIAL', debounceSeconds: 0 },
   BLOCKED:      { isDowntime: true,  isPlanned: false, affectsOEE: false, reasonCode: 'BLOCKED', category: 'PROCESS', debounceSeconds: 0 },
   OFFLINE:      { isDowntime: true,  isPlanned: false, affectsOEE: false, reasonCode: 'EXTERNAL', category: 'EXTERNAL', debounceSeconds: 0 },

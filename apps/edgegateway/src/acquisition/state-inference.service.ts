@@ -53,14 +53,20 @@ import { PrismaService } from '../prisma/prisma.service';
 /** States that mean "not currently producing". */
 const NOT_PRODUCING = new Set([
   'IDLE', 'STOPPED', 'BREAKDOWN', 'PLANNED_STOP', 'SETUP',
-  'CHANGEOVER', 'MAINTENANCE', 'OFFLINE', 'STARVED', 'BLOCKED',
+  'CHANGEOVER', 'STARTUP', 'MAINTENANCE', 'OFFLINE', 'STARVED', 'BLOCKED',
 ]);
 
 /**
  * Stops that carry no explanation, and so are open to inference. BREAKDOWN is
  * included because that is what a bare "run signal went false" produces — it is a
- * default, not a diagnosis. SETUP, CHANGEOVER, PLANNED_STOP and MAINTENANCE are
- * NOT included: somebody has already said what those are.
+ * default, not a diagnosis. SETUP, CHANGEOVER, STARTUP, PLANNED_STOP and
+ * MAINTENANCE are NOT included: somebody has already said what those are, and
+ * overwriting a declared state with an inferred one loses the only account
+ * that came from a person.
+ *
+ * A whitelist rather than a blocklist, deliberately — a state added to the
+ * system later is protected from inference by default, which is the safe way
+ * round. STARTUP arrived this way and needed no change here.
  */
 const UNEXPLAINED_STOPS = new Set(['IDLE', 'STOPPED', 'BREAKDOWN']);
 
