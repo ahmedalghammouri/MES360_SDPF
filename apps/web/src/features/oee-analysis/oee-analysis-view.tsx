@@ -159,15 +159,25 @@ export function OeeAnalysisView() {
     ...(poNumber ? { productionOrderNumber: poNumber } : {}),
   };
 
+  /**
+   * Bucket size for the trend, chosen by the reader.
+   *
+   * `undefined` means "let the timeframe decide", which is what the page did
+   * before and remains the right default — a shift wants hours, a quarter wants
+   * weeks. Naming one overrides that, and the choice is part of the query key
+   * because two bucket sizes are two different answers, not two views of one.
+   */
+  const [bucket, setBucket] = React.useState<string | undefined>(undefined);
+
   const q = useQuery({
-    queryKey: ['oee-analysis', engine, scopeKey, timeKey, dimKey, lineBasisKey],
+    queryKey: ['oee-analysis', engine, scopeKey, timeKey, dimKey, lineBasisKey, bucket ?? 'auto'],
     queryFn: () => api.get<Payload>(path, {
       // `timeParams` and not just the dates: Today and Shift produce the SAME
       // dateFrom/dateTo — a shift is resolved server-side, from `timeframe`,
       // because only the API holds the shift templates. Sending the dates alone
       // made the two presets one button: identical numbers, identical charts,
       // and the night shift's first hours missing from the view showing it.
-      params: { ...timeParams, ...filter, ...dimensions, ...lineBasisParam },
+      params: { ...timeParams, ...filter, ...dimensions, ...lineBasisParam, ...(bucket ? { bucket } : {}) },
     }),
     refetchInterval: 30_000,
   });
@@ -334,6 +344,7 @@ export function OeeAnalysisView() {
 
           {analysis === 'overview' && (
             <OverviewPanel
+              bucket={bucket} onBucketChange={setBucket}
               oee={d.oee} availability={d.availability}
               performance={d.performance} quality={d.quality}
               trend={d.trend ?? []}

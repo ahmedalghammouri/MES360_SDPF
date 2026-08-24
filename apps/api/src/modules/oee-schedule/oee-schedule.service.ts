@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { truncPlantExpr, type TrendBucket } from '../../common/trend-bucket.util';
 
 import { PrismaService } from '../../database/prisma.service';
 import {
@@ -99,14 +100,23 @@ interface Bucket {
 /** Minute sizes that divide an hour exactly, so buckets tile without a ragged one. */
 const MINUTE_BUCKETS = [1, 2, 5, 10, 15, 20, 30] as const;
 
-function bucketOf(spec: 'hour' | 'day' | number): Bucket {
-  if (spec === 'day') {
+function bucketOf(spec: TrendBucket | number): Bucket {
+  // Calendar units are truncated in PLANT time. `date_trunc` cuts on UTC
+  // boundaries, and in Riyadh that puts a "day" at 03:00 local — invisible on an
+  // hourly chart, and a whole shift in the wrong period once the unit is a week
+  // or a month. See `truncPlant`.
+  if (spec === 'day' || spec === 'week' || spec === 'month') {
     return {
-      trunc: (e) => Prisma.sql`date_trunc('day', ${e})`,
-      step: Prisma.sql`interval '1 day'`,
+      trunc: (e) => truncPlantExpr(spec, e),
+      step: spec === 'day'
+        ? Prisma.sql`interval '1 day'`
+        : spec === 'week'
+          ? Prisma.sql`interval '1 week'`
+          : Prisma.sql`interval '1 month'`,
     };
   }
   if (spec === 'hour' || typeof spec !== 'number') {
+    // An hour is an hour in every zone, so this one needs no conversion.
     return {
       trunc: (e) => Prisma.sql`date_trunc('hour', ${e})`,
       step: Prisma.sql`interval '1 hour'`,
@@ -387,7 +397,7 @@ export class OeeScheduleService {
    */
   async trend(
     factoryId: string | null, from: Date, to: Date, slotTo: Date,
-    granularity: 'hour' | 'day' = 'hour',
+    granularity: TrendBucket = 'hour',
     scope: ScheduleScope = {},
   ): Promise<Array<ScheduleSlice & { at: Date }>> {
     return this.trendOn(factoryId, from, to, slotTo, scope, bucketOf(granularity));

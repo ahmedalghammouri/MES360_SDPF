@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { truncPlant, type TrendBucket } from '../../common/trend-bucket.util';
 
 import { PrismaService } from '../../database/prisma.service';
 import { computeOee, auditTotals, EMPTY_TOTALS, type OeeTotals, type OeeResult } from './oee-standard.calc';
@@ -273,13 +274,12 @@ export class OeeStandardService {
    */
   async trend(
     factoryId: string | null, from: Date, to: Date,
-    granularity: 'hour' | 'day' = 'hour',
+    granularity: TrendBucket = 'hour',
     scope: OeeScope = {},
   ): Promise<Array<OeeSlice & { at: Date }>> {
-    const unit = granularity === 'day' ? 'day' : 'hour';
     const rows = await this.prisma.$queryRaw<Array<OeeTotals & { at: Date }>>(Prisma.sql`
       WITH scoped AS (
-        SELECT o.*, j."sequenceOrder", date_trunc(${unit}, o."bucketStart") AS at
+        SELECT o.*, j."sequenceOrder", ${truncPlant(granularity)} AS at
         FROM oee_minutes o
         JOIN job_orders j ON j.id = o."jobOrderId"
         WHERE ${this.where(factoryId, from, to, scope)}

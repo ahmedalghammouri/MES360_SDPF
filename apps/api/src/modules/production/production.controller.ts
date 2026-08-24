@@ -136,6 +136,7 @@ export class ProductionController {
   @ApiQuery({ name: 'areaId', required: false })
   @ApiQuery({ name: 'lineId', required: false })
   @ApiQuery({ name: 'machineId', required: false })
+  @ApiQuery({ name: 'bucket', required: false, enum: ['hour', 'day', 'week', 'month'] })
   async getOEESummary(
     @CurrentUser() user: RequestUser,
     @Query('timeframe') timeframe?: string,
@@ -146,8 +147,13 @@ export class ProductionController {
     @Query('machineId') machineId?: string,
     @Query('workOrderId') workOrderId?: string,
     @Query('productionOrderId') productionOrderId?: string,
+    /** hour | day | week | month. Omitted = chosen from the timeframe. */
+    @Query('bucket') bucket?: string,
   ) {
-    return this.productionService.getOEESummary(user.factoryId, { areaId, lineId, machineId }, timeframe ?? 'day', dateFrom, dateTo, { workOrderId, productionOrderId });
+    return this.productionService.getOEESummary(
+      user.factoryId, { areaId, lineId, machineId }, timeframe ?? 'day', dateFrom, dateTo,
+      { workOrderId, productionOrderId }, bucket,
+    );
   }
 
   @Get('oee/trend')

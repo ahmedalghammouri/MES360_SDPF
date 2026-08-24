@@ -16,6 +16,7 @@ import {
 
 import { Gauge, dur, type SegmentKind, TrendChart, type TrendSeries } from './chart-kit';
 import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
+import { toDate, formatTime, formatDayShort, formatMonth } from '@/lib/datetime';
 
 export interface TrendPoint {
   at: string;
@@ -76,10 +77,26 @@ function TrendTooltip({ active, payload, label }: any) {
   );
 }
 
+/**
+ * Bucket sizes offered on the trend. "Auto" is first and is the default: the
+ * timeframe already implies a sensible size, and most readers want that.
+ */
+const BUCKETS = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'hour', label: 'Hour' },
+  { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+] as const;
+
 export function OverviewPanel({
   oee, availability, performance, quality, trend, production, timeline,
   operationalMin, usedOperationalMin, machines, windowStart, windowEnd,
+  bucket, onBucketChange,
 }: {
+  /** Bucket size in force; undefined = chosen from the timeframe. */
+  bucket?: string;
+  onBucketChange?: (b: string) => void;
   oee: number | null; availability: number | null; performance: number | null; quality: number | null;
   trend: TrendPoint[];
   production: ProductionDetails;
@@ -90,11 +107,22 @@ export function OverviewPanel({
   windowStart: string;
   windowEnd: string;
 }) {
-  const hhmm = (iso: string) => {
-    const d = new Date(iso);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  /**
+   * The axis label has to follow the bucket.
+   *
+   * "14:00" is the right label for an hour and meaningless for a month, and a
+   * chart of twelve points all reading 00:00 is what a fixed clock format
+   * produces once the bucket grows. Formatted in FACTORY time, like every other
+   * date on screen — see lib/datetime.
+   */
+  const labelOf = (iso: string) => {
+    const d = toDate(iso);
+    if (!d) return '';
+    if (bucket === 'month') return formatMonth(d);
+    if (bucket === 'week' || bucket === 'day') return formatDayShort(d);
+    return formatTime(d);
   };
-  const data = trend.map((p) => ({ ...p, t: hhmm(p.at) }));
+  const data = trend.map((p) => ({ ...p, t: labelOf(p.at) }));
 
   /**
    * One row per machine, with its own availability beside the code.
@@ -146,6 +174,9 @@ export function OverviewPanel({
           data={data}
           series={SERIES.map((s) => ({ ...s, emphasis: s.key === 'oee' }))}
           exportName="oee-overview"
+          bucket={bucket ?? 'auto'}
+          buckets={onBucketChange ? BUCKETS : undefined}
+          onBucketChange={onBucketChange ? (b) => onBucketChange(b === 'auto' ? '' : b) : undefined}
         />
       </section>
 

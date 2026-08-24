@@ -38,6 +38,7 @@ import type {
   CreateProductionOrderDto, UpdateProductionOrderDto,
   CreateWOFromPODto, ProductionOrderFiltersDto,
 } from './dto/work-order.dto';
+import { isTrendBucket, type TrendBucket } from '../../common/trend-bucket.util';
 
 const VALID_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   PLANNED: ['RELEASED', 'IN_PROGRESS', 'CANCELLED'],
@@ -2139,6 +2140,8 @@ export class ProductionService implements OnApplicationBootstrap {
     dateFrom?: string,
     dateTo?: string,
     drill: { workOrderId?: string; productionOrderId?: string } = {},
+    /** Bucket size for the trend. Omitted = chosen from the timeframe. */
+    bucketPref?: string,
   ) {
     // Per-machine OEE comes from JOB ORDERS (a routed WO spans many machines), so
     // every machine that ran a step is counted — not just the WO header machine.
@@ -2195,7 +2198,13 @@ export class ProductionService implements OnApplicationBootstrap {
         else from.setHours(0, 0, 0, 0); // day → today
       }
     }
-    const bucket: 'hour' | 'day' = tf === 'day' || tf === 'shift' ? 'hour' : 'day';
+    // The caller may name a bucket; otherwise the timeframe picks a sensible
+    // default. An explicit choice always wins — that is the whole point of the
+    // control, and a page that silently overrode it would be back to a switch
+    // that does nothing.
+    const bucket: TrendBucket = isTrendBucket(bucketPref)
+      ? bucketPref
+      : (tf === 'day' || tf === 'shift' ? 'hour' : 'day');
 
     const a = await this.kpiService.oeeAnalytics(factoryId, from, to, machineIds, bucket, { ...drill, slotTo });
     return {

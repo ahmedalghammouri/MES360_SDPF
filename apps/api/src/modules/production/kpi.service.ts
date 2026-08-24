@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isTrendBucket, type TrendBucket } from '../../common/trend-bucket.util';
 import { plantBound } from '../../common/plant-time.util';
 
 /**
@@ -1112,7 +1113,7 @@ export class KpiService {
    */
   async snapshotAggregate(
     factoryId: string | null, from: Date, to: Date, machineIds: string[] | undefined,
-    bucket: 'hour' | 'day' = 'hour',
+    bucket: TrendBucket = 'hour',
     opts: { workOrderId?: string; productionOrderId?: string; slotTo?: Date } = {},
   ) {
     const scope: OeeScope = {
@@ -1302,7 +1303,7 @@ export class KpiService {
     from: Date,
     to: Date,
     machineIds: string[] | undefined,
-    bucket: 'hour' | 'day' = 'hour',
+    bucket: TrendBucket = 'hour',
     opts: { workOrderId?: string; productionOrderId?: string; slotTo?: Date } = {},
   ) {
     return this.snapshotAggregate(factoryId, from, to, machineIds, bucket, opts);

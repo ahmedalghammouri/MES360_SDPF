@@ -223,3 +223,21 @@ export function dateTimeLocalToIso(
   const d = fromDateTimeLocal(localValue, timeZone);
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 }
+
+/** "24 Aug" — a day bucket's label, in factory time. */
+export function formatDayShort(value: Date | string | number | null | undefined, timeZone?: string): string {
+  const d = toDate(value);
+  if (!d) return '';
+  return new Intl.DateTimeFormat(undefined, {
+    timeZone: timeZone ?? getFactoryTimeZone(), day: 'numeric', month: 'short',
+  }).format(d);
+}
+
+/** "Aug 2026" — a month bucket's label, in factory time. */
+export function formatMonth(value: Date | string | number | null | undefined, timeZone?: string): string {
+  const d = toDate(value);
+  if (!d) return '';
+  return new Intl.DateTimeFormat(undefined, {
+    timeZone: timeZone ?? getFactoryTimeZone(), month: 'short', year: 'numeric',
+  }).format(d);
+}
