@@ -89,11 +89,57 @@ async function removeSeeded(factoryId: string): Promise<number> {
   return count;
 }
 
+/**
+ * The factory this plan belongs to.
+ *
+ * `findFirst()` with no ordering picks whichever row the database hands back,
+ * and this installation has five factories of which exactly one has machines.
+ * Locally that lottery happened to return SDPF and the seed worked; on the
+ * server it returned an empty one and the seed reported "No machines on a
+ * line" — correct about what it found, and looking at the wrong factory.
+ *
+ * So the factory is chosen by EVIDENCE: the one whose line the schedule
+ * describes, meaning the one with active machines on a line. `--factory CODE`
+ * overrides it for an installation where more than one qualifies.
+ */
+async function resolveFactory(): Promise<{ id: string; code: string } | null> {
+  const i = process.argv.indexOf('--factory');
+  const wanted = i >= 0 ? process.argv[i + 1] : null;
+
+  if (wanted) {
+    const f = await prisma.factory.findFirst({
+      where: { code: wanted },
+      select: { id: true, code: true },
+    });
+    if (!f) console.log(`No factory with code "${wanted}".`);
+    return f;
+  }
+
+  const candidates = await prisma.factory.findMany({
+    where: { machines: { some: { isActive: true, lineId: { not: null } } } },
+    select: { id: true, code: true, _count: { select: { machines: true } } },
+    orderBy: { machines: { _count: 'desc' } },
+  });
+
+  if (candidates.length === 0) {
+    console.log('No factory has active machines on a production line — nothing to attach the plan to.');
+    return null;
+  }
+  if (candidates.length > 1) {
+    console.log(
+      `More than one factory qualifies (${candidates.map((c) => c.code).join(', ')}). `
+      + `Using ${candidates[0].code}; pass --factory CODE to choose another.`,
+    );
+  }
+  return { id: candidates[0].id, code: candidates[0].code };
+}
+
 async function main() {
   const undo = process.argv.includes('--undo');
 
-  const factory = await prisma.factory.findFirst({ select: { id: true, code: true } });
-  if (!factory) { console.log('No factory — nothing to do.'); return; }
+  const factory = await resolveFactory();
+  if (!factory) return;
+  console.log(`Factory: ${factory.code}`);
 
   const removed = await removeSeeded(factory.id);
   if (removed > 0) console.log(`Removed ${removed} previously seeded event(s).`);
@@ -107,7 +153,24 @@ async function main() {
     select: { id: true, code: true },
     orderBy: { code: 'asc' },
   });
-  if (machines.length === 0) { console.log('No machines on a line — nothing to write.'); return; }
+  if (machines.length === 0) {
+    // Say what was actually found. The first version printed only "No machines
+    // on a line", which is true and useless: it does not distinguish a factory
+    // with no machines at all from one whose machines are simply not attached
+    // to a line, and those need different fixes.
+    const [total, active] = await Promise.all([
+      prisma.machine.count({ where: { factoryId: factory.id } }),
+      prisma.machine.count({ where: { factoryId: factory.id, isActive: true } }),
+    ]);
+    console.log(
+      `No machines on a line in ${factory.code}: `
+      + `${total} machine(s) exist, ${active} active, 0 attached to a production line. `
+      + (total === 0
+        ? 'This factory has no machines — check you meant this one (--factory CODE).'
+        : 'Attach them to a line before booking line-wide downtime against them.'),
+    );
+    return;
+  }
 
   // Causes, matched by code so the events land under the reason tree the plant
   // already uses rather than inventing a parallel set of labels.
