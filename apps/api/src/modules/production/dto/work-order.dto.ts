@@ -1,9 +1,11 @@
 import {
   IsString, IsInt, IsPositive, IsDateString, IsEnum, IsOptional,
-  IsUUID, MinLength, MaxLength, Min, Max, IsNumber, IsBoolean, IsArray,
+  IsUUID, MinLength, MaxLength, Min, Max, IsNumber, IsBoolean, IsArray, IsIn,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+
+import { UNIT_LADDER } from '../../../common/units.util';
 
 export enum WOPriority {
   LOW = 'LOW',
@@ -287,6 +289,23 @@ export class UpdateProductionOrderDto {
   @IsInt()
   @IsPositive()
   targetQty?: number;
+
+  /**
+   * The rung `targetQty` is counted on.
+   *
+   * The edit form has always OFFERED this — a Unit dropdown beside Target Qty —
+   * and the DTO did not accept it, so every save was refused with "property
+   * unit should not exist" and no field on screen to blame. A form that shows a
+   * control the API rejects is worse than one that hides it.
+   *
+   * Validated against the packaging ladder rather than left a free string, as
+   * the create DTO leaves it: a quantity counted in a unit nothing can convert
+   * is a quantity nothing downstream can use.
+   */
+  @ApiPropertyOptional({ enum: UNIT_LADDER })
+  @IsOptional()
+  @IsIn([...UNIT_LADDER], { message: `unit must be one of: ${UNIT_LADDER.join(', ')}` })
+  unit?: string;
 
   @ApiPropertyOptional({ enum: WOPriority })
   @IsOptional()

@@ -688,6 +688,11 @@ export class ProductionService implements OnApplicationBootstrap {
       where: { id },
       data: {
         ...(dto.targetQty && { targetQty: dto.targetQty }),
+        // `unit` is the rung `targetQty` is counted on, so the two travel
+        // together — accepting it in the DTO without writing it here would
+        // have swapped one silent failure for another: the save succeeds, the
+        // dropdown snaps back, and nobody can say why.
+        ...(dto.unit && { unit: dto.unit }),
         ...(dto.priority && { priority: dto.priority as any }),
         ...(dto.plannedStart && { plannedStart: new Date(dto.plannedStart) }),
         ...(dto.plannedEnd && { plannedEnd: new Date(dto.plannedEnd) }),
