@@ -1029,6 +1029,7 @@
       "IDLE": "Idle",
       "BREAKDOWN": "Breakdown",
       "PLANNED_STOP": "Planned Stop",
+      "STARTUP": "Startup",
       "SETUP": "Setup",
       "CHANGEOVER": "Changeover",
       "STARVED": "Starved (no material)",
@@ -1279,6 +1280,7 @@
       "PLANNED_MAINTENANCE": "Planned Maintenance",
       "PLANNED_CLEANING": "Planned Cleaning",
       "PLANNED_BREAK": "Planned Break",
+      "STARTUP": "Startup",
       "EXTERNAL": "External",
       "OTHER": "Other"
     }
@@ -1860,6 +1862,7 @@
         "STARVED": "Starved",
         "BLOCKED": "Blocked",
         "PLANNED_STOP": "Planned stop",
+        "STARTUP": "Startup",
         "SETUP": "Setup",
         "CHANGEOVER": "Changeover",
         "MAINTENANCE": "Maintenance",

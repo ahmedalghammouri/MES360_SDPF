@@ -36,8 +36,13 @@ const WEEKDAYS = [
   { value: 6, key: 'sat' },
 ];
 
+// Kept in step with the DowntimeCategory enum. A category the database
+// accepts but this list omits leaves the form's Category select with no
+// matching option, so it renders BLANK over a row that is correctly stored —
+// which is exactly how STARTUP looked after it was added everywhere else.
 const CATEGORIES = [
-  'PLANNED_BREAK', 'PLANNED_CLEANING', 'PLANNED_MAINTENANCE', 'CHANGEOVER', 'OTHER',
+  'PLANNED_BREAK', 'PLANNED_CLEANING', 'PLANNED_MAINTENANCE',
+  'STARTUP', 'CHANGEOVER', 'OTHER',
 ];
 
 const TRIGGERS = ['PRODUCT_CHANGE', 'ORDER_CHANGE', 'ALWAYS'];

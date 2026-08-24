@@ -56,6 +56,7 @@ const STATE_GROUPS: Array<{ key: string; labelKey: string; hintKey: string; stat
     hintKey: 'opHub.st.grpPlannedHint',
     states: [
       { id: 'PLANNED_STOP', icon: <CalendarClock size={17} />, tone: 'text-sky-400', ring: 'border-sky-500/40', fill: 'bg-sky-500 border-sky-500 text-white' },
+      { id: 'STARTUP', icon: <Play size={17} />, tone: 'text-teal-400', ring: 'border-teal-500/40', fill: 'bg-teal-500 border-teal-500 text-white' },
       { id: 'SETUP', icon: <Settings2 size={17} />, tone: 'text-amber-400', ring: 'border-amber-500/40', fill: 'bg-amber-500 border-amber-500 text-white' },
       { id: 'CHANGEOVER', icon: <Repeat size={17} />, tone: 'text-amber-400', ring: 'border-amber-500/40', fill: 'bg-amber-500 border-amber-500 text-white' },
       { id: 'MAINTENANCE', icon: <Wrench size={17} />, tone: 'text-violet-400', ring: 'border-violet-500/40', fill: 'bg-violet-500 border-violet-500 text-white' },

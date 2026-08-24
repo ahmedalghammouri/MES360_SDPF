@@ -35,7 +35,7 @@ import { PlannedDowntimeManager } from '@/features/shifts/planned-downtime-manag
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type DowntimeReasonCode = 'PLANNED_MAINTENANCE' | 'CHANGEOVER' | 'UNPLANNED_BREAKDOWN' | 'MICRO_STOP' | 'STARVED' | 'BLOCKED' | 'EXTERNAL';
-type DowntimeCategory = 'MECHANICAL' | 'ELECTRICAL' | 'PROCESS' | 'MATERIAL' | 'OPERATOR' | 'CHANGEOVER' | 'UTILITY' | 'QUALITY' | 'PLANNED_MAINTENANCE' | 'PLANNED_CLEANING' | 'PLANNED_BREAK' | 'EXTERNAL' | 'OTHER';
+type DowntimeCategory = 'MECHANICAL' | 'ELECTRICAL' | 'PROCESS' | 'MATERIAL' | 'OPERATOR' | 'CHANGEOVER' | 'UTILITY' | 'QUALITY' | 'PLANNED_MAINTENANCE' | 'PLANNED_CLEANING' | 'PLANNED_BREAK' | 'STARTUP' | 'EXTERNAL' | 'OTHER';
 
 interface Machine { id: string; name: string; code: string; }
 interface WorkOrderRef { id: string; orderNumber: string; status: string; }
@@ -99,6 +99,7 @@ const CATEGORY_OPTIONS: { value: DowntimeCategory; labelKey: string }[] = [
   { value: 'PLANNED_MAINTENANCE', labelKey: 'dtree.cat.PLANNED_MAINTENANCE' },
   { value: 'PLANNED_CLEANING',    labelKey: 'dtree.cat.PLANNED_CLEANING' },
   { value: 'PLANNED_BREAK',       labelKey: 'dtree.cat.PLANNED_BREAK' },
+  { value: 'STARTUP',             labelKey: 'dtree.cat.STARTUP' },
   { value: 'EXTERNAL',            labelKey: 'dtree.cat.EXTERNAL' },
   { value: 'OTHER',               labelKey: 'dtree.cat.OTHER' },
 ];

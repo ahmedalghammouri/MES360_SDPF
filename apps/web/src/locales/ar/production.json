@@ -1029,6 +1029,7 @@
       "IDLE": "خاملة",
       "BREAKDOWN": "عطل",
       "PLANNED_STOP": "توقف مخطط",
+      "STARTUP": "تشغيل وتجهيز",
       "SETUP": "إعداد",
       "CHANGEOVER": "تغيير إعداد",
       "STARVED": "نقص تغذية (لا مواد)",
@@ -1279,6 +1280,7 @@
       "PLANNED_MAINTENANCE": "صيانة مخططة",
       "PLANNED_CLEANING": "تنظيف مخطط",
       "PLANNED_BREAK": "استراحة مخططة",
+      "STARTUP": "تشغيل وتجهيز",
       "EXTERNAL": "خارجي",
       "OTHER": "أخرى"
     }
@@ -1860,6 +1862,7 @@
         "STARVED": "نقص تغذية",
         "BLOCKED": "انسداد المخرج",
         "PLANNED_STOP": "توقف مخطط",
+        "STARTUP": "تشغيل وتجهيز",
         "SETUP": "إعداد",
         "CHANGEOVER": "تحويل منتج",
         "MAINTENANCE": "صيانة",
