@@ -87,6 +87,15 @@ export interface GanttSegment {
   startTime: string | Date;
   endTime?: string | Date | null;
   cause?: string | null;
+  /**
+   * What the block IS, when the plant named it.
+   *
+   * Cleaning, a meal break and a shift handover are all PLANNED_STOP, so
+   * drawing the state made three different activities one indistinguishable
+   * band that answered no question a reader had. When the schedule supplied a
+   * name, it is shown instead; the state is still in the tooltip.
+   */
+  label?: string;
 }
 
 export interface GanttRow {
@@ -469,6 +478,9 @@ function GanttRowBands({
       leftPct: ((a - from) / span) * 100,
       widthPct,
       state: s.state,
+      // Prefer the plant's own name for the block; fall back to the machine's
+      // word for it when nothing named it.
+      title: s.label || s.state,
       role: roleOf(s.state),
       cause: s.cause ?? null,
       from: a,
@@ -523,7 +535,10 @@ function GanttRowBands({
           >
             {b.showLabel && (
               <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white/95 pointer-events-none px-1 truncate">
-                {b.state}
+                {/* The activity, not the state. Three PLANNED_STOP bands that
+                    are cleaning, lunch and a handover read as one thing until
+                    they carry their own names. */}
+                {b.title}
               </span>
             )}
           </div>

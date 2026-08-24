@@ -413,7 +413,7 @@ function TimelinePanel() {
         label: (s as any).machineCode ?? s.machineLabel ?? s.label ?? s.machineId.slice(0, 8),
         segments: [] as GanttRow['segments'],
       };
-      hit.segments.push({ state: s.state, startTime: s.from, endTime: s.to });
+      hit.segments.push({ state: s.state, label: (s as any).label, startTime: s.from, endTime: s.to });
       byMachine.set(s.machineId, hit);
     }
     const stats = new Map(data?.machines?.map((m) => [m.key, m]) ?? []);

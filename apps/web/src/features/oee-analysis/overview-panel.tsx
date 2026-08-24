@@ -26,6 +26,8 @@ export interface TrendPoint {
 }
 export interface TimelineSegment {
   machineId: string; machineCode: string; state: string;
+  /** The plant's own name for the block, when the schedule supplied one. */
+  label?: string;
   kind: SegmentKind;
   from: string; to: string; minutes: number;
 }
@@ -154,7 +156,7 @@ export function OverviewPanel({
           label: m?.label ?? v.label,
           sublabel: m?.sublabel ?? undefined,
           meta: `${m?.availability == null ? '—' : `${m.availability}%`} · ${dur(running)}`,
-          segments: v.segments.map((x) => ({ state: x.state, startTime: x.from, endTime: x.to })),
+          segments: v.segments.map((x) => ({ state: x.state, label: x.label, startTime: x.from, endTime: x.to })),
         };
       })
       .sort((a, b) => a.label.localeCompare(b.label));

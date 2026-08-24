@@ -89,18 +89,31 @@ export class PlannedStopMaterializerService {
    * corrected it is still looking, and slow enough that a rewrite of a few
    * hundred rows is nothing.
    *
-   * ── Why yesterday through tomorrow ──────────────────────────────────────
-   * Forward so the coming shift is already written when it starts, and back one
-   * day so a template corrected this morning repairs the shift it got wrong
-   * rather than only applying from now on. Wider than that would rewrite
-   * settled history every hour, which is not this job's business — reshaping
-   * an old window is a deliberate act, and the seed takes `--days` for it.
+   * ── Why a MONTH back, not a day ─────────────────────────────────────────
+   * Because this job is the only thing that can un-write what it wrote.
+   *
+   * `materialize` replaces its own rows inside the window it is given, and
+   * nothing else ever deletes them. With a one-day window, deleting a template
+   * left every record it had ever produced sitting on the timeline: the plant
+   * cleared its planned stops, saw zero templates on the screen, and the Gantt
+   * still drew PLANNED_STOP across the past ten days. Derived rows outliving
+   * the definition they derive from is not a stale cache, it is a lie with a
+   * timestamp.
+   *
+   * So the horizon is wide enough to cover what anyone is looking at — a month
+   * back, a week forward — and every tick rewrites all of it from the current
+   * templates. No templates means no rows, which is the correct answer to
+   * "I deleted them". The cost is a few thousand rows an hour, which is
+   * nothing, and the alternative is a reconciliation nobody remembers to run.
+   *
+   * Beyond the horizon, records stay. Deleting a template should stop future
+   * materialisation, not rewrite a quarter's published OEE.
    */
   @Cron(CronExpression.EVERY_HOUR)
   async tick(): Promise<void> {
     const now = new Date();
-    const from = startOfDay(new Date(now.getTime() - 24 * 3_600_000));
-    const to = new Date(startOfDay(new Date(now.getTime() + 48 * 3_600_000)).getTime());
+    const from = startOfDay(new Date(now.getTime() - 30 * 24 * 3_600_000));
+    const to = new Date(startOfDay(new Date(now.getTime() + 7 * 24 * 3_600_000)).getTime());
 
     try {
       const factories = await this.prisma.factory.findMany({ select: { id: true } });

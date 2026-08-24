@@ -18,6 +18,17 @@ export interface TimelineSegment {
   from: Date;
   to: Date;
   minutes: number;
+  /**
+   * What this block IS, when the plant has a name for it.
+   *
+   * `state` is the machine's word — PLANNED_STOP — and on a schedule where
+   * cleaning, a meal and a handover are all PLANNED_STOP, that word tells the
+   * reader nothing: three different activities draw as one indistinguishable
+   * blue band. The schedule already knows which is which, so the name travels
+   * with the block. Absent for sensor records, which genuinely have only a
+   * state.
+   */
+  label?: string;
 }
 
 export interface ProductionDetails {
@@ -156,9 +167,9 @@ export class StateTimelineService {
       : Prisma.empty;
 
     const rows = await this.prisma.$queryRaw<Array<{
-      machineId: string; machineCode: string; state: string; from: Date; to: Date; source: string;
+      machineId: string; machineCode: string; state: string; from: Date; to: Date; source: string; notes: string | null;
     }>>(Prisma.sql`
-      SELECT r."machineId", m.code AS "machineCode", r.state::text AS state, r.source,
+      SELECT r."machineId", m.code AS "machineCode", r.state::text AS state, r.source, r.notes,
              GREATEST(r."startTime", ${from}) AS "from",
              LEAST(COALESCE(r."endTime", ${to}), ${to}) AS "to"
       FROM machine_state_records r
@@ -179,6 +190,10 @@ export class StateTimelineService {
           machineId: r.machineId,
           machineCode: r.machineCode,
           state: r.state,
+          // The activity name the materialiser wrote, without the trailing
+          // provenance clause — "Line Cleaning — start of shift", not the
+          // whole sentence. Sensor records carry no note and keep just a state.
+          label: r.notes ? r.notes.split(' (')[0].trim() || undefined : undefined,
           kind: this.kindOf(r.state, verdictFor(r.machineId, r.state)),
           from: r.from,
           to: r.to,

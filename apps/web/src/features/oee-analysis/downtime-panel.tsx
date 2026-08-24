@@ -35,6 +35,8 @@ import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-st
 
 export interface TimelineSegment {
   machineId: string; machineCode: string; state: string;
+  /** The plant's own name for the block, when the schedule supplied one. */
+  label?: string;
   kind: SegmentKind; from: string; to: string; minutes: number;
 }
 export interface ReasonSlice {
@@ -121,7 +123,7 @@ export function DowntimePanel({
           label: m?.label ?? v.label,
           sublabel: m?.sublabel ?? undefined,
           meta: `${down.length} stops · ${dur(lost)}`,
-          segments: v.segments.map((x) => ({ state: x.state, startTime: x.from, endTime: x.to })),
+          segments: v.segments.map((x) => ({ state: x.state, label: x.label, startTime: x.from, endTime: x.to })),
         };
       })
       .sort((a, b) => a.label.localeCompare(b.label));
