@@ -637,8 +637,17 @@ export class LocalApiController {
       where: factoryId ? { factoryId } : {},
     });
     const byMachine = new Map(cfg.map((c) => [c.machineId, c]));
-    return machines.map((m) => ({
+    // Which machine each belt actually runs TO. Every row describes ONE link —
+    // the belt from this machine to the next — and the chaining is done by the
+    // balance itself, each machine measured against its neighbour's already
+    // corrected figure. Naming the far end on screen is the difference between
+    // entering one conveyor and entering a running total of several.
+    //
+    // Machine codes ARE routing order here: renumber-machines.seed keeps them
+    // aligned with the routing, and re-derives them whenever it does not.
+    return machines.map((m, i) => ({
       machineId: m.id, code: m.code, name: m.name,
+      nextMachineCode: machines[i + 1]?.code ?? null,
       enabled: byMachine.get(m.id)?.enabled ?? true,
       isAnchor: byMachine.get(m.id)?.isAnchor ?? false,
       bufferToNextQty: byMachine.get(m.id)?.bufferToNextQty ?? null,

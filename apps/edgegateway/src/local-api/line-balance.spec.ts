@@ -276,4 +276,38 @@ describe('line balance', () => {
     const [run] = await svc.balance();
     expect(at(run, 'M1').bufferCommon).toBe(50);
   });
+
+  it('chains through the neighbour, so each row is ONE belt and not a running total', async () => {
+    // The question this answers: for M1, do you enter the belt to M2, or
+    // everything between M1 and the anchor? One belt — because M1 is measured
+    // against M2's ALREADY CORRECTED figure, not against the anchor. Summing
+    // them would count M2's belt twice.
+    //
+    // The plant's own numbers: anchor M3 at 108 pallets, M2 with 3 cartons of
+    // belt, M1 with 12 inners of belt.
+    const svc = build(
+      [
+        { code: 'M1', unit: 'INNER', good: 17226 },
+        { code: 'M2', unit: 'CARTON', good: 4334 },
+        { code: 'M3', unit: 'PALLET', good: 108 },
+      ],
+      [
+        { machineId: 'M1', bufferToNextQty: 12, bufferUnit: 'INNER' },
+        { machineId: 'M2', bufferToNextQty: 3, bufferUnit: 'CARTON' },
+        { machineId: 'M3', isAnchor: true },
+      ],
+    );
+    const [run] = await svc.balance();
+
+    // M2 against the anchor: 17,336 - 17,280 = 56, of which its own 12 is belt.
+    expect(at(run, 'M2').goodCommon).toBe(17336);
+    expect(at(run, 'M2').explainedByBuffer).toBe(12);
+    expect(at(run, 'M2').correction).toBe(-44);
+    expect(at(run, 'M2').balancedCommon).toBe(17292);
+
+    // M1 against M2's CORRECTED 17,292 — not against the anchor's 17,280. That
+    // is what makes one belt per row the right entry.
+    expect(at(run, 'M1').correction).toBe(66);
+    expect(at(run, 'M1').balancedCommon).toBe(17292);
+  });
 });

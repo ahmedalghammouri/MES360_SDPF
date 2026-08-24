@@ -251,9 +251,11 @@
               <span id="lbMsg" style="font-size:11.5px"></span>
               <span style="color:hsl(var(--muted-fg));font-size:11.5px">gateway only &mdash; not editable from the web app</span></div>
             <div style="padding:0 14px 10px;color:hsl(var(--muted-fg));font-size:12px;line-height:1.65">
-              <b>Conveyor capacity</b> is how much the belt <i>after</i> that machine holds when it is full &mdash;
-              entered in whatever unit you counted it in, so &ldquo;3 cartons&rdquo; is typed as
-              <code>3</code> with <code>CARTON</code> selected. The ladder converts it.
+              <b>Conveyor capacity</b> is <i>one belt</i> &mdash; the run from that machine to the
+              <b>next one only</b>, never a total across several. Each machine is compared with its
+              own neighbour, so the chain builds itself; adding them up would count a belt twice.
+              Enter it in whatever unit you counted it in: &ldquo;3 cartons&rdquo; is typed as
+              <code>3</code> with <code>CARTON</code> selected, and the ladder converts it.
               Leave it empty and that link is left unbalanced: an unmeasured conveyor is never
               assumed to be empty.<br>
               <b>Transit</b> is seconds for one unit to travel that belt &mdash; it does not affect the
@@ -264,7 +266,7 @@
             </div>
             <div class="tbl-wrap"><table><thead><tr>
               <th>Machine</th><th>On</th><th>Anchor</th>
-              <th class="mono">Conveyor capacity after this machine</th>
+              <th class="mono">Conveyor capacity &mdash; this machine to the next</th>
               <th class="mono">Transit (sec)</th><th class="mono">Max corr %</th><th>Apply</th><th></th>
             </tr></thead><tbody id="lbCfg"></tbody></table></div>
           </div>
@@ -750,7 +752,10 @@
         '<td><b>'+esc(c.code)+'</b><div class="sub2">'+esc(c.name)+'</div></td>'+
         '<td>'+chk('en',c.enabled)+'</td>'+
         '<td>'+chk('an',c.isAnchor)+'</td>'+
-        '<td>'+num('buf',c.bufferToNextQty,'not set')+
+        '<td>'+(c.nextMachineCode
+            ? '<div class="sub2" style="margin-bottom:3px">'+esc(c.code)+' &rarr; '+esc(c.nextMachineCode)+'</div>'
+            : '<div class="sub2" style="margin-bottom:3px">آخر الخطّ — اتركها فارغة</div>')+
+          num('buf',c.bufferToNextQty,'not set')+
           '<select id="lb_bu_'+id+'" style="width:86px;margin-inline-start:5px" onfocus="lbEditing=true">'+
           ['PIECE','INNER','CARTON','PALLET'].map(u=>
             '<option value="'+u+'"'+((c.bufferUnit||'')===u?' selected':'')+'>'+u+'</option>').join('')+
