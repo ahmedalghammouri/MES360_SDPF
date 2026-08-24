@@ -1253,7 +1253,7 @@ enum DowntimeCategory {
   PLANNED_BREAK
   /// Bringing the line up at the head of a shift. Its own category rather than
   /// folded into CHANGEOVER: a changeover is between products, a startup is
-  /// before the first one.
+  /// before the first one, and a plant shortening them does different things.
   STARTUP
   EXTERNAL
   OTHER
