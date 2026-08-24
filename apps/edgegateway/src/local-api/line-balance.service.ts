@@ -138,7 +138,15 @@ export class LineBalanceService implements OnModuleInit {
     // reasoning:
     //
     //     upstream i    good_i  >=  anchor + (capacity of every belt i..anchor)
-    //     downstream i  good_i  <=  anchor + (capacity of every belt anchor..i)
+    //     downstream i  good_i  <=  anchor
+    //
+    // The two limits are NOT mirror images, and the asymmetry is the physics.
+    // A belt between the anchor and a machine after it holds pallets the anchor
+    // has made and that machine has not yet taken — so it makes room BELOW the
+    // anchor's figure, never above it. The wrapper cannot wrap a pallet the
+    // palletiser never made, whatever is sitting on the belt. Allowing it one
+    // belt of headroom, as an earlier version did, permitted a quantity that
+    // cannot exist.
     //
     // This replaces a chain that measured each machine against its NEIGHBOUR'S
     // CORRECTED figure. That chain had two faults. It carried one machine's
@@ -190,7 +198,9 @@ export class LineBalanceService implements OnModuleInit {
       }
 
       // The line the machine must not cross, and which side of it is a fault.
-      const limit = upstream ? anchorHandled + cum : anchorGood + cum;
+      // Upstream the belts put it AHEAD of the anchor; downstream they can only
+      // hold it back, so the anchor itself is the ceiling.
+      const limit = upstream ? anchorHandled + cum : anchorGood;
       const short = upstream ? limit - step.goodCommon : step.goodCommon - limit;
 
       if (short <= 0) {
@@ -198,7 +208,7 @@ export class LineBalanceService implements OnModuleInit {
         step.verdict = 'BALANCED';
         step.reason = upstream
           ? `${this.n(step.goodCommon)} ≥ المرجع ${this.n(anchorHandled)} + بافر ${this.n(cum)} — لا تصحيح`
-          : `${this.n(step.goodCommon)} ≤ المرجع ${this.n(anchorGood)} + بافر ${this.n(cum)} — لا تصحيح`;
+          : `${this.n(step.goodCommon)} ≤ المرجع ${this.n(anchorGood)} — لا تصحيح`;
         continue;
       }
 
@@ -206,7 +216,7 @@ export class LineBalanceService implements OnModuleInit {
       this.applyCorrection(step, upstream ? short : -short,
         upstream
           ? `أقلّ من المرجع ${this.n(anchorHandled)} + بافر ${this.n(cum)} بمقدار ${this.n(short)}`
-          : `أكثر من المرجع ${this.n(anchorGood)} + بافر ${this.n(cum)} بمقدار ${this.n(short)}`);
+          : `أكثر من المرجع ${this.n(anchorGood)} بمقدار ${this.n(short)} — لا يمكن تغليف ما لم يُصنع`);
     }
 
     const anchorMachineId = steps[anchorIdx].machineId;

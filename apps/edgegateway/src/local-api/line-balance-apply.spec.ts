@@ -92,12 +92,12 @@ describe('applying the line balance', () => {
 
     await svc.applyBalances();
 
-    // 13 wrapped against 10 palletised. One belt of allowance puts its bound
-    // at 11 pallets, so two of them have no explanation. The balance works in
-    // inners, so -320 there has to land as -2 here.
-
-    expect(jo['jo-1'].adj).toBe(-2);
-    expect(jo['jo-1'].good).toBe(11);
+    // 13 wrapped against 10 palletised, and the palletiser's own figure is the
+    // ceiling — a belt between them holds pallets it MADE, so it can only put
+    // the wrapper behind, never ahead. Three pallets have no explanation, and
+    // -480 inners has to land as -3 here.
+    expect(jo['jo-1'].adj).toBe(-3);
+    expect(jo['jo-1'].good).toBe(10);
   });
 
   it('changes nothing on a second pass over an unchanged line', async () => {
@@ -261,7 +261,7 @@ describe('applying the line balance', () => {
 
     await svc.applyBalances();
 
-    expect(jo['jo-1'].adj).toBe(-1);
-    expect(jo['jo-1'].good).toBe(11);
+    expect(jo['jo-1'].adj).toBe(-2);
+    expect(jo['jo-1'].good).toBe(10);
   });
 });

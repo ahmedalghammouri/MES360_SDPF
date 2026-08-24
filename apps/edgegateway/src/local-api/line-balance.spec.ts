@@ -131,18 +131,19 @@ describe('line balance', () => {
 
   it('pulls a downstream machine down to its bound', async () => {
     // The wrapper says 122 pallets against the palletiser's 110. It cannot wrap
-    // pallets that were never made; its bound is the anchor plus the belt
-    // between them.
+    // pallets that were never made, whatever is sitting on the belt.
     const svc = SDPF(17_772, 4_440, 110, 122);
     const [run] = await svc.balance();
 
     const m4 = at(run, 'M4');
     expect(m4.explainedByBuffer).toBe(160);
-    expect(m4.unexplained).toBe(1_760);               // 19,520 - (17,600 + 160)
-    expect(m4.balancedCommon).toBe(17_760);
-    expect(m4.correction).toBe(-1_760);
-    // Exactly one belt ahead of the anchor, and no further.
-    expect(m4.balancedCommon - at(run, 'M3').goodCommon).toBe(160);
+    expect(m4.unexplained).toBe(1_920);               // 19,520 - 17,600
+    expect(m4.balancedCommon).toBe(17_600);
+    expect(m4.correction).toBe(-1_920);
+    // The anchor itself is the ceiling. A belt between them holds pallets the
+    // palletiser MADE and the wrapper has not taken, so it makes room below
+    // that figure and never above it.
+    expect(m4.balancedCommon - at(run, 'M3').goodCommon).toBe(0);
   });
 
   it('never touches the anchor', async () => {
