@@ -4097,6 +4097,39 @@ export class ProductionService implements OnApplicationBootstrap {
       );
     }
 
+    // ── One EXECUTING job order per machine ──────────────────────────────
+    //
+    // Not a policy preference — the counters cannot honour more than one. The
+    // edge resolves which order to credit with:
+    //
+    //   findMany({ where: { machineId, status: 'EXECUTING' },
+    //              orderBy: { actualStart: 'desc' } })   → keeps the FIRST
+    //
+    // (counter.service.ts). So a second EXECUTING order on the same machine
+    // does not split the count or raise an error; it silently receives NOTHING,
+    // and every figure derived from it — Performance, Quality, the whole OEE —
+    // is computed against a denominator with no numerator. On this plant's
+    // schedule that is the ordinary case, not an exotic one: two products a day
+    // change over on the same line, and starting the second before closing the
+    // first is one click.
+    //
+    // Refused here rather than repaired later, because the lost pulses cannot be
+    // reconstructed after the fact.
+    if (status === 'EXECUTING' && jo.machineId) {
+      const busy = await this.prisma.jobOrder.findFirst({
+        where: { machineId: jo.machineId, status: 'EXECUTING', id: { not: jobOrderId } },
+        select: { id: true, operationName: true, workOrder: { select: { orderNumber: true } } },
+      });
+      if (busy) {
+        throw new BadRequestException(
+          `This machine is already running job order "${busy.operationName}"`
+          + `${busy.workOrder?.orderNumber ? ` (${busy.workOrder.orderNumber})` : ''}. `
+          + 'Complete or pause it first — the machine counters can only be credited to one '
+          + 'running job order, so the second would silently record zero output.',
+        );
+      }
+    }
+
     // ── Dependency-aware start validation (→ EXECUTING) ──────────────────
     if (status === 'EXECUTING' && (jo as any).predecessor) {
       const pred = (jo as any).predecessor;

@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
-import { FALLBACK_VERDICTS, UNKNOWN_VERDICT, PRODUCING, type Verdict } from './minute-classification';
+import {
+  FALLBACK_VERDICTS, UNKNOWN_VERDICT, PRODUCING, merge, subtract, type Verdict,
+} from './minute-classification';
+import { SCHEDULE_SOURCE } from './planned-stop-materializer.service';
 
 /** How a segment is drawn and counted. Mirrors the classification the writers use. */
 export type SegmentKind = 'running' | 'planned' | 'external' | 'downtime' | 'unmeasured';
@@ -153,9 +156,9 @@ export class StateTimelineService {
       : Prisma.empty;
 
     const rows = await this.prisma.$queryRaw<Array<{
-      machineId: string; machineCode: string; state: string; from: Date; to: Date;
+      machineId: string; machineCode: string; state: string; from: Date; to: Date; source: string;
     }>>(Prisma.sql`
-      SELECT r."machineId", m.code AS "machineCode", r.state::text AS state,
+      SELECT r."machineId", m.code AS "machineCode", r.state::text AS state, r.source,
              GREATEST(r."startTime", ${from}) AS "from",
              LEAST(COALESCE(r."endTime", ${to}), ${to}) AS "to"
       FROM machine_state_records r
@@ -169,7 +172,7 @@ export class StateTimelineService {
     if (rows.length === 0) return [];
 
     const verdictFor = await this.loadVerdicts(factoryId, [...new Set(rows.map((r) => r.machineId))]);
-    return rows
+    return this.scheduleWins(rows)
       .map((r) => {
         const minutes = (r.to.getTime() - r.from.getTime()) / 60_000;
         return {
@@ -183,6 +186,52 @@ export class StateTimelineService {
         };
       })
       .filter((s) => s.minutes > 0);
+  }
+
+  /**
+   * Where the schedule and the sensor both claim a minute, the schedule wins.
+   *
+   * The SAME precedence `classifyMinute` applies to the arithmetic:
+   *
+   *   const planned   = merge([...scheduledStops, ...])
+   *   const operating = subtract(merge(byKind.operating), planned)
+   *
+   * Applying it here too is the whole point of materialising the schedule into
+   * state records. Before, the maths excluded a scheduled break while this
+   * chart drew whatever the sensor reported through it — the same minute, two
+   * accounts, and no way for a reader to reconcile them.
+   *
+   * The sensor's record is trimmed for DISPLAY only; nothing is deleted. A
+   * machine that ran straight through its own cleaning window still has that
+   * measurement on file — it simply is not drawn as production, because for
+   * every other purpose in the system those minutes were not production.
+   */
+  private scheduleWins<T extends { machineId: string; from: Date; to: Date; source: string }>(
+    rows: T[],
+  ): T[] {
+    const planned = rows.filter((r) => r.source === SCHEDULE_SOURCE);
+    if (planned.length === 0) return rows;
+
+    const byMachine = new Map<string, Array<[number, number]>>();
+    for (const p of planned) {
+      const list = byMachine.get(p.machineId) ?? [];
+      list.push([p.from.getTime(), p.to.getTime()]);
+      byMachine.set(p.machineId, list);
+    }
+    for (const [k, v] of byMachine) byMachine.set(k, merge(v));
+
+    const out: T[] = [];
+    for (const r of rows) {
+      if (r.source === SCHEDULE_SOURCE) { out.push(r); continue; }
+      const taken = byMachine.get(r.machineId);
+      if (!taken) { out.push(r); continue; }
+      // What survives of the sensor's record once the schedule has taken its
+      // share. A record straddling a break becomes the two pieces either side.
+      for (const [s, e] of subtract([[r.from.getTime(), r.to.getTime()]], taken)) {
+        out.push({ ...r, from: new Date(s), to: new Date(e) });
+      }
+    }
+    return out;
   }
 
   /**

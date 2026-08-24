@@ -86,7 +86,13 @@ const SUMS = Prisma.sql`
   COALESCE(SUM(o."microStopMin"), 0)::float8        AS "microStopMin",
   COALESCE(SUM(o."goodParts"), 0)::float8           AS "goodParts",
   COALESCE(SUM(o."rejectedParts"), 0)::float8       AS "rejectedParts",
-  COALESCE(SUM(o."theoreticalParts"), 0)::float8    AS "theoreticalParts"
+  COALESCE(SUM(o."theoreticalParts"), 0)::float8    AS "theoreticalParts",
+  -- Parts the line booked in minutes the engine credited no runtime for —
+  -- output during a scheduled stop, almost always. They raise Performance
+  -- without raising its denominator, so the audit names the amount instead of
+  -- the reading drifting up unexplained. See OeeTotals.outputWithoutRuntimeParts.
+  COALESCE(SUM(o."goodParts" + o."rejectedParts")
+           FILTER (WHERE o."operatingMin" = 0), 0)::float8 AS "outputWithoutRuntimeParts"
 `;
 
 /**
@@ -190,14 +196,28 @@ export class OeeStandardService {
       t AS (SELECT ${TIME_SUMS} FROM scoped o),
       q AS (
         SELECT COALESCE(SUM(o."goodParts"), 0)::float8        AS "goodParts",
-               COALESCE(SUM(o."theoreticalParts"), 0)::float8 AS "theoreticalParts"
+               COALESCE(SUM(o."theoreticalParts"), 0)::float8 AS "theoreticalParts",
+               -- Good parts booked in minutes with no measured runtime. Same
+               -- final-step rule as the figure above, so the two are comparable.
+               COALESCE(SUM(o."goodParts") FILTER (WHERE o."operatingMin" = 0), 0)::float8
+                 AS "orphanGood"
         FROM scoped o
         JOIN fin f ON f."workOrderId" IS NOT DISTINCT FROM o."workOrderId" AND f.ms = o."sequenceOrder"
       ),
       -- Scrap from every step. A unit rejected at the filler is gone whether or
       -- not anything downstream ever saw it.
-      sc AS (SELECT COALESCE(SUM(o."rejectedParts"), 0)::float8 AS "rejectedParts" FROM scoped o)
-      SELECT t.*, q."goodParts", q."theoreticalParts", sc."rejectedParts"
+      sc AS (
+        SELECT COALESCE(SUM(o."rejectedParts"), 0)::float8 AS "rejectedParts",
+               COALESCE(SUM(o."rejectedParts") FILTER (WHERE o."operatingMin" = 0), 0)::float8
+                 AS "orphanRejected"
+        FROM scoped o
+      )
+      SELECT t.*, q."goodParts", q."theoreticalParts", sc."rejectedParts",
+             -- Surfaced, not swallowed: these parts move Performance's numerator
+             -- while contributing nothing to its denominator, because the minute
+             -- they were made in was credited no runtime (a scheduled stop the
+             -- line ran through, almost always).
+             (q."orphanGood" + sc."orphanRejected") AS "outputWithoutRuntimeParts"
       FROM t, q, sc
     `);
     return rows[0] ?? EMPTY_TOTALS;

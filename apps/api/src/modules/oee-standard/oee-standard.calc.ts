@@ -52,6 +52,20 @@ export interface OeeTotals {
   rejectedParts: number;
   /** Σ (operating minutes × that product's design speed). */
   theoreticalParts: number;
+  /**
+   * Parts counted in minutes the engine measured NO running time for.
+   *
+   * The counters are read from the job order and are deliberately independent
+   * of how the minute was classified — a pulse is a pulse. So a line that runs
+   * through a scheduled break still books its output, while the theoretical
+   * denominator for those minutes is zero, because the schedule took them.
+   *
+   * That is a real event and it must not be silent: those parts inflate the
+   * Performance numerator against a denominator they never contributed to.
+   * Carried here so the audit can name the amount instead of the reading
+   * quietly drifting upward. Optional so older callers still typecheck.
+   */
+  outputWithoutRuntimeParts?: number;
 }
 
 export interface OeeFactors {
@@ -99,6 +113,7 @@ export interface OeeResult extends OeeFactors {
 export const EMPTY_TOTALS: OeeTotals = {
   totalMin: 0, plannedStopMin: 0, availabilityLossMin: 0, externalLossMin: 0,
   unmeasuredMin: 0, operatingMin: 0, goodParts: 0, rejectedParts: 0, theoreticalParts: 0,
+  outputWithoutRuntimeParts: 0,
 };
 
 export function addTotals(a: OeeTotals, b: Partial<OeeTotals>): OeeTotals {
@@ -248,6 +263,15 @@ export function auditTotals(t: OeeTotals): {
   bucketsMin: number;
   bucketDriftMin: number;
   identityDriftMin: number;
+  /** Parts booked in minutes with no measured runtime. See OeeTotals. */
+  outputWithoutRuntimeParts: number;
+  /**
+   * How many points those parts add to Performance.
+   *
+   * Stated in the unit the reader is actually judging — nobody can tell what
+   * "1,245 pieces" does to a percentage without doing the division themselves.
+   */
+  outputWithoutRuntimePct: number;
 } {
   const buckets =
     t.plannedStopMin + t.externalLossMin + t.unmeasuredMin + t.availabilityLossMin + t.operatingMin;
@@ -256,13 +280,26 @@ export function auditTotals(t: OeeTotals): {
   const operationalMin = Math.max(0, t.totalMin - t.plannedStopMin - t.externalLossMin - t.unmeasuredMin);
   const identityDrift = operationalMin - t.availabilityLossMin - t.operatingMin;
 
+  // Parts the plant made in minutes the engine credited no runtime for. Not a
+  // drift — nothing is lost — but it moves Performance without moving its
+  // denominator, so it belongs beside the drifts rather than nowhere.
+  const orphan = t.outputWithoutRuntimeParts ?? 0;
+  const orphanPct = t.theoreticalParts > 0 ? (orphan / t.theoreticalParts) * 100 : 0;
+
   // A tenth of a minute over a whole window is float noise, not lost time.
   const TOL = 0.1;
   return {
+    // `ok` stays a statement about the MINUTES reconciling. Orphan output is a
+    // separate fact with its own line: folding it in here would turn a window
+    // whose time model is perfect into a red banner, and the two need
+    // different actions — one is a writer bug, the other is a schedule that
+    // does not match what the line did.
     ok: Math.abs(bucketDrift) <= TOL && Math.abs(identityDrift) <= TOL,
     bucketsMin: r1(buckets),
     bucketDriftMin: r1(bucketDrift),
     identityDriftMin: r1(identityDrift),
+    outputWithoutRuntimeParts: Math.round(orphan),
+    outputWithoutRuntimePct: r2(orphanPct),
   };
 }
 

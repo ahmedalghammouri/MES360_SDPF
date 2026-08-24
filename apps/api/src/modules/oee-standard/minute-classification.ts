@@ -186,7 +186,19 @@ export async function classifyMinute(opts: {
     const isMicro = microMs > 0 && wholeMs > 0 && wholeMs < microMs;
 
     const v = await verdictFor(seg.state);
-    if (v.isDowntime && v.isPlanned) byKind.planned.push([s, e]);
+    // A planned state is excused from OEE only when the plant SAYS it is.
+    //
+    // This used to branch on `isPlanned` alone, which made `affectsOEE`
+    // decorative for every planned state — and excused CHANGEOVER and SETUP,
+    // which the seed marks `affectsOEE: true` precisely because they are NOT
+    // excused. Setup and adjustment is one of the six big losses; a plant that
+    // never sees it charged has no reason to shorten it.
+    //
+    // So the two flags now mean two different things, as the columns imply:
+    //   isPlanned    was this stop intended?      (reporting, the state list)
+    //   affectsOEE   should the reading hurt?     (the arithmetic)
+    // PLANNED_STOP and MAINTENANCE keep affectsOEE:false and stay excluded.
+    if (v.isDowntime && v.isPlanned && !v.affectsOEE) byKind.planned.push([s, e]);
     else if (v.isDowntime && !v.affectsOEE) byKind.external.push([s, e]);
     else if (isMicro) { byKind.avail.push([s, e]); microSpans.push([s, e]); }
     // Not producing and not excused is an availability loss — including a state

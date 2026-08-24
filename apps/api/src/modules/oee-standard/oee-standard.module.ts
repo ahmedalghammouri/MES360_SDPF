@@ -7,6 +7,7 @@ import { OeeStandardController } from './oee-standard.controller';
 import { RejectReasonService } from './reject-reason.service';
 import { StateTimelineService } from './state-timeline.service';
 import { LineBasisService } from './line-basis.service';
+import { PlannedStopMaterializerService } from './planned-stop-materializer.service';
 
 /**
  * The standard OEE engine — self-contained on purpose.
@@ -18,7 +19,13 @@ import { LineBasisService } from './line-basis.service';
 @Module({
   imports: [DatabaseModule],
   controllers: [OeeStandardController],
-  providers: [OeeStandardService, OeeStandardWriter, StateTimelineService, RejectReasonService, LineBasisService],
-  exports: [OeeStandardService, StateTimelineService, RejectReasonService, LineBasisService],
+  providers: [
+    OeeStandardService, OeeStandardWriter, StateTimelineService,
+    RejectReasonService, LineBasisService, PlannedStopMaterializerService,
+  ],
+  exports: [
+    OeeStandardService, StateTimelineService, RejectReasonService,
+    LineBasisService, PlannedStopMaterializerService,
+  ],
 })
 export class OeeStandardModule {}
