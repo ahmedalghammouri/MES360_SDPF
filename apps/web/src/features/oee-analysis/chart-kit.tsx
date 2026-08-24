@@ -407,16 +407,17 @@ export function resolveChartColour(colour: string, isDark: boolean): string {
  * or the handles on the slider beneath it — both native to ECharts'
  * `dataZoom`, not a bolted-on approximation of it), and a CSV export.
  *
- * ── Gaps are the point ──────────────────────────────────────────────────────
- * A bucket the engine could not measure is sent as `null`, and ECharts breaks
- * a line at a null point by default — no `connectNulls` flag needed, unlike
- * the library this replaced. An hour with no parts counted has no Performance
- * and no Quality, and bridging that draws a straight line THROUGH time the
- * plant has no measurement for. A gap says "not measured"; a line through it
- * says "we know, and it was fine". Only one of those is true.
+ * ── An incomplete bucket is not on the chart at all ────────────────────────
+ * A bucket the engine could not measure is sent as `null`, and a bucket where
+ * even one plotted series is `null` is dropped from `rows` before anything is
+ * drawn — not bridged with a line, and not left as a visible break either.
+ * Both of those still read as "the chart has an opinion about this moment";
+ * the true answer is that the moment has no reading to show, the same as if
+ * it were never in the window. It never reaches the CSV export either, so a
+ * downloaded file has no half-populated row to explain.
  *
- * Zero is NOT a gap: a machine that genuinely produced nothing is measured,
- * and its zero belongs on the chart.
+ * Zero is NOT incomplete: a machine that genuinely produced nothing is
+ * measured, and its zero belongs on the chart same as any other reading.
  *
  * ── The form switch is local, seeded globally ───────────────────────────────
  * The filter panel sets the house style and every chart follows it. Changing
@@ -474,6 +475,17 @@ export function TrendChart({
 
   const hasBuckets = !!(buckets?.length && onBucketChange);
 
+  // A bucket where even ONE of the plotted series has no reading is dropped
+  // outright, not drawn with a break in it — a half-answered row is not a
+  // fact about the plant the way a fully-measured zero is, and showing it as
+  // a gap in an otherwise-continuous line reads as one series failed rather
+  // than as "this moment has nothing to say". For the Overview chart this is
+  // free: OEE itself is only non-null when all three factors are, so keeping
+  // only complete rows and keeping every row with a reading are the same
+  // filter. The CSV export reads this same filtered list, so an incomplete
+  // bucket is absent from the file rather than present with a blank cell.
+  const rows = data.filter((d) => series.every((s) => d[s.key] != null));
+
   const head = toolbar ? (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       {title && <h3 className="text-sm font-semibold">{title}</h3>}
@@ -485,7 +497,7 @@ export function TrendChart({
         )}
         <Segmented label="Chart form" value={form} options={FORM_OPTIONS} onChange={setForm} />
         {exportName && (
-          <button type="button" onClick={() => exportCsv(exportName, data, series, xKey)}
+          <button type="button" onClick={() => exportCsv(exportName, rows, series, xKey)}
             title="Download these buckets as CSV"
             className="rounded-md border border-border/60 px-2 py-[3px] text-[11px] font-medium
                        text-muted-foreground transition-colors hover:text-foreground
@@ -497,7 +509,7 @@ export function TrendChart({
     </div>
   ) : null;
 
-  if (!data || data.length === 0) {
+  if (!rows || rows.length === 0) {
     return (
       <div>
         {head}
@@ -506,8 +518,8 @@ export function TrendChart({
     );
   }
 
-  const hasZoom = zoom && data.length > 6;
-  const categories = data.map((d) => String(d[xKey] ?? ''));
+  const hasZoom = zoom && rows.length > 6;
+  const categories = rows.map((d) => String(d[xKey] ?? ''));
   // Resolved ONCE, here — every downstream read of a series' colour (the
   // palette array, the area gradients, the zoom slider's filler) uses this,
   // never `series` directly, so nothing can reach the canvas as an
@@ -546,10 +558,8 @@ export function TrendChart({
         backgroundColor: c.tooltipBg,
         borderColor: c.tooltipBorder,
         textStyle: { color: c.tooltipText, fontSize: 12 },
-        // A series absent from THIS bucket reads "—", not a skipped row — the
-        // reader asked what happened at this moment, and "not measured" is an
-        // answer. Dropping the row silently makes a gap look like a rendering
-        // fault rather than a fact about the plant.
+        // `rows` already dropped every incomplete bucket, so this is a
+        // defensive fallback rather than a path a reader should ever see.
         valueFormatter: (v: unknown) =>
           v == null ? '—' : `${Number(v).toLocaleString('en-US', { maximumFractionDigits: decimals })}${unit}`,
       },
@@ -592,12 +602,11 @@ export function TrendChart({
         const axisIndex = s.axis === 'right' && rightUnit !== undefined ? 1 : 0;
         const base = {
           name: s.name,
-          data: data.map((d) => (d[s.key] == null ? null : d[s.key])),
+          // `rows` already excludes any bucket missing a reading for this or
+          // any other plotted series, so every value reaching the chart here
+          // is real.
+          data: rows.map((d) => d[s.key]),
           yAxisIndex: axisIndex,
-          // A gap in what the plant measured must stay a gap — ECharts already
-          // breaks a line at `null` by default, so nothing further is needed
-          // here; it is named explicitly so the choice reads as deliberate.
-          connectNulls: false,
         };
         if (form === 'bar') {
           return { ...base, type: 'bar', barMaxWidth: 28, itemStyle: { borderRadius: [3, 3, 0, 0] } };
@@ -606,7 +615,7 @@ export function TrendChart({
           ...base,
           type: 'line',
           smooth: true,
-          symbol: data.length <= 60 ? 'circle' : 'none',
+          symbol: rows.length <= 60 ? 'circle' : 'none',
           symbolSize: 5,
           lineStyle: { width: s.emphasis ? 3 : 2 },
           ...(form === 'area' ? {
@@ -623,7 +632,7 @@ export function TrendChart({
         };
       }),
     };
-  }, [data, resolved, series.length, form, domain, rightDomain, unit, rightUnit, decimals, categories, c, hasZoom, xKey]);
+  }, [rows, resolved, series.length, form, domain, rightDomain, unit, rightUnit, decimals, categories, c, hasZoom, xKey]);
 
   return (
     <div>
