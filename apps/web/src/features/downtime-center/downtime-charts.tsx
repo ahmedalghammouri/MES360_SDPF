@@ -27,6 +27,18 @@ export function DowntimeTrend({ data, type = 'bar' }: { data: Array<{ date: stri
           };
     return {
       backgroundColor: 'transparent',
+      // Animation OFF, deliberately.
+      //
+      // These pages refetch on a timer, and `notMerge` replaces the option
+      // wholesale on each update. An animation frame still in flight from the
+      // previous update then interpolates against series data that no longer
+      // exists and throws "Cannot read properties of undefined (reading
+      // 'length')" out of ECharts' own onframe loop — which is a crash, not a
+      // dropped frame. The pre-ECharts charts all carried
+      // isAnimationActive={false} for the same reason; this is that policy
+      // restored. A live plant dashboard has nothing to gain from easing
+      // between two readings anyway.
+      animation: false,
       grid: { top: 28, right: 10, bottom: 22, left: 38 },
       tooltip: { trigger: 'axis' },
       legend: { top: 0, textStyle: { color: isDark ? '#ffffff80' : '#00000080', fontSize: 10 } },
@@ -48,6 +60,8 @@ export function DowntimeByMachine({ data }: { data: Array<{ name: string; minute
   const rows = [...data].reverse();
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     grid: { top: 8, right: 16, bottom: 18, left: 8, containLabel: true },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     xAxis: { type: 'value', splitLine: { lineStyle: { color: isDark ? '#ffffff10' : '#00000010' } }, ...axis(isDark) },
@@ -66,6 +80,8 @@ export function CategoryPareto({ data }: { data: Array<{ category: string; minut
   const isDark = resolvedTheme === 'dark';
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     grid: { top: 16, right: 36, bottom: 40, left: 38 },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     xAxis: { type: 'category', data: data.map((d) => d.category), axisLine: { lineStyle: { color: isDark ? '#ffffff20' : '#00000020' } }, axisLabel: { color: isDark ? '#ffffff60' : '#00000060', fontSize: 9, interval: 0, rotate: data.length > 4 ? 24 : 0 } },
@@ -89,6 +105,8 @@ export function PlannedSplit({ planned, unplanned }: { planned: number; unplanne
   const total = planned + unplanned;
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     tooltip: { trigger: 'item', formatter: '{b}: {c} min ({d}%)' },
     legend: { orient: 'vertical', right: 0, top: 'center', textStyle: { color: isDark ? '#ffffff90' : '#000000', fontSize: 10 }, itemWidth: 8, itemHeight: 8 },
     series: [{

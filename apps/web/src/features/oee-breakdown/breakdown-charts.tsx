@@ -120,6 +120,17 @@ export function RankedOee({ rows }: { rows: Slice[] }) {
 
   const option = {
     backgroundColor: 'transparent',
+    // Animation OFF, deliberately.
+    //
+    // These pages refetch on a timer, and `notMerge` replaces the option
+    // wholesale on each update. An animation frame still in flight from the
+    // previous update then interpolates against series data that no longer
+    // exists and throws "Cannot read properties of undefined (reading
+    // 'length')" out of ECharts' own onframe loop — which is a crash, not a
+    // dropped frame. The pre-ECharts charts all carried
+    // isAnimationActive={false} for the same reason; this is that policy
+    // restored.
+    animation: false,
     grid: { top: 6, right: 54, bottom: 6, left: 8, containLabel: true },
     tooltip: {
       trigger: 'item',
@@ -205,6 +216,8 @@ export function TimeComposition({ rows }: { rows: Slice[] }) {
 
   const option = {
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     grid: { top: 30, right: 12, bottom: 6, left: 8, containLabel: true },
     tooltip: {
       trigger: 'axis', axisPointer: { type: 'shadow' },
@@ -274,6 +287,8 @@ export function OutputBars({ rows }: { rows: Slice[] }) {
 
   const option = {
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     grid: { top: 30, right: 12, bottom: 6, left: 8, containLabel: true },
     tooltip: {
       trigger: 'axis', axisPointer: { type: 'shadow' },

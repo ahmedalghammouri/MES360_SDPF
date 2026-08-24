@@ -42,6 +42,18 @@ export function PowerGauge({ value, isLoading }: { value: number | null; isLoadi
 
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation OFF, deliberately.
+    //
+    // These pages refetch on a timer, and `notMerge` replaces the option
+    // wholesale on each update. An animation frame still in flight from the
+    // previous update then interpolates against series data that no longer
+    // exists and throws "Cannot read properties of undefined (reading
+    // 'length')" out of ECharts' own onframe loop — which is a crash, not a
+    // dropped frame. The pre-ECharts charts all carried
+    // isAnimationActive={false} for the same reason; this is that policy
+    // restored. A live plant dashboard has nothing to gain from easing
+    // between two readings anyway.
+    animation: false,
     series: [
       {
         type: 'gauge',
@@ -116,6 +128,8 @@ export function EnergyTrend({ data, type = 'area' }: { data: Array<{ date: strin
   const isDark = resolvedTheme === 'dark';
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     grid: { top: 8, right: 8, bottom: 18, left: 36 },
     xAxis: {
       type: 'category',
@@ -159,6 +173,8 @@ export function ExecutiveComparison({
 
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     grid: { top: 28, right: 48, bottom: 24, left: 48 },
     legend: {
       data: [t('commandCenter.executive.oee'), t('commandCenter.executive.output')],

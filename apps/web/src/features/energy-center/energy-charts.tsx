@@ -28,6 +28,18 @@ export function ConsumptionTrend({ chart, type = 'line' }: { chart: Array<Record
 
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation OFF, deliberately.
+    //
+    // These pages refetch on a timer, and `notMerge` replaces the option
+    // wholesale on each update. An animation frame still in flight from the
+    // previous update then interpolates against series data that no longer
+    // exists and throws "Cannot read properties of undefined (reading
+    // 'length')" out of ECharts' own onframe loop — which is a crash, not a
+    // dropped frame. The pre-ECharts charts all carried
+    // isAnimationActive={false} for the same reason; this is that policy
+    // restored. A live plant dashboard has nothing to gain from easing
+    // between two readings anyway.
+    animation: false,
     grid: { top: 30, right: 14, bottom: 24, left: 44 },
     tooltip: { trigger: 'axis' },
     legend: {
@@ -74,6 +86,8 @@ export function WasteSplit({ waste }: { waste: { runningKwh: number; idleKwh: nu
 
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     tooltip: { trigger: 'item', formatter: '{b}: {c} kWh ({d}%)' },
     legend: { orient: 'vertical', right: 0, top: 'center', textStyle: { color: isDark ? '#ffffff90' : '#000000', fontSize: 10 }, itemWidth: 8, itemHeight: 8 },
     series: [

@@ -35,6 +35,18 @@ export function BreakdownDonut({
 
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation OFF, deliberately.
+    //
+    // These pages refetch on a timer, and `notMerge` replaces the option
+    // wholesale on each update. An animation frame still in flight from the
+    // previous update then interpolates against series data that no longer
+    // exists and throws "Cannot read properties of undefined (reading
+    // 'length')" out of ECharts' own onframe loop — which is a crash, not a
+    // dropped frame. The pre-ECharts charts all carried
+    // isAnimationActive={false} for the same reason; this is that policy
+    // restored. A live plant dashboard has nothing to gain from easing
+    // between two readings anyway.
+    animation: false,
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     legend: {
       type: 'scroll', orient: 'vertical', right: 0, top: 'center',
@@ -73,6 +85,8 @@ export function AgingBars({ aging }: { aging: { lt1d: number; d1to3: number; d3t
 
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     grid: { top: 16, right: 10, bottom: 22, left: 28 },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     xAxis: {
@@ -116,6 +130,8 @@ export function AssetReliabilityChart({
   const ordered = [...rows].reverse();
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     grid: { top: 10, right: 48, bottom: 20, left: 8, containLabel: true },
     tooltip: {
       trigger: 'axis', axisPointer: { type: 'shadow' },

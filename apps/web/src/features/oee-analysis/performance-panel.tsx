@@ -164,6 +164,18 @@ export function PerformancePanel({
             <div className="h-[280px] w-full">
               <ReactECharts option={{
                 backgroundColor: 'transparent',
+                // Animation OFF, deliberately.
+                //
+                // These pages refetch on a timer, and `notMerge` replaces the option
+                // wholesale on each update. An animation frame still in flight from the
+                // previous update then interpolates against series data that no longer
+                // exists and throws "Cannot read properties of undefined (reading
+                // 'length')" out of ECharts' own onframe loop — which is a crash, not a
+                // dropped frame. The pre-ECharts charts all carried
+                // isAnimationActive={false} for the same reason; this is that policy
+                // restored. A live plant dashboard has nothing to gain from easing
+                // between two readings anyway.
+                animation: false,
                 grid: { top: 8, right: 12, bottom: 32, left: 8, containLabel: true },
                 tooltip: {
                   trigger: 'axis', axisPointer: { type: 'shadow' },
@@ -219,6 +231,8 @@ export function PerformancePanel({
             <div className="h-[300px] w-full">
               <ReactECharts option={{
                 backgroundColor: 'transparent',
+                // Animation off — see the note on the first chart in this file.
+                animation: false,
                 grid: { top: 8, right: 12, bottom: 8, left: 8, containLabel: true },
                 tooltip: {
                   trigger: 'axis', axisPointer: { type: 'line' },

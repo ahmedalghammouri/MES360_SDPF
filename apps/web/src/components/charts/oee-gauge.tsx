@@ -63,6 +63,18 @@ export function OEEGauge({ oee, availability, performance, quality, isLoading }:
 
     return {
       backgroundColor: 'transparent',
+      // Animation OFF, deliberately.
+      //
+      // These pages refetch on a timer, and `notMerge` replaces the option
+      // wholesale on each update. An animation frame still in flight from the
+      // previous update then interpolates against series data that no longer
+      // exists and throws "Cannot read properties of undefined (reading
+      // 'length')" out of ECharts' own onframe loop — which is a crash, not a
+      // dropped frame. The pre-ECharts charts all carried
+      // isAnimationActive={false} for the same reason; this is that policy
+      // restored. A live plant dashboard has nothing to gain from easing
+      // between two readings anyway.
+      animation: false,
       series: [
         {
           type: 'gauge',

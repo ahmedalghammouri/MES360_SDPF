@@ -16,6 +16,18 @@ export function FpyTrend({ data, type = 'area' }: { data: Array<{ time: string; 
   const isDark = resolvedTheme === 'dark';
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation OFF, deliberately.
+    //
+    // These pages refetch on a timer, and `notMerge` replaces the option
+    // wholesale on each update. An animation frame still in flight from the
+    // previous update then interpolates against series data that no longer
+    // exists and throws "Cannot read properties of undefined (reading
+    // 'length')" out of ECharts' own onframe loop — which is a crash, not a
+    // dropped frame. The pre-ECharts charts all carried
+    // isAnimationActive={false} for the same reason; this is that policy
+    // restored. A live plant dashboard has nothing to gain from easing
+    // between two readings anyway.
+    animation: false,
     grid: { top: 12, right: 14, bottom: 22, left: 38 },
     tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v}%` },
     xAxis: {
@@ -55,6 +67,8 @@ export function DefectPareto({ data }: { data: Array<{ category: string; quantit
 
   const option = useMemo(() => ({
     backgroundColor: 'transparent',
+    // Animation off — see the note on the first chart in this file.
+    animation: false,
     grid: { top: 20, right: 44, bottom: 40, left: 40 },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     xAxis: {
