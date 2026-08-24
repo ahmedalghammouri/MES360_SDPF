@@ -5,8 +5,11 @@
  * Shows only what the operator needs, big and touch-first:
  *   Today's Work Order · Target Qty · Actual/Production Qty · Accepted/Rejected ·
  *   Downtime · Downtime Reason.
- * Plus the core shift actions (Start / Pause / Complete, +Count, +Downtime) and the
- * historical downtime-reason list (assign reason/sub-reason to recorded stoppages).
+ * Plus the core shift actions (Start / Pause / Complete, +Count) and the historical
+ * downtime-reason list (assign reason/sub-reason to recorded stoppages). Downtime
+ * itself is auto-detected from machine status signals — no manual "log downtime"
+ * action here — and machine-status/alarm/maintenance actions live elsewhere, so
+ * this screen stays to the three core actions only.
  *
  * Deliberately a NEW screen — the full ShopFloorView (many KPIs) is untouched and
  * still used by supervisors on the desktop. All actions use production:execute
@@ -17,21 +20,16 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Play, Pause, CheckSquare, Plus, AlertTriangle, Loader2, Package, Clock, Factory,
-  Activity, Bell, Wrench, Cpu,
+  Cpu,
 } from 'lucide-react';
 
 import { api } from '@/services/api.client';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
-import { LogDowntimeDialog } from '@/features/shop-floor/log-downtime-dialog';
-import type { JOActionTarget } from '@/features/shop-floor/shop-floor-actions';
 import { DowntimeReasonList } from './downtime-reason-list';
 import { MachineSummary } from './machine-summary';
 import { AlarmsLog } from './alarms-log';
 import { useCurrentUser } from './use-current-user';
-import {
-  MachineStatusDialog, RaiseAlarmDialog, RaiseMaintenanceDialog, type MachineLite,
-} from './operator-actions';
 
 type JOStatus = 'SCHEDULED' | 'READY' | 'EXECUTING' | 'PAUSED' | 'COMPLETE' | 'CANCELLED';
 interface JO {
@@ -53,9 +51,7 @@ const ACTIVE: JOStatus[] = ['EXECUTING', 'PAUSED', 'READY'];
 export function OperatorHmiView() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [downtimeTarget, setDowntimeTarget] = useState<JOActionTarget | null>(null);
   const [countFor, setCountFor] = useState<JO | null>(null);
-  const [dialog, setDialog] = useState<{ type: 'status' | 'alarm' | 'maint'; machineId?: string } | null>(null);
 
   const { data: me } = useCurrentUser();
 
@@ -84,12 +80,6 @@ export function OperatorHmiView() {
     () => [...new Set(jobs.map((j) => j.machine?.id).filter(Boolean) as string[])],
     [jobs],
   );
-  // Machine list for the action dialogs (from the operator's own job orders).
-  const machines: MachineLite[] = useMemo(() => {
-    const map = new Map<string, MachineLite>();
-    for (const j of jobs) if (j.machine?.id) map.set(j.machine.id, { id: j.machine.id, name: j.machine.name, code: j.machine.code });
-    return [...map.values()];
-  }, [jobs]);
 
   // Shift downtime totals (per the shift engine) for the Downtime tile.
   const shift: any = shiftA;
@@ -192,25 +182,14 @@ export function OperatorHmiView() {
                 </div>
 
                 {/* Primary actions — large touch targets */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {running ? (
                     <ActionBtn onClick={() => transition.mutate({ id: jo.id, status: 'PAUSED' })} icon={<Pause size={18} />} label="Pause" tone="amber" />
                   ) : (
                     <ActionBtn onClick={() => transition.mutate({ id: jo.id, status: 'EXECUTING' })} icon={<Play size={18} />} label="Start" tone="green" />
                   )}
                   <ActionBtn onClick={() => setCountFor(jo)} icon={<Plus size={18} />} label="Count" tone="sky" />
-                  <ActionBtn
-                    onClick={() => setDowntimeTarget({ jobOrderId: jo.id, workOrderId: jo.workOrder?.id, machineId: jo.machine?.id, machineName: jo.machine?.name, operationName: jo.operationName })}
-                    icon={<AlertTriangle size={18} />} label="Downtime" tone="red"
-                  />
                   <ActionBtn onClick={() => transition.mutate({ id: jo.id, status: 'COMPLETE' })} icon={<CheckSquare size={18} />} label="Complete" tone="emerald" />
-                </div>
-
-                {/* Machine actions — scoped to THIS card's machine */}
-                <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-border/40">
-                  <ToolbarBtn onClick={() => setDialog({ type: 'status', machineId: jo.machine?.id })} icon={<Activity size={15} />} label="Machine status" />
-                  <ToolbarBtn onClick={() => setDialog({ type: 'alarm', machineId: jo.machine?.id })} icon={<Bell size={15} />} label="Raise alarm" tone="red" />
-                  <ToolbarBtn onClick={() => setDialog({ type: 'maint', machineId: jo.machine?.id })} icon={<Wrench size={15} />} label="Maint. request" tone="amber" />
                 </div>
               </div>
             );
@@ -232,7 +211,6 @@ export function OperatorHmiView() {
       </div>
 
       {/* Dialogs */}
-      <LogDowntimeDialog open={!!downtimeTarget} onOpenChange={(v) => !v && setDowntimeTarget(null)} target={downtimeTarget} />
       {countFor && (
         <CountDialog
           jo={countFor}
@@ -244,23 +222,7 @@ export function OperatorHmiView() {
           }}
         />
       )}
-      {dialog?.type === 'status' && <MachineStatusDialog machines={machines} defaultMachineId={dialog.machineId} onClose={() => setDialog(null)} />}
-      {dialog?.type === 'alarm' && <RaiseAlarmDialog machines={machines} defaultMachineId={dialog.machineId} onClose={() => setDialog(null)} />}
-      {dialog?.type === 'maint' && <RaiseMaintenanceDialog machines={machines} defaultMachineId={dialog.machineId} onClose={() => setDialog(null)} />}
     </div>
-  );
-}
-
-function ToolbarBtn({ onClick, icon, label, tone = 'default' }: { onClick: () => void; icon: React.ReactNode; label: string; tone?: string }) {
-  const cls: Record<string, string> = {
-    default: 'border-border text-foreground/80',
-    red: 'border-red-500/30 text-red-400',
-    amber: 'border-amber-500/30 text-amber-400',
-  };
-  return (
-    <button onClick={onClick} className={cn('flex flex-col items-center justify-center gap-1 h-14 rounded-xl border bg-card text-[11px] font-semibold transition active:scale-95', cls[tone])}>
-      {icon}{label}
-    </button>
   );
 }
 

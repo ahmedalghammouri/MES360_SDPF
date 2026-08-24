@@ -224,7 +224,16 @@ export function DowntimeReasonList({
       <li
         key={e.id}
         className={cn(
-          'rounded-2xl border bg-card overflow-hidden transition-shadow',
+          'rounded-2xl border bg-card transition-shadow',
+          // Collapsed: clip to the rounded corners (keeps the tap ripple tidy).
+          // Expanded: must NOT clip — the cause picker below opens an absolutely
+          // positioned dropdown that can be taller than this card. With
+          // overflow-hidden here that dropdown was invisibly cut off at the
+          // card's bottom edge, so on a short tablet/laptop viewport an operator
+          // saw the search box but none of the reasons under it and could not
+          // pick one. Letting the card grow (overflow-visible) lets the page
+          // scroll to reveal the full list instead.
+          expanded ? 'overflow-visible' : 'overflow-hidden',
           e.isOpen ? 'border-red-500/45 shadow-[0_0_0_1px_rgba(239,68,68,0.18)]' : 'border-border/60',
         )}
       >
