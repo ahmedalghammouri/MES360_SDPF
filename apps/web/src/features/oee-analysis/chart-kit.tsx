@@ -475,51 +475,27 @@ export function TrendChart({
 
   const hasBuckets = !!(buckets?.length && onBucketChange);
 
+  // ── EVERY hook runs before the early return below ──────────────────────────
+  // Not a style preference: an early return placed above a hook changes the
+  // NUMBER of hooks between renders, and React aborts the whole tree with
+  // error #310 ("rendered fewer hooks than expected") the moment it happens.
+  // This chart hits that transition routinely — a period change can take it
+  // from "some complete buckets" to "none" in one render — so the rule has to
+  // hold structurally rather than by nobody noticing.
+
   // A bucket where even ONE of the plotted series has no reading is dropped
   // outright, not drawn with a break in it — a half-answered row is not a
   // fact about the plant the way a fully-measured zero is, and showing it as
   // a gap in an otherwise-continuous line reads as one series failed rather
-  // than as "this moment has nothing to say". For the Overview chart this is
-  // free: OEE itself is only non-null when all three factors are, so keeping
-  // only complete rows and keeping every row with a reading are the same
-  // filter. The CSV export reads this same filtered list, so an incomplete
-  // bucket is absent from the file rather than present with a blank cell.
-  const rows = data.filter((d) => series.every((s) => d[s.key] != null));
+  // than as "this moment has nothing to say". The CSV export reads this same
+  // filtered list, so an incomplete bucket is absent from the file rather
+  // than present with a blank cell.
+  const rows = React.useMemo(
+    () => data.filter((d) => series.every((s) => d[s.key] != null)),
+    [data, series],
+  );
+  const dropped = data.length - rows.length;
 
-  const head = toolbar ? (
-    <div className="mb-3 flex flex-wrap items-center gap-2">
-      {title && <h3 className="text-sm font-semibold">{title}</h3>}
-      <div className="ms-auto flex flex-wrap items-center gap-2">
-        {hasBuckets && (
-          <Segmented label="Bucket size" value={bucket ?? buckets![0].value}
-            options={buckets!.map((b) => ({ value: b.value, label: b.label }))}
-            onChange={(v) => onBucketChange!(v)} />
-        )}
-        <Segmented label="Chart form" value={form} options={FORM_OPTIONS} onChange={setForm} />
-        {exportName && (
-          <button type="button" onClick={() => exportCsv(exportName, rows, series, xKey)}
-            title="Download these buckets as CSV"
-            className="rounded-md border border-border/60 px-2 py-[3px] text-[11px] font-medium
-                       text-muted-foreground transition-colors hover:text-foreground
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            CSV
-          </button>
-        )}
-      </div>
-    </div>
-  ) : null;
-
-  if (!rows || rows.length === 0) {
-    return (
-      <div>
-        {head}
-        <p className="py-8 text-center text-sm text-muted-foreground">{empty}</p>
-      </div>
-    );
-  }
-
-  const hasZoom = zoom && rows.length > 6;
-  const categories = rows.map((d) => String(d[xKey] ?? ''));
   // Resolved ONCE, here — every downstream read of a series' colour (the
   // palette array, the area gradients, the zoom slider's filler) uses this,
   // never `series` directly, so nothing can reach the canvas as an
@@ -528,6 +504,8 @@ export function TrendChart({
     () => series.map((s) => ({ ...s, colour: resolveChartColour(s.colour, isDark) })),
     [series, isDark],
   );
+
+  const hasZoom = zoom && rows.length > 6;
 
   const option = React.useMemo(() => {
     const yAxis: Record<string, unknown>[] = [{
@@ -577,7 +555,7 @@ export function TrendChart({
       },
       xAxis: {
         type: 'category',
-        data: categories,
+        data: rows.map((d) => String(d[xKey] ?? '')),
         boundaryGap: form === 'bar',
         axisLabel: { color: c.text, fontSize: 10 },
         axisLine: { lineStyle: { color: c.line } },
@@ -632,12 +610,72 @@ export function TrendChart({
         };
       }),
     };
-  }, [rows, resolved, series.length, form, domain, rightDomain, unit, rightUnit, decimals, categories, c, hasZoom, xKey]);
+    // `isDark` rather than `c`: the colour table is rebuilt on every render, so
+    // depending on the object itself would bust this memo every time. It is a
+    // pure function of the theme, which is what actually changes.
+  }, [rows, resolved, series.length, form, domain, rightDomain, unit, rightUnit, decimals, isDark, hasZoom, xKey]);
+
+  // ── Hooks are done; from here it is safe to branch ────────────────────────
+  const head = toolbar ? (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      {title && <h3 className="text-sm font-semibold">{title}</h3>}
+      <div className="ms-auto flex flex-wrap items-center gap-2">
+        {hasBuckets && (
+          <Segmented label="Bucket size" value={bucket ?? buckets![0].value}
+            options={buckets!.map((b) => ({ value: b.value, label: b.label }))}
+            onChange={(v) => onBucketChange!(v)} />
+        )}
+        <Segmented label="Chart form" value={form} options={FORM_OPTIONS} onChange={setForm} />
+        {exportName && (
+          <button type="button" onClick={() => exportCsv(exportName, rows, series, xKey)}
+            title="Download these buckets as CSV"
+            className="rounded-md border border-border/60 px-2 py-[3px] text-[11px] font-medium
+                       text-muted-foreground transition-colors hover:text-foreground
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            CSV
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
+
+  if (rows.length === 0) {
+    return (
+      <div>
+        {head}
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          {/*
+            "No buckets" and "every bucket was incomplete" are different facts,
+            and saying the first when the second is true sends the reader
+            looking for a window problem they do not have. The count is the
+            actionable part: it says the plant reported SOMETHING here, and
+            names how much was set aside for missing a factor.
+          */}
+          {dropped > 0
+            ? `All ${dropped} bucket${dropped === 1 ? '' : 's'} in this window were incomplete — `
+              + `each was missing a reading for at least one of ${series.map((s) => s.name).join(', ')}, `
+              + 'so none can be plotted.'
+            : empty}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
       {head}
       <ReactECharts option={option} notMerge style={{ height, width: '100%' }} />
+      {/*
+        Buckets the plant reported but could not fully measure. Stated rather
+        than silently omitted: a reader comparing this chart to the shift log
+        needs to know the line has gaps in it, and roughly how many.
+      */}
+      {dropped > 0 && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          {dropped} of {data.length} buckets are not plotted — each was missing a reading for at
+          least one series, and a partly-measured bucket is not a point on this chart.
+        </p>
+      )}
     </div>
   );
 }
