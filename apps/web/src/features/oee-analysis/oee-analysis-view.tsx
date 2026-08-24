@@ -73,7 +73,20 @@ interface Payload extends Slice {
    */
   granularity: 'hour' | 'day' | 'week' | 'month';
   window: { from: string; to: string };
-  audit: { ok: boolean; bucketsMin: number; bucketDriftMin: number; identityDriftMin: number };
+  audit: {
+    ok: boolean; bucketsMin: number; bucketDriftMin: number; identityDriftMin: number;
+    /**
+     * Parts booked in minutes the engine credited no runtime for — the line
+     * running through its own scheduled stop, almost always.
+     *
+     * Its own field rather than folded into `ok`, because it needs a different
+     * action: `ok` failing means the writer lost time, this means the schedule
+     * disagrees with what the line actually did.
+     */
+    outputWithoutRuntimeParts?: number;
+    /** What those parts add to Performance, in points. */
+    outputWithoutRuntimePct?: number;
+  };
   machines: Slice[];
   jobOrders: Slice[];
   shifts: Slice[];
@@ -329,6 +342,35 @@ export function OeeAnalysisView() {
               buckets {d.audit.bucketsMin}m · bucket drift {d.audit.bucketDriftMin}m · identity drift {d.audit.identityDriftMin}m
             </span>
           </div>
+
+          {/*
+            Output the line booked while the schedule said it was stopped.
+
+            Counters are read off the job order and are independent of how the
+            minute was classified, so parts made during a scheduled stop are
+            counted while the theoretical denominator for those minutes is
+            zero. They raise Performance without raising what it divides by.
+
+            A separate banner from the minute audit above, because it asks for a
+            different fix: the minutes reconcile perfectly and the reading is
+            still slightly generous. Silence here is what let Performance drift
+            upward with nothing to point at.
+          */}
+          {(d.audit.outputWithoutRuntimeParts ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-sky-600/30 bg-sky-500/5 p-3 text-sm">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-sky-600" />
+              <span className="font-medium">
+                The line produced while the schedule had it stopped
+              </span>
+              <span className="text-xs text-muted-foreground">
+                <b className="font-mono">{Math.round(d.audit.outputWithoutRuntimeParts!).toLocaleString('en-US')}</b>
+                {' '}pieces were counted in minutes with no measured runtime, so they add{' '}
+                <b className="font-mono">+{(d.audit.outputWithoutRuntimePct ?? 0).toFixed(2)}</b> points
+                to Performance without adding to what it divides by. Either the schedule does not
+                match what the line ran, or a stop needs logging against it.
+              </span>
+            </div>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <Kpi label="OEE" value={pct(d.oee)} big

@@ -4052,6 +4052,43 @@ export class ProductionService implements OnApplicationBootstrap {
     return { workOrder: { id: wo.id, orderNumber: wo.orderNumber }, steps };
   }
 
+  /**
+   * What this job order's routing says its cycle time is RIGHT NOW.
+   *
+   * Deliberately the same precedence `generateJobOrders` uses, in the same
+   * order, so an order that starts later cannot be graded against a different
+   * rule than one that started at generation time:
+   *
+   *   1. the machine's own override, for an alternative that runs differently
+   *   2. the routing step — the reference
+   *   3. the legacy minutes field
+   *
+   * Returns null when the routing has nothing to say, which leaves whatever the
+   * order already carried. A missing reference is not a reason to erase a
+   * denominator that was once resolved.
+   */
+  private async currentCycleTimeFor(
+    jo: { routingStepId: string | null; machineId: string | null },
+  ): Promise<number | null> {
+    if (!jo.routingStepId) return null;
+
+    const step = await this.prisma.routingStep.findUnique({
+      where: { id: jo.routingStepId },
+      select: { cycleTimeSec: true, cycleTimeMins: true },
+    });
+    if (!step) return null;
+
+    if (jo.machineId) {
+      const option = await this.prisma.routingStepMachineOption.findFirst({
+        where: { stepId: jo.routingStepId, machineId: jo.machineId, isActive: true },
+        select: { cycleTimeSec: true },
+      });
+      if (option?.cycleTimeSec != null) return option.cycleTimeSec;
+    }
+
+    return step.cycleTimeSec ?? (step.cycleTimeMins != null ? step.cycleTimeMins * 60 : null);
+  }
+
   async updateJobOrderStatus(
     factoryId: string | null,
     userId: string | null,
@@ -4165,12 +4202,36 @@ export class ProductionService implements OnApplicationBootstrap {
       }
     }
 
+    // ── Re-read the cycle time at the moment it starts to matter ─────────
+    //
+    // `idealCycleTimeSec` is copied onto the job order when the order is
+    // GENERATED, and nothing updated it afterwards. Correcting a routing —
+    // which this plant needs to do, its filler is recorded at 30 s/unit
+    // against a schedule that says 1.2 — left every already-generated order
+    // dividing by the old number, and the only way out was to delete the
+    // orders and generate them again.
+    //
+    // Taken here instead, on the transition to EXECUTING, and only when the
+    // order has never started. Before that instant the figure is inert; from
+    // it, the figure IS Performance's denominator. So a routing fixed at any
+    // point before the operator presses start now simply applies.
+    //
+    // A running or finished order keeps what it had. Rewriting the denominator
+    // under minutes already measured against it would change published
+    // readings retroactively, which is not a correction — it is a different
+    // number wearing the same date.
+    const freshCycle = status === 'EXECUTING' && !jo.actualStart
+      ? await this.currentCycleTimeFor(jo)
+      : null;
+
     const updated = await this.prisma.jobOrder.update({
       where: { id: jobOrderId },
       data: {
         status: status as any,
         ...(dto.notes !== undefined && { notes: dto.notes }),
         ...(status === 'EXECUTING' && !jo.actualStart && { actualStart: new Date() }),
+        ...(freshCycle != null && freshCycle !== jo.idealCycleTimeSec
+          && { idealCycleTimeSec: freshCycle }),
         ...(status === 'COMPLETE' && {
           actualEnd: new Date(),
           // auto-set handoverQty so successor step receives the right qty

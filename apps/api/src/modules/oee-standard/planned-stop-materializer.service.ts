@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { PrismaService } from '../../database/prisma.service';
 import { resolveShiftAt, type ShiftTemplateWindow } from '../../common/shift-window.util';
@@ -71,6 +72,48 @@ export class PlannedStopMaterializerService {
   private readonly log = new Logger(PlannedStopMaterializerService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Keep the rolling window written, for every factory, without being asked.
+   *
+   * ── Why a cron at all ───────────────────────────────────────────────────
+   * Materialising once from a seed covers the days the seed was run for and
+   * nothing after. Tomorrow's shifts would get no planned stops, the timeline
+   * would go back to showing IDLE through every break, and the single source of
+   * truth would quietly expire — the same split brain this service exists to
+   * close, just deferred by a few days.
+   *
+   * ── Why hourly and not per minute ───────────────────────────────────────
+   * A planned stop is known in advance; there is nothing to sample. Hourly is
+   * fast enough that correcting a template shows up while the person who
+   * corrected it is still looking, and slow enough that a rewrite of a few
+   * hundred rows is nothing.
+   *
+   * ── Why yesterday through tomorrow ──────────────────────────────────────
+   * Forward so the coming shift is already written when it starts, and back one
+   * day so a template corrected this morning repairs the shift it got wrong
+   * rather than only applying from now on. Wider than that would rewrite
+   * settled history every hour, which is not this job's business — reshaping
+   * an old window is a deliberate act, and the seed takes `--days` for it.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async tick(): Promise<void> {
+    const now = new Date();
+    const from = startOfDay(new Date(now.getTime() - 24 * 3_600_000));
+    const to = new Date(startOfDay(new Date(now.getTime() + 48 * 3_600_000)).getTime());
+
+    try {
+      const factories = await this.prisma.factory.findMany({ select: { id: true } });
+      for (const f of factories) {
+        await this.materialize(f.id, from, to);
+      }
+    } catch (err) {
+      // Logged, never thrown: a failed materialisation leaves the previous
+      // rows in place, which is stale rather than wrong. Taking the scheduler
+      // down would also stop every later attempt from repairing it.
+      this.log.error('Planned-stop materialisation failed', err as Error);
+    }
+  }
 
   /**
    * Write every planned-stop window that falls in [from, to) as state records.

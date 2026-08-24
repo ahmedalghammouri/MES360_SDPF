@@ -138,7 +138,13 @@ export interface LiveShiftPayload {
   /** Schedule basis only: how much of the promised slot has gone by. */
   slotElapsedPct?: number | null;
   bars: Array<{ key: string; minutes: number; pct: number; kind: 'base' | 'loss' | 'result' }>;
-  audit: { ok: boolean; bucketsMin: number; bucketDriftMin: number; identityDriftMin: number };
+  audit: {
+    ok: boolean; bucketsMin: number; bucketDriftMin: number; identityDriftMin: number;
+    /** Parts booked in minutes with no measured runtime — see the OEE audit. */
+    outputWithoutRuntimeParts?: number;
+    /** What those parts add to Performance, in points. */
+    outputWithoutRuntimePct?: number;
+  };
   machines: MachineSlice[];
   jobOrders: LiveJobOrder[];
   machineNow: MachineNow[];

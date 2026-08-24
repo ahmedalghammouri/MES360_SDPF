@@ -170,6 +170,24 @@ function FactorsPanel() {
           engine&apos;s own output — this flags that they should not be trusted yet.
         </p>
       )}
+      {/*
+        Separate from the drift warning above, and deliberately so: the minutes
+        can reconcile perfectly while the line was still producing through a
+        scheduled stop. Those parts raise Performance without raising what it
+        divides by, and until this line existed nothing said so.
+      */}
+      {(data?.audit?.outputWithoutRuntimeParts ?? 0) > 0 && (
+        <p className="mt-2 flex items-start gap-1.5 rounded bg-sky-500/10 px-2 py-1 text-[11px] text-sky-700 dark:text-sky-300">
+          <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden />
+          <span>
+            <b>{num(data!.audit!.outputWithoutRuntimeParts)}</b> pieces were counted while the
+            schedule had this line stopped, adding{' '}
+            <b>+{num(data!.audit!.outputWithoutRuntimePct, 2)}</b> points to Performance with
+            nothing added to what it divides by. Either the schedule does not match what ran, or
+            a stop needs logging.
+          </span>
+        </p>
+      )}
     </Panel>
   );
 }
