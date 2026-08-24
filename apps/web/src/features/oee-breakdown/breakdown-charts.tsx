@@ -9,6 +9,15 @@
  * chart kit. These take rows and know nothing about which grouping produced
  * them.
  *
+ * ── Why ECharts ──────────────────────────────────────────────────────────────
+ * `components/charts/production-trend.tsx` (Command Center) and
+ * `features/downtime-center/downtime-charts.tsx` (Downtime Command Center)
+ * already establish this app's chart language, and both are built on ECharts.
+ * These three draw with the same engine, the same axis palette
+ * (`echartsAxisColours`), and the same theme-aware colour resolution
+ * (`resolveChartColour`) as the OEE Analysis trend charts — one chart system,
+ * not a second one wearing the first one's CSS.
+ *
  * ── On colour ───────────────────────────────────────────────────────────────
  * None of these charts colours by IDENTITY, so none of them needs a categorical
  * ramp and none can run out of hues when a twentieth job order appears:
@@ -24,12 +33,13 @@
  * reused here as "series 1 and 2" — good and rejected genuinely ARE good and bad.
  */
 import React from 'react';
-import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, Cell, ReferenceLine, LabelList,
-} from 'recharts';
+import ReactECharts from 'echarts-for-react';
+import { useTheme } from 'next-themes';
 
-import { STATUS, BANDS, SEGMENT_COLOUR, SEGMENT_LABEL, bandOf, dur, pctText } from '@/features/oee-analysis/chart-kit';
+import {
+  STATUS, BANDS, SEGMENT_COLOUR, SEGMENT_LABEL, bandOf, dur, pctText,
+  echartsAxisColours,
+} from '@/features/oee-analysis/chart-kit';
 import type { SegmentKind } from '@/features/oee-analysis/chart-kit';
 
 export interface Slice {
@@ -47,7 +57,7 @@ export interface Slice {
 }
 
 const num = (n: number | null | undefined) =>
-  n == null ? '—' : Math.round(n).toLocaleString();
+  n == null ? '—' : Math.round(n).toLocaleString('en-US');
 
 /**
  * How many bars before a chart stops being readable.
@@ -70,7 +80,7 @@ function topBy<T extends Slice>(rows: T[], pick: (r: T) => number | null): { sho
 function Figure({
   title, blurb, hidden, height, children,
 }: {
-  title: string; blurb: string; hidden?: number; height: number; children: React.ReactElement;
+  title: string; blurb: string; hidden?: number; height: number; children: React.ReactNode;
 }) {
   return (
     <figure className="m-0 rounded-lg border border-border/60 bg-card p-3">
@@ -81,22 +91,25 @@ function Figure({
           {hidden ? ` Showing the ${MAX_BARS} lowest; ${hidden} more are in the table below.` : ''}
         </p>
       </figcaption>
-      <div style={{ height }}>
-        <ResponsiveContainer width="100%" height="100%">{children}</ResponsiveContainer>
-      </div>
+      <div style={{ height }}>{children}</div>
     </figure>
   );
 }
 
-const AXIS = { fontSize: 11, fill: 'hsl(var(--muted-foreground))' };
-const GRID = 'hsl(var(--border))';
-
 /** Chart height that grows with the rows, so bars stay a readable thickness. */
 const rowsHeight = (n: number, min = 140) => Math.max(min, n * 30 + 46);
+
+/** A two-line name + sub-label, the way every ranked bar here identifies its row. */
+function rowName(label: string, sub: string): string {
+  return sub ? `${label}\n${sub}` : label;
+}
 
 // ── 1. Who scored what ──────────────────────────────────────────────────────
 
 export function RankedOee({ rows }: { rows: Slice[] }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const c = echartsAxisColours(isDark);
   const { shown, hidden } = topBy(rows, (r) => r.oee);
   const data = shown.map((r) => ({
     name: r.label, sub: r.sublabel ?? '',
@@ -105,6 +118,47 @@ export function RankedOee({ rows }: { rows: Slice[] }) {
   }));
   if (data.length === 0) return null;
 
+  const option = {
+    backgroundColor: 'transparent',
+    grid: { top: 6, right: 54, bottom: 6, left: 8, containLabel: true },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+      textStyle: { color: c.tooltipText, fontSize: 12 },
+      formatter: (p: any) => {
+        const d = data[p.dataIndex];
+        const row = (label: string, v: number | null) =>
+          `<div style="display:flex;gap:12px;justify-content:space-between"><span style="opacity:.65">${label}</span><b>${pctText(v)}</b></div>`;
+        return `<div style="font-weight:600;margin-bottom:2px">${d.name}</div>`
+          + (d.sub ? `<div style="opacity:.6;font-size:11px;margin-bottom:4px">${d.sub}</div>` : '')
+          + row('OEE', d.oee) + row('Availability', d.availability) + row('Performance', d.performance) + row('Quality', d.quality);
+      },
+    },
+    xAxis: {
+      type: 'value', min: 0, max: 100,
+      axisLabel: { color: c.text, fontSize: 10, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: c.grid } }, axisLine: { show: false },
+    },
+    yAxis: {
+      type: 'category', data: data.map((d) => rowName(d.name, d.sub)), inverse: false,
+      axisLabel: { color: c.text, fontSize: 11 }, axisLine: { lineStyle: { color: c.line } },
+    },
+    series: [{
+      type: 'bar', barMaxWidth: 18,
+      data: data.map((d) => ({ value: d.oee, itemStyle: { color: STATUS[bandOf('OEE', d.oee)], borderRadius: [0, 3, 3, 0] } })),
+      label: {
+        show: true, position: 'right', color: c.text, fontSize: 11,
+        formatter: (p: any) => `${Number(p.value).toFixed(1)}%`,
+      },
+      markLine: {
+        silent: true, symbol: 'none', animation: false,
+        lineStyle: { color: STATUS.good, type: 'dashed', width: 1.5 },
+        label: { formatter: `target ${BANDS.OEE.good}%`, color: STATUS.good, fontSize: 10, position: 'insideEndTop' },
+        data: [{ xAxis: BANDS.OEE.good }],
+      },
+    }],
+  };
+
   return (
     <Figure
       title="OEE, worst first"
@@ -112,41 +166,8 @@ export function RankedOee({ rows }: { rows: Slice[] }) {
       hidden={hidden}
       height={rowsHeight(data.length)}
     >
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 52, bottom: 4, left: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={GRID} horizontal={false} />
-        <XAxis type="number" domain={[0, 100]} tick={AXIS} stroke={GRID} unit="%" />
-        <YAxis type="category" dataKey="name" tick={AXIS} stroke={GRID} width={132} interval={0} />
-        <Tooltip content={<FactorTip />} cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} />
-        <ReferenceLine x={BANDS.OEE.good} stroke={STATUS.good} strokeDasharray="4 3"
-          label={{ value: `target ${BANDS.OEE.good}%`, position: 'top', fontSize: 10, fill: STATUS.good }} />
-        <Bar dataKey="oee" radius={[0, 4, 4, 0]} maxBarSize={18} isAnimationActive={false}>
-          {data.map((d) => <Cell key={d.name} fill={STATUS[bandOf('OEE', d.oee)]} />)}
-          {/* Direct-labelled, so the value never depends on reading the axis. */}
-          <LabelList dataKey="oee" position="right" formatter={(v: number) => `${v.toFixed(1)}%`}
-            style={{ fontSize: 11, fill: 'hsl(var(--foreground))' }} />
-        </Bar>
-      </BarChart>
+      <ReactECharts option={option} notMerge style={{ height: '100%', width: '100%' }} />
     </Figure>
-  );
-}
-
-function FactorTip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 shadow-md">
-      <p className="text-[11px] font-medium text-foreground">{d.name}</p>
-      {d.sub && <p className="mb-1 text-[10px] text-muted-foreground">{d.sub}</p>}
-      <dl className="grid grid-cols-[auto_auto] gap-x-3 text-[11px]">
-        {([['OEE', d.oee], ['Availability', d.availability], ['Performance', d.performance], ['Quality', d.quality]] as const)
-          .map(([k, v]) => (
-            <React.Fragment key={k}>
-              <dt className="text-muted-foreground">{k}</dt>
-              <dd className="text-end font-medium tabular-nums text-foreground">{pctText(v as number | null)}</dd>
-            </React.Fragment>
-          ))}
-      </dl>
-    </div>
   );
 }
 
@@ -168,6 +189,9 @@ const SEGMENTS: Array<{ key: string; kind: SegmentKind }> = [
 ];
 
 export function TimeComposition({ rows }: { rows: Slice[] }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const c = echartsAxisColours(isDark);
   // Ranked by how much of the time was NOT production — the chart's own subject.
   const { shown, hidden } = topBy(rows, (r) => -(r.time?.netProductionMin ?? 0));
   const data = shown.map((r) => {
@@ -177,6 +201,46 @@ export function TimeComposition({ rows }: { rows: Slice[] }) {
   });
   if (data.length === 0) return null;
 
+  const names = data.map((d) => rowName(String(d.name), String(d.sub)));
+
+  const option = {
+    backgroundColor: 'transparent',
+    grid: { top: 30, right: 12, bottom: 6, left: 8, containLabel: true },
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+      textStyle: { color: c.tooltipText, fontSize: 12 },
+      formatter: (params: any[]) => {
+        const total = params.reduce((a, p) => a + (Number(p.value) || 0), 0);
+        const rows2 = params
+          .filter((p) => Number(p.value) > 0)
+          .map((p) => `<div style="display:flex;gap:12px;justify-content:space-between">`
+            + `<span style="opacity:.75">${p.marker}${p.seriesName}</span><b>${dur(Number(p.value))}</b></div>`)
+          .join('');
+        return `<div style="font-weight:600;margin-bottom:4px">${params[0]?.name?.split('\n')[0] ?? ''}</div>${rows2}`
+          + `<div style="margin-top:4px;padding-top:4px;border-top:1px solid ${c.tooltipBorder};font-weight:600">${dur(total)} total</div>`;
+      },
+    },
+    legend: {
+      top: 0, textStyle: { color: c.text, fontSize: 10 }, icon: 'circle', itemWidth: 8, itemHeight: 8,
+    },
+    xAxis: {
+      type: 'value',
+      axisLabel: { color: c.text, fontSize: 10, formatter: (v: number) => (v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`) },
+      splitLine: { lineStyle: { color: c.grid } }, axisLine: { show: false },
+    },
+    yAxis: {
+      type: 'category', data: names,
+      axisLabel: { color: c.text, fontSize: 11 }, axisLine: { lineStyle: { color: c.line } },
+    },
+    series: SEGMENTS.map((s) => ({
+      name: SEGMENT_LABEL[s.kind], type: 'bar', stack: 'time',
+      data: data.map((d) => d[s.key]),
+      itemStyle: { color: SEGMENT_COLOUR[s.kind] },
+      barMaxWidth: 18,
+    })),
+  };
+
   return (
     <Figure
       title="Where the time went"
@@ -184,51 +248,17 @@ export function TimeComposition({ rows }: { rows: Slice[] }) {
       hidden={hidden}
       height={rowsHeight(data.length)}
     >
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={GRID} horizontal={false} />
-        <XAxis type="number" tick={AXIS} stroke={GRID}
-          tickFormatter={(v: number) => (v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`)} />
-        <YAxis type="category" dataKey="name" tick={AXIS} stroke={GRID} width={132} interval={0} />
-        <Tooltip content={<MinutesTip />} cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
-        {SEGMENTS.map((s, i) => (
-          <Bar
-            key={s.key} dataKey={s.key} stackId="t" name={SEGMENT_LABEL[s.kind]}
-            fill={SEGMENT_COLOUR[s.kind]} maxBarSize={18} isAnimationActive={false}
-            // A 2px gap between segments, and the outer ends rounded — so the
-            // stack reads as parts rather than one striped bar.
-            radius={i === 0 ? [4, 0, 0, 4] : i === SEGMENTS.length - 1 ? [0, 4, 4, 0] : 0}
-            stroke="hsl(var(--card))" strokeWidth={2}
-          />
-        ))}
-      </BarChart>
+      <ReactECharts option={option} notMerge style={{ height: '100%', width: '100%' }} />
     </Figure>
-  );
-}
-
-function MinutesTip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
-  const total = payload.reduce((a: number, e: any) => a + (e.value ?? 0), 0);
-  return (
-    <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 shadow-md">
-      <p className="mb-1 text-[11px] font-medium text-foreground">{payload[0].payload.name}</p>
-      {payload.filter((e: any) => e.value > 0).map((e: any) => (
-        <p key={e.dataKey} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="h-2 w-2 rounded-sm" style={{ background: e.color }} aria-hidden />
-          <span className="flex-1">{e.name}</span>
-          <span className="font-medium tabular-nums text-foreground">{dur(e.value)}</span>
-        </p>
-      ))}
-      <p className="mt-1 border-t border-border/60 pt-1 text-[11px] font-medium tabular-nums text-foreground">
-        {dur(total)} total
-      </p>
-    </div>
   );
 }
 
 // ── 3. What came out ────────────────────────────────────────────────────────
 
 export function OutputBars({ rows }: { rows: Slice[] }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const c = echartsAxisColours(isDark);
   const { shown, hidden } = topBy(rows, (r) => -(r.counts?.total ?? 0));
   const data = shown
     .map((r) => ({
@@ -240,56 +270,71 @@ export function OutputBars({ rows }: { rows: Slice[] }) {
     .filter((d) => d.good + d.rejected + d.theoretical > 0);
   if (data.length === 0) return null;
 
+  const names = data.map((d) => rowName(d.name, d.sub));
+
+  const option = {
+    backgroundColor: 'transparent',
+    grid: { top: 30, right: 12, bottom: 6, left: 8, containLabel: true },
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+      textStyle: { color: c.tooltipText, fontSize: 12 },
+      formatter: (params: any[]) => {
+        const d = data[params[0]?.dataIndex ?? 0];
+        const total = d.good + d.rejected;
+        const q = total > 0 ? `${((d.good / total) * 100).toFixed(1)}%` : '—';
+        const row = (label: string, v: string, colour?: string) =>
+          `<div style="display:flex;gap:12px;justify-content:space-between">`
+          + `<span style="opacity:.75">${label}</span>`
+          + `<b${colour ? ` style="color:${colour}"` : ''}>${v}</b></div>`;
+        return `<div style="font-weight:600;margin-bottom:4px">${d.name}</div>`
+          + row('Good', num(d.good), STATUS.good)
+          + row('Rejected', num(d.rejected), d.rejected > 0 ? STATUS.bad : undefined)
+          + row('Theoretical', num(d.theoretical))
+          + row('Quality', q);
+      },
+    },
+    legend: {
+      top: 0, textStyle: { color: c.text, fontSize: 10 }, icon: 'circle', itemWidth: 8, itemHeight: 8,
+      data: ['Good', 'Rejected', 'Theoretical'],
+    },
+    xAxis: {
+      type: 'value',
+      axisLabel: { color: c.text, fontSize: 10, formatter: (v: number) => num(v) },
+      splitLine: { lineStyle: { color: c.grid } }, axisLine: { show: false },
+    },
+    yAxis: {
+      type: 'category', data: names,
+      axisLabel: { color: c.text, fontSize: 11 }, axisLine: { lineStyle: { color: c.line } },
+    },
+    series: [
+      {
+        name: 'Good', type: 'bar', stack: 'out', data: data.map((d) => d.good),
+        itemStyle: { color: STATUS.good }, barMaxWidth: 16,
+      },
+      {
+        name: 'Rejected', type: 'bar', stack: 'out', data: data.map((d) => d.rejected),
+        itemStyle: { color: STATUS.bad }, barMaxWidth: 16,
+      },
+      // Theoretical rides beside the good/rejected stack rather than behind
+      // it — an outlined, unfilled bar reading as the envelope the actual is
+      // measured against, not a third quantity competing with it.
+      {
+        name: 'Theoretical', type: 'bar', data: data.map((d) => d.theoretical),
+        itemStyle: { color: 'transparent', borderColor: STATUS.none, borderType: 'dashed', borderWidth: 1.5 },
+        barMaxWidth: 16,
+      },
+    ],
+  };
+
   return (
     <Figure
       title="What came out"
-      blurb="Pieces, so the stations are comparable — a pallet is 160 of them. The dashed bar above each pair is what the design speed allowed in the same time; the gap to it is the performance loss."
+      blurb="Pieces, so the stations are comparable — a pallet is 160 of them. The outlined bar is what the design speed allowed in the same time; the gap to it is the performance loss."
       hidden={hidden}
       height={rowsHeight(data.length)}
     >
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={GRID} horizontal={false} />
-        <XAxis type="number" tick={AXIS} stroke={GRID} tickFormatter={(v: number) => num(v)} />
-        <YAxis type="category" dataKey="name" tick={AXIS} stroke={GRID} width={132} interval={0} />
-        <Tooltip content={<CountTip />} cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
-        {/* Theoretical is a PAIRED bar above the actual, not a third series
-            competing for attention: unfilled, dashed and thicker, so it reads as
-            the envelope the actual is being measured against. Recharts groups
-            bars rather than overlaying them, so "behind" is not available — and
-            a pair is honest about being two measurements anyway. */}
-        <Bar dataKey="theoretical" name="Theoretical" fill="transparent" stroke={STATUS.none}
-          strokeDasharray="3 2" maxBarSize={22} isAnimationActive={false} />
-        <Bar dataKey="good" name="Good" stackId="a" fill={STATUS.good} maxBarSize={14}
-          radius={[4, 0, 0, 4]} isAnimationActive={false} stroke="hsl(var(--card))" strokeWidth={2} />
-        <Bar dataKey="rejected" name="Rejected" stackId="a" fill={STATUS.bad} maxBarSize={14}
-          radius={[0, 4, 4, 0]} isAnimationActive={false} stroke="hsl(var(--card))" strokeWidth={2} />
-      </BarChart>
+      <ReactECharts option={option} notMerge style={{ height: '100%', width: '100%' }} />
     </Figure>
-  );
-}
-
-function CountTip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  const total = d.good + d.rejected;
-  return (
-    <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 shadow-md">
-      <p className="mb-1 text-[11px] font-medium text-foreground">{d.name}</p>
-      <dl className="grid grid-cols-[auto_auto] gap-x-3 text-[11px]">
-        <dt className="text-muted-foreground">Good</dt>
-        <dd className="text-end font-medium tabular-nums" style={{ color: STATUS.good }}>{num(d.good)}</dd>
-        <dt className="text-muted-foreground">Rejected</dt>
-        <dd className="text-end font-medium tabular-nums" style={{ color: d.rejected > 0 ? STATUS.bad : undefined }}>
-          {num(d.rejected)}
-        </dd>
-        <dt className="text-muted-foreground">Theoretical</dt>
-        <dd className="text-end font-medium tabular-nums text-foreground">{num(d.theoretical)}</dd>
-        <dt className="text-muted-foreground">Quality</dt>
-        <dd className="text-end font-medium tabular-nums text-foreground">
-          {total > 0 ? `${((d.good / total) * 100).toFixed(1)}%` : '—'}
-        </dd>
-      </dl>
-    </div>
   );
 }

@@ -10,10 +10,8 @@
  * stays in the panel that owns it.
  */
 import React from 'react';
-import {
-  ResponsiveContainer, CartesianGrid, XAxis, YAxis, Legend,
-  Tooltip as RTooltip, LineChart, Line, AreaChart, Area, BarChart, Bar, Brush,
-} from 'recharts';
+import ReactECharts from 'echarts-for-react';
+import { useTheme } from 'next-themes';
 
 import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
 
@@ -225,35 +223,6 @@ export interface TrendBucket {
   label: string;
 }
 
-/**
- * Crosshair tooltip. Values in ink, identity carried by the swatch beside them.
- *
- * A series with no value in this bucket is listed as "—" rather than omitted:
- * the reader asked what happened at this moment, and "not measured" is an
- * answer. Silently dropping the row makes a gap look like a rendering fault.
- */
-function TrendTip({ active, payload, label, unit = '%', decimals = 1 }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="min-w-[168px] rounded-md border border-border/60 bg-popover px-3 py-2 shadow-lg">
-      <div className="mb-1.5 border-b border-border/50 pb-1 text-[11px] font-medium text-muted-foreground">
-        {label}
-      </div>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} className="flex items-center gap-2 py-[1px] text-xs">
-          <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: p.color }} />
-          <span className="text-muted-foreground">{p.name}</span>
-          <span className="ms-auto font-medium tabular-nums text-foreground">
-            {p.value == null ? '—' : `${Number(p.value).toLocaleString('en-US', {
-              minimumFractionDigits: 0, maximumFractionDigits: decimals,
-            })}${unit}`}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /** Compact axis numbers: 12.4k rather than 12400, which crowds a narrow chart. */
 function axisNumber(v: number): string {
   const a = Math.abs(v);
@@ -334,36 +303,103 @@ const FORM_OPTIONS = [
 ];
 
 /**
+ * The muted axis/grid palette every ECharts panel in this app already draws
+ * with — `components/charts/production-trend.tsx` and
+ * `features/downtime-center/downtime-charts.tsx` both hand-tune this exact
+ * pair of values per theme. Centralised here rather than copied a fourth
+ * time.
+ */
+export function echartsAxisColours(isDark: boolean) {
+  return {
+    text: isDark ? '#ffffff60' : '#00000060',
+    grid: isDark ? '#ffffff10' : '#00000010',
+    line: isDark ? '#ffffff20' : '#00000020',
+    tooltipBg: isDark ? '#1a1f2e' : '#ffffff',
+    tooltipBorder: isDark ? '#ffffff10' : '#00000010',
+    tooltipText: isDark ? '#ffffff90' : '#000000',
+  };
+}
+
+/** `#rrggbb` + alpha → an 8-digit hex ECharts accepts for a translucent fill. */
+export function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
+
+/**
+ * The eight-hue chart palette, defined once in `globals.css` and RE-STEPPED
+ * per theme there (see the comment beside `--viz-1`): the same hex on both
+ * cards put violet at 2.04:1 contrast on the dark surface — effectively
+ * invisible — so light and dark each get their own validated step.
+ *
+ * Every chart in this app reads these as `var(--viz-N)` and lets the CSS
+ * cascade pick the right step, which works for anything CSS paints — a div, an
+ * SVG `fill`. It does NOT work for ECharts: its default renderer is a plain
+ * `<canvas>`, and a canvas 2D context's `fillStyle` is never part of the
+ * CSSOM — handing it the literal string `'var(--viz-1)'` resolves to nothing,
+ * silently, and the series paints in whatever colour the context happened to
+ * have set before it. This mirrors the same eight steps as concrete hex per
+ * theme, so a caller keeps writing `colour: 'var(--viz-1)'` unchanged and it
+ * still reaches a real, theme-correct colour once it hits the canvas.
+ */
+const VIZ_HEX: Record<string, { light: string; dark: string }> = {
+  '--viz-1': { light: '#2a78d6', dark: '#3987e5' },
+  '--viz-2': { light: '#eb6834', dark: '#d95926' },
+  '--viz-3': { light: '#1baf7a', dark: '#199e70' },
+  '--viz-4': { light: '#eda100', dark: '#c98500' },
+  '--viz-5': { light: '#e87ba4', dark: '#d55181' },
+  '--viz-6': { light: '#008300', dark: '#008300' },
+  '--viz-7': { light: '#4a3aa7', dark: '#9085e9' },
+  '--viz-8': { light: '#e34948', dark: '#e66767' },
+};
+
+/** `'var(--viz-3)'` → a concrete hex for the active theme. Anything already concrete (hex, hsl()) passes through unchanged. */
+export function resolveChartColour(colour: string, isDark: boolean): string {
+  const m = /^var\((--viz-\d)\)$/.exec(colour.trim());
+  if (!m) return colour;
+  const step = VIZ_HEX[m[1]];
+  return step ? (isDark ? step.dark : step.light) : colour;
+}
+
+/**
  * One time series chart — the only one in this app.
+ *
+ * ── Why ECharts, not the hand-rolled SVG this replaced ──────────────────────
+ * `components/charts/production-trend.tsx` (Command Center) and
+ * `features/downtime-center/downtime-charts.tsx` (Downtime Command Center)
+ * already establish this app's chart language, and they are built on ECharts:
+ * native cross-hair tooltips, native click-to-hide legends, native gradient
+ * fills, native dual axes, native zoom. A second trend component built on a
+ * different library — Recharts — could match none of that by construction,
+ * however much CSS it wore; it would always read as a second visual system
+ * bolted onto the first. So this draws with the same engine the rest of the
+ * app already trusts, the same axis palette, the same legend behaviour.
  *
  * ── What a trend has to carry ───────────────────────────────────────────────
  * A picture of a shift is not an analysis. Reading one means asking WHEN
  * something happened, HOW MUCH it was, and what it looks like at a different
- * resolution — and then taking the numbers away. A chart that renders a shape
- * and nothing else forces the reader back to the database for every one of
- * those, which is what "not professional" means in practice.
- *
- * So every trend in the app carries the same six things, and none of them is
- * optional per page: labelled axes, a crosshair reading every series at the
- * hovered moment, a legend that hides a series on click, a form switch, a zoom
- * that narrows the window without redrawing the page, and an export.
+ * resolution — and then taking the numbers away. So every trend in the app
+ * carries the same things, and none of them is optional per page: labelled
+ * axes, a crosshair reading every series at the hovered moment, a legend that
+ * hides a series on click, a form switch, zoom (drag-to-select on the plot,
+ * or the handles on the slider beneath it — both native to ECharts'
+ * `dataZoom`, not a bolted-on approximation of it), and a CSV export.
  *
  * ── Gaps are the point ──────────────────────────────────────────────────────
- * `connectNulls` is OFF, deliberately and everywhere. The engines return null
- * for a bucket they could not measure — an hour with no parts counted has no
- * Performance and no Quality — and bridging that draws a straight line THROUGH
- * time the plant has no measurement for.
+ * A bucket the engine could not measure is sent as `null`, and ECharts breaks
+ * a line at a null point by default — no `connectNulls` flag needed, unlike
+ * the library this replaced. An hour with no parts counted has no Performance
+ * and no Quality, and bridging that draws a straight line THROUGH time the
+ * plant has no measurement for. A gap says "not measured"; a line through it
+ * says "we know, and it was fine". Only one of those is true.
  *
- * A gap says "not measured". A line through it says "we know, and it was fine".
- * Only one of those is true.
- *
- * Zero is NOT a gap: a machine that genuinely produced nothing is measured, and
- * its zero belongs on the chart.
+ * Zero is NOT a gap: a machine that genuinely produced nothing is measured,
+ * and its zero belongs on the chart.
  *
  * ── The form switch is local, seeded globally ───────────────────────────────
- * The filter panel sets the house style and every chart follows it. Changing it
- * ON a chart changes only that chart, because the reader comparing two panels
- * wants one of them in bars and is not asking to restyle the application.
+ * The filter panel sets the house style and every chart follows it. Changing
+ * it ON a chart changes only that chart, because the reader comparing two
+ * panels wants one of them in bars and is not asking to restyle the app.
  */
 export function TrendChart({
   data,
@@ -410,51 +446,20 @@ export function TrendChart({
   // Follow the house style when it changes, until this chart is told otherwise.
   React.useEffect(() => setForm(globalForm), [globalForm]);
 
-  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
-  /**
-   * The zoomed window, as bucket indices.
-   *
-   * Narrowing redraws the chart over fewer buckets rather than scaling the marks
-   * — so the axis ticks and the crosshair keep reading the real values instead
-   * of a stretched picture of them.
-   */
-  const [range, setRange] = React.useState<[number, number] | null>(null);
-
-  const shown = React.useMemo(
-    () => series.filter((s) => !hidden.has(s.key)),
-    [series, hidden],
-  );
-
-  const toggle = React.useCallback((key: string) => {
-    setHidden((prev) => {
-      const next = new Set(prev);
-      // Never let the last series be hidden — an empty chart with a legend
-      // reads as a failure rather than as a choice the reader just made.
-      if (next.has(key)) next.delete(key);
-      else if (next.size < series.length - 1) next.add(key);
-      return next;
-    });
-  }, [series.length]);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const c = echartsAxisColours(isDark);
 
   const hasBuckets = !!(buckets?.length && onBucketChange);
-  const zoomed = range !== null;
 
-  const head = toolbar && (title || hasBuckets || exportName || zoomed || true) ? (
+  const head = toolbar ? (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       {title && <h3 className="text-sm font-semibold">{title}</h3>}
       <div className="ms-auto flex flex-wrap items-center gap-2">
-        {zoomed && (
-          <button type="button" onClick={() => setRange(null)}
-            className="rounded-md border border-border/60 px-2 py-[3px] text-[11px] font-medium
-                       text-muted-foreground transition-colors hover:text-foreground
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            Reset zoom
-          </button>
-        )}
         {hasBuckets && (
           <Segmented label="Bucket size" value={bucket ?? buckets![0].value}
             options={buckets!.map((b) => ({ value: b.value, label: b.label }))}
-            onChange={(v) => { setRange(null); onBucketChange!(v); }} />
+            onChange={(v) => onBucketChange!(v)} />
         )}
         <Segmented label="Chart form" value={form} options={FORM_OPTIONS} onChange={setForm} />
         {exportName && (
@@ -479,104 +484,129 @@ export function TrendChart({
     );
   }
 
-  const grid = (
-    <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.35} strokeDasharray="3 3"
-      vertical={false} />
+  const hasZoom = zoom && data.length > 6;
+  const categories = data.map((d) => String(d[xKey] ?? ''));
+  // Resolved ONCE, here — every downstream read of a series' colour (the
+  // palette array, the area gradients, the zoom slider's filler) uses this,
+  // never `series` directly, so nothing can reach the canvas as an
+  // unresolved `var(--viz-N)` reference.
+  const resolved = React.useMemo(
+    () => series.map((s) => ({ ...s, colour: resolveChartColour(s.colour, isDark) })),
+    [series, isDark],
   );
 
-  const axes = (
-    <>
-      <XAxis dataKey={xKey} stroke="hsl(var(--border))" tickLine={false} minTickGap={28}
-        height={22} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-      <YAxis yAxisId="left" domain={domain === 'auto' ? ['auto', 'auto'] : domain}
-        stroke="hsl(var(--border))" tickLine={false} width={46}
-        tickFormatter={(v: number) => `${axisNumber(v)}${unit}`}
-        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-      {rightUnit !== undefined && (
-        <YAxis yAxisId="right" orientation="right"
-          domain={rightDomain === 'auto' || !rightDomain ? ['auto', 'auto'] : rightDomain}
-          stroke="hsl(var(--border))" tickLine={false} width={46}
-          tickFormatter={(v: number) => `${axisNumber(v)}${rightUnit}`}
-          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-      )}
-    </>
-  );
+  const option = React.useMemo(() => {
+    const yAxis: Record<string, unknown>[] = [{
+      type: 'value',
+      min: domain === 'auto' ? undefined : domain[0],
+      max: domain === 'auto' ? undefined : domain[1],
+      axisLabel: { color: c.text, fontSize: 10, formatter: (v: number) => `${axisNumber(v)}${unit}` },
+      splitLine: { lineStyle: { color: c.grid } },
+      axisLine: { show: false },
+    }];
+    if (rightUnit !== undefined) {
+      yAxis.push({
+        type: 'value',
+        min: rightDomain === 'auto' || !rightDomain ? undefined : rightDomain[0],
+        max: rightDomain === 'auto' || !rightDomain ? undefined : rightDomain[1],
+        axisLabel: { color: c.text, fontSize: 10, formatter: (v: number) => `${axisNumber(v)}${rightUnit}` },
+        splitLine: { show: false },
+        axisLine: { show: false },
+      });
+    }
 
-  const overlay = (
-    <>
-      <RTooltip content={<TrendTip unit={unit} decimals={decimals} />}
-        cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '3 3' }} />
-      {series.length > 1 && (
-        <Legend iconType="plainline" verticalAlign="bottom" height={26}
-          wrapperStyle={{ fontSize: 11, paddingTop: 6, cursor: 'pointer' }}
-          onClick={(e: any) => toggle(String(e.dataKey ?? e.value))}
-          formatter={(value: string, entry: any) => (
-            <span style={{ opacity: hidden.has(String(entry?.dataKey)) ? 0.4 : 1 }}>{value}</span>
-          )} />
-      )}
-      {zoom && data.length > 6 && (
-        <Brush dataKey={xKey} height={22} travellerWidth={8}
-          stroke="hsl(var(--border))" fill="hsl(var(--muted))" fillOpacity={0.3}
-          startIndex={range?.[0]} endIndex={range?.[1]}
-          onChange={(r: any) => {
-            if (r?.startIndex === 0 && r?.endIndex === data.length - 1) setRange(null);
-            else if (typeof r?.startIndex === 'number') setRange([r.startIndex, r.endIndex]);
-          }} />
-      )}
-    </>
-  );
-
-  const axisOf = (s: TrendSeries) => (s.axis === 'right' && rightUnit !== undefined ? 'right' : 'left');
-  const margin = { top: 8, right: rightUnit !== undefined ? 8 : 16, bottom: 0, left: 0 };
+    return {
+      backgroundColor: 'transparent',
+      color: resolved.map((s) => s.colour),
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'cross', label: { backgroundColor: c.tooltipBg } },
+        backgroundColor: c.tooltipBg,
+        borderColor: c.tooltipBorder,
+        textStyle: { color: c.tooltipText, fontSize: 12 },
+        // A series absent from THIS bucket reads "—", not a skipped row — the
+        // reader asked what happened at this moment, and "not measured" is an
+        // answer. Dropping the row silently makes a gap look like a rendering
+        // fault rather than a fact about the plant.
+        valueFormatter: (v: unknown) =>
+          v == null ? '—' : `${Number(v).toLocaleString('en-US', { maximumFractionDigits: decimals })}${unit}`,
+      },
+      legend: series.length > 1 ? {
+        data: resolved.map((s) => s.name),
+        textStyle: { color: c.text, fontSize: 11 },
+        icon: 'circle', itemWidth: 8, itemHeight: 8,
+        top: 0, right: 0,
+      } : undefined,
+      grid: {
+        top: series.length > 1 ? 34 : 12,
+        left: 8, right: rightUnit !== undefined ? 8 : 12,
+        bottom: hasZoom ? 44 : 8,
+        containLabel: true,
+      },
+      xAxis: {
+        type: 'category',
+        data: categories,
+        boundaryGap: form === 'bar',
+        axisLabel: { color: c.text, fontSize: 10 },
+        axisLine: { lineStyle: { color: c.line } },
+        splitLine: { show: false },
+      },
+      yAxis,
+      dataZoom: hasZoom ? [
+        // Drag-to-select directly on the plot, and the scroll wheel — the
+        // "zoom in" the reader reaches for first.
+        { type: 'inside', throttle: 50 },
+        // A visible handle for a precise range, and the only part of this
+        // that needs a pixel budget of its own — hence the extra grid bottom
+        // margin above.
+        {
+          type: 'slider', height: 18, bottom: 6,
+          borderColor: c.grid, fillerColor: withAlpha(resolved[0]?.colour ?? '#4c7571', 0.12),
+          handleStyle: { color: c.line },
+          textStyle: { color: c.text, fontSize: 9 },
+        },
+      ] : undefined,
+      series: resolved.map((s) => {
+        const axisIndex = s.axis === 'right' && rightUnit !== undefined ? 1 : 0;
+        const base = {
+          name: s.name,
+          data: data.map((d) => (d[s.key] == null ? null : d[s.key])),
+          yAxisIndex: axisIndex,
+          // A gap in what the plant measured must stay a gap — ECharts already
+          // breaks a line at `null` by default, so nothing further is needed
+          // here; it is named explicitly so the choice reads as deliberate.
+          connectNulls: false,
+        };
+        if (form === 'bar') {
+          return { ...base, type: 'bar', barMaxWidth: 28, itemStyle: { borderRadius: [3, 3, 0, 0] } };
+        }
+        return {
+          ...base,
+          type: 'line',
+          smooth: true,
+          symbol: data.length <= 60 ? 'circle' : 'none',
+          symbolSize: 5,
+          lineStyle: { width: s.emphasis ? 3 : 2 },
+          ...(form === 'area' ? {
+            areaStyle: {
+              color: {
+                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: withAlpha(s.colour, 0.28) },
+                  { offset: 1, color: withAlpha(s.colour, 0.02) },
+                ],
+              },
+            },
+          } : {}),
+        };
+      }),
+    };
+  }, [data, resolved, series.length, form, domain, rightDomain, unit, rightUnit, decimals, categories, c, hasZoom, xKey]);
 
   return (
     <div>
       {head}
-      {/* The brush and legend need room of their own, or they eat the plot. */}
-      <div className="w-full" style={{ height: height + (zoom && data.length > 6 ? 26 : 0) }}>
-        <ResponsiveContainer>
-          {form === 'bar' ? (
-            <BarChart data={data} margin={margin} barGap={2}>
-              {grid}{axes}{overlay}
-              {shown.map((s) => (
-                // A rounded data-end reads as the end of a quantity; the flat
-                // foot stays on the baseline it is measured from.
-                <Bar key={s.key} yAxisId={axisOf(s)} dataKey={s.key} name={s.name}
-                  fill={s.colour} radius={[4, 4, 0, 0]} isAnimationActive={false} />
-              ))}
-            </BarChart>
-          ) : form === 'area' ? (
-            <AreaChart data={data} margin={margin}>
-              <defs>
-                {series.map((s) => (
-                  <linearGradient key={s.key} id={`fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={s.colour} stopOpacity={0.28} />
-                    <stop offset="100%" stopColor={s.colour} stopOpacity={0.02} />
-                  </linearGradient>
-                ))}
-              </defs>
-              {grid}{axes}{overlay}
-              {shown.map((s) => (
-                <Area key={s.key} yAxisId={axisOf(s)} type="monotone" dataKey={s.key} name={s.name}
-                  stroke={s.colour} strokeWidth={s.emphasis ? 2.5 : 2}
-                  fill={`url(#fill-${s.key})`} connectNulls={false}
-                  dot={false} activeDot={{ r: 5 }} isAnimationActive={false} />
-              ))}
-            </AreaChart>
-          ) : (
-            <LineChart data={data} margin={margin}>
-              {grid}{axes}{overlay}
-              {shown.map((s) => (
-                <Line key={s.key} yAxisId={axisOf(s)} type="monotone" dataKey={s.key} name={s.name}
-                  stroke={s.colour} strokeWidth={s.emphasis ? 2.5 : 2}
-                  connectNulls={false}
-                  dot={data.length <= 60 ? { r: 3, strokeWidth: 0 } : false}
-                  activeDot={{ r: 5 }} isAnimationActive={false} />
-              ))}
-            </LineChart>
-          )}
-        </ResponsiveContainer>
-      </div>
+      <ReactECharts option={option} notMerge style={{ height, width: '100%' }} />
     </div>
   );
 }
