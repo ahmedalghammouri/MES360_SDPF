@@ -17,12 +17,59 @@
  * edited or deleted — where the two overlap, every reader gives the schedule
  * precedence, which is the rule the classifier already applied to the minutes.
  */
+import * as fs from 'fs';
+import * as path from 'path';
+
 import { PrismaClient } from '@prisma/client';
 
 import { seedScheduleV2PlannedStops } from './seeds/schedule-v2-planned-stops.seed';
-import { PlannedStopMaterializerService } from '../src/modules/oee-standard/planned-stop-materializer.service';
+
+/**
+ * The materializer, from wherever this is running.
+ *
+ * The API image ships `dist/` and NOT `src/` — a plain `import` from `../src`
+ * resolves fine on a developer's machine and throws MODULE_NOT_FOUND inside the
+ * container, which is exactly how this failed the first time it was deployed.
+ * Resolved at runtime so one script works in both places, and so the service
+ * stays the single implementation rather than being copied into the seed.
+ */
+function loadMaterializer(): new (prisma: unknown) => {
+  materialize(factoryId: string, from: Date, to: Date): Promise<{
+    written: number; removed: number; machines: number; unplaced: number;
+  }>;
+} {
+  const compiled = path.join(__dirname, '../dist/modules/oee-standard/planned-stop-materializer.service.js');
+  const spec = fs.existsSync(compiled)
+    ? compiled
+    : '../src/modules/oee-standard/planned-stop-materializer.service';
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  return require(spec).PlannedStopMaterializerService;
+}
 
 const prisma = new PrismaClient();
+
+/**
+ * The two enum labels this seed writes, applied here rather than assumed.
+ *
+ * `prisma migrate deploy` fails with P3005 on this plant's database: the schema
+ * was created by `db push`, so none of the twenty-one migrations are recorded
+ * and Prisma refuses to start applying them to a non-empty database. Baselining
+ * twenty-one migrations against a live production schema to add two enum labels
+ * is the riskier trade, so the labels are ensured directly.
+ *
+ * ADD VALUE IF NOT EXISTS is idempotent, and is a no-op on a database where the
+ * migration DID run. Separate statements, each in its own call: PostgreSQL
+ * forbids using a new enum label in the same transaction that adds it, and the
+ * rows below are written after these have committed.
+ */
+async function ensureStartupLabels(): Promise<void> {
+  for (const sql of [
+    `ALTER TYPE "MachineState" ADD VALUE IF NOT EXISTS 'STARTUP'`,
+    `ALTER TYPE "DowntimeCategory" ADD VALUE IF NOT EXISTS 'STARTUP'`,
+  ]) {
+    await prisma.$executeRawUnsafe(sql);
+  }
+}
 
 const argDays = () => {
   const i = process.argv.indexOf('--days');
@@ -31,7 +78,11 @@ const argDays = () => {
 };
 
 async function main() {
-  console.log('── Step 1: schedule master data ───────────────────────────────');
+  console.log('── Step 0: STARTUP enum labels ────────────────────────────────');
+  await ensureStartupLabels();
+  console.log('   MachineState.STARTUP and DowntimeCategory.STARTUP present');
+
+  console.log('\n── Step 1: schedule master data ───────────────────────────────');
   const r = await seedScheduleV2PlannedStops(prisma);
   console.log(`   causes    ${r.causes}`);
   console.log(`   rules     ${r.rules}`);
@@ -55,7 +106,8 @@ async function main() {
   // The service takes a PrismaService; the concrete client satisfies the same
   // surface, and running it here rather than duplicating the placement logic is
   // the point — one implementation, whether it runs on a cron or by hand.
-  const svc = new PlannedStopMaterializerService(prisma as never);
+  const Materializer = loadMaterializer();
+  const svc = new Materializer(prisma);
   const out = await svc.materialize(factory.id, from, to);
 
   console.log(`   window    ${from.toISOString()} → ${to.toISOString()}`);

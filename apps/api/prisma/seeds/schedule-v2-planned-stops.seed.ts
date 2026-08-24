@@ -77,6 +77,30 @@ const STATE_RULES = [
   { state: 'PLANNED_STOP', isDowntime: true, isPlanned: true,  affectsOEE: false, category: 'PLANNED_BREAK',    reasonCode: 'PD-BREAK' },
 ] as const;
 
+/**
+ * Set an enum column by asking Postgres, not the generated client.
+ *
+ * A Prisma Client only knows the enum labels that existed when it was built.
+ * This seed ADDS one (STARTUP), so any write of that label through the client
+ * fails with "Invalid value for argument `category`" on an image built before
+ * the label existed — even though the database itself accepts it. The table and
+ * column names are compile-time literals from the call sites above, never user
+ * input; the value is bound.
+ */
+async function setEnum(
+  prisma: PrismaClient,
+  table: string,
+  column: string,
+  enumType: string,
+  value: string,
+  id: string,
+): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `UPDATE "${table}" SET "${column}" = $1::"${enumType}" WHERE id = $2`,
+    value, id,
+  );
+}
+
 const hhmmToOffset = (clock: string, shiftStart: string): number => {
   const [h, m] = clock.split(':').map(Number);
   const [sh, sm] = shiftStart.split(':').map(Number);
@@ -106,15 +130,21 @@ export async function seedScheduleV2PlannedStops(prisma: PrismaClient): Promise<
       where: { factoryId: factory.id, code: c.code, machineId: null },
       select: { id: true },
     });
-    const data = {
-      name: c.name, nameAr: c.nameAr,
-      category: c.category as never, isPlanned: true, isActive: true,
-    };
+    // The enum column is set by raw SQL below, never through the client.
+    // A generated client only knows the labels that existed when it was built,
+    // and this seed adds one — so writing `category: 'STARTUP'` through Prisma
+    // fails with "Invalid value for argument `category`" on any image built
+    // before the label existed, even though the DATABASE accepts it fine.
+    // Raw SQL with an explicit cast asks Postgres, which is the only party that
+    // actually knows.
+    const data = { name: c.name, nameAr: c.nameAr, isPlanned: true, isActive: true };
     const row = existing
       ? await prisma.downtimeCause.update({ where: { id: existing.id }, data, select: { id: true } })
       : await prisma.downtimeCause.create({
-          data: { factoryId: factory.id, code: c.code, ...data }, select: { id: true },
+          data: { factoryId: factory.id, code: c.code, ...data, category: 'OTHER' as never },
+          select: { id: true },
         });
+    await setEnum(prisma, 'downtime_causes', 'category', 'DowntimeCategory', c.category, row.id);
     causeId.set(c.code, row.id);
   }
 
@@ -128,10 +158,15 @@ export async function seedScheduleV2PlannedStops(prisma: PrismaClient): Promise<
     });
     const data = {
       isDowntime: r.isDowntime, isPlanned: r.isPlanned, affectsOEE: r.affectsOEE,
-      category: r.category as never, reasonCode: r.reasonCode, isActive: true,
+      reasonCode: r.reasonCode, isActive: true,
     };
-    if (existing) await prisma.machineStateRule.update({ where: { id: existing.id }, data });
-    else await prisma.machineStateRule.create({ data: { factoryId: factory.id, state: r.state, ...data } });
+    const row = existing
+      ? await prisma.machineStateRule.update({ where: { id: existing.id }, data, select: { id: true } })
+      : await prisma.machineStateRule.create({
+          data: { factoryId: factory.id, state: r.state, ...data, category: 'OTHER' as never },
+          select: { id: true },
+        });
+    await setEnum(prisma, 'machine_state_rules', 'category', 'DowntimeCategory', r.category, row.id);
     rules++;
   }
 
@@ -154,23 +189,26 @@ export async function seedScheduleV2PlannedStops(prisma: PrismaClient): Promise<
       // the schedule; `startOffsetMin` is what the placement code uses. Storing
       // the clock time alone is how every stop once ended up at midnight.
       const offset = hhmmToOffset(d.at, shift.startTime);
-      await prisma.plannedStopTemplate.upsert({
+      const row = await prisma.plannedStopTemplate.upsert({
         where: { factoryId_code: { factoryId: factory.id, code: d.code } },
         create: {
           factoryId: factory.id, code: d.code, name: d.name,
           durationMinutes: d.mins, scope: 'LINE' as never,
-          category: d.cat as never, causeId: causeId.get(d.cause) ?? null,
+          category: 'PLANNED_BREAK' as never, causeId: causeId.get(d.cause) ?? null,
           shiftTemplateId: shift.id, startOffsetMin: offset, startTimeLocal: d.at,
           isActive: true,
           description: `From Professional_Production_Schedule_v2.xlsx — ${d.at} for ${d.mins} min`,
         },
         update: {
-          name: d.name, durationMinutes: d.mins, category: d.cat as never,
+          name: d.name, durationMinutes: d.mins,
           causeId: causeId.get(d.cause) ?? null,
           shiftTemplateId: shift.id, startOffsetMin: offset, startTimeLocal: d.at,
           isActive: true,
         },
+        select: { id: true },
       });
+      // Category through raw SQL — see the note on the causes above.
+      await setEnum(prisma, 'planned_stop_templates', 'category', 'DowntimeCategory', d.cat, row.id);
       templates++;
     }
   }
