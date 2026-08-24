@@ -84,6 +84,7 @@ export class CountBalanceService {
         id: true, workOrderId: true, sequenceOrder: true, operationName: true,
         machineId: true, outputUnit: true,
         actualQtyGood: true, actualQtyRejected: true,
+        balanceAdjGood: true, balanceAdjRejected: true,
         machine: { select: { code: true, name: true } },
         workOrder: {
           select: {
@@ -134,8 +135,20 @@ export class CountBalanceService {
       for (const j of [...group].sort((a, b) => a.sequenceOrder - b.sequenceOrder)) {
         const unit = j.outputUnit ?? '';
         const rung = normaliseUnit(unit);
-        const good = j.actualQtyGood ?? 0;
-        const reject = j.actualQtyRejected ?? 0;
+        // THE MEASURED figure — the balance's own correction taken back out.
+        //
+        // `actualQtyGood` carries raw counts, manual entries AND whatever the
+        // line balancer has already added. Reconciling against that number would
+        // read its own correction as production and settle to zero, then undo
+        // itself, then correct again: a value oscillating every fifteen seconds
+        // for no reason visible to anyone watching it.
+        //
+        // A balance is only meaningful over what the sensors actually reported,
+        // so the adjustment is removed here and recomputed from scratch each
+        // pass. That is also what makes the correction converge instead of
+        // accumulating.
+        const good = (j.actualQtyGood ?? 0) - (j.balanceAdjGood ?? 0);
+        const reject = (j.actualQtyRejected ?? 0) - (j.balanceAdjRejected ?? 0);
         const total = good + reject;
 
         // An off-ladder unit (KG, a blank) cannot be compared with the rest of

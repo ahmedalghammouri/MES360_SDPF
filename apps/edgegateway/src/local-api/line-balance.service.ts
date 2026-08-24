@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { GatewayContextService } from '../context/gateway-context.service';
@@ -80,7 +81,7 @@ export interface BalancedRun extends Omit<BalanceRun, 'steps'> {
  * conveyor is left unbalanced rather than assumed empty.
  */
 @Injectable()
-export class LineBalanceService {
+export class LineBalanceService implements OnModuleInit {
   private readonly logger = new Logger(LineBalanceService.name);
 
   constructor(
@@ -88,6 +89,11 @@ export class LineBalanceService {
     private readonly ctx: GatewayContextService,
     private readonly counts: CountBalanceService,
   ) {}
+
+  /** Recover what has already been applied, so a restart continues rather than repeats. */
+  async onModuleInit(): Promise<void> {
+    await this.primeApplied().catch(() => undefined);
+  }
 
   async balance(): Promise<BalancedRun[]> {
     const runs = await this.counts.balance();
@@ -186,6 +192,22 @@ export class LineBalanceService {
       return;
     }
 
+    // WHICH WAY a correction points depends on which side of the neighbour this
+    // machine sits, and the two are mirror images:
+    //
+    //   upstream   gap = this.good - neighbourHandled
+    //              surplus beyond the belt -> THIS machine counted HIGH  (-)
+    //              deficit                 -> THIS machine counted LOW   (+)
+    //
+    //   downstream gap = neighbourMade - this.total
+    //              surplus beyond the belt -> THIS machine counted LOW   (+)
+    //              deficit                 -> THIS machine counted HIGH  (-)
+    //
+    // The same gap means opposite things about the machine being judged, and
+    // getting this backwards does not fail loudly — it produces a correction of
+    // the right size pointed at the wrong end of the line.
+    const surplusSign = downstream ? 1 : -1;
+
     if (gap >= 0) {
       const explained = Math.min(gap, capacity);
       const unexplained = gap - explained;
@@ -196,19 +218,19 @@ export class LineBalanceService {
         step.reason = `الفارق ${this.n(gap)} ويسعه السير (${this.n(capacity)})`;
         return;
       }
-      // Surplus larger than the conveyor can hold: this machine counted high.
-      this.applyCorrection(step, -unexplained,
+      this.applyCorrection(step, surplusSign * unexplained,
         `فائض ${this.n(gap)} يتجاوز سعة السير ${this.n(capacity)} بمقدار ${this.n(unexplained)}`);
       return;
     }
 
-    // Negative gap. Nothing physical produces this.
+    // Negative gap. Nothing physical produces this — a belt holds material back,
+    // it does not create it, so no capacity is subtracted here.
     const short = -gap;
     step.explainedByBuffer = 0;
     step.unexplained = short;
     // The MINIMUM the neighbour proves, and not one unit more. Adding an assumed
     // buffer here is exactly the fabrication this whole design refuses.
-    this.applyCorrection(step, short,
+    this.applyCorrection(step, -surplusSign * short,
       downstream
         ? `عالجت ${this.n(step.totalCommon)} بينما أنتجت السابقة ${this.n(neighbourFigure)}`
         : `التالية عالجت ${this.n(neighbourFigure)} بينما عدّت هذه ${this.n(step.goodCommon)}`);
@@ -232,6 +254,130 @@ export class LineBalanceService {
       step.verdict = 'CORRECTED';
       step.reason = why;
     }
+  }
+
+
+  /**
+   * ── WRITING THE CORRECTION ────────────────────────────────────────────────
+   *
+   * Runs on its own timer, and only where someone has switched `applyAdjustment`
+   * on for that machine. Everything about how it writes is shaped by one
+   * requirement: a balanced number must always be reducible to what a sensor
+   * actually measured.
+   *
+   * So `balanceAdjGood` holds the correction ABSOLUTELY — the whole of what the
+   * balance has added to this step, not a running sum of nudges — while
+   * `actualQtyGood` is moved by the DELTA between that and what was last
+   * applied. Two consequences, both deliberate:
+   *
+   *   - The counter and the balancer never fight. The counter increments
+   *     `actualQtyGood` by what it counted; the balancer increments it by how
+   *     much its own correction has changed. Neither overwrites the other, and
+   *     the total is raw + manual + correction at every instant.
+   *
+   *   - Running twice on an unchanged line writes nothing. The correction is
+   *     recomputed from scratch each pass, so it cannot drift by accumulation —
+   *     the failure that would make a balancer silently inflate a shift.
+   *
+   * A correction that hit its ceiling is applied as far as the ceiling and
+   * logged in full. That line is the point: the worse a counter gets, the more
+   * visible it must become.
+   */
+  @Interval('line-balance-apply', 15_000)
+  async applyBalances(): Promise<void> {
+    let runs: BalancedRun[];
+    try {
+      runs = await this.balance();
+    } catch (err) {
+      this.logger.warn(`balance pass skipped: ${(err as Error).message}`);
+      return;
+    }
+
+    const ops: any[] = [];
+    for (const run of runs) {
+      for (const step of run.steps) {
+        if (!step.applyAdjustment || !step.enabled) continue;
+        if (step.verdict !== 'CORRECTED' && step.verdict !== 'CLAMPED') continue;
+        if (step.unconvertible || !step.machineId) continue;
+
+        // The correction is computed in the line's common unit; the job order
+        // records quantities in ITS OWN unit. A -160 inner correction on the
+        // wrapper is -1 pallet, and writing -160 into a pallet column would be
+        // off by a factor of 160.
+        const rung = normaliseUnit(step.unit);
+        if (!rung) continue;
+        const adjOwnUnit = fromPieces(
+          toPieces(step.correction, run.commonUnit, run.packaging), rung, run.packaging,
+        );
+
+        const prev = this.appliedAdj.get(step.jobOrderId) ?? null;
+        const delta = adjOwnUnit - (prev ?? 0);
+        // Below half a unit there is nothing to say, and writing it every 15
+        // seconds for the life of a shift would be noise in the journal.
+        if (Math.abs(delta) < 0.5) continue;
+
+        ops.push(this.prisma.jobOrder.update({
+          where: { id: step.jobOrderId },
+          data: {
+            actualQtyGood: { increment: delta },
+            balanceAdjGood: adjOwnUnit,
+            balancedAt: new Date(),
+          },
+        }));
+        ops.push(this.prisma.countAdjustment.create({
+          data: {
+            factoryId: this.ctx.getFactoryId() ?? '',
+            jobOrderId: step.jobOrderId,
+            machineId: step.machineId,
+            countedGood: step.good,
+            countedScrap: step.reject,
+            adjGood: adjOwnUnit,
+            adjScrap: 0,
+            anchorMachineId: run.anchorMachineId,
+            reason: step.reason,
+            clamped: step.verdict === 'CLAMPED',
+            requestedGood: fromPieces(
+              toPieces(step.requestedCorrection, run.commonUnit, run.packaging), rung, run.packaging,
+            ),
+          },
+        }));
+        this.appliedAdj.set(step.jobOrderId, adjOwnUnit);
+
+        if (step.verdict === 'CLAMPED') {
+          this.logger.warn(
+            `${step.machineCode ?? step.machineId}: balance wanted ${this.n(step.requestedCorrection)} `
+            + `${run.commonUnit} but its ceiling is ${step.maxCorrectionPct}% — applied `
+            + `${this.n(step.correction)} and left the rest. This counter needs attention, `
+            + 'not a larger ceiling.',
+          );
+        }
+      }
+    }
+
+    if (!ops.length) return;
+    try {
+      await this.prisma.$transaction(ops);
+    } catch (err) {
+      // Nothing was recorded as applied unless the write landed, so the next
+      // pass simply recomputes and offers the same correction again.
+      for (const run of runs) for (const s of run.steps) this.appliedAdj.delete(s.jobOrderId);
+      this.logger.error('line balance apply failed', err as Error);
+    }
+  }
+
+  /**
+   * What has already been written per job order, so a pass that changes nothing
+   * writes nothing. Seeded from the database on first sight of an order, since
+   * a gateway restart must not re-apply a correction that is already in the row.
+   */
+  private readonly appliedAdj = new Map<string, number>();
+
+  /** Load prior corrections so a restart continues rather than double-counts. */
+  async primeApplied(): Promise<void> {
+    const rows = await this.prisma.jobOrder
+      .findMany({ where: { status: 'EXECUTING' }, select: { id: true, balanceAdjGood: true } })
+      .catch(() => [] as any[]);
+    for (const r of rows) this.appliedAdj.set(r.id, r.balanceAdjGood ?? 0);
   }
 
   private blank(s: BalanceStep, c: any, commonUnit: LadderUnit, packaging: SkuPackaging): BalancedStep {
