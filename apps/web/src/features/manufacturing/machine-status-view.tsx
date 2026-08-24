@@ -226,11 +226,24 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-lg border border-border/50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-border/50 text-sm font-semibold">
-            {t('machineStatus.perMachine')}
-          </div>
-        </div>
+        <PerMachineTable
+          title={t('machineStatus.perMachine')}
+          rows={data.machines}
+          columns={[
+            { key: 'm', label: t('machineStatus.machine'), text: true, render: nameCell },
+            // Availability and uptime are DIFFERENT questions and both are shown,
+            // because the difference between them is the planned time — which is
+            // exactly what an argument about "but the machine was running" is about.
+            { key: 'av', label: 'Availability', render: (r) => pctCell(r.availabilityPct) },
+            { key: 'up', label: 'Uptime', render: (r) => pctCell(r.uptimePct) },
+            { key: 'run', label: 'Running', render: (r) => fmtMin(r.runMin) },
+            { key: 'down', label: 'Unplanned', render: (r) => fmtMin(r.unplannedMin) },
+            { key: 'plan', label: 'Planned', render: (r) => fmtMin(r.plannedStopMin) },
+            { key: 'ext', label: 'External', render: (r) => fmtMin(r.externalMin) },
+            { key: 'un', label: 'Unmeasured', render: (r) => fmtMin(r.unmeasuredMin) },
+            { key: 'st', label: 'Stops', render: (r) => r.stops ?? 0 },
+          ]}
+        />
 
         <div className="rounded-lg border border-border/50 p-4">
           <h2 className="text-sm font-semibold mb-1">{t('machineStatus.pareto')}</h2>
@@ -307,9 +320,21 @@ function PerformanceTab({ data, isLoading, error, onRetry }: TabProps) {
         ) : <Empty text={t('machineStatus.noSnapshots')} />}
       </div>
 
-      <div className="rounded-lg border border-border/50 overflow-hidden">
-        <div className="px-4 py-3 border-b border-border/50 text-sm font-semibold">{t('machineStatus.perMachine')}</div>
-      </div>
+      <PerMachineTable
+        title={t('machineStatus.perMachine')}
+        rows={data.machines}
+        columns={[
+          { key: 'm', label: t('machineStatus.machine'), text: true, render: nameCell },
+          { key: 'perf', label: 'Performance', render: (r) => pctCell(r.performancePct) },
+          { key: 'rate', label: 'Rate /h', render: (r) => Math.round(r.actualRatePerHour ?? 0).toLocaleString() },
+          { key: 'run', label: 'Running', render: (r) => fmtMin(r.runMin) },
+          // The ideal time the output WOULD have taken. Performance is this over
+          // the actual running time, so both halves of the ratio are on the row.
+          { key: 'ideal', label: 'Ideal time', render: (r) => fmtMin(r.idealRunMin) },
+          { key: 'out', label: 'Output', render: (r) => Math.round(r.output ?? 0).toLocaleString() },
+          { key: 'good', label: 'Good', render: (r) => Math.round(r.goodOutput ?? 0).toLocaleString() },
+        ]}
+      />
     </div>
   );
 }
@@ -366,9 +391,19 @@ function QualityTab({ data, isLoading, error, onRetry }: TabProps) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-border/50 overflow-hidden">
-        <div className="px-4 py-3 border-b border-border/50 text-sm font-semibold">{t('machineStatus.perMachine')}</div>
-      </div>
+      <PerMachineTable
+        title={t('machineStatus.perMachine')}
+        rows={data.machines}
+        columns={[
+          { key: 'm', label: t('machineStatus.machine'), text: true, render: nameCell },
+          { key: 'q', label: 'Quality', render: (r) => pctCell(r.qualityPct) },
+          { key: 'scrapPct', label: 'Scrap %', render: (r) => pctCell(r.scrapPct) },
+          { key: 'good', label: 'Good', render: (r) => Math.round(r.good ?? 0).toLocaleString() },
+          { key: 'scrap', label: 'Scrap', render: (r) => Math.round(r.scrap ?? 0).toLocaleString() },
+          { key: 'rework', label: 'Rework', render: (r) => Math.round(r.rework ?? 0).toLocaleString() },
+          { key: 'total', label: 'Total', render: (r) => Math.round(r.total ?? 0).toLocaleString() },
+        ]}
+      />
     </div>
   );
 }
@@ -396,6 +431,87 @@ function Failed({ onRetry }: { onRetry?: () => void }) {
     </div>
   );
 }
+
+/**
+ * One machine per row — the numbers behind the picture above it.
+ *
+ * ── Why this exists ─────────────────────────────────────────────────────────
+ * All three tabs carried a card headed "Per machine" containing NOTHING: a
+ * border, a title, and no body. Every chart on this page aggregates or ranks,
+ * so a reader who wanted the actual figure for one machine — the one they came
+ * to look at — had nowhere to read it. The section was not broken data; it was
+ * never written.
+ *
+ * Columns are given per tab because the useful figures differ: availability is
+ * about where the time went, performance about rate, quality about what came
+ * out. A single shared column set would have been three-quarters irrelevant on
+ * every tab.
+ */
+function PerMachineTable({
+  title, rows, columns,
+}: {
+  title: string;
+  rows: any[];
+  columns: Array<{
+    key: string;
+    label: string;
+    /** Right-aligned and tabular by default; a name column opts out. */
+    text?: boolean;
+    render: (r: any) => React.ReactNode;
+  }>;
+}) {
+  return (
+    <div className="rounded-lg border border-border/50 overflow-hidden">
+      <div className="px-4 py-3 border-b border-border/50 text-sm font-semibold">{title}</div>
+      {rows.length === 0 ? (
+        <Empty text="—" />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/50 bg-muted/30">
+                {columns.map((c) => (
+                  <th key={c.key}
+                    className={cn(
+                      'px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground',
+                      c.text ? 'text-start' : 'text-end',
+                    )}>
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r: any) => (
+                <tr key={r.machineId} className="border-b border-border/30 last:border-0">
+                  {columns.map((c) => (
+                    <td key={c.key}
+                      className={cn('px-4 py-2', c.text ? 'text-start' : 'text-end tabular-nums')}>
+                      {c.render(r)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A percentage that says "—" when it was never measured, rather than 0%. */
+const pctCell = (v: number | null | undefined) =>
+  v == null ? <span className="text-muted-foreground">—</span> : `${Number(v).toFixed(1)}%`;
+
+/** The machine's identity, in one cell. */
+const nameCell = (r: any) => (
+  <div>
+    <div className="font-medium">{r.code}</div>
+    <div className="text-[11px] text-muted-foreground">{r.name}{r.line ? ` · ${r.line}` : ''}</div>
+  </div>
+);
+
 
 function Empty({ text }: { text: string }) {
   return <div className="text-sm text-muted-foreground text-center py-12">{text}</div>;
