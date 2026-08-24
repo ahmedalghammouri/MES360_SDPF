@@ -13,10 +13,14 @@ import { Radio } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { dur } from '@/features/oee-analysis/chart-kit';
+import { formatTime } from '@/lib/datetime';
 import type { ShiftHeader as Header, LiveJobOrder } from './use-live-shift';
 
-const clock = (iso: string | undefined | null) =>
-  iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+// Factory time, via lib/datetime — not `.toLocaleTimeString([], ...)`, which
+// reads both the runtime's default locale AND the runtime's local timezone,
+// two different clocks on the server and the browser for the same instant
+// (React error #418).
+const clock = (iso: string | undefined | null) => (iso ? formatTime(iso) : '—');
 
 /** Distinct values of a field across the open orders, in first-seen order. */
 function distinct(orders: LiveJobOrder[], pick: (o: LiveJobOrder) => string | null): string[] {
@@ -36,8 +40,14 @@ export function ShiftBand({
   scopeLabel: string;
   isFetching: boolean;
 }) {
-  const [tick, setTick] = React.useState(() => new Date());
+  // Starts null so the server-rendered markup and the client's FIRST paint
+  // (before effects run) both show the same nothing — computing `new Date()`
+  // directly in useState's initializer runs it again on the client at
+  // hydration time, a different instant than the server rendered, which is a
+  // guaranteed text mismatch (React error #418) independent of locale.
+  const [tick, setTick] = React.useState<Date | null>(null);
   React.useEffect(() => {
+    setTick(new Date());
     const id = setInterval(() => setTick(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -94,7 +104,7 @@ export function ShiftBand({
             <span className="mx-1.5" aria-hidden>·</span>
             planned {dur(shift.plannedMin)}
             <span className="mx-1.5" aria-hidden>·</span>
-            now {tick.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            now {tick ? formatTime(tick) : '—'}
           </p>
         </div>
 

@@ -62,8 +62,12 @@ const LEVEL_TITLE: Record<LineOee['level'], string> = {
   FACTORY: 'Factory performance',
 };
 
+// 'en-US' pinned, not the runtime default: `.toLocaleString()` with no locale
+// follows Node's ICU default on the server and the visitor's OWN BROWSER
+// LANGUAGE on the client — a hydration text mismatch (React error #418) on
+// every number this formats.
 const num = (n: number | null | undefined) =>
-  n == null ? '—' : n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  n == null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
 export function LineOeeCard({ data, className }: { data: LineOee | null | undefined; className?: string }) {
   if (!data?.applies) return null;

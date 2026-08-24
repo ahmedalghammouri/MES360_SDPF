@@ -136,8 +136,10 @@ export function BreakdownTable({
                   {dur(r.time?.netProductionMin)}
                 </td>
                 <td className="px-4 py-2 text-end font-mono tabular-nums">
-                  <span className="text-foreground">{Math.round(r.counts?.good ?? 0).toLocaleString()}</span>
-                  <span className="text-muted-foreground"> / {Math.round(r.counts?.total ?? 0).toLocaleString()}</span>
+                  {/* 'en-US' pinned — see chart-kit's num() for why a bare
+                      toLocaleString() here is a hydration mismatch (#418). */}
+                  <span className="text-foreground">{Math.round(r.counts?.good ?? 0).toLocaleString('en-US')}</span>
+                  <span className="text-muted-foreground"> / {Math.round(r.counts?.total ?? 0).toLocaleString('en-US')}</span>
                 </td>
               </tr>
             ))}

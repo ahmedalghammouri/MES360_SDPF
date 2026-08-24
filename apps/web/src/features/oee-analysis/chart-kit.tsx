@@ -320,10 +320,32 @@ export function echartsAxisColours(isDark: boolean) {
   };
 }
 
-/** `#rrggbb` + alpha → an 8-digit hex ECharts accepts for a translucent fill. */
-export function withAlpha(hex: string, alpha: number): string {
-  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0');
-  return `${hex}${a}`;
+/**
+ * A colour + alpha → a translucent fill Canvas will actually parse.
+ *
+ * Series colour comes from two places: the resolved `--viz-N` hex steps, and
+ * literal `hsl(...)` constants like `STATUS.good`/`SEGMENT_COLOUR` that were
+ * never `var()` references for `resolveChartColour` to touch. Appending a hex
+ * alpha suffix to an hsl() string produces `'hsl(142 62% 38%)47'`, which is not
+ * a colour — `CanvasGradient.addColorStop` throws on it and takes the whole
+ * chart down. Splice the alpha in as CSS instead, per the input's own syntax.
+ */
+export function withAlpha(colour: string, alpha: number): string {
+  const a = Math.max(0, Math.min(1, alpha));
+  const trimmed = colour.trim();
+
+  const hex = /^#[0-9a-fA-F]{6}$/.exec(trimmed);
+  if (hex) {
+    return `${trimmed}${Math.round(a * 255).toString(16).padStart(2, '0')}`;
+  }
+
+  const hsl = /^hsl\(([^)]+)\)$/.exec(trimmed);
+  if (hsl) {
+    const body = hsl[1];
+    return body.includes(',') ? `hsla(${body}, ${a})` : `hsl(${body} / ${a})`;
+  }
+
+  return trimmed;
 }
 
 /**

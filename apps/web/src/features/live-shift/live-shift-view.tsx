@@ -18,10 +18,6 @@
  * `MachineStateGantt` that was already built for it.
  */
 import React from 'react';
-import {
-  ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend,
-} from 'recharts';
 import { AlertTriangle, PackageCheck } from 'lucide-react';
 
 import { useScope } from '@/hooks/use-scope';
@@ -29,6 +25,7 @@ import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
 import { Gauge, dur, stateColour, STATUS, pctText, TrendChart } from '@/features/oee-analysis/chart-kit';
 import { cn } from '@/lib/utils';
+import { formatTime } from '@/lib/datetime';
 
 import { LineOeeCard } from '@/features/oee-analysis/line-oee-card';
 import { Panel, type RangeKey } from './range-control';
@@ -38,11 +35,17 @@ import {
   type LiveShiftPayload, type LiveJobOrder, type Basis,
 } from './use-live-shift';
 
+// 'en-US' pinned, not the runtime default: `.toLocaleString()` with no locale
+// follows Node's ICU default on the server and the visitor's OWN BROWSER
+// LANGUAGE on the client — a hydration text mismatch (React error #418) on
+// every number this formats.
 const num = (n: number | null | undefined, digits = 0) =>
-  n == null ? '—' : n.toLocaleString(undefined, { maximumFractionDigits: digits });
+  n == null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: digits });
 
-const clock = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+// Factory time, via lib/datetime — not `.toLocaleTimeString([], ...)`, which
+// reads both the runtime's default locale AND the runtime's local timezone,
+// two different clocks on the server and the browser for the same instant.
+const clock = (iso: string | null | undefined) => (iso ? formatTime(iso) : '—');
 
 /**
  * Each panel keeps its own range in its own state.
@@ -366,38 +369,6 @@ function TrendPanel() {
         </div>
       )}
     </Panel>
-  );
-}
-
-function PctTip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 shadow-md">
-      <p className="mb-1 text-[11px] font-medium tabular-nums text-foreground">{label}</p>
-      {payload.map((e: any) => (
-        <p key={e.dataKey} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="h-2 w-2 rounded-sm" style={{ background: e.color }} aria-hidden />
-          <span className="flex-1">{e.name}</span>
-          <span className="font-medium tabular-nums text-foreground">{pctText(e.value)}</span>
-        </p>
-      ))}
-    </div>
-  );
-}
-
-function CountTip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 shadow-md">
-      <p className="mb-1 text-[11px] font-medium tabular-nums text-foreground">{label}</p>
-      {payload.map((e: any) => (
-        <p key={e.dataKey} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="h-2 w-2 rounded-sm" style={{ background: e.color }} aria-hidden />
-          <span className="flex-1">{e.name}</span>
-          <span className="font-medium tabular-nums text-foreground">{num(e.value)}</span>
-        </p>
-      ))}
-    </div>
   );
 }
 

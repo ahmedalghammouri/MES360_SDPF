@@ -19,6 +19,7 @@
 import React from 'react';
 
 import { cn } from '@/lib/utils';
+import { formatTime } from '@/lib/datetime';
 
 /** The keys the API accepts. Order is longest → shortest, as a reader scans. */
 export const RANGES = [
@@ -75,8 +76,11 @@ export interface WindowInfo {
   clamped: boolean;
 }
 
-const clock = (iso: string | undefined) =>
-  iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+// Factory time, via lib/datetime — not `.toLocaleTimeString([], ...)`, which
+// reads both the runtime's default locale AND the runtime's local timezone,
+// two different clocks on the server and the browser for the same instant
+// (React error #418).
+const clock = (iso: string | undefined) => (iso ? formatTime(iso) : '—');
 
 /**
  * A widget: title, its own range control, and — always — the window it is
