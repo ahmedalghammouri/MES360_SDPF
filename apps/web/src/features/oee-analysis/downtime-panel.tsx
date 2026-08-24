@@ -13,15 +13,24 @@
  * Duration or occurrence is a real question rather than a display preference:
  * one four-hour breakdown and forty two-minute stops are different problems with
  * different fixes, and a page that only ranks by one of them hides the other.
+ *
+ * ── Why ECharts ──────────────────────────────────────────────────────────────
+ * Same engine as every other chart in the OEE family now — see chart-kit.tsx's
+ * TrendChart for the fuller reasoning. `stateColour()` returns `var(--viz-N)`,
+ * a CSS custom property reference that a canvas 2D context cannot resolve, so
+ * both charts here go through `resolveChartColour` before a hue reaches the
+ * canvas — exactly the same fix TrendChart needed, because it is the same
+ * function producing the same reference.
  */
 import React from 'react';
-import {
-  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
-  CartesianGrid, Tooltip, PieChart, Pie, Cell,
-} from 'recharts';
+import ReactECharts from 'echarts-for-react';
+import { useTheme } from 'next-themes';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
 
-import { dur, stateColour, SEGMENT_COLOUR, type SegmentKind } from './chart-kit';
+import {
+  dur, stateColour, SEGMENT_COLOUR, type SegmentKind,
+  echartsAxisColours, resolveChartColour,
+} from './chart-kit';
 import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
 
 export interface TimelineSegment {
@@ -40,13 +49,6 @@ export interface Distribution {
 
 type RankBy = 'duration' | 'occurrence';
 
-// 'en-US' pinned, not the runtime default: `.toLocaleString()` with no
-// locale follows Node's ICU default on the server and the visitor's OWN
-// BROWSER LANGUAGE on the client — an Arabic-language browser renders
-// different digit grouping than the server, which is a hydration text
-// mismatch (React error #418) on every number this formats.
-const num = (n: number) => Math.round(n).toLocaleString('en-US');
-
 export function DowntimePanel({
   distribution, timeline, machines, windowStart, windowEnd,
 }: {
@@ -58,6 +60,9 @@ export function DowntimePanel({
 }) {
   const [rankBy, setRankBy] = React.useState<RankBy>('duration');
   const [drill, setDrill] = React.useState<string | null>(null);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const c = echartsAxisColours(isDark);
 
   // Only stops charged to the machine. A break is not a downtime reason, and
   // ranking it alongside breakdowns puts the canteen at the top of a Pareto
@@ -75,10 +80,10 @@ export function DowntimePanel({
         ...r, rank: i + 1, value: v,
         sharePct: total > 0 ? (v / total) * 100 : 0,
         cumulativePct: total > 0 ? (running / total) * 100 : 0,
-        colour: stateColour(r.label),
+        colour: resolveChartColour(stateColour(r.label), isDark),
       };
     });
-  }, [downtime, rankBy]);
+  }, [downtime, rankBy, isDark]);
 
   // The drilldown starts at the time model, exactly as the reference does, so
   // the reader can see planned and external time beside the unplanned before
@@ -137,6 +142,79 @@ export function DowntimePanel({
     );
   }
 
+  // ── Pareto: ranked bars + cumulative % line, on a shared rank axis ─────────
+  const paretoOption = {
+    backgroundColor: 'transparent',
+    grid: { top: 8, right: 44, bottom: 8, left: 8, containLabel: true },
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+      textStyle: { color: c.tooltipText, fontSize: 12 },
+      formatter: (params: any[]) => {
+        const r = leaves[params[0]?.dataIndex ?? 0];
+        if (!r) return '';
+        const measure = rankBy === 'duration'
+          ? `${dur(r.minutes)} · ×${r.occurrence}`
+          : `×${r.occurrence} · ${dur(r.minutes)}`;
+        return `<div style="font-weight:600;margin-bottom:2px">${r.label}</div>`
+          + `<div>${measure}</div>`
+          + `<div style="opacity:.65">${r.sharePct.toFixed(1)}% · cumulative ${r.cumulativePct.toFixed(1)}%</div>`;
+      },
+    },
+    xAxis: {
+      type: 'category', data: leaves.map((r) => r.rank),
+      axisLabel: { color: c.text, fontSize: 11 }, axisLine: { lineStyle: { color: c.line } },
+    },
+    yAxis: [
+      {
+        type: 'value',
+        axisLabel: { color: c.text, fontSize: 11 },
+        splitLine: { lineStyle: { color: c.grid } }, axisLine: { show: false },
+      },
+      {
+        // The cumulative line is a percentage OF the bars beside it, fixed
+        // 0–100 and derived from the same numbers — the one second axis that
+        // is not a second measure competing for the space.
+        type: 'value', min: 0, max: 100,
+        axisLabel: { color: c.text, fontSize: 11, formatter: '{value}%' },
+        splitLine: { show: false }, axisLine: { show: false },
+      },
+    ],
+    series: [
+      {
+        type: 'bar', barMaxWidth: 28,
+        data: leaves.map((r) => ({ value: r.value, itemStyle: { color: r.colour, borderRadius: [3, 3, 0, 0] } })),
+      },
+      {
+        type: 'line', yAxisIndex: 1, smooth: true,
+        data: leaves.map((r) => r.cumulativePct),
+        lineStyle: { color: c.text, width: 2 },
+        itemStyle: { color: c.text },
+        symbolSize: 6,
+      },
+    ],
+  };
+
+  // ── Time-model tree: donut + drill list ─────────────────────────────────
+  const donutOption = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+      textStyle: { color: c.tooltipText, fontSize: 12 },
+      formatter: (p: any) => `<div style="font-weight:600">${p.name}</div><div>${dur(p.value)}</div>`,
+    },
+    series: [{
+      type: 'pie', radius: ['52%', '78%'],
+      itemStyle: { borderColor: isDark ? '#0b0f1a' : '#ffffff', borderWidth: 2 },
+      label: { show: false }, labelLine: { show: false },
+      data: drillRows.map((r) => ({
+        name: r.label, value: r.minutes,
+        itemStyle: { color: resolveChartColour(level ? stateColour(r.label) : SEGMENT_COLOUR[r.kind], isDark) },
+      })),
+    }],
+  };
+
   return (
     <div className="flex flex-col gap-5">
       {/* ── The ranking ── */}
@@ -160,43 +238,7 @@ export function DowntimePanel({
 
         <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
           <div className="h-[280px]">
-            <ResponsiveContainer>
-              <ComposedChart data={leaves} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
-                <XAxis dataKey="rank" stroke="hsl(var(--border))" tickLine={false}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                <YAxis yAxisId="v" stroke="hsl(var(--border))" tickLine={false} width={54}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                {/*
-                  The cumulative line is a percentage OF the bars beneath it,
-                  fixed 0–100 and derived from the same numbers — the one second
-                  axis that is not a second measure competing for the space.
-                */}
-                <YAxis yAxisId="pct" orientation="right" domain={[0, 100]} unit="%" width={44}
-                  stroke="hsl(var(--border))" tickLine={false}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                <Tooltip cursor={{ fill: 'hsl(var(--muted))', fillOpacity: 0.35 }}
-                  content={({ active, payload }: any) => active && payload?.length ? (
-                    <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-                      <div className="mb-1 font-medium">{payload[0].payload.label}</div>
-                      <div className="font-mono tabular-nums">
-                        {rankBy === 'duration'
-                          ? `${dur(payload[0].payload.minutes)} · ×${payload[0].payload.occurrence}`
-                          : `×${payload[0].payload.occurrence} · ${dur(payload[0].payload.minutes)}`}
-                      </div>
-                      <div className="font-mono tabular-nums text-muted-foreground">
-                        {payload[0].payload.sharePct.toFixed(1)}% · cumulative {payload[0].payload.cumulativePct.toFixed(1)}%
-                      </div>
-                    </div>
-                  ) : null} />
-                <Bar yAxisId="v" dataKey="value" radius={[3, 3, 0, 0]} isAnimationActive={false}>
-                  {leaves.map((r) => <Cell key={r.key} fill={r.colour} />)}
-                </Bar>
-                <Line yAxisId="pct" type="monotone" dataKey="cumulativePct"
-                  stroke="hsl(var(--muted-foreground))" strokeWidth={2}
-                  dot={{ r: 4, strokeWidth: 0 }} isAnimationActive={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <ReactECharts option={paretoOption} notMerge style={{ height: '100%', width: '100%' }} />
           </div>
 
           {/* The list carries the names. The bars are numbered, so a reader can
@@ -254,22 +296,7 @@ export function DowntimePanel({
 
         <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
           <div className="h-[200px]">
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={drillRows} dataKey="minutes" nameKey="label" outerRadius={88}
-                  stroke="hsl(var(--card))" strokeWidth={2} isAnimationActive={false}>
-                  {drillRows.map((r) => (
-                    <Cell key={r.key} fill={level ? stateColour(r.label) : SEGMENT_COLOUR[r.kind]} />
-                  ))}
-                </Pie>
-                <Tooltip content={({ active, payload }: any) => active && payload?.length ? (
-                  <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-                    <div className="font-medium">{payload[0].payload.label}</div>
-                    <div className="font-mono tabular-nums">{dur(payload[0].value)}</div>
-                  </div>
-                ) : null} />
-              </PieChart>
-            </ResponsiveContainer>
+            <ReactECharts option={donutOption} notMerge style={{ height: '100%', width: '100%' }} />
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">

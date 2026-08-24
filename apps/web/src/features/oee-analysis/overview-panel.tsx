@@ -10,9 +10,6 @@
  * analytical.
  */
 import React from 'react';
-import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-} from 'recharts';
 
 import { Gauge, dur, type SegmentKind, TrendChart, type TrendSeries } from './chart-kit';
 import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
@@ -57,25 +54,6 @@ const SERIES: TrendSeries[] = [
   { key: 'quality', name: 'Quality', colour: 'var(--viz-3)' },
   { key: 'oee', name: 'OEE', colour: 'var(--viz-4)' },
 ] as const;
-
-/** Crosshair tooltip. Values in ink, identity carried by the swatch beside them. */
-function TrendTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-      <div className="mb-1 font-medium">{label}</div>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-sm" style={{ background: p.color }} />
-          <span className="text-muted-foreground">{p.name}</span>
-          <span className="ml-auto font-mono tabular-nums">
-            {p.value == null ? '—' : `${Number(p.value).toFixed(1)}%`}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /** Full bucket list — the fallback when the caller has not narrowed it to the selected period. */
 const DEFAULT_BUCKETS = [

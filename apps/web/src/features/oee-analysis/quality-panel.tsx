@@ -9,13 +9,11 @@
  * a configuration state, not a plant with no defects.
  */
 import React from 'react';
-import {
-  ResponsiveContainer, ComposedChart, BarChart, LineChart, Line, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, Cell,
-} from 'recharts';
+import ReactECharts from 'echarts-for-react';
+import { useTheme } from 'next-themes';
 import { Info } from 'lucide-react';
 
-import { Gauge, pctText, STATUS, TrendChart } from './chart-kit';
+import { Gauge, pctText, STATUS, TrendChart, echartsAxisColours, resolveChartColour } from './chart-kit';
 import { formatDateTime } from '@/lib/datetime';
 
 export interface QualityTrendPoint {
@@ -65,6 +63,11 @@ export function QualityPanel({
   rejectReasons: RejectReasons;
 }) {
   const [tab, setTab] = React.useState<'overTime' | 'reasons'>('overTime');
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const c = echartsAxisColours(isDark);
+  const paretoBar = resolveChartColour(PARETO_BAR, isDark);
+  const paretoLine = resolveChartColour(PARETO_LINE, isDark);
 
   const rejects = trend.map((p) => ({ t: hhmm(p.at), at: p.at, rejected: p.counts?.rejected ?? 0 }));
   const values = rejects.map((r) => r.rejected);
@@ -151,25 +154,34 @@ export function QualityPanel({
                   <Mini label="Max" value={`${num(Math.max(...values))} pcs`} />
                 </div>
                 <div className="h-[260px] w-full">
-                  <ResponsiveContainer>
-                    <BarChart data={rejects} margin={{ top: 6, right: 16, bottom: 0, left: 0 }}>
-                      <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
-                      <XAxis dataKey="t" stroke="hsl(var(--border))" tickLine={false} minTickGap={20}
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                      <YAxis stroke="hsl(var(--border))" tickLine={false} width={50}
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                      <Tooltip cursor={{ fill: 'hsl(var(--muted))', fillOpacity: 0.35 }}
-                        content={({ active, payload, label }: any) => active && payload?.length ? (
-                          <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-                            <div className="mb-0.5 font-medium">{label}</div>
-                            <div className="font-mono tabular-nums">{num(payload[0].value)} pcs rejected</div>
-                          </div>
-                        ) : null} />
-                      {/* One series, so no legend — the heading names it. */}
-                      <Bar dataKey="rejected" name="Rejected" fill={STATUS.bad}
-                        radius={[3, 3, 0, 0]} isAnimationActive={false} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ReactECharts option={{
+                    backgroundColor: 'transparent',
+                    grid: { top: 8, right: 12, bottom: 8, left: 8, containLabel: true },
+                    tooltip: {
+                      trigger: 'axis', axisPointer: { type: 'shadow' },
+                      backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+                      textStyle: { color: c.tooltipText, fontSize: 12 },
+                      formatter: (params: any[]) =>
+                        `<div style="font-weight:600;margin-bottom:2px">${params[0]?.name ?? ''}</div>`
+                        + `<div>${num(Number(params[0]?.value ?? 0))} pcs rejected</div>`,
+                    },
+                    xAxis: {
+                      type: 'category', data: rejects.map((r) => r.t),
+                      axisLabel: { color: c.text, fontSize: 11 }, axisLine: { lineStyle: { color: c.line } },
+                    },
+                    yAxis: {
+                      type: 'value',
+                      axisLabel: { color: c.text, fontSize: 11 },
+                      splitLine: { lineStyle: { color: c.grid } }, axisLine: { show: false },
+                    },
+                    // One series, so no legend — the heading names it.
+                    series: [{
+                      name: 'Rejected', type: 'bar',
+                      data: rejects.map((r) => r.rejected),
+                      itemStyle: { color: STATUS.bad, borderRadius: [3, 3, 0, 0] },
+                      barMaxWidth: 28,
+                    }],
+                  }} notMerge style={{ height: '100%', width: '100%' }} />
                 </div>
               </>
             )}
@@ -204,43 +216,58 @@ export function QualityPanel({
                 </p>
                 <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
                   <div className="h-[280px]">
-                    <ResponsiveContainer>
-                      <ComposedChart data={pareto} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                        <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
-                        <XAxis dataKey="rank" stroke="hsl(var(--border))" tickLine={false}
-                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                        <YAxis yAxisId="pieces" stroke="hsl(var(--border))" tickLine={false} width={54}
-                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                        {/*
-                          The one legitimate second axis: a Pareto's cumulative
-                          line is a PERCENTAGE of the bars beneath it, fixed 0–100
-                          and derived from the same numbers. It is not a second
-                          measure competing for the same space.
-                        */}
-                        <YAxis yAxisId="pct" orientation="right" domain={[0, 100]} unit="%" width={44}
-                          stroke="hsl(var(--border))" tickLine={false}
-                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                        <Tooltip cursor={{ fill: 'hsl(var(--muted))', fillOpacity: 0.35 }}
-                          content={({ active, payload }: any) => active && payload?.length ? (
-                            <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-                              <div className="mb-1 font-medium">{payload[0].payload.reason}</div>
-                              <div className="text-muted-foreground">{payload[0].payload.category}</div>
-                              <div className="mt-1 font-mono tabular-nums">
-                                {num(payload[0].payload.pieces)} pcs · {payload[0].payload.sharePct.toFixed(1)}%
-                              </div>
-                              <div className="font-mono tabular-nums text-muted-foreground">
-                                cumulative {payload[0].payload.cumulativePct.toFixed(1)}%
-                              </div>
-                            </div>
-                          ) : null} />
-                        <Bar yAxisId="pieces" dataKey="pieces" fill={PARETO_BAR}
-                          radius={[3, 3, 0, 0]} isAnimationActive={false}>
-                          {pareto.map((r) => <Cell key={r.reason} fill={PARETO_BAR} />)}
-                        </Bar>
-                        <Line yAxisId="pct" type="monotone" dataKey="cumulativePct" stroke={PARETO_LINE}
-                          strokeWidth={2} dot={{ r: 4, strokeWidth: 0 }} isAnimationActive={false} />
-                      </ComposedChart>
-                    </ResponsiveContainer>
+                    <ReactECharts option={{
+                      backgroundColor: 'transparent',
+                      grid: { top: 8, right: 12, bottom: 8, left: 8, containLabel: true },
+                      tooltip: {
+                        trigger: 'axis', axisPointer: { type: 'shadow' },
+                        backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+                        textStyle: { color: c.tooltipText, fontSize: 12 },
+                        formatter: (params: any[]) => {
+                          const row = pareto[params[0]?.dataIndex ?? 0];
+                          if (!row) return '';
+                          return `<div style="font-weight:600">${row.reason}</div>`
+                            + `<div style="opacity:.75">${row.category}</div>`
+                            + `<div style="margin-top:4px">${num(row.pieces)} pcs · ${row.sharePct.toFixed(1)}%</div>`
+                            + `<div style="opacity:.75">cumulative ${row.cumulativePct.toFixed(1)}%</div>`;
+                        },
+                      },
+                      xAxis: {
+                        type: 'category', data: pareto.map((r) => r.rank),
+                        axisLabel: { color: c.text, fontSize: 11 }, axisLine: { lineStyle: { color: c.line } },
+                      },
+                      // The one legitimate second axis: a Pareto's cumulative line
+                      // is a PERCENTAGE of the bars beneath it, fixed 0–100 and
+                      // derived from the same numbers — not a second measure
+                      // competing for the same space.
+                      yAxis: [
+                        {
+                          type: 'value', name: '',
+                          axisLabel: { color: c.text, fontSize: 11 },
+                          splitLine: { lineStyle: { color: c.grid } }, axisLine: { show: false },
+                        },
+                        {
+                          type: 'value', min: 0, max: 100,
+                          axisLabel: { color: c.text, fontSize: 11, formatter: '{value}%' },
+                          splitLine: { show: false }, axisLine: { show: false },
+                        },
+                      ],
+                      series: [
+                        {
+                          name: 'Pieces', type: 'bar', yAxisIndex: 0,
+                          data: pareto.map((r) => r.pieces),
+                          itemStyle: { color: paretoBar, borderRadius: [3, 3, 0, 0] },
+                          barMaxWidth: 32,
+                        },
+                        {
+                          name: 'Cumulative', type: 'line', yAxisIndex: 1,
+                          data: pareto.map((r) => r.cumulativePct),
+                          lineStyle: { color: paretoLine, width: 2 },
+                          itemStyle: { color: paretoLine },
+                          symbol: 'circle', symbolSize: 8, showSymbol: true,
+                        },
+                      ],
+                    }} notMerge style={{ height: '100%', width: '100%' }} />
                   </div>
 
                   {/* The ranked list is where identity lives — the bars are all one

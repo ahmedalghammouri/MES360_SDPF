@@ -9,13 +9,14 @@
  * why the reference tabs them too.
  */
 import React from 'react';
-import {
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, PieChart, Pie, Cell,
-} from 'recharts';
+import ReactECharts from 'echarts-for-react';
+import { useTheme } from 'next-themes';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-import { Gauge, STATUS, SEGMENT_COLOUR, SEGMENT_LABEL, dur, type SegmentKind, TrendChart } from './chart-kit';
+import {
+  Gauge, STATUS, SEGMENT_COLOUR, SEGMENT_LABEL, dur, type SegmentKind, TrendChart,
+  echartsAxisColours,
+} from './chart-kit';
 
 export interface AvailabilityTrendPoint {
   at: string;
@@ -59,6 +60,9 @@ export function AvailabilityPanel({
   const [tab, setTab] = React.useState<'distribution' | 'trend'>('distribution');
   // Which level of the reason tree is open. Null is the top — the time model.
   const [drill, setDrill] = React.useState<string | null>(null);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const c = echartsAxisColours(isDark);
 
   const level = drill ? distribution.reasons.find((r) => r.key === drill) : null;
   const rows = level?.children ?? distribution.reasons;
@@ -152,21 +156,21 @@ export function AvailabilityPanel({
             ) : (
               <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
                 <div className="h-[200px]">
-                  <ResponsiveContainer>
-                    <PieChart>
-                      <Pie data={rows} dataKey="minutes" nameKey="label" innerRadius={0} outerRadius={88}
-                        stroke="hsl(var(--card))" strokeWidth={2} isAnimationActive={false}>
-                        {rows.map((r) => <Cell key={r.key} fill={SEGMENT_COLOUR[r.kind]} />)}
-                      </Pie>
-                      <Tooltip content={({ active, payload }: any) =>
-                        active && payload?.length ? (
-                          <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-                            <div className="font-medium">{payload[0].payload.label}</div>
-                            <div className="font-mono tabular-nums">{dur(payload[0].value)}</div>
-                          </div>
-                        ) : null} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <ReactECharts option={{
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                      trigger: 'item',
+                      backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+                      textStyle: { color: c.tooltipText, fontSize: 12 },
+                      formatter: (p: any) => `<div style="font-weight:600">${p.name}</div><div>${dur(p.value)}</div>`,
+                    },
+                    series: [{
+                      type: 'pie', radius: [0, '76%'],
+                      itemStyle: { borderColor: isDark ? '#0b0f1a' : '#ffffff', borderWidth: 2 },
+                      label: { show: false }, labelLine: { show: false },
+                      data: rows.map((r) => ({ name: r.label, value: r.minutes, itemStyle: { color: SEGMENT_COLOUR[r.kind] } })),
+                    }],
+                  }} notMerge style={{ height: '100%', width: '100%' }} />
                 </div>
 
                 {/* The list IS the legend — every slice named, timed and counted. */}
@@ -208,52 +212,44 @@ export function AvailabilityPanel({
             {data.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No buckets in this window yet.</p>
             ) : (
-              <>
-                <div className="h-[260px] w-full">
-                  <ResponsiveContainer>
-                    <BarChart data={data} margin={{ top: 6, right: 16, bottom: 0, left: 0 }}>
-                      <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
-                      <XAxis dataKey="t" stroke="hsl(var(--border))" tickLine={false} minTickGap={20}
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                      <YAxis stroke="hsl(var(--border))" tickLine={false} width={44} unit="m"
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                      <Tooltip
-                        cursor={{ fill: 'hsl(var(--muted))', fillOpacity: 0.35 }}
-                        content={({ active, payload, label }: any) =>
-                          active && payload?.length ? (
-                            <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-                              <div className="mb-1 font-medium">{label}</div>
-                              {payload.filter((p: any) => p.value > 0).map((p: any) => (
-                                <div key={p.dataKey} className="flex items-center gap-2">
-                                  <span className="h-2 w-2 rounded-sm" style={{ background: p.color }} />
-                                  <span className="text-muted-foreground">{p.name}</span>
-                                  <span className="ml-auto font-mono tabular-nums">{dur(p.value)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                      />
-                      {STACK.map((s, i) => (
-                        <Bar key={s.key} dataKey={s.key} name={SEGMENT_LABEL[s.kind]} stackId="a"
-                          fill={SEGMENT_COLOUR[s.kind]} isAnimationActive={false}
-                          // 2px of surface between segments, and only the top one
-                          // is rounded — a rounded cap mid-stack reads as a gap in
-                          // the data rather than as a spacer.
-                          stroke="hsl(var(--card))" strokeWidth={1}
-                          radius={i === STACK.length - 1 ? [3, 3, 0, 0] : undefined} />
-                      ))}
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-3">
-                  {STACK.map((s) => (
-                    <span key={s.key} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <span className="h-2.5 w-2.5 rounded-sm" style={{ background: SEGMENT_COLOUR[s.kind] }} />
-                      {SEGMENT_LABEL[s.kind]}
-                    </span>
-                  ))}
-                </div>
-              </>
+              <div className="h-[260px] w-full">
+                <ReactECharts option={{
+                  backgroundColor: 'transparent',
+                  grid: { top: 8, right: 12, bottom: 8, left: 8, containLabel: true },
+                  tooltip: {
+                    trigger: 'axis', axisPointer: { type: 'shadow' },
+                    backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+                    textStyle: { color: c.tooltipText, fontSize: 12 },
+                    formatter: (params: any[]) => {
+                      const rows2 = params
+                        .filter((p) => Number(p.value) > 0)
+                        .map((p) => `<div style="display:flex;gap:12px;justify-content:space-between">`
+                          + `<span style="opacity:.75">${p.marker}${p.seriesName}</span><b>${dur(Number(p.value))}</b></div>`)
+                        .join('');
+                      return `<div style="font-weight:600;margin-bottom:4px">${params[0]?.name ?? ''}</div>${rows2}`;
+                    },
+                  },
+                  legend: {
+                    bottom: 0, textStyle: { color: c.text, fontSize: 10 }, icon: 'circle', itemWidth: 8, itemHeight: 8,
+                    data: STACK.map((s) => SEGMENT_LABEL[s.kind]),
+                  },
+                  xAxis: {
+                    type: 'category', data: data.map((d) => d.t),
+                    axisLabel: { color: c.text, fontSize: 10 }, axisLine: { lineStyle: { color: c.line } },
+                  },
+                  yAxis: {
+                    type: 'value',
+                    axisLabel: { color: c.text, fontSize: 10, formatter: '{value}m' },
+                    splitLine: { lineStyle: { color: c.grid } }, axisLine: { show: false },
+                  },
+                  series: STACK.map((s) => ({
+                    name: SEGMENT_LABEL[s.kind], type: 'bar', stack: 'time',
+                    data: data.map((d: any) => d[s.key] ?? 0),
+                    itemStyle: { color: SEGMENT_COLOUR[s.kind] },
+                    barMaxWidth: 28,
+                  })),
+                }} notMerge style={{ height: '100%', width: '100%' }} />
+              </div>
             )}
           </div>
         )}

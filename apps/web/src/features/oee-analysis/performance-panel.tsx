@@ -14,12 +14,10 @@
  * which is the one thing that would make the gap between the lines a lie.
  */
 import React from 'react';
-import {
-  ResponsiveContainer, ComposedChart, LineChart, Line, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend,
-} from 'recharts';
+import ReactECharts from 'echarts-for-react';
+import { useTheme } from 'next-themes';
 
-import { Gauge, pctText, TrendChart } from './chart-kit';
+import { Gauge, pctText, TrendChart, echartsAxisColours, resolveChartColour } from './chart-kit';
 
 export interface PerformanceTrendPoint {
   at: string;
@@ -65,6 +63,10 @@ export function PerformancePanel({
   const [hidden, setHidden] = React.useState<Set<string>>(
     () => new Set(SERIES.filter((s) => !s.onByDefault).map((s) => s.key)),
   );
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const c = echartsAxisColours(isDark);
+  const vizColour = (v: string) => resolveChartColour(v, isDark);
 
   const overTime = trend.map((p) => ({
     t: hhmm(p.at),
@@ -160,35 +162,51 @@ export function PerformancePanel({
               line ran slow; a bar over it is an hour it caught up.
             </p>
             <div className="h-[280px] w-full">
-              <ResponsiveContainer>
-                <ComposedChart data={overTime} margin={{ top: 6, right: 16, bottom: 0, left: 0 }}>
-                  <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
-                  <XAxis dataKey="t" stroke="hsl(var(--border))" tickLine={false} minTickGap={20}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                  {/* One axis. Both series are parts; a second scale would make the
-                      distance between bar and line mean nothing. */}
-                  <YAxis stroke="hsl(var(--border))" tickLine={false} width={54}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                  <Tooltip cursor={{ fill: 'hsl(var(--muted))', fillOpacity: 0.35 }}
-                    content={({ active, payload, label }: any) => active && payload?.length ? (
-                      <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-                        <div className="mb-1 font-medium">{label}</div>
-                        {payload.map((p: any) => (
-                          <div key={p.dataKey} className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-sm" style={{ background: p.color }} />
-                            <span className="text-muted-foreground">{p.name}</span>
-                            <span className="ml-auto font-mono tabular-nums">{num(p.value)} pcs</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null} />
-                  <Legend iconType="plainline" wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                  <Bar dataKey="produced" name="Current produced" fill="var(--viz-1)"
-                    radius={[3, 3, 0, 0]} isAnimationActive={false} />
-                  <Line type="monotone" dataKey="goal" name="Production goal" stroke="var(--viz-2)"
-                    strokeWidth={2} dot={{ r: 4, strokeWidth: 0 }} isAnimationActive={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
+              <ReactECharts option={{
+                backgroundColor: 'transparent',
+                grid: { top: 8, right: 12, bottom: 32, left: 8, containLabel: true },
+                tooltip: {
+                  trigger: 'axis', axisPointer: { type: 'shadow' },
+                  backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+                  textStyle: { color: c.tooltipText, fontSize: 12 },
+                  formatter: (params: any[]) => {
+                    const rows2 = params.map((p) => `<div style="display:flex;gap:12px;justify-content:space-between">`
+                      + `<span style="opacity:.75">${p.marker}${p.seriesName}</span><b>${num(Number(p.value))} pcs</b></div>`)
+                      .join('');
+                    return `<div style="font-weight:600;margin-bottom:4px">${params[0]?.name ?? ''}</div>${rows2}`;
+                  },
+                },
+                legend: {
+                  bottom: 0, textStyle: { color: c.text, fontSize: 11 }, icon: 'circle', itemWidth: 8, itemHeight: 8,
+                  data: ['Current produced', 'Production goal'],
+                },
+                xAxis: {
+                  type: 'category', data: overTime.map((p) => p.t),
+                  axisLabel: { color: c.text, fontSize: 11 }, axisLine: { lineStyle: { color: c.line } },
+                },
+                // One axis. Both series are parts; a second scale would make the
+                // distance between bar and line mean nothing.
+                yAxis: {
+                  type: 'value',
+                  axisLabel: { color: c.text, fontSize: 11 },
+                  splitLine: { lineStyle: { color: c.grid } }, axisLine: { show: false },
+                },
+                series: [
+                  {
+                    name: 'Current produced', type: 'bar',
+                    data: overTime.map((p) => p.produced),
+                    itemStyle: { color: vizColour('var(--viz-1)'), borderRadius: [3, 3, 0, 0] },
+                    barMaxWidth: 28,
+                  },
+                  {
+                    name: 'Production goal', type: 'line',
+                    data: overTime.map((p) => p.goal),
+                    lineStyle: { color: vizColour('var(--viz-2)'), width: 2 },
+                    itemStyle: { color: vizColour('var(--viz-2)') },
+                    symbol: 'circle', symbolSize: 8, showSymbol: true,
+                  },
+                ],
+              }} notMerge style={{ height: '100%', width: '100%' }} />
             </div>
           </div>
         ) : (
@@ -199,32 +217,37 @@ export function PerformancePanel({
               or hide a line.
             </p>
             <div className="h-[300px] w-full">
-              <ResponsiveContainer>
-                <LineChart data={cumulative} margin={{ top: 6, right: 16, bottom: 0, left: 0 }}>
-                  <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
-                  <XAxis dataKey="t" stroke="hsl(var(--border))" tickLine={false} minTickGap={24}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                  <YAxis stroke="hsl(var(--border))" tickLine={false} width={62}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                  <Tooltip cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '3 3' }}
-                    content={({ active, payload, label }: any) => active && payload?.length ? (
-                      <div className="rounded-md border border-border bg-popover p-2 text-xs shadow-md">
-                        <div className="mb-1 font-medium">{label}</div>
-                        {payload.map((p: any) => (
-                          <div key={p.dataKey} className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-sm" style={{ background: p.color }} />
-                            <span className="text-muted-foreground">{p.name}</span>
-                            <span className="ml-auto font-mono tabular-nums">{num(p.value)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null} />
-                  {SERIES.filter((s) => !hidden.has(s.key)).map((s) => (
-                    <Line key={s.key} type="monotone" dataKey={s.key} name={s.name} stroke={s.colour}
-                      strokeWidth={2} dot={false} activeDot={{ r: 5 }} isAnimationActive={false} />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
+              <ReactECharts option={{
+                backgroundColor: 'transparent',
+                grid: { top: 8, right: 12, bottom: 8, left: 8, containLabel: true },
+                tooltip: {
+                  trigger: 'axis', axisPointer: { type: 'line' },
+                  backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder,
+                  textStyle: { color: c.tooltipText, fontSize: 12 },
+                  formatter: (params: any[]) => {
+                    const rows2 = params.map((p) => `<div style="display:flex;gap:12px;justify-content:space-between">`
+                      + `<span style="opacity:.75">${p.marker}${p.seriesName}</span><b>${num(Number(p.value))}</b></div>`)
+                      .join('');
+                    return `<div style="font-weight:600;margin-bottom:4px">${params[0]?.name ?? ''}</div>${rows2}`;
+                  },
+                },
+                xAxis: {
+                  type: 'category', data: cumulative.map((p) => p.t),
+                  axisLabel: { color: c.text, fontSize: 11 }, axisLine: { lineStyle: { color: c.line } },
+                },
+                yAxis: {
+                  type: 'value',
+                  axisLabel: { color: c.text, fontSize: 11 },
+                  splitLine: { lineStyle: { color: c.grid } }, axisLine: { show: false },
+                },
+                series: SERIES.filter((s) => !hidden.has(s.key)).map((s) => ({
+                  name: s.name, type: 'line',
+                  data: cumulative.map((p: any) => p[s.key]),
+                  lineStyle: { color: vizColour(s.colour), width: 2 },
+                  itemStyle: { color: vizColour(s.colour) },
+                  showSymbol: false, symbol: 'circle',
+                })),
+              }} notMerge style={{ height: '100%', width: '100%' }} />
             </div>
             {/* The legend is a control, so it is a real one — colour never carries
                 identity alone, and a hidden series stays visibly available. */}

@@ -8,9 +8,6 @@
  * rather than beside it keeps that order: the reading, then why it is what it is.
  */
 import React from 'react';
-import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-} from 'recharts';
 
 import { Gauge, TimeModel, dur, pctText, type TimeModelBar, TrendChart } from './chart-kit';
 
