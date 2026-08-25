@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { KpiService, MINUTE_FACTS } from './kpi.service';
 import { OeeStandardService } from '../oee-standard/oee-standard.service';
+import { StateTimelineService } from '../oee-standard/state-timeline.service';
 import { resolveLocalRange } from '../../common/plant-time.util';
 import { currentShiftStart } from '../../common/shift-window.util';
 
@@ -52,6 +53,13 @@ export class MachineStatusService {
      * this file's own — see the `totals` blocks below.
      */
     private readonly oeeStandard: OeeStandardService,
+    /**
+     * The SCHEDULE for the same window, for the timeline's second track. Taken
+     * from the service that already builds it for the OEE pages rather than
+     * re-derived here: two readings of the same booked stops would eventually
+     * disagree, and this screen and that one draw the same machines.
+     */
+    private readonly timeline: StateTimelineService,
   ) {}
 
   /** Machines in scope, in material-flow order so every view lists them alike. */
@@ -144,6 +152,17 @@ export class MachineStatusService {
     // doing; they are not a second opinion on the KPI.
     const facts = await this.kpi.machineFactTotals(machineIds, from, to);
 
+    // What the plant BOOKED over the same window, grouped per machine. Drawn
+    // above each machine's own band so the two accounts of a minute sit over
+    // one another instead of being reconciled into one by this file's opinion.
+    const planned = await this.timeline.plannedSegments(factoryId, from, to, scope);
+    const planByMachine = new Map<string, Array<{ state: string; label: string; startTime: Date; endTime: Date; minutes: number }>>();
+    for (const p of planned) {
+      const list = planByMachine.get(p.machineId) ?? [];
+      list.push({ state: p.state, label: p.label ?? p.state, startTime: p.from, endTime: p.to, minutes: p.minutes });
+      planByMachine.set(p.machineId, list);
+    }
+
     const rows = machines.map((m) => {
       const segments = (byMachine.get(m.id) ?? []).map((r) => {
         // Clip to the window: a record that started before it or is still open
@@ -178,6 +197,10 @@ export class MachineStatusService {
         line: m.line?.code ?? null,
         area: m.line?.area?.name ?? null,
         segments,
+        // Empty when nothing was booked for this machine — the chart reads that
+        // as "no schedule" and draws one band, rather than an empty second one
+        // implying the plant intended nothing.
+        planSegments: planByMachine.get(m.id) ?? [],
         // The window's shape, from the timeline.
         totalMin: clock.totalMin,
         idleMin: clock.idleMin,

@@ -28,17 +28,12 @@ import { useTheme } from 'next-themes';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
 
 import {
-  dur, stateColour, SEGMENT_COLOUR, type SegmentKind,
+  dur, stateColour, SEGMENT_COLOUR, toGanttRows,
+  type SegmentKind, type TimelineSegment,
   echartsAxisColours, resolveChartColour,
 } from './chart-kit';
 import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
 
-export interface TimelineSegment {
-  machineId: string; machineCode: string; state: string;
-  /** The plant's own name for the block, when the schedule supplied one. */
-  label?: string;
-  kind: SegmentKind; from: string; to: string; minutes: number;
-}
 export interface ReasonSlice {
   key: string; label: string; kind: SegmentKind;
   minutes: number; occurrence: number; medianMin: number; averageMin: number;
@@ -52,10 +47,12 @@ export interface Distribution {
 type RankBy = 'duration' | 'occurrence';
 
 export function DowntimePanel({
-  distribution, timeline, machines, windowStart, windowEnd,
+  distribution, timeline, plannedTimeline, machines, windowStart, windowEnd,
 }: {
   distribution: Distribution;
   timeline: TimelineSegment[];
+  /** The schedule for the same window, drawn above each machine's own row. */
+  plannedTimeline?: TimelineSegment[];
   machines: Array<{ key: string; label: string; sublabel?: string | null; availability: number | null }>;
   windowStart: string;
   windowEnd: string;
@@ -106,28 +103,13 @@ export function DowntimePanel({
    * ranking above carries NUMBERS as well as colour, so a reader can still match
    * a bar to a stop without either chart agreeing on hue.
    */
-  const ganttRows: GanttRow[] = React.useMemo(() => {
-    const byMachine = new Map<string, { label: string; segments: TimelineSegment[] }>();
-    for (const s of timeline) {
-      const hit = byMachine.get(s.machineId) ?? { label: s.machineCode, segments: [] };
-      hit.segments.push(s);
-      byMachine.set(s.machineId, hit);
-    }
-    return [...byMachine.entries()]
-      .map(([id, v]) => {
-        const m = machines.find((x) => x.key === id);
-        const down = v.segments.filter((x) => x.kind === 'downtime');
-        const lost = down.reduce((a, x) => a + x.minutes, 0);
-        return {
-          id,
-          label: m?.label ?? v.label,
-          sublabel: m?.sublabel ?? undefined,
-          meta: `${down.length} stops · ${dur(lost)}`,
-          segments: v.segments.map((x) => ({ state: x.state, label: x.label, startTime: x.from, endTime: x.to })),
-        };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [timeline, machines]);
+  const ganttRows: GanttRow[] = React.useMemo(
+    () => toGanttRows(timeline, plannedTimeline, machines, (segs) => {
+      const down = segs.filter((x) => x.kind === 'downtime');
+      return `${down.length} stops · ${dur(down.reduce((a, x) => a + x.minutes, 0))}`;
+    }),
+    [timeline, plannedTimeline, machines],
+  );
 
   if (!downtime || leaves.length === 0) {
     return (

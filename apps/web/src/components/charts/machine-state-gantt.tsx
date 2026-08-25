@@ -49,6 +49,11 @@ export type StateRole = 'producing' | 'ownLoss' | 'external' | 'planned' | 'idle
 
 const STATE_ROLE: Record<string, StateRole> = {
   RUNNING: 'producing',
+  // What the SCHEDULE calls a producing block. The plan track has no sensor
+  // behind it, so it says PRODUCTION where the machine says RUNNING; without
+  // this line every scheduled production block fell through to `idle` and the
+  // plan track drew a plant that intended to do nothing all day.
+  PRODUCTION: 'producing',
   BREAKDOWN: 'ownLoss',
   STOPPED: 'ownLoss',
   STARVED: 'external',
@@ -98,11 +103,39 @@ export interface GanttSegment {
   label?: string;
 }
 
+/** What the tooltip shows about one band, including WHICH track it came from. */
+interface Hover {
+  x: number; y: number;
+  state: string;
+  /** The plant's name for the block, when it had one. */
+  title?: string;
+  cause?: string | null;
+  from: number; to: number;
+  row: string;
+  /** Schedule or Machine — the two accounts a stacked row invites comparing. */
+  track?: string;
+}
+
 export interface GanttRow {
   id: string;
   label: string;
   sublabel?: string;
   segments: GanttSegment[];
+  /**
+   * The SCHEDULE for the same machine and the same window — what the plant
+   * intended, drawn as a second band directly above the state band.
+   *
+   * Two tracks rather than one, because they answer different questions and
+   * merging them would settle by force an argument the reader is here to have:
+   * "we planned to run until ten and clean until eleven" over "the line was
+   * down from half seven" is the comparison a shift review is FOR. One merged
+   * band would have to pick which account wins per minute, and the picking is
+   * the very thing being examined.
+   *
+   * Absent for a row with no schedule, and then only one band draws — an empty
+   * second track would imply the plant planned nothing.
+   */
+  planSegments?: GanttSegment[];
   /** Optional right-aligned summary, e.g. "99.7% · 13h 34m". */
   meta?: string;
 }
@@ -187,9 +220,7 @@ export function MachineStateGantt({
   // against it — no transform, so text and the 2px gaps stay exact.
   const [view, setView] = useState({ from: fullFrom, to: fullTo });
   const [textured, setTextured] = useState(false);
-  const [hover, setHover] = useState<
-    { x: number; y: number; state: string; cause?: string | null; from: number; to: number; row: string } | null
-  >(null);
+  const [hover, setHover] = useState<Hover | null>(null);
 
   const plotRef = useRef<HTMLDivElement>(null);
   const [plotWidth, setPlotWidth] = useState(800);
@@ -277,9 +308,18 @@ export function MachineStateGantt({
 
   const rolesPresent = useMemo(() => {
     const set = new Set<StateRole>();
-    for (const r of rows) for (const s of r.segments) set.add(roleOf(s.state));
+    // Both tracks, because both are drawn. A legend built from the state track
+    // alone would omit the one role the plan track can introduce on its own --
+    // a scheduled stop on a machine whose sensor never reported one.
+    for (const r of rows) {
+      for (const s of r.segments) set.add(roleOf(s.state));
+      for (const s of r.planSegments ?? []) set.add(roleOf(s.state));
+    }
     return [...set];
   }, [rows]);
+
+  /** Any row carrying a schedule — decides whether the legend explains stacking. */
+  const anyPlan = useMemo(() => rows.some((r) => (r.planSegments?.length ?? 0) > 0), [rows]);
 
   return (
     <div className={cn('viz-gantt', className)}>
@@ -335,7 +375,17 @@ export function MachineStateGantt({
         <div className="w-44 shrink-0 pe-3">
           <div className="h-5" />
           {rows.map((r) => (
-            <div key={r.id} className="h-9 flex items-center justify-between gap-2">
+            <div
+              key={r.id}
+              // Matches the plot side exactly. The label column and the bands
+              // are two separate scroll areas, so a height computed differently
+              // on each side makes the names drift out of step with the rows —
+              // caught once already when a legend sat inside the plot.
+              className={cn(
+                'flex items-center justify-between gap-2',
+                r.planSegments && r.planSegments.length > 0 ? 'h-16' : 'h-9',
+              )}
+            >
               <div className="min-w-0">
                 <div className="text-xs font-medium truncate">{r.label}</div>
                 {r.sublabel && <div className="text-[10px] text-muted-foreground truncate">{r.sublabel}</div>}
@@ -430,6 +480,15 @@ export function MachineStateGantt({
               {t(`gantt.role.${role}`)}
             </span>
           ))}
+        {anyPlan && (
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className="flex flex-col gap-0.5 shrink-0" aria-hidden>
+              <span className="w-3 h-1 rounded-[1px] bg-foreground/30" />
+              <span className="w-3 h-1.5 rounded-[1px] bg-foreground/60" />
+            </span>
+            {t('gantt.track.legend')}
+          </span>
+        )}
         <span className="text-[11px] text-muted-foreground/70 ms-auto">{t('gantt.hint')}</span>
       </div>
 
@@ -442,39 +501,65 @@ export function MachineStateGantt({
           <div className="text-sm font-semibold">{fmtDur(hover.to - hover.from)}</div>
           <div className="flex items-center gap-1.5 text-xs mt-0.5">
             <span className="w-4 h-0.5 rounded" style={{ background: ROLE_VAR[roleOf(hover.state)] }} />
-            <span className="font-medium">{hover.state}</span>
+            {/* The named activity leads; the raw state follows only when it
+                adds something, so a block called Cleaning does not read
+                "Cleaning · PLANNED_STOP". */}
+            <span className="font-medium">{hover.title || hover.state}</span>
+            {hover.title && hover.title !== hover.state && (
+              <span className="text-muted-foreground font-mono text-[10px]">{hover.state}</span>
+            )}
             {hover.cause && <span className="text-muted-foreground">· {hover.cause}</span>}
           </div>
           <div className="text-[11px] text-muted-foreground font-mono mt-1">
             {fmtClock(hover.from)} → {fmtClock(hover.to)}
           </div>
-          <div className="text-[11px] text-muted-foreground">{hover.row}</div>
+          {/* WHICH account this block is. Without it, a planned stop on the
+              schedule and a planned stop the machine actually took produce an
+              identical tooltip, which is exactly the confusion the two tracks
+              exist to remove. */}
+          <div className="text-[11px] text-muted-foreground">
+            {hover.row}{hover.track ? ` · ${hover.track}` : ''}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-/** One machine's row of bands. */
-function GanttRowBands({
-  row, from, to, span, textured, onHover,
-}: {
-  row: GanttRow;
-  from: number; to: number; span: number;
-  textured: boolean;
-  onHover: (h: any) => void;
-}) {
-  const { t } = useTranslation('production');
+interface Band {
+  key: string;
+  leftPct: number;
+  widthPct: number;
+  state: string;
+  title: string;
+  role: StateRole;
+  cause: string | null;
+  from: number;
+  to: number;
+  showLabel: boolean;
+}
 
-  const bands = useMemo(() => row.segments.map((s, i) => {
+/**
+ * Segments to drawable bands, clipped to the visible window.
+ *
+ * Shared by both tracks so the plan and the state are laid out by ONE piece of
+ * geometry. Two copies would drift, and the whole point of stacking the tracks
+ * is that a reader can drop a vertical line through them: 09:40 on the plan has
+ * to be 09:40 on the machine, to the pixel.
+ */
+function toBands(
+  segments: GanttSegment[], rowId: string, from: number, to: number, span: number, prefix: string,
+): Band[] {
+  const out: Band[] = [];
+  segments.forEach((s, i) => {
     const rawFrom = new Date(s.startTime).getTime();
     const rawTo = s.endTime ? new Date(s.endTime).getTime() : to;
     const a = Math.max(from, rawFrom);
     const b = Math.min(to, rawTo);
-    if (!(b > a)) return null;
+    if (!(b > a)) return;
     const widthPct = ((b - a) / span) * 100;
-    return {
-      key: s.id ?? `${row.id}-${i}`,
+    out.push({
+      key: s.id ?? `${prefix}${rowId}-${i}`,
       leftPct: ((a - from) / span) * 100,
       widthPct,
       state: s.state,
@@ -490,60 +575,118 @@ function GanttRowBands({
       // a reader is actually hunting for — and labelling them is where the
       // palette's required secondary encoding does real work.
       showLabel: widthPct > 7 && roleOf(s.state) !== 'producing',
-    };
-  }).filter(Boolean) as any[], [row.segments, row.id, from, to, span]);
+    });
+  });
+  return out;
+}
+
+/**
+ * One machine's row: the schedule on top, what the machine actually did below.
+ *
+ * Two tracks over ONE time axis is the comparison the row exists to make. It is
+ * left as a comparison rather than resolved into a single merged band, because
+ * resolving it means choosing per minute whose account of that minute is true —
+ * and when the plan says cleaning and the sensor says breakdown, that choice is
+ * the finding, not a rendering detail.
+ */
+function GanttRowBands({
+  row, from, to, span, textured, onHover,
+}: {
+  row: GanttRow;
+  from: number; to: number; span: number;
+  textured: boolean;
+  onHover: (h: Hover | null) => void;
+}) {
+  const { t } = useTranslation('production');
+
+  const bands = useMemo(
+    () => toBands(row.segments, row.id, from, to, span, 's-'),
+    [row.segments, row.id, from, to, span],
+  );
+  const planBands = useMemo(
+    () => toBands(row.planSegments ?? [], row.id, from, to, span, 'p-'),
+    [row.planSegments, row.id, from, to, span],
+  );
+  // Presence of a SCHEDULE decides the shape, not presence of bands inside the
+  // current zoom: a row that keeps its second track only while something is
+  // visible would change height as the reader pans, and the label column --
+  // which sizes itself from the same test -- would fall out of step.
+  const twoTrack = (row.planSegments?.length ?? 0) > 0;
+
+  const track = (
+    list: Band[], height: string, trackLabel: string, emptyMessage: string | null,
+  ) => (
+    <div className={cn('relative w-full rounded-md overflow-hidden bg-muted/25', height)}>
+      {list.length === 0 && emptyMessage && (
+        <span className="absolute inset-0 flex items-center justify-center text-[10px] text-muted-foreground">
+          {emptyMessage}
+        </span>
+      )}
+      {list.map((b) => (
+        <div
+          key={b.key}
+          role="img"
+          aria-label={`${row.label} ${trackLabel} ${b.title} ${fmtClock(b.from)} ${fmtDur(b.to - b.from)}`}
+          tabIndex={0}
+          className="absolute top-0 h-full transition-[filter] hover:brightness-110 focus:brightness-110 focus:outline-none"
+          style={{
+            left: `${b.leftPct}%`,
+            // The 2px surface gap that separates touching marks. Taken off the
+            // width rather than drawn as a border — a border would be ink the
+            // reader has to discount.
+            width: `calc(${b.widthPct}% - 2px)`,
+            minWidth: 2,
+            background: ROLE_VAR[b.role],
+            backgroundImage: textured && ROLE_TEXTURE[b.role] !== 'none'
+              ? `repeating-linear-gradient(${ROLE_TEXTURE[b.role]}, rgba(0,0,0,.35) 0 3px, transparent 3px 7px)`
+              : undefined,
+          }}
+          onPointerMove={(e) => onHover({
+            x: e.clientX, y: e.clientY, state: b.state, title: b.title, cause: b.cause,
+            from: b.from, to: b.to, row: row.label, track: trackLabel,
+          })}
+          onFocus={(e) => {
+            const r = (e.target as HTMLElement).getBoundingClientRect();
+            onHover({
+              x: r.left, y: r.top, state: b.state, title: b.title, cause: b.cause,
+              from: b.from, to: b.to, row: row.label, track: trackLabel,
+            });
+          }}
+          onBlur={() => onHover(null)}
+        >
+          {b.showLabel && (
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white/95 pointer-events-none px-1 truncate">
+              {/* The activity, not the state. Three PLANNED_STOP bands that
+                  are cleaning, lunch and a handover read as one thing until
+                  they carry their own names. */}
+              {b.title}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  if (!twoTrack) {
+    return (
+      <div className="relative h-9 flex items-center">
+        {track(bands, 'h-6', t('gantt.track.actual'), t('gantt.noData'))}
+      </div>
+    );
+  }
 
   return (
-    <div className="relative h-9 flex items-center">
-      <div className="relative w-full h-6 rounded-md overflow-hidden bg-muted/25">
-        {bands.length === 0 && (
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-muted-foreground">
-            {t('gantt.noData')}
-          </span>
-        )}
-        {bands.map((b) => (
-          <div
-            key={b.key}
-            role="img"
-            aria-label={`${row.label} ${b.state} ${fmtClock(b.from)} ${fmtDur(b.to - b.from)}`}
-            tabIndex={0}
-            className="absolute top-0 h-full transition-[filter] hover:brightness-110 focus:brightness-110 focus:outline-none"
-            style={{
-              left: `${b.leftPct}%`,
-              // The 2px surface gap that separates touching marks. Taken off the
-              // width rather than drawn as a border — a border would be ink the
-              // reader has to discount.
-              width: `calc(${b.widthPct}% - 2px)`,
-              minWidth: 2,
-              background: ROLE_VAR[b.role as StateRole],
-              backgroundImage: textured && ROLE_TEXTURE[b.role as StateRole] !== 'none'
-                ? `repeating-linear-gradient(${ROLE_TEXTURE[b.role as StateRole]}, rgba(0,0,0,.35) 0 3px, transparent 3px 7px)`
-                : undefined,
-            }}
-            onPointerMove={(e) => onHover({
-              x: e.clientX, y: e.clientY, state: b.state, cause: b.cause,
-              from: b.from, to: b.to, row: row.label,
-            })}
-            onFocus={(e) => {
-              const r = (e.target as HTMLElement).getBoundingClientRect();
-              onHover({
-                x: r.left, y: r.top, state: b.state, cause: b.cause,
-                from: b.from, to: b.to, row: row.label,
-              });
-            }}
-            onBlur={() => onHover(null)}
-          >
-            {b.showLabel && (
-              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white/95 pointer-events-none px-1 truncate">
-                {/* The activity, not the state. Three PLANNED_STOP bands that
-                    are cleaning, lunch and a handover read as one thing until
-                    they carry their own names. */}
-                {b.title}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
+    // h-16 here and in the label column, from the same test. The two are
+    // separate stacking contexts, so a height decided differently on each side
+    // slides the machine names off their rows.
+    <div className="relative h-16 flex flex-col justify-center gap-1">
+      {/* The plan sits above the machine, because it comes first in time and in
+          the argument: this is what we said we would do. Thinner, so the eye
+          reads it as the annotation and the sensor's record as the subject --
+          and no empty-state text, since an absent schedule inside a zoom is not
+          a missing record. */}
+      {track(planBands, 'h-4', t('gantt.track.plan'), null)}
+      {track(bands, 'h-6', t('gantt.track.actual'), t('gantt.noData'))}
     </div>
   );
 }

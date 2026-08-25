@@ -323,6 +323,20 @@ export class LiveShiftService {
     });
   }
 
+  /**
+   * What the plant BOOKED over the same window.
+   *
+   * Read on both bases and from the same service the analysis pages use, for
+   * the same reason the timeline is: the schedule is a record of a decision,
+   * not an output of either minute store, so switching the basis toggle must
+   * not appear to change what was planned.
+   */
+  async plannedSegments(factoryId: string | null, from: Date, to: Date, scope: OeeScope) {
+    return this.timeline.plannedSegments(factoryId, from, to, {
+      areaId: scope.areaId, lineId: scope.lineId, machineId: scope.machineId,
+    });
+  }
+
   async rejectReasons(factoryId: string | null, from: Date, to: Date, scope: OeeScope) {
     return this.rejects.topReasons(factoryId, from, to, {
       areaId: scope.areaId, lineId: scope.lineId, machineId: scope.machineId,

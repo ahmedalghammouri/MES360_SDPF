@@ -136,7 +136,7 @@ export class LiveShiftController {
       return {
         shift, window: win, bucketMin, basis, empty: true, lineOee: null,
         totals: null, machines: [], jobOrders: [], machineNow: [],
-        trend: [], timeline: [], states: [], rejectReasons: null,
+        trend: [], timeline: [], plannedTimeline: [], states: [], rejectReasons: null,
         production: null, windows: LIVE_WINDOWS,
       };
     }
@@ -153,7 +153,7 @@ export class LiveShiftController {
      * so the slot stops where the tail does.
      */
 
-    const [totals, machines, jobOrders, machineNow, trend, states, timeline, rejectReasons] =
+    const [totals, machines, jobOrders, machineNow, trend, states, timeline, plannedTimeline, rejectReasons] =
       await Promise.all([
         basis === 'schedule'
           ? this.schedule.overview(f, win.from, win.to, slotTo, scoped)
@@ -173,6 +173,9 @@ export class LiveShiftController {
         // logs, not either minute store, so they are the same on both bases —
         // and must be, or switching the toggle would appear to rewrite history.
         this.live.timelineSegments(f, win.from, win.to, scope),
+        // The SCHEDULE for the same window, drawn as a second band above each
+        // machine's own — what was booked, over what the sensor reported.
+        this.live.plannedSegments(f, win.from, win.to, scope),
         this.live.rejectReasons(f, win.from, win.to, scope),
       ]);
 
@@ -195,7 +198,7 @@ export class LiveShiftController {
       shift, window: win, bucketMin, basis, empty: false,
       lineOee,
       slotTo,
-      machines, jobOrders, machineNow, trend, states, timeline, rejectReasons,
+      machines, jobOrders, machineNow, trend, states, timeline, plannedTimeline, rejectReasons,
       windows: LIVE_WINDOWS,
     };
   }

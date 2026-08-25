@@ -11,7 +11,10 @@
  */
 import React from 'react';
 
-import { Gauge, dur, type SegmentKind, TrendChart, type TrendSeries } from './chart-kit';
+import {
+  Gauge, dur, TrendChart, toGanttRows,
+  type SegmentKind, type TrendSeries, type TimelineSegment,
+} from './chart-kit';
 import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
 import {
   toDate, formatTime, formatDayShort, formatMonth, formatDateTimeShort, toFactoryDayKey,
@@ -24,13 +27,8 @@ export interface TrendPoint {
   performance: number | null;
   quality: number | null;
 }
-export interface TimelineSegment {
-  machineId: string; machineCode: string; state: string;
-  /** The plant's own name for the block, when the schedule supplied one. */
-  label?: string;
-  kind: SegmentKind;
-  from: string; to: string; minutes: number;
-}
+/** Re-exported so the view keeps importing the page's types from one place. */
+export type { TimelineSegment };
 export interface ProductionDetails {
   downtimeCount: number; downtimeMin: number;
   microstopCount: number; microstopMin: number;
@@ -69,7 +67,7 @@ const DEFAULT_BUCKETS = [
 ] as const;
 
 export function OverviewPanel({
-  oee, availability, performance, quality, trend, production, timeline,
+  oee, availability, performance, quality, trend, production, timeline, plannedTimeline,
   operationalMin, usedOperationalMin, machines, windowStart, windowEnd,
   bucket, onBucketChange, allowedBuckets, effectiveBucket,
 }: {
@@ -94,6 +92,8 @@ export function OverviewPanel({
   trend: TrendPoint[];
   production: ProductionDetails;
   timeline: TimelineSegment[];
+  /** The schedule for the same window, drawn above each machine's own row. */
+  plannedTimeline?: TimelineSegment[];
   operationalMin: number;
   usedOperationalMin: number;
   machines: Array<{ key: string; label: string; sublabel?: string | null; availability: number | null }>;
@@ -140,27 +140,14 @@ export function OverviewPanel({
    * geometry, the gaps and the axis itself. Handing it anything less — a
    * pre-computed percentage, say — would be doing its job badly on its behalf.
    */
-  const ganttRows: GanttRow[] = React.useMemo(() => {
-    const byMachine = new Map<string, { label: string; segments: TimelineSegment[] }>();
-    for (const s of timeline) {
-      const hit = byMachine.get(s.machineId) ?? { label: s.machineCode, segments: [] };
-      hit.segments.push(s);
-      byMachine.set(s.machineId, hit);
-    }
-    return [...byMachine.entries()]
-      .map(([id, v]) => {
-        const m = machines.find((x) => x.key === id);
-        const running = v.segments.filter((x) => x.kind === 'running').reduce((a, x) => a + x.minutes, 0);
-        return {
-          id,
-          label: m?.label ?? v.label,
-          sublabel: m?.sublabel ?? undefined,
-          meta: `${m?.availability == null ? '—' : `${m.availability}%`} · ${dur(running)}`,
-          segments: v.segments.map((x) => ({ state: x.state, label: x.label, startTime: x.from, endTime: x.to })),
-        };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [timeline, machines]);
+  const ganttRows: GanttRow[] = React.useMemo(
+    () => toGanttRows(timeline, plannedTimeline, machines, (segs, id) => {
+      const m = machines.find((x) => x.key === id);
+      const running = segs.filter((x) => x.kind === 'running').reduce((a, x) => a + x.minutes, 0);
+      return `${m?.availability == null ? '—' : `${m.availability}%`} · ${dur(running)}`;
+    }),
+    [timeline, plannedTimeline, machines],
+  );
 
   return (
     <div className="flex flex-col gap-5">

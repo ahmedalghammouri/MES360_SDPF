@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
 import {
-  FALLBACK_VERDICTS, UNKNOWN_VERDICT, PRODUCING, merge, subtract, type Verdict,
+  FALLBACK_VERDICTS, UNKNOWN_VERDICT, PRODUCING, merge, subtract, type Span, type Verdict,
 } from './minute-classification';
 import { SCHEDULE_SOURCE } from './planned-stop-materializer.service';
 
@@ -201,6 +201,159 @@ export class StateTimelineService {
         };
       })
       .filter((s) => s.minutes > 0);
+  }
+
+  /**
+   * The SCHEDULE for the same window — what the plant intended, not what the
+   * machine did.
+   *
+   * A second track drawn above the state track, so "we planned to run here and
+   * clean there" sits directly over "here is what actually happened". Reading
+   * those two against each other is the question a shift review actually asks,
+   * and until now it needed two screens and a good memory.
+   *
+   * Built from planned downtime EVENTS rather than templates, because events
+   * are what a plant that schedules day by day actually books — and every gap
+   * between them is time the line was expected to produce, which is why the
+   * gaps are returned as segments too rather than left blank. Blank would read
+   * as "nothing known", and here it means something precise.
+   */
+  async plannedSegments(
+    factoryId: string | null,
+    from: Date,
+    to: Date,
+    scope: TimelineScope = {},
+  ): Promise<TimelineSegment[]> {
+    const events = await this.prisma.downtimeEvent.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        isPlanned: true,
+        startTime: { lt: to },
+        OR: [{ endTime: null }, { endTime: { gt: from } }],
+        ...(scope.machineId ? { machineId: scope.machineId } : {}),
+        ...(scope.lineId || scope.areaId
+          ? {
+            machine: {
+              ...(scope.lineId ? { lineId: scope.lineId } : {}),
+              ...(scope.areaId ? { areaId: scope.areaId } : {}),
+            },
+          }
+          : {}),
+      },
+      select: {
+        machineId: true, reason: true, category: true, affectsOEE: true,
+        startTime: true, endTime: true,
+        machine: { select: { code: true } },
+      },
+      orderBy: [{ machineId: 'asc' }, { startTime: 'asc' }],
+    });
+
+    // Group per machine so the production gaps can be worked out row by row —
+    // one machine's cleaning window says nothing about another's.
+    const byMachine = new Map<string, { code: string; stops: Array<{ from: number; to: number; label: string; charged: boolean }> }>();
+    for (const e of events) {
+      const hit = byMachine.get(e.machineId) ?? { code: e.machine?.code ?? '', stops: [] };
+      hit.stops.push({
+        from: Math.max(+e.startTime, +from),
+        to: Math.min(e.endTime ? +e.endTime : +to, +to),
+        label: e.reason ?? String(e.category),
+        // A planned stop that still costs the reading — changeover, startup —
+        // is drawn differently from one that leaves the denominator, because
+        // the two mean different things to whoever is reading the row.
+        charged: e.affectsOEE,
+      });
+      byMachine.set(e.machineId, hit);
+    }
+    if (byMachine.size === 0) return [];
+
+    // The hours the plant is actually MANNED. Everything between the booked
+    // stops is scheduled production only inside these; outside them nothing is
+    // drawn, because the plan track would otherwise claim the line was expected
+    // to run through hours no shift covers.
+    //
+    // On a 24-hour plant this changes nothing, which is exactly why it has to be
+    // written down rather than left to luck: this factory's two templates happen
+    // to tile the day, and the first single-shift plant to open the page would
+    // have seen sixteen hours of green it never scheduled.
+    const scheduled = await this.scheduledHours(factoryId, from, to);
+
+    const out: TimelineSegment[] = [];
+    for (const [machineId, v] of byMachine) {
+      const stops = v.stops
+        .filter((x) => x.to > x.from)
+        .sort((a, b) => a.from - b.from);
+
+      const push = (a: number, b: number, state: string, label: string, kind: SegmentKind) => {
+        if (b <= a) return;
+        out.push({
+          machineId, machineCode: v.code, state, label, kind,
+          from: new Date(a), to: new Date(b), minutes: (b - a) / 60_000,
+        });
+      };
+
+      // Scheduled production is the manned hours MINUS what was booked out of
+      // them. Taken with the interval algebra rather than by walking a cursor,
+      // so two stops booked over the same minutes cost that time once — the
+      // same union rule a finish estimate uses, and for the same reason.
+      for (const [a, b] of subtract(scheduled, merge(stops.map((x) => [x.from, x.to] as Span)))) {
+        push(a, b, 'PRODUCTION', 'Production', 'running');
+      }
+      // Every booked stop is drawn as itself, named, whether or not it falls in
+      // a manned hour: somebody booked it, and hiding it would make the record
+      // disagree with the schedule screen it was entered on.
+      for (const st of stops) {
+        push(st.from, st.to, 'PLANNED_STOP', st.label, st.charged ? 'downtime' : 'planned');
+      }
+    }
+    return out;
+  }
+
+  /**
+   * The manned hours inside a window, from the shift templates.
+   *
+   * Occurrences are laid out day by day and merged, which handles a shift that
+   * crosses midnight without special-casing it: the previous day's occurrence
+   * simply reaches past 00:00 and merges with what follows.
+   *
+   * No templates at all means the plant has not told the system its calendar.
+   * The whole window is treated as manned then — the behaviour before this
+   * existed — because refusing to draw a schedule the plant demonstrably keeps
+   * would be a worse answer than the one assumption we can name.
+   */
+  private async scheduledHours(factoryId: string | null, from: Date, to: Date): Promise<Span[]> {
+    const templates = await this.prisma.shiftTemplate.findMany({
+      where: { ...(factoryId ? { factoryId } : {}), isActive: true },
+      select: { startTime: true, endTime: true, crossesMidnight: true },
+    });
+    if (templates.length === 0) return [[+from, +to]];
+
+    const hhmm = (v: string) => {
+      const [h, m] = v.split(':').map(Number);
+      return h * 60 + (m || 0);
+    };
+
+    const spans: Span[] = [];
+    // Start a day early so an overnight occurrence that began before the window
+    // still contributes the part of itself that falls inside it.
+    const day = new Date(from);
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - 1);
+    const last = new Date(to);
+    last.setHours(0, 0, 0, 0);
+
+    for (; day <= last; day.setDate(day.getDate() + 1)) {
+      for (const t of templates) {
+        const s = hhmm(t.startTime), e = hhmm(t.endTime);
+        const lengthMin = t.crossesMidnight ? (24 * 60 - s) + e : e - s;
+        if (lengthMin <= 0) continue;
+        const start = new Date(day);
+        start.setHours(Math.floor(s / 60), s % 60, 0, 0);
+        const a = Math.max(+start, +from);
+        const b = Math.min(+start + lengthMin * 60_000, +to);
+        if (b > a) spans.push([a, b]);
+      }
+    }
+    return merge(spans);
   }
 
   /**

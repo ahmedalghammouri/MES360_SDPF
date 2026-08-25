@@ -2030,6 +2030,11 @@
     "now": "now",
     "noData": "No records",
     "hint": "Scroll to zoom · drag to pan",
+    "track": {
+      "plan": "Schedule",
+      "actual": "Machine",
+      "legend": "Upper band: schedule · lower band: machine state"
+    },
     "role": {
       "producing": "Producing",
       "ownLoss": "Own fault",

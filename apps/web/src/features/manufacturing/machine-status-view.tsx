@@ -228,6 +228,10 @@ function AvailabilityTab({ data, isLoading, error, onRetry }: TabProps) {
             sublabel: m.name,
             meta: `${m.availabilityPct == null ? '—' : `${m.availabilityPct}%`} · ${fmtMin(m.runMin)}`,
             segments: m.segments ?? [],
+            // The schedule for the same window, stacked above the machine's own
+            // band. Undefined when nothing was booked: the chart sizes the row
+            // from whether this field is there at all.
+            planSegments: m.planSegments?.length ? m.planSegments : undefined,
           }))}
           windowStart={from}
           windowEnd={to}

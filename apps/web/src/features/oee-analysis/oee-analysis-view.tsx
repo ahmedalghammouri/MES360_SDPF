@@ -97,6 +97,13 @@ interface Payload extends Slice {
     counts: { good: number; rejected: number; total: number; theoretical: number };
   }>;
   timeline: TimelineSegment[];
+  /**
+   * The SCHEDULE over the same window -- what the plant booked, as opposed to
+   * what the machines reported. Drawn as a second band above each machine's
+   * own row rather than merged into it: where the two disagree, that
+   * disagreement is the finding.
+   */
+  plannedTimeline?: TimelineSegment[];
   production: ProductionDetails & { mttrMin: number | null; mtbfMin: number | null };
   distribution: Distribution;
   rejectReasons: RejectReasons;
@@ -425,6 +432,7 @@ export function OeeAnalysisView() {
             <DowntimePanel
               distribution={d.distribution}
               timeline={d.timeline ?? []}
+              plannedTimeline={d.plannedTimeline ?? []}
               machines={d.machines}
               windowStart={d.window.from}
               windowEnd={d.window.to}
@@ -478,6 +486,7 @@ export function OeeAnalysisView() {
               trend={d.trend ?? []}
               production={d.production}
               timeline={d.timeline ?? []}
+              plannedTimeline={d.plannedTimeline ?? []}
               operationalMin={d.time.operationalMin}
               usedOperationalMin={d.time.usedOperationalMin}
               machines={d.machines}

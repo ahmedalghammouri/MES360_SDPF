@@ -150,6 +150,8 @@ export interface LiveShiftPayload {
   machineNow: MachineNow[];
   trend: TrendPoint[];
   timeline: TimelineSegment[];
+  /** The schedule over the same window, for the timeline's second track. */
+  plannedTimeline?: TimelineSegment[];
   states: Array<{ state: string | null; minutes: number; rows: number }>;
   rejectReasons: {
     configured: boolean;

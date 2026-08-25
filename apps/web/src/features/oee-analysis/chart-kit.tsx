@@ -15,8 +15,71 @@ import { useTheme } from 'next-themes';
 
 import { useDashboardPrefsStore } from '@/store/dashboard-prefs-store';
 import { toDate, formatDateTime } from '@/lib/datetime';
+import type { GanttRow, GanttSegment } from '@/components/charts/machine-state-gantt';
 
 export type SegmentKind = 'running' | 'planned' | 'external' | 'downtime' | 'unmeasured';
+
+/**
+ * One block of a machine's timeline, as every timeline endpoint reports it.
+ *
+ * Declared once. Two panels had kept private copies of this interface with the
+ * same fields, which is how a field added on the server reaches one chart and
+ * not the other -- and the schedule track is exactly such a field.
+ */
+export interface TimelineSegment {
+  machineId: string; machineCode: string; state: string;
+  /** The plant's own name for the block, when the schedule supplied one. */
+  label?: string;
+  kind: SegmentKind; from: string; to: string; minutes: number;
+}
+
+/**
+ * Timeline segments -> Gantt rows, with the schedule stacked above each machine.
+ *
+ * Both OEE panels draw the same rows from the same payload and differ only in
+ * the one-line summary beside the machine name, so that difference is the only
+ * thing they pass in. When they each built the rows themselves, one of them
+ * gained the schedule track and the other did not.
+ *
+ * A machine present ONLY in the schedule still gets a row. Dropping it would
+ * hide the case worth looking at hardest: time was booked, and nothing was
+ * measured against it.
+ */
+export function toGanttRows(
+  timeline: TimelineSegment[],
+  plannedTimeline: TimelineSegment[] | undefined,
+  machines: Array<{ key: string; label: string; sublabel?: string | null }>,
+  meta: (segments: TimelineSegment[], machineId: string) => string,
+): GanttRow[] {
+  const rows = new Map<string, { code: string; segments: TimelineSegment[]; plan: TimelineSegment[] }>();
+  const at = (id: string, code: string) => {
+    let hit = rows.get(id);
+    if (!hit) { hit = { code, segments: [], plan: [] }; rows.set(id, hit); }
+    return hit;
+  };
+  for (const s of timeline) at(s.machineId, s.machineCode).segments.push(s);
+  for (const s of plannedTimeline ?? []) at(s.machineId, s.machineCode).plan.push(s);
+
+  const draw = (x: TimelineSegment): GanttSegment =>
+    ({ state: x.state, label: x.label, startTime: x.from, endTime: x.to });
+
+  return [...rows.entries()]
+    .map(([id, v]) => {
+      const m = machines.find((x) => x.key === id);
+      return {
+        id,
+        label: m?.label ?? v.code,
+        sublabel: m?.sublabel ?? undefined,
+        meta: meta(v.segments, id),
+        segments: v.segments.map(draw),
+        // Undefined rather than an empty array: the chart reads the PRESENCE of
+        // this field to decide the row's height, and an empty second track
+        // would claim the plant scheduled nothing.
+        planSegments: v.plan.length > 0 ? v.plan.map(draw) : undefined,
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
 
 /**
  * Status colours, reserved for state and never reused as a series hue.

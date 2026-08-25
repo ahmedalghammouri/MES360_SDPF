@@ -407,14 +407,26 @@ function TimelinePanel() {
   const { range, setRange, data, isFetching } = useRange('shift');
 
   const rows: GanttRow[] = React.useMemo(() => {
-    const byMachine = new Map<string, { label: string; segments: GanttRow['segments'] }>();
-    for (const s of data?.timeline ?? []) {
+    const byMachine = new Map<string, {
+      label: string; segments: GanttRow['segments']; plan: GanttRow['segments'];
+    }>();
+    const at = (s: { machineId: string; machineLabel?: string; label?: string }) => {
       const hit = byMachine.get(s.machineId) ?? {
         label: (s as any).machineCode ?? s.machineLabel ?? s.label ?? s.machineId.slice(0, 8),
         segments: [] as GanttRow['segments'],
+        plan: [] as GanttRow['segments'],
       };
-      hit.segments.push({ state: s.state, label: (s as any).label, startTime: s.from, endTime: s.to });
       byMachine.set(s.machineId, hit);
+      return hit;
+    };
+    for (const s of data?.timeline ?? []) {
+      at(s).segments.push({ state: s.state, label: (s as any).label, startTime: s.from, endTime: s.to });
+    }
+    // A machine that only appears in the SCHEDULE still earns a row: time was
+    // booked against it and nothing was measured, which is the case a shift
+    // review most needs to see rather than the one it can least afford to lose.
+    for (const s of data?.plannedTimeline ?? []) {
+      at(s).plan.push({ state: s.state, label: (s as any).label, startTime: s.from, endTime: s.to });
     }
     const stats = new Map(data?.machines?.map((m) => [m.key, m]) ?? []);
     return [...byMachine.entries()]
@@ -428,10 +440,11 @@ function TimelinePanel() {
             ? `${m.availability == null ? '—' : `${m.availability.toFixed(0)}%`} · ${dur(m.time?.netProductionMin)}`
             : undefined,
           segments: v.segments,
+          planSegments: v.plan.length > 0 ? v.plan : undefined,
         };
       })
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [data?.timeline, data?.machines]);
+  }, [data?.timeline, data?.plannedTimeline, data?.machines]);
 
   return (
     <Panel title="Machine status timeline" range={range} onRange={setRange}
