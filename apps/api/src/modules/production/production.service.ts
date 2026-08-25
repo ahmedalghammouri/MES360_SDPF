@@ -40,6 +40,11 @@ import type {
 } from './dto/work-order.dto';
 import { isTrendBucket, type TrendBucket } from '../../common/trend-bucket.util';
 
+// The interval algebra the OEE classifier already uses. Shared rather than
+// re-derived: two implementations of "merge these spans" is how the same
+// window ends up counted once in one place and four times in another.
+import { merge, spanMinutes, type Span } from '../oee-standard/minute-classification';
+
 const VALID_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   PLANNED: ['RELEASED', 'IN_PROGRESS', 'CANCELLED'],
   RELEASED: ['IN_PROGRESS', 'CANCELLED', 'ON_HOLD'],
@@ -1495,7 +1500,6 @@ export class ProductionService implements OnApplicationBootstrap {
     //
     // Planned stops are now rows with real start times, so the events loop below
     // is the whole answer. Nothing is estimated, and nothing is counted twice.
-    let eventMins = 0;
     const events = await this.prisma.downtimeEvent.findMany({
       where: {
         ...(factoryId ? { factoryId } : {}),
@@ -1506,13 +1510,32 @@ export class ProductionService implements OnApplicationBootstrap {
       },
       select: { startTime: true, endTime: true, durationMinutes: true },
     });
+
+    // ── The union of the windows, not the sum of them ───────────────────────
+    //
+    // This figure delays a FINISH TIME, so the only question it can answer is
+    // "how much wall clock does the schedule take away". Summing each event
+    // answered a different one — how many machine-minutes were stopped — and on
+    // this plant the two are four times apart.
+    //
+    // The routing's steps run start-to-start: filling, cartoning, palletising
+    // and wrapping are all live at once. A line-wide stop is therefore booked
+    // against every one of them, at the SAME clock times, because downtime is
+    // recorded per machine. Adding those four rows made one 60-minute cleaning
+    // window read as 4h of delay, and the estimate got worse the more machines
+    // the line had — which is precisely backwards.
+    //
+    // Merged first, so overlapping windows count once and windows that do not
+    // overlap still both count: if M1 stops 10:00–10:30 and M2 stops 11:00–11:30
+    // the line loses an hour, and it loses half an hour if they stop together.
+    const spans: Span[] = [];
     for (const e of events) {
       const s = Math.max(+e.startTime, fromMs);
       const en = Math.min(e.endTime ? +e.endTime : toMs, toMs);
-      if (en > s) eventMins += (en - s) / 60_000;
+      if (en > s) spans.push([s, en]);
     }
 
-    return Math.round(eventMins);
+    return Math.round(spanMinutes(merge(spans)));
   }
 
   async autoGenerateWorkOrders(
