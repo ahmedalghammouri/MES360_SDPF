@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { ResetPlannedDowntimeCard } from './reset-planned-downtime-card';
 import { SystemBackups } from './system-backups';
 import axios, { type AxiosInstance } from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -31,10 +32,17 @@ interface SystemStatus {
 }
 type ResetScope =
   | 'production' | 'timeseries' | 'energy'
-  | 'quality' | 'maintenance' | 'downtime' | 'alarms'
+  | 'quality' | 'maintenance' | 'downtime' | 'plannedDowntime' | 'alarms'
   | 'inventory' | 'shifts' | 'notifications';
 
-type ResetTarget = { scope: ResetScope; title: string; danger: string } | null;
+type ResetTarget = {
+  scope: ResetScope;
+  title: string;
+  danger: string;
+  /** Only the windowed scope carries these; every other reset clears all of it. */
+  from?: string;
+  to?: string;
+} | null;
 
 /**
  * The subsystems that can be cleared on their own.
@@ -202,6 +210,10 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
     resetMut.mutate({
       scope: target.scope,
       wipeTimeseries: target.scope === 'production' ? wipeTs : undefined,
+      // Present only for the windowed scope. The API refuses that scope without
+      // both bounds rather than treating a missing window as "everything",
+      // which is the direction that mistake must never fail in.
+      ...(target.from && target.to ? { from: target.from, to: target.to } : {}),
       password,
       confirmation: confirmPhrase,
     });
@@ -335,6 +347,23 @@ function DangerZonePanel({ token, onLock }: { token: string; onLock: () => void 
         affectedLabel={t('dz.affectedRecords')}
         resetLabel={t('dz.reset')}
         onClick={() => setTarget({ scope: 'timeseries', title: t('dz.wipeTsTitle'), danger: t('dz.wipeTsDanger') })}
+      />
+
+      {/* Planned downtime, for a chosen period. Sits beside the whole-history
+          resets because it is the same kind of act, and apart from them because
+          it is the only one a plant runs to correct a mistake rather than to
+          clear a demo. */}
+      <ResetPlannedDowntimeCard
+        totalAllTime={status?.counts?.plannedDowntime as number | undefined}
+        onReset={(from, to, count) => setTarget({
+          scope: 'plannedDowntime',
+          title: 'Reset Planned Downtime',
+          danger: `${count.toLocaleString()} planned downtime record(s) between `
+            + `${new Date(from).toLocaleString()} and ${new Date(to).toLocaleString()} will be deleted. `
+            + 'Unplanned downtime in the same period is kept.',
+          from,
+          to,
+        })}
       />
 
       {/* Subsystem resets — each clears one area's HISTORY, never its configuration. */}

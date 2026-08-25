@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SystemOwnerGuard } from '../../common/guards/system-owner.guard';
@@ -44,6 +44,21 @@ export class SystemController {
   @ApiOperation({ summary: 'Resettable-data snapshot (owner only)' })
   status() {
     return this.systemService.getStatus();
+  }
+
+  @Get('planned-downtime-preview')
+  @UseGuards(SystemOwnerGuard)
+  @ApiOperation({
+    summary: 'How many planned downtime records fall in a window',
+    description:
+      'Counts without deleting, using the same overlap rule the reset uses — so the number the '
+      + 'operator confirms is the number that goes. Behind the owner guard like the reset itself: '
+      + 'it reveals the shape of the data the reset would destroy.',
+  })
+  @ApiQuery({ name: 'from', required: true, description: 'ISO instant' })
+  @ApiQuery({ name: 'to', required: true, description: 'ISO instant' })
+  previewPlannedDowntime(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.systemService.previewPlannedDowntime(from, to);
   }
 
   @Post('reset')

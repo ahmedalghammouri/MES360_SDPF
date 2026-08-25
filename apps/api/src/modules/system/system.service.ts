@@ -185,6 +185,8 @@ export class SystemService {
       Object.assign(summary, await this.resetMaintenance());
     } else if (dto.scope === 'downtime') {
       Object.assign(summary, await this.resetDowntime());
+    } else if (dto.scope === 'plannedDowntime') {
+      Object.assign(summary, await this.resetPlannedDowntime(dto.from, dto.to));
     } else if (dto.scope === 'alarms') {
       Object.assign(summary, await this.resetAlarms());
     } else if (dto.scope === 'inventory') {
@@ -253,11 +255,14 @@ export class SystemService {
     };
 
     const [
-      downtimeEvents, machineStates, inspections, spc, ncrs,
+      downtimeEvents, machineStates, plannedEvents, plannedStates,
+      inspections, spc, ncrs,
       maintenanceOrders, alarms, shiftInstances, stockMoves, notifications,
     ] = await Promise.all([
       safe(() => p.downtimeEvent.count()),
       safe(() => p.machineStateRecord.count()),
+      safe(() => p.downtimeEvent.count({ where: { isPlanned: true } })),
+      safe(() => p.machineStateRecord.count({ where: { isPlannedStop: true } })),
       safe(() => p.inspectionResult.count()),
       safe(() => p.sPCMeasurement.count()),
       safe(() => p.nCR.count()),
@@ -270,6 +275,10 @@ export class SystemService {
 
     return {
       downtime: downtimeEvents + machineStates,
+      // The whole-history figure, shown until a window is chosen. Picking a
+      // range replaces it with what that range actually holds — a fixed number
+      // beside a range control invites reading it as the range's total.
+      plannedDowntime: plannedEvents + plannedStates,
       quality: inspections + spc + ncrs,
       maintenance: maintenanceOrders,
       alarms,
@@ -357,6 +366,104 @@ export class SystemService {
       out.machineStateRecords = (await tx.machineStateRecord.deleteMany({})).count;
       return out;
     }, { timeout: 120_000 });
+  }
+
+  /**
+   * Planned downtime in a window — the only reset that deletes part of a
+   * history rather than all of it.
+   *
+   * ── Why it needs to exist ───────────────────────────────────────────────
+   * A schedule entered wrong for two days is an ordinary mistake, and the
+   * remedies before this were both bad: reset ALL downtime, losing every real
+   * breakdown around it, or run SQL against production by hand. Planned time is
+   * the one history a plant routinely needs to correct in part, because it is
+   * the one it AUTHORS rather than measures.
+   *
+   * ── What it removes ─────────────────────────────────────────────────────
+   * Both halves of the same minutes, for the same reason the full downtime
+   * reset clears both: the planned EVENT is what the plant booked, and the
+   * PLANNED_STOP state record is that minute on the timeline. Clearing one
+   * leaves the other describing a stop with no counterpart — a band with no
+   * reason, or a reason that draws nowhere.
+   *
+   * Unplanned downtime inside the same window is untouched. So is every sensor
+   * record: a machine that genuinely broke down during a cancelled cleaning
+   * window still broke down, and that is a measurement, not a plan.
+   */
+  private async resetPlannedDowntime(from?: string, to?: string): Promise<Record<string, number>> {
+    if (!from || !to) {
+      throw new BadRequestException(
+        'A date range is required for this reset. Deleting planned downtime with no window '
+        + 'would clear the whole history, which is what the full Downtime reset is for.',
+      );
+    }
+    const start = new Date(from);
+    const end = new Date(to);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new BadRequestException('The date range could not be read.');
+    }
+    if (end <= start) {
+      throw new BadRequestException('The range ends before it starts.');
+    }
+
+    // Overlap, not containment: a stop that began before the window and runs
+    // into it is inside the period the operator drew, and leaving it because it
+    // started five minutes early is not a distinction anyone means.
+    const overlaps = {
+      startTime: { lt: end },
+      OR: [{ endTime: null }, { endTime: { gt: start } }],
+    };
+
+    return this.prisma.$transaction(async (tx: any) => {
+      const out: Record<string, number> = {};
+      out.plannedDowntimeEvents = (await tx.downtimeEvent.deleteMany({
+        where: { isPlanned: true, ...overlaps },
+      })).count;
+      out.plannedStateRecords = (await tx.machineStateRecord.deleteMany({
+        where: {
+          isPlannedStop: true,
+          ...overlaps,
+        },
+      })).count;
+      return out;
+    }, { timeout: 120_000 });
+  }
+
+  /**
+   * How much a given window actually holds, before anything is deleted.
+   *
+   * The Danger Zone prints "Affected records" beside every reset, and for a
+   * scope with a date range a whole-history number would be a lie in the one
+   * place it matters most. Same overlap rule the delete uses, so the figure the
+   * operator confirms is the figure that goes.
+   */
+  async previewPlannedDowntime(from?: string, to?: string): Promise<{
+    from: string | null; to: string | null;
+    plannedDowntimeEvents: number; plannedStateRecords: number; total: number;
+  }> {
+    if (!from || !to) return { from: null, to: null, plannedDowntimeEvents: 0, plannedStateRecords: 0, total: 0 };
+    const start = new Date(from);
+    const end = new Date(to);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      return { from: null, to: null, plannedDowntimeEvents: 0, plannedStateRecords: 0, total: 0 };
+    }
+
+    const overlaps = {
+      startTime: { lt: end },
+      OR: [{ endTime: null }, { endTime: { gt: start } }],
+    };
+    const p = this.prisma as any;
+    const [events, states] = await Promise.all([
+      p.downtimeEvent.count({ where: { isPlanned: true, ...overlaps } }),
+      p.machineStateRecord.count({ where: { isPlannedStop: true, ...overlaps } }),
+    ]);
+    return {
+      from: start.toISOString(),
+      to: end.toISOString(),
+      plannedDowntimeEvents: events,
+      plannedStateRecords: states,
+      total: events + states,
+    };
   }
 
   /** Alarm history. Alarm DEFINITIONS are configuration and are preserved. */
