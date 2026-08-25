@@ -3,7 +3,8 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
 import {
-  FALLBACK_VERDICTS, UNKNOWN_VERDICT, PRODUCING, merge, subtract, type Span, type Verdict,
+  FALLBACK_VERDICTS, UNKNOWN_VERDICT, PRODUCING, merge, subtract, spanMinutes,
+  type Span, type Verdict,
 } from './minute-classification';
 import { SCHEDULE_SOURCE } from './planned-stop-materializer.service';
 
@@ -68,6 +69,27 @@ export interface Distribution {
   medianMin: number;
   averageMin: number;
   reasons: ReasonSlice[];
+}
+
+/**
+ * One row of the schedule-first breakdown.
+ *
+ * DISPLAY ONLY. Nothing here reaches an OEE figure, a fact row or a stored
+ * minute — see {@link StateTimelineService.scheduleFirst}.
+ */
+export interface ScheduleFirstSlice {
+  /** Stable key: the activity name for a booked block, the state otherwise. */
+  key: string;
+  label: string;
+  kind: SegmentKind;
+  /** Booked on the schedule, as opposed to reported by a sensor. */
+  scheduled: boolean;
+  /** Minutes this row owns once the schedule has taken its share. */
+  minutes: number;
+  /** What the machine reported under this state, before the schedule took any. */
+  rawMin: number;
+  /** rawMin − minutes: the part a booked stop had already claimed. */
+  reclaimedMin: number;
 }
 
 export interface TimelineScope {
@@ -354,6 +376,94 @@ export class StateTimelineService {
       }
     }
     return merge(spans);
+  }
+
+  /**
+   * The same minutes, re-read with the SCHEDULE taking precedence.
+   *
+   * ── The reading this fixes ──────────────────────────────────────────────
+   * The sensor sees one thing: a machine that is not turning. It cannot see
+   * why. So a line stopped from 07:30 to 08:51 arrives as eighty-one minutes
+   * of BREAKDOWN — even though the plant had booked cleaning until 08:00 and
+   * startup until 08:30, and only the last twenty-one minutes are a fault
+   * anyone should be asked about. Ranked against the other losses, that stop
+   * is four times its real size and points a shift review at the wrong thing.
+   *
+   * Here every minute is awarded to exactly one owner: a booked stop if one
+   * covers it, the machine's own state otherwise. `rawMin` and `reclaimedMin`
+   * travel with each row so the arithmetic is visible rather than asserted —
+   * a reader can see that BREAKDOWN was 81, that 60 of it was booked, and
+   * that 21 is what is left.
+   *
+   * ── What this deliberately does NOT do ──────────────────────────────────
+   * It changes no equation. Availability, OEE, the fact store and every
+   * exported figure are computed exactly as before, from `classifyMinute` and
+   * the minute rows. This is one panel's way of reading time, kept separate on
+   * purpose until the scenarios it raises have been worked through — chief
+   * among them what happens to a changeover booked for 10:00 when the order
+   * before it has not finished. Until that is settled, a projection that
+   * quietly moved the numbers would be answering a question nobody has agreed
+   * on yet.
+   *
+   * Pure, and over arrays the caller already holds: no query, no store, and
+   * nothing it could reach into even by accident.
+   */
+  scheduleFirst(segments: TimelineSegment[], planned: TimelineSegment[]): ScheduleFirstSlice[] {
+    // ── 1. What the schedule claims, first come first served ───────────────
+    // Two stops booked over the same minutes on one machine cost that minute
+    // once, and it belongs to whichever was booked to start first. Anything
+    // else and the panel's total exceeds the time that actually elapsed.
+    const claimed = new Map<string, Span[]>();
+    const booked = new Map<string, ScheduleFirstSlice>();
+
+    const stops = planned
+      // A gap between booked stops is not itself a booked stop. Through
+      // scheduled production the sensor's account stands, which is the whole
+      // reason RUNNING, STARVED and BREAKDOWN still appear below.
+      .filter((p) => p.state !== 'PRODUCTION')
+      .sort((a, b) => +a.from - +b.from);
+
+    for (const p of stops) {
+      const taken = claimed.get(p.machineId) ?? [];
+      const mine = subtract([[+p.from, +p.to]], taken);
+      if (mine.length === 0) continue;
+      const key = p.label || p.state;
+      const hit = booked.get(key) ?? {
+        key, label: key, kind: p.kind, scheduled: true,
+        minutes: 0, rawMin: 0, reclaimedMin: 0,
+      };
+      const mins = spanMinutes(mine);
+      hit.minutes += mins;
+      hit.rawMin += mins;
+      booked.set(key, hit);
+      claimed.set(p.machineId, merge([...taken, ...mine]));
+    }
+
+    // ── 2. What the machines reported, minus what the schedule took ────────
+    const states = new Map<string, ScheduleFirstSlice>();
+    for (const seg of segments) {
+      const key = seg.state;
+      const hit = states.get(key) ?? {
+        key, label: key, kind: seg.kind, scheduled: false,
+        minutes: 0, rawMin: 0, reclaimedMin: 0,
+      };
+      const left = subtract([[+seg.from, +seg.to]], claimed.get(seg.machineId) ?? []);
+      hit.rawMin += seg.minutes;
+      hit.minutes += spanMinutes(left);
+      states.set(key, hit);
+    }
+    for (const v of states.values()) {
+      // Floating point: two ways of measuring the same span can disagree in the
+      // twelfth decimal, and a bar of −0.0000001 minutes renders as a glitch.
+      v.reclaimedMin = Math.max(0, Math.round((v.rawMin - v.minutes) * 1000) / 1000);
+    }
+
+    // A state wholly absorbed by a booked stop keeps its row at zero minutes
+    // rather than vanishing: "STARVED — all 60 min of it was booked cleaning"
+    // is a finding, and a row that disappears tells the reader nothing.
+    return [...booked.values(), ...states.values()]
+      .filter((v) => v.minutes > 0.0001 || v.reclaimedMin > 0.0001)
+      .sort((a, b) => b.minutes - a.minutes || a.label.localeCompare(b.label));
   }
 
   /**

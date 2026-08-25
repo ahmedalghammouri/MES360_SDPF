@@ -152,6 +152,25 @@ export interface LiveShiftPayload {
   timeline: TimelineSegment[];
   /** The schedule over the same window, for the timeline's second track. */
   plannedTimeline?: TimelineSegment[];
+  /**
+   * The same minutes, re-read with booked schedule time taking precedence.
+   *
+   * DISPLAY ONLY, and only in "Where the time went". No OEE figure, no export
+   * and no stored minute is computed from this — see `scheduleFirst` on the
+   * API for why it is deliberately kept apart for now.
+   */
+  statesScheduleFirst?: Array<{
+    key: string;
+    label: string;
+    kind: 'running' | 'planned' | 'external' | 'downtime' | 'unmeasured';
+    /** Booked on the schedule, as opposed to reported by a sensor. */
+    scheduled: boolean;
+    minutes: number;
+    /** What the machine reported before the schedule took its share. */
+    rawMin: number;
+    /** rawMin − minutes: the part a booked stop had already claimed. */
+    reclaimedMin: number;
+  }>;
   states: Array<{ state: string | null; minutes: number; rows: number }>;
   rejectReasons: {
     configured: boolean;

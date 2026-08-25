@@ -136,7 +136,8 @@ export class LiveShiftController {
       return {
         shift, window: win, bucketMin, basis, empty: true, lineOee: null,
         totals: null, machines: [], jobOrders: [], machineNow: [],
-        trend: [], timeline: [], plannedTimeline: [], states: [], rejectReasons: null,
+        trend: [], timeline: [], plannedTimeline: [], states: [], statesScheduleFirst: [],
+        rejectReasons: null,
         production: null, windows: LIVE_WINDOWS,
       };
     }
@@ -199,6 +200,11 @@ export class LiveShiftController {
       lineOee,
       slotTo,
       machines, jobOrders, machineNow, trend, states, timeline, plannedTimeline, rejectReasons,
+      // The same minutes with booked schedule time taking precedence, for the
+      // one panel that reads them that way. Derived here from the two arrays
+      // above rather than queried, so it cannot diverge from what the timeline
+      // draws -- and cannot reach anything that computes an OEE figure.
+      statesScheduleFirst: this.live.scheduleFirstStates(timeline, plannedTimeline),
       windows: LIVE_WINDOWS,
     };
   }

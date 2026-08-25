@@ -23,7 +23,7 @@ import { AlertTriangle, PackageCheck } from 'lucide-react';
 import { useScope } from '@/hooks/use-scope';
 import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 import { MachineStateGantt, type GanttRow } from '@/components/charts/machine-state-gantt';
-import { Gauge, dur, stateColour, STATUS, pctText, TrendChart } from '@/features/oee-analysis/chart-kit';
+import { Gauge, dur, stateColour, SEGMENT_COLOUR, STATUS, pctText, TrendChart } from '@/features/oee-analysis/chart-kit';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/datetime';
 
@@ -464,38 +464,106 @@ function TimelinePanel() {
 
 // ── Where the time went ─────────────────────────────────────────────────────
 
+/**
+ * Where the time went — with booked schedule time given precedence.
+ *
+ * ── The reading this fixes ─────────────────────────────────────────────────
+ * A sensor sees one thing: the machine is not turning. So a line stopped from
+ * 07:30 to 08:51 arrives as eighty-one minutes of BREAKDOWN, even where the
+ * plant had booked cleaning until 08:00 and startup until 08:30. Ranked against
+ * the other losses, that stop is four times its real size and sends a shift
+ * review after a fault that lasted twenty-one minutes.
+ *
+ * Each row now shows what it kept AND what a booked stop took from it, so the
+ * subtraction is on the page rather than asserted. The equations behind OEE are
+ * untouched — see `scheduleFirst` on the API for why that separation is
+ * deliberate and what has to be settled before it closes.
+ */
 function StatePanel() {
   const { range, setRange, data, isFetching } = useRange('shift');
-  const states = (data?.states ?? []).filter((s) => s.minutes > 0);
-  const total = states.reduce((a, s) => a + s.minutes, 0);
+
+  const scheduleFirst = data?.statesScheduleFirst ?? [];
+  // The raw breakdown is the fallback, not a mode: an older API, or a window
+  // with no schedule at all, still has a panel — it simply has nothing to
+  // subtract, which is exactly what an empty projection means.
+  const rows = scheduleFirst.length > 0
+    ? scheduleFirst.map((s) => ({
+      key: s.key, label: s.label, minutes: s.minutes,
+      reclaimedMin: s.reclaimedMin, scheduled: s.scheduled,
+      colour: s.scheduled ? SEGMENT_COLOUR[s.kind] : stateColour(s.label),
+    }))
+    : (data?.states ?? []).filter((s) => s.minutes > 0).map((s) => ({
+      key: s.state ?? 'Not reported', label: s.state ?? 'Not reported',
+      minutes: s.minutes, reclaimedMin: 0, scheduled: false,
+      colour: stateColour(s.state ?? 'Not reported'),
+    }));
+
+  const total = rows.reduce((a, r) => a + r.minutes, 0);
+  const reclaimed = rows.reduce((a, r) => a + r.reclaimedMin, 0);
 
   return (
     <Panel title="Where the time went" range={range} onRange={setRange}
       window={data?.window} loading={isFetching}>
-      {states.length === 0 ? (
+      {rows.length === 0 ? (
         <Empty>No machine states recorded in this window.</Empty>
       ) : (
-        <ul className="space-y-1.5">
-          {states.map((s) => {
-            const name = s.state ?? 'Not reported';
-            const share = total > 0 ? (s.minutes / total) * 100 : 0;
-            return (
-              <li key={name} className="grid grid-cols-[minmax(90px,140px)_1fr_auto] items-center gap-2">
-                <span className="flex items-center gap-1.5 truncate text-xs" title={name}>
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                    style={{ background: stateColour(name) }} aria-hidden />
-                  {name}
-                </span>
-                <div className="h-4 rounded-sm bg-muted/60">
-                  <div className="h-full rounded-sm" style={{ width: `${share}%`, background: stateColour(name) }} />
-                </div>
-                <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-                  {dur(s.minutes)} · {share.toFixed(1)}%
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <ul className="space-y-1.5">
+            {rows.map((r) => {
+              const share = total > 0 ? (r.minutes / total) * 100 : 0;
+              return (
+                <li key={r.key} className="grid grid-cols-[minmax(90px,150px)_1fr_auto] items-center gap-2">
+                  <span className="flex items-center gap-1.5 truncate text-xs" title={r.label}>
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                      style={{ background: r.colour }} aria-hidden />
+                    {r.label}
+                  </span>
+                  <div className="flex h-4 items-center gap-px overflow-hidden rounded-sm bg-muted/60">
+                    <div className="h-full" style={{ width: `${share}%`, background: r.colour }} />
+                    {/* What a booked stop took off this row, drawn where it
+                        would have been. Hatched and unsaturated so it reads as
+                        an account of the missing time rather than as more of
+                        the same loss. */}
+                    {r.reclaimedMin > 0 && total > 0 && (
+                      <div
+                        className="h-full opacity-40"
+                        title={`${dur(r.reclaimedMin)} of this was booked on the schedule`}
+                        style={{
+                          width: `${(r.reclaimedMin / total) * 100}%`,
+                          backgroundImage:
+                            `repeating-linear-gradient(135deg, ${r.colour} 0 2px, transparent 2px 5px)`,
+                        }}
+                      />
+                    )}
+                  </div>
+                  <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                    {dur(r.minutes)} · {share.toFixed(1)}%
+                    {r.reclaimedMin > 0 && (
+                      <span className="ms-1 text-muted-foreground/60">−{dur(r.reclaimedMin)}</span>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {scheduleFirst.length > 0 && (
+            // Say what the panel did. A reader who compares this with the
+            // timeline, or with the OEE figures above, has to be able to find
+            // out why they differ without asking anyone.
+            <p className="mt-3 border-t border-border/40 pt-2 text-[11px] leading-relaxed text-muted-foreground">
+              Booked schedule time takes precedence here: a minute the plant had
+              booked belongs to that block, not to whatever the sensor reported
+              through it.
+              {reclaimed > 0 && (
+                <> <span className="font-medium text-foreground/80">{dur(reclaimed)}</span> moved
+                  out of the machine states this way.</>
+              )}
+              {' '}This panel reads the machines&rsquo; state records; the OEE figures
+              above are unchanged and still come from the minute store, so the two
+              totals need not match.
+            </p>
+          )}
+        </>
       )}
     </Panel>
   );

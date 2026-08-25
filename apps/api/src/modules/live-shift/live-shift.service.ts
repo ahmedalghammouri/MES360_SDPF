@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
 import { OeeStandardService, type OeeScope } from '../oee-standard/oee-standard.service';
-import { StateTimelineService } from '../oee-standard/state-timeline.service';
+import { StateTimelineService, type TimelineSegment } from '../oee-standard/state-timeline.service';
 import { RejectReasonService } from '../oee-standard/reject-reason.service';
 import { toPieces, type SkuPackaging } from '../../common/units.util';
 
@@ -335,6 +335,17 @@ export class LiveShiftService {
     return this.timeline.plannedSegments(factoryId, from, to, {
       areaId: scope.areaId, lineId: scope.lineId, machineId: scope.machineId,
     });
+  }
+
+  /**
+   * The same minutes with booked schedule time taking precedence — display only.
+   *
+   * Pure, over the two arrays the controller already holds. Kept here so the
+   * controller reaches one service, and so the projection sits beside the two
+   * readings it reconciles rather than in a third place.
+   */
+  scheduleFirstStates(segments: TimelineSegment[], planned: TimelineSegment[]) {
+    return this.timeline.scheduleFirst(segments, planned);
   }
 
   async rejectReasons(factoryId: string | null, from: Date, to: Date, scope: OeeScope) {
