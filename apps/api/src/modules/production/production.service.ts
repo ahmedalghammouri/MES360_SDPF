@@ -4473,8 +4473,32 @@ export class ProductionService implements OnApplicationBootstrap {
     }
   }
 
-  /** Report actual output quantities for an EXECUTING or COMPLETE job order.
-   *  Does NOT change the status — pure qty update so operators can log partial progress. */
+  /**
+   * Set the ABSOLUTE output totals for a job order — the tablet's "Correct total".
+   *
+   * ── The bug this exists for ─────────────────────────────────────────────────
+   * This wrote `actualQty*` and nothing else. The gateway re-derives rejected on
+   * EVERY flush, absolutely:
+   *
+   *     actualQtyRejected = max(0, totalAcc - goodAcc) + jo.manualQtyRejected
+   *
+   * so a corrected figure was overwritten within seconds and the operator saw the
+   * old number reappear. `addJobOrderCount` had always maintained
+   * `manualQty*` for exactly this reason; this path never did, and the two
+   * behaved differently for no reason anybody had decided.
+   *
+   * Measured on the plant on 25 Aug 2026: M3 and M4 both carried a
+   * `manualQtyRejected` the operator had entered (2 and 4) with
+   * `actualQtyRejected = 0` — the entry recorded and erased at the same time.
+   *
+   * So a correction now states the MANUAL SHARE it implies: the difference
+   * between the total the operator wants and what the sensor has counted on its
+   * own. The gateway's next stamp then reproduces the operator's number instead
+   * of erasing it, because that stamp adds `manualQtyRejected` back.
+   *
+   * Does NOT change status — a pure quantity update, so partial progress and
+   * end-of-run corrections use one path.
+   */
   async reportJobOrderOutput(
     factoryId: string | null,
     jobOrderId: string,
@@ -4494,15 +4518,31 @@ export class ProductionService implements OnApplicationBootstrap {
       );
     }
 
-    const newRejected = dto.actualQtyRejected ?? jo.actualQtyRejected;
+    const newGood = Math.max(0, dto.actualQtyGood);
+    const newRejected = Math.max(0, dto.actualQtyRejected ?? jo.actualQtyRejected);
     const delta = Math.max(0, newRejected - jo.actualQtyRejected);
-    const goodDelta = dto.actualQtyGood - jo.actualQtyGood;
+    const goodDelta = newGood - jo.actualQtyGood;
+
+    // What the SENSOR has counted on its own, with the operator's previous
+    // corrections taken back out. Everything else in the requested total is the
+    // manual share, and it is that share the gateway adds back on each flush.
+    //
+    // Clamped at zero rather than allowed to go negative: a machine whose
+    // manual figure exceeds its automatic one is a real state (an operator
+    // counting by hand while the sensor is down), and a negative "automatic"
+    // count would make the next stamp subtract from the total.
+    const autoGood = Math.max(0, jo.actualQtyGood - jo.manualQtyGood);
+    const autoRejected = Math.max(0, jo.actualQtyRejected - jo.manualQtyRejected);
 
     const updated = await this.prisma.jobOrder.update({
       where: { id: jobOrderId },
       data: {
-        actualQtyGood: dto.actualQtyGood,
+        actualQtyGood: newGood,
         actualQtyRejected: newRejected,
+        // THE FIX. Without these two lines the gateway's next flush restores the
+        // old rejected figure and the operator's correction vanishes.
+        manualQtyGood: Math.max(0, newGood - autoGood),
+        manualQtyRejected: Math.max(0, newRejected - autoRejected),
         ...(dto.scrapReason !== undefined && { scrapReason: dto.scrapReason }),
       },
     });
@@ -4521,7 +4561,7 @@ export class ProductionService implements OnApplicationBootstrap {
           value: goodDelta,
           metadata: {
             jobOrderId: jo.id,
-            good: dto.actualQtyGood,
+            good: newGood,
             rejected: newRejected,
             goodDelta,
             scrapDelta: delta,
@@ -4600,14 +4640,23 @@ export class ProductionService implements OnApplicationBootstrap {
       );
     }
 
-    const goodDelta = Math.max(0, dto.goodDelta ?? 0);
-    const scrapDelta = Math.max(0, dto.scrapDelta ?? 0);
+    // Negative deltas are ALLOWED, and this is deliberate.
+    //
+    // Both clamped at zero, the tablet had no way to take a count away: an
+    // operator who added 150 to the wrong field could only add more. The plant
+    // hit exactly this on 25 Aug 2026 and ended up editing the database by hand
+    // — four tables, and it still did not hold.
+    //
+    // The RESULTING totals are still floored at zero below, so a machine can
+    // never carry a negative count however the deltas arrive.
+    const goodDelta = Math.trunc(dto.goodDelta ?? 0);
+    const scrapDelta = Math.trunc(dto.scrapDelta ?? 0);
     if (goodDelta === 0 && scrapDelta === 0 && dto.handoverQty === undefined) {
       throw new BadRequestException('Nothing to record — provide a good, scrap or handover quantity.');
     }
 
-    const newGood = jo.actualQtyGood + goodDelta;
-    const newRejected = jo.actualQtyRejected + scrapDelta;
+    const newGood = Math.max(0, jo.actualQtyGood + goodDelta);
+    const newRejected = Math.max(0, jo.actualQtyRejected + scrapDelta);
     // Handover defaults to "all good so far" but is operator-overridable; never exceeds good output.
     let handoverQty = jo.handoverQty;
     if (dto.handoverQty !== undefined) {
@@ -4619,15 +4668,21 @@ export class ProductionService implements OnApplicationBootstrap {
       data: {
         actualQtyGood: newGood,
         actualQtyRejected: newRejected,
-        // Track the manual portion separately so the gateway counter never overwrites it.
-        manualQtyGood: { increment: goodDelta },
-        manualQtyRejected: { increment: scrapDelta },
+        // Track the manual portion separately so the gateway counter never
+        // overwrites it. Set rather than incremented: the totals above are
+        // floored at zero, and an increment that ignored that floor would let
+        // the manual share exceed the total it is a share OF.
+        manualQtyGood: Math.max(0, jo.manualQtyGood + goodDelta),
+        manualQtyRejected: Math.max(0, jo.manualQtyRejected + scrapDelta),
         ...(dto.handoverQty !== undefined && { handoverQty }),
         ...(dto.scrapReason !== undefined && scrapDelta > 0 && { scrapReason: dto.scrapReason }),
       },
     });
 
-    // Each scrap increment is a real ScrapLog row (drives Quality & Scrap analysis)
+    // Each scrap increment is a real ScrapLog row (drives Quality & Scrap
+    // analysis). A NEGATIVE delta takes scrap back and writes no row — the
+    // journal below records the correction, and inventing a scrap log with a
+    // negative quantity would corrupt every Pareto that reads this table.
     if (scrapDelta > 0) {
       const validCategories = ['QUALITY', 'SETUP', 'DAMAGE', 'OVERRUN', 'MATERIAL', 'MACHINE', 'OPERATOR', 'OTHER'];
       const category = (validCategories.includes(dto.scrapCategory ?? '') ? dto.scrapCategory : 'OTHER') as any;

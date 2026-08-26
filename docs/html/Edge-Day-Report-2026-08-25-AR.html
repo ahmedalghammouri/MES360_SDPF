@@ -1,0 +1,965 @@
+<title>عدّاد يعدّ مرّة ونصف</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  /* ── Tokens ─────────────────────────────────────────────────────────────
+     Light is the base set. Dark redefines ONLY tokens — once for the
+     un-stamped system-dark document, once for the explicit toggle.         */
+  :root {
+    --ground:       #f2f5f6;
+    --surface:      #ffffff;
+    --sunk:         #e8edef;
+    --line:         #d3dcdf;
+    --line-soft:    #e2e9eb;
+
+    --ink:          #0e1618;
+    --ink-2:        #3b4a4e;
+    --ink-3:        #67797e;
+
+    /* Instrument cyan. Deliberately none of the five machine-state colours,
+       so nothing in this report can be mistaken for a machine state.        */
+    --accent:       #0d7d8f;
+    --accent-ink:   #0a6272;
+    --accent-wash:  #e2f2f5;
+
+    --trace:        #0d7d8f;   /* the true sensor signal            */
+    --bounce:       #c2410c;   /* the spurious transitions          */
+    --sample:       #67797e;   /* where the gateway happened to look */
+
+    --bad:          #b3261e;
+    --warn:         #96601a;
+    --good:         #14683f;
+
+    --shadow: 0 1px 2px rgba(14,22,24,.05), 0 10px 28px -14px rgba(14,22,24,.2);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:     #0a1013;
+      --surface:    #111a1e;
+      --sunk:       #0d1518;
+      --line:       #223037;
+      --line-soft:  #1a262b;
+
+      --ink:        #e4edf0;
+      --ink-2:      #a5b7bd;
+      --ink-3:      #72878e;
+
+      --accent:     #3fc3d8;
+      --accent-ink: #7fdcec;
+      --accent-wash:#0f2c33;
+
+      --trace:      #3fc3d8;
+      --bounce:     #f0733f;
+      --sample:     #72878e;
+
+      --bad:        #ef8078;
+      --warn:       #d9a441;
+      --good:       #4cb782;
+
+      --shadow: 0 1px 2px rgba(0,0,0,.45), 0 12px 34px -16px rgba(0,0,0,.75);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:     #0a1013;
+    --surface:    #111a1e;
+    --sunk:       #0d1518;
+    --line:       #223037;
+    --line-soft:  #1a262b;
+
+    --ink:        #e4edf0;
+    --ink-2:      #a5b7bd;
+    --ink-3:      #72878e;
+
+    --accent:     #3fc3d8;
+    --accent-ink: #7fdcec;
+    --accent-wash:#0f2c33;
+
+    --trace:      #3fc3d8;
+    --bounce:     #f0733f;
+    --sample:     #72878e;
+
+    --bad:        #ef8078;
+    --warn:       #d9a441;
+    --good:       #4cb782;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 12px 34px -16px rgba(0,0,0,.75);
+  }
+
+  /* ── Base ─────────────────────────────────────────────────────────────── */
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Readex Pro", "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+    font-weight: 300;
+    -webkit-font-smoothing: antialiased;
+    direction: rtl;
+  }
+
+  .wrap {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+    display: flex; flex-direction: column; gap: 44px;
+  }
+
+  .prose { max-width: 66ch; display: flex; flex-direction: column; gap: 14px; }
+  .prose p { margin: 0; color: var(--ink-2); }
+  .prose p strong, strong { color: var(--ink); font-weight: 600; }
+  em { font-style: normal; color: var(--ink); font-weight: 500; }
+
+  h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 600; letter-spacing: -0.005em; }
+  h1 { font-size: clamp(28px, 4.2vw, 42px); line-height: 1.3; }
+  h2 { font-size: clamp(20px, 2.5vw, 25px); line-height: 1.4; }
+  h3 { font-size: 16.5px; }
+
+  code, .mono, .n { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  code {
+    font-size: .84em; background: var(--sunk);
+    border: 1px solid var(--line-soft); border-radius: 4px;
+    padding: .1em .4em; direction: ltr; unicode-bidi: embed; display: inline-block;
+  }
+
+  .eyebrow {
+    font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 500;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3);
+    direction: ltr; text-align: right;
+  }
+
+  a { color: var(--accent-ink); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  /* ── Masthead ─────────────────────────────────────────────────────────── */
+  .masthead {
+    padding: 56px 0 34px;
+    border-bottom: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  .masthead .lede { font-size: 18px; color: var(--ink-2); max-width: 60ch; }
+  .stamp {
+    display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: flex-end;
+    font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--ink-3); direction: ltr;
+  }
+  .stamp span { white-space: nowrap; }
+
+  /* ── The verdict ──────────────────────────────────────────────────────── */
+  .verdict-box {
+    background: var(--surface); border: 2px solid var(--accent);
+    border-radius: 12px; padding: 28px 30px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .verdict-box .claim { font-size: 21px; font-weight: 600; line-height: 1.65; }
+  .figures { display: flex; flex-wrap: wrap; gap: 14px; direction: ltr; }
+  .fig {
+    flex: 1 1 150px; background: var(--sunk); border: 1px solid var(--line-soft);
+    border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .fig .v { font-family: "JetBrains Mono", monospace; font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+  .fig .v.alarm { color: var(--bad); }
+  .fig .k { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+
+  /* ── Sections ─────────────────────────────────────────────────────────── */
+  section { display: flex; flex-direction: column; gap: 22px; scroll-margin-top: 24px; }
+  .section-head { display: flex; flex-direction: column; gap: 6px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 22px 24px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .card > p { margin: 0; color: var(--ink-2); max-width: 66ch; }
+
+  .note {
+    background: var(--accent-wash); border: 1px solid var(--line);
+    border-radius: 8px; padding: 14px 18px; font-size: 14.5px; color: var(--ink-2);
+  }
+  .note.alarm { background: transparent; border-color: var(--bad); }
+
+  /* ── Finding blocks ───────────────────────────────────────────────────── */
+  .find {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; overflow: hidden; box-shadow: var(--shadow);
+  }
+  .find-head {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 15px 22px; border-bottom: 1px solid var(--line-soft); background: var(--sunk);
+  }
+  .find-id { font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 700; color: var(--ink-3); direction: ltr; }
+  .find-title { font-size: 16.5px; font-weight: 600; flex: 1 1 220px; }
+  .find-body { padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; }
+  .find-body p { margin: 0; color: var(--ink-2); font-size: 15px; max-width: 66ch; }
+
+  .chip {
+    font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase;
+    padding: 4px 9px; border-radius: 999px; white-space: nowrap; border: 1px solid currentColor;
+  }
+  .chip.proved { color: var(--bad); }
+  .chip.likely { color: var(--warn); }
+  .chip.info   { color: var(--accent); }
+  .chip.fixed  { color: var(--good); }
+
+  /* ── Tables ───────────────────────────────────────────────────────────── */
+  .tscroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 540px; }
+  thead th {
+    font-family: "JetBrains Mono", monospace; font-size: 10.5px; font-weight: 700;
+    letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3);
+    text-align: right; padding: 11px 14px; border-bottom: 1px solid var(--line);
+    background: var(--sunk); white-space: nowrap;
+  }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); color: var(--ink-2); }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr.hi td { background: var(--accent-wash); color: var(--ink); font-weight: 500; }
+  td.n, th.n { font-family: "JetBrains Mono", monospace; text-align: left; direction: ltr; white-space: nowrap; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .ok  { color: var(--good); font-weight: 600; }
+
+  /* ── Scope figure ─────────────────────────────────────────────────────── */
+  figure { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  .scope { direction: ltr; overflow-x: auto; background: var(--sunk); border: 1px solid var(--line-soft); border-radius: 9px; padding: 18px 14px; }
+  .scope svg { display: block; min-width: 620px; width: 100%; height: auto; }
+  figcaption { font-size: 13px; color: var(--ink-3); max-width: 66ch; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 12.5px; color: var(--ink-3); }
+  .legend span { display: flex; align-items: center; gap: 7px; }
+  .swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  /* ── Fix list ─────────────────────────────────────────────────────────── */
+  .fixes { display: flex; flex-direction: column; gap: 12px; }
+  .fix {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 9px;
+    padding: 16px 20px; display: flex; flex-direction: column; gap: 7px;
+  }
+  .fix-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .fix-num { font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 700; color: var(--accent); direction: ltr; }
+  .fix-title { font-size: 16px; font-weight: 600; }
+  .fix p { margin: 0; font-size: 14.5px; color: var(--ink-2); max-width: 68ch; }
+  .fix .where { font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--ink-3); direction: ltr; text-align: right; }
+
+  footer {
+    border-top: 1px solid var(--line); padding-top: 24px;
+    font-size: 13px; color: var(--ink-3); display: flex; flex-direction: column; gap: 6px;
+  }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 0 16px 72px; }
+    .fig { flex: 1 1 100%; }
+  }
+</style>
+
+<div class="wrap">
+
+  <!-- ══ Masthead ═════════════════════════════════════════════════════ -->
+  <header class="masthead">
+    <div class="eyebrow">MES360 · SDPF · Powder Packing Line 1 · Edge Gateway 1</div>
+    <h1>عدّاد يعدّ مرّة ونصف</h1>
+    <p class="lede">
+      تحليل يوم <span class="mono" dir="ltr">25 Aug 2026</span> بالكامل: سجلّ الإيدج،
+      وقاعدة البيانات المستعادة. شعورك أنّ العدّادات تعدّ بالضعف — صحيح، ومُقاس.
+      وليس بالضعف تماماً، بل بـ<strong>‎1.53×‎</strong> على ماكينة الملء — وهذا التفاوت
+      نفسه هو الدليل على السبب. وفرضيّة تداخل أمرَي التشغيل اختُبرت بثلاثة اختبارات
+      وسقطت — لكنّها قادت إلى عطل ثانٍ حقيقي.
+    </p>
+    <div class="stamp">
+      <span>out.log · 1,368 lines</span>
+      <span>modbus-error.log · 33,650 lines</span>
+      <span>4 machines · 1,058 minute rows</span>
+      <span>2 work orders</span>
+    </div>
+  </header>
+
+  <!-- ══ Verdict ══════════════════════════════════════════════════════ -->
+  <section id="verdict">
+    <div class="verdict-box">
+      <div class="claim">
+        ماكينة <span class="mono" dir="ltr">M1</span> سجّلت في المتوسّط
+        <span class="mono" dir="ltr">68.8</span> قطعة في الدقيقة، بينما أقصى ما تستطيعه
+        ميكانيكياً <span class="mono" dir="ltr">45</span>. الماكينة لا يمكن أن تتجاوز
+        زمن دورتها — إذن العدّاد يضيف عدّات لا تقابلها منتجات.
+      </div>
+      <div class="figures">
+        <div class="fig"><span class="v alarm">1.53×</span><span class="k">متوسّط ما سُجّل ÷ الحدّ الفيزيائي<br>على 65 دقيقة تشغيل كاملة</span></div>
+        <div class="fig"><span class="v alarm">60 / 65</span><span class="k">دقيقة تجاوزت سرعة التصميم<br>‎92٪‎ من دقائق التشغيل النظيفة</span></div>
+        <div class="fig"><span class="v alarm">27 ms</span><span class="k">أقصر مستوى إشارة رآه الإيدج<br>وتكرّر التحذير 583 مرّة</span></div>
+        <div class="fig"><span class="v alarm">0</span><span class="k">مللي ثانية من الـ debounce<br>في مسار العدّ</span></div>
+      </div>
+      <p style="margin:0;color:var(--ink-2);font-size:15px">
+        السبب المرجَّح: <strong>ارتدادة التلامس</strong> (contact bounce). المستشعر يصدر
+        نبضة واحدة للمنتج، لكن حافّتها ترتجف عدّة مرّات في أجزاء من الثانية —
+        ومسار العدّ يحسب <em>كلّ</em> حافّة صاعدة يراها، بلا أيّ فلتر زمني.
+      </p>
+    </div>
+  </section>
+
+  <section id="hypothesis">
+    <div class="section-head">
+      <div class="eyebrow">Hypothesis tested</div>
+      <h2>«أمران متجدولان، الأوّل تأخّر فدخل في وقت الثاني»</h2>
+    </div>
+
+    <div class="prose">
+      <p>
+        فرضيّة وجيهة، وتستحقّ اختباراً لا رأياً: لو نُسبت العدّات إلى أمرَي تشغيل معاً
+        لظهر الرقم مضاعفاً دون أن يكون في المستشعر عيب. ثلاثة اختبارات تفصلها عن
+        فرضيّة الارتداد فصلاً حاسماً.
+      </p>
+    </div>
+
+    <div class="tscroll">
+      <table>
+        <thead><tr><th class="n">الاختبار</th><th>ماذا يقيس</th><th>النتيجة</th><th class="n">الحكم</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="n">T1</td>
+            <td>هل كُتبت الدقيقة الواحدة مرّتين — صفٌّ لكلّ أمر تشغيل؟</td>
+            <td>1,077 صفّاً · 1,077 دقيقة مميّزة · <strong>0 تكرار</strong> — على الماكينات الأربع</td>
+            <td class="n ok">مستبعَدة</td>
+          </tr>
+          <tr>
+            <td class="n">T2</td>
+            <td>هل تداخل الأمران زمنيّاً على ماكينة واحدة؟</td>
+            <td>WO-0003 انتهى <span class="mono" dir="ltr">11:56:36</span> · WO-0004 بدأ
+                <span class="mono" dir="ltr">12:55:30</span> — <strong>فجوة 59 دقيقة</strong></td>
+            <td class="n ok">مستبعَدة</td>
+          </tr>
+          <tr>
+            <td class="n">T3</td>
+            <td>متى وقعت الدقائق الزائدة، وتحت أيّ أمر؟</td>
+            <td><strong>57 من 60</strong> وقعت بين <span class="mono" dir="ltr">06:47</span> و
+                <span class="mono" dir="ltr">10:22</span> تحت WO-0003 وحده — قبل وجود الأمر
+                الثاني بساعتين ونصف</td>
+            <td class="n ok">مستبعَدة</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <strong>الزيادة المستمرّة سبقت الأمر الثاني.</strong> في ‎57‎ من ‎60‎ دقيقة زائدة لم
+      يكن الأمر الثاني قد بدأ بعد، ولم تكن هناك دقيقة واحدة مكتوبة مرّتين. فتداخل
+      الأمرين لا يفسّر ما رأيته.
+    </div>
+
+    <div class="note alarm">
+      <strong>لكنّ حدسك أصاب عطلاً حقيقياً — في الحوافّ لا في المتن.</strong>
+      الدقائق الثلاث الوحيدة الزائدة تحت WO-0004 هي
+      <span class="mono" dir="ltr">12:57 / 12:58 / 12:59</span> بمتوسّط
+      <span class="mono" dir="ltr">129</span> قطعة/دقيقة — بعد بدء الأمر الثاني بدقيقة
+      ونصف. وفي الدقيقة <span class="mono" dir="ltr">12:57</span> نفسها سجّلت
+      <span class="mono" dir="ltr">M1</span> عدد ‎286‎ و<span class="mono" dir="ltr">M2</span>
+      عدد ‎280‎ معاً. ماكينتان تقفزان في الثانية نفسها ليس إنتاجاً — هو تفريغ دفعة
+      محتجزة. التفصيل في <span class="mono" dir="ltr">F9</span>.
+    </div>
+  </section>
+
+  <!-- ══ The mechanism ════════════════════════════════════════════════ -->
+  <section id="mechanism">
+    <div class="section-head">
+      <div class="eyebrow">The mechanism</div>
+      <h2>كيف تصير القطعة الواحدة عدّتين</h2>
+    </div>
+
+    <figure>
+      <div class="scope">
+        <svg viewBox="0 0 660 260" role="img"
+             aria-label="رسم يوضّح كيف تتحوّل نبضة مستشعر واحدة إلى عدّتين بسبب ارتداد التلامس وأخذ العيّنات كل 27 مللي ثانية">
+          <defs>
+            <style>
+              .lbl { font-family: "JetBrains Mono", monospace; font-size: 10px; fill: var(--ink-3); }
+              .lbl-b { font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 700; fill: var(--ink); }
+              .tr { fill: none; stroke: var(--trace); stroke-width: 2; }
+              .bo { fill: none; stroke: var(--bounce); stroke-width: 2; }
+              .sm { stroke: var(--sample); stroke-width: 1; stroke-dasharray: 2 3; opacity: .55; }
+              .base { stroke: var(--line); stroke-width: 1; }
+              .cnt { font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700; }
+            </style>
+          </defs>
+
+          <!-- Row 1 — the real signal -->
+          <text class="lbl-b" x="8" y="24">SENSOR</text>
+          <text class="lbl" x="8" y="38">الإشارة الحقيقية</text>
+          <line class="base" x1="120" y1="46" x2="650" y2="46" />
+          <!-- one part: rising edge with bounce, long high, clean fall -->
+          <path class="tr" d="M120 46 L170 46" />
+          <path class="bo" d="M170 46 L170 18 L178 18 L178 46 L186 46 L186 18 L194 18 L194 46 L202 46 L202 18" />
+          <path class="tr" d="M202 18 L560 18 L560 46 L650 46" />
+          <text class="lbl" x="212" y="14">قطعة واحدة — نبضة واحدة تدوم ~600ms</text>
+          <text class="lbl" x="170" y="60" fill="var(--bounce)">ارتداد ~30ms</text>
+
+          <!-- Row 2 — sampling -->
+          <text class="lbl-b" x="8" y="106">SAMPLES</text>
+          <text class="lbl" x="8" y="120">كل 27ms</text>
+          <line class="base" x1="120" y1="128" x2="650" y2="128" />
+          <g class="sm">
+            <line x1="128" y1="84" x2="128" y2="132" /><line x1="155" y1="84" x2="155" y2="132" />
+            <line x1="182" y1="84" x2="182" y2="132" /><line x1="209" y1="84" x2="209" y2="132" />
+            <line x1="236" y1="84" x2="236" y2="132" /><line x1="263" y1="84" x2="263" y2="132" />
+            <line x1="290" y1="84" x2="290" y2="132" /><line x1="317" y1="84" x2="317" y2="132" />
+            <line x1="344" y1="84" x2="344" y2="132" /><line x1="371" y1="84" x2="371" y2="132" />
+            <line x1="398" y1="84" x2="398" y2="132" /><line x1="425" y1="84" x2="425" y2="132" />
+            <line x1="452" y1="84" x2="452" y2="132" /><line x1="479" y1="84" x2="479" y2="132" />
+            <line x1="506" y1="84" x2="506" y2="132" /><line x1="533" y1="84" x2="533" y2="132" />
+            <line x1="560" y1="84" x2="560" y2="132" /><line x1="587" y1="84" x2="587" y2="132" />
+            <line x1="614" y1="84" x2="614" y2="132" /><line x1="641" y1="84" x2="641" y2="132" />
+          </g>
+          <!-- the two samples that land inside the bounce -->
+          <circle cx="182" cy="100" r="4" fill="var(--bounce)" />
+          <circle cx="155" cy="122" r="4" fill="var(--sample)" />
+          <circle cx="209" cy="100" r="4" fill="var(--bounce)" />
+          <text class="lbl" x="222" y="104" fill="var(--bounce)">عيّنتان وقعتا داخل الارتدادة</text>
+
+          <!-- Row 3 — what the gateway reconstructs -->
+          <text class="lbl-b" x="8" y="188">COUNTED</text>
+          <text class="lbl" x="8" y="202">ما أعاد الإيدج بناءه</text>
+          <line class="base" x1="120" y1="210" x2="650" y2="210" />
+          <path class="bo" d="M120 210 L169 210 L169 182 L195 182 L195 210 L208 210 L208 182 L560 182 L560 210 L650 210" />
+          <text class="cnt" x="172" y="176" fill="var(--bounce)">+1</text>
+          <text class="cnt" x="212" y="176" fill="var(--bounce)">+1</text>
+          <text class="lbl-b" x="300" y="234">قطعة واحدة مرّت &#8594; عدّتان سُجّلتا</text>
+
+          <!-- time axis -->
+          <text class="lbl" x="120" y="252">0</text>
+          <text class="lbl" x="380" y="252">~300 ms</text>
+          <text class="lbl" x="600" y="252">~600 ms</text>
+        </svg>
+      </div>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--trace)"></i> الإشارة الحقيقية</span>
+        <span><i class="swatch" style="background:var(--bounce)"></i> الارتدادة وما نتج عنها</span>
+        <span><i class="swatch" style="background:var(--sample)"></i> لحظات أخذ العيّنة</span>
+      </div>
+      <figcaption>
+        لو وقعت عيّنة واحدة فقط داخل الارتدادة لصارت العدّة واحدة صحيحة. ولو وقعت
+        عيّنتان صارت عدّتين. ولهذا لا يكون المعامل ‎2×‎ نظيفاً بل يتذبذب — وهو ما
+        قيس فعلاً: <span class="mono" dir="ltr">1.53×</span> في المتوسّط.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ══ Findings ═════════════════════════════════════════════════════ -->
+  <section id="findings">
+    <div class="section-head">
+      <div class="eyebrow">Findings · F1 – F9</div>
+      <h2>ما وجدته في اليوم</h2>
+    </div>
+
+    <!-- F1 -->
+    <article class="find">
+      <div class="find-head">
+        <span class="find-id">F1</span>
+        <span class="find-title">العدّ يتجاوز الحدّ الفيزيائي للماكينة</span>
+        <span class="chip proved">مُثبَت بالقياس</span>
+      </div>
+      <div class="find-body">
+        <p>
+          الجدول أدناه يقتصر على الدقائق النظيفة: دقيقة كاملة، والحالة
+          <span class="mono" dir="ltr">RUNNING</span>، و<span class="mono" dir="ltr">operatingMin = 1.00</span>.
+          لا لبس في المقام. سرعة التصميم لكلّ الماكينات
+          <span class="mono" dir="ltr">2700</span> قطعة/ساعة =
+          <span class="mono" dir="ltr">45</span> قطعة/دقيقة، بعد ردّ كلّ ماكينة إلى وحدة
+          القطعة الأساسية.
+        </p>
+        <div class="tscroll">
+          <table>
+            <thead>
+              <tr>
+                <th>ماكينة</th><th class="n">دقائق نظيفة</th><th class="n">متوسّط/دقيقة</th>
+                <th class="n">الحدّ</th><th class="n">النسبة</th><th class="n">تجاوزت الحدّ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="hi">
+                <td>M1 — Big Betti (ملء)</td><td class="n">65</td><td class="n">68.8</td>
+                <td class="n">45</td><td class="n bad">1.53×</td><td class="n bad">60 من 65</td>
+              </tr>
+              <tr>
+                <td>M2 — Cartomac (تعبئة كرتون)</td><td class="n">75</td><td class="n">37.5</td>
+                <td class="n">45</td><td class="n ok">0.83×</td><td class="n">7 من 75</td>
+              </tr>
+              <tr>
+                <td>M3 — Euro-Pack (تجميع)</td><td class="n">32</td><td class="n">190.0</td>
+                <td class="n">45</td><td class="n bad">4.22×</td><td class="n bad">29 من 32</td>
+              </tr>
+              <tr>
+                <td>M4 — Uni-Tech (تغليف)</td><td class="n">1</td><td class="n">160.0</td>
+                <td class="n">45</td><td class="n bad">3.56×</td><td class="n">1 من 1</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <strong>‎M1 هو الدليل الأنظف</strong> لأنّه يعدّ وحدته الأساسية مباشرة بلا أيّ تحويل.
+          و<span class="mono" dir="ltr">M2</span> أقلّ من الحدّ — وهذا ليس تناقضاً، بل
+          نصف الحكاية الثاني: انظر <span class="mono" dir="ltr">F3</span>.
+        </p>
+        <div class="note">
+          <strong>تمييز لازم بين رقمين.</strong> «المعدّل في الدقيقة» يمكن أن تضخّمه دفعةٌ
+          مؤجّلة تُفرَّغ في دقيقة واحدة (<span class="mono" dir="ltr">F9</span>) — أي أنّ
+          العدّات تنتقل بين الدقائق. أمّا <strong>الإجمالي</strong> فلا تخلقه دفعة: وأمر
+          <span class="mono" dir="ltr">WO-2026-0003</span> أُغلق على
+          <span class="mono" dir="ltr">126٪</span> على M1 و<span class="mono" dir="ltr">128٪</span>
+          على M2 و<span class="mono" dir="ltr">186٪</span> على M3. الزيادة في الإجمالي
+          عدّاتٌ زائدة فعلاً، لا إعادة توزيع.
+        </div>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>ما ينبغي أن يستلمه التالي</th><th class="n">محسوباً من السابق</th><th class="n">ما سجّله</th><th class="n">الفارق</th></tr></thead>
+            <tbody>
+              <tr><td>M1 ‎4,443‎ كيساً &#8594; كراتين (÷4)</td><td class="n">1,111</td><td class="n">1,127</td><td class="n ok">‎+1.4٪‎</td></tr>
+              <tr class="hi"><td>M2 ‎1,127‎ كرتونة &#8594; بالتات (÷40)</td><td class="n">28.2</td><td class="n bad">41</td><td class="n bad">‎+45٪‎</td></tr>
+              <tr><td>M3 ‎41‎ بالتة &#8594; تغليف</td><td class="n">41</td><td class="n bad">10</td><td class="n bad">‎−76٪‎</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          ‎M1‎ و‎M2‎ متّسقان مع بعضهما بفارق ‎1.4٪‎ — أي أنّهما إمّا صحيحان معاً أو خاطئان
+          بالمعامل نفسه. ثمّ ينكسر الاتّساق عند ‎M3‎ صعوداً وعند ‎M4‎ هبوطاً. <strong>الخطّ
+          الواحد يروي أربع روايات مختلفة عن المنتج نفسه وهو يمرّ عليه.</strong>
+        </p>
+      </div>
+    </article>
+
+    <!-- F2 -->
+    <article class="find">
+      <div class="find-head">
+        <span class="find-id">F2</span>
+        <span class="find-title">لا يوجد debounce في مسار العدّ — إطلاقاً</span>
+        <span class="chip proved">مُثبَت بقراءة الكود</span>
+      </div>
+      <div class="find-body">
+        <p>
+          الدالة التي يستدعيها المستقصي على كلّ قراءة هي
+          <span class="mono" dir="ltr">observe()</span>، وهي تستدعي
+          <span class="mono" dir="ltr">detectEdge()</span> عارية: تقارن المستوى السابق
+          بالحالي وتضيف ‎1‎ عند كلّ صعود. <strong>لا نافذة زمنية، ولا حدّ أدنى للفاصل
+          بين عدّتين.</strong>
+        </p>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>الأداة</th><th>موجودة؟</th><th>مستعملة في العدّ؟</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><span class="mono" dir="ltr">EdgeCounter.debounceMs</span></td>
+                <td class="ok">نعم — في الحزمة المشتركة</td>
+                <td class="bad">لا — الصنف غير مستعمل في مسار العدّ</td>
+              </tr>
+              <tr>
+                <td><span class="mono" dir="ltr">tag.pulseMinEdges = 4</span></td>
+                <td class="ok">نعم — مضبوطة على كلّ عدّاد</td>
+                <td class="bad">لا — تُغذّي استنتاج حالة الماكينة فقط</td>
+              </tr>
+              <tr>
+                <td><span class="mono" dir="ltr">tag.pulseWindowMs = 6000</span></td>
+                <td class="ok">نعم — مضبوطة على كلّ عدّاد</td>
+                <td class="bad">لا — تُغذّي استنتاج حالة الماكينة فقط</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="mono" style="font-size:12px;color:var(--ink-3)" dir="ltr">
+          counter.service.ts:298 &nbsp;·&nbsp; modbus-poller.service.ts:421–422 &nbsp;·&nbsp; rising-edge-counter.ts:66
+        </p>
+        <div class="note">
+          الإعدادات موجودة والمصنع ضبطها. لكنّ السلك بين الإعداد والعدّاد لم يُوصَل قط —
+          فالقيمة <span class="mono" dir="ltr">pulseMinEdges = 4</span> تحمي تصنيف الحالة
+          من الارتداد، ولا تحمي العدّ منه.
+        </div>
+      </div>
+    </article>
+
+    <!-- F3 -->
+    <article class="find">
+      <div class="find-head">
+        <span class="find-id">F3</span>
+        <span class="find-title">التحذير يذكر نصف العطل فقط</span>
+        <span class="chip proved">مُثبَت</span>
+      </div>
+      <div class="find-body">
+        <p>
+          الإيدج حذّر <span class="mono" dir="ltr">583</span> مرّة اليوم بنصّ واحد ينتهي بـ
+          <em>«أو ستكون العدّات منخفضة»</em>. وهذا صحيح لنبضة أقصر من فترة أخذ العيّنة.
+          لكنّ نفس القياس — مستوى لا يدوم إلّا عيّنة واحدة — يعني أيضاً أنّ العدّات قد
+          تكون <strong>مرتفعة</strong>، لأنّ رجفة الارتداد تُؤخَذ كنبضات مستقلّة.
+        </p>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>العدّاد</th><th>ماكينة · الدور</th><th class="n">أقصر مستوى</th><th class="n">عدد التحذيرات</th></tr></thead>
+            <tbody>
+              <tr class="hi"><td class="n">ddc263be</td><td>M1 · GOOD</td><td class="n bad">27 ms — عيّنة واحدة</td><td class="n">199</td></tr>
+              <tr><td class="n">0a3ca104</td><td>M1 · TOTAL</td><td class="n bad">27 ms — عيّنة واحدة</td><td class="n">125</td></tr>
+              <tr><td class="n">f225bad8</td><td>M2 · TOTAL</td><td class="n bad">32 ms — عيّنة واحدة</td><td class="n">150</td></tr>
+              <tr><td class="n">2533bef7</td><td>M2 · GOOD</td><td class="n bad">28 ms — عيّنة واحدة</td><td class="n">108</td></tr>
+              <tr><td class="n">ae9ce257</td><td>M4 · GOOD</td><td class="n">64 ms — عيّنتان</td><td class="n">1</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          والمصنع قاس بيده يوم <span class="mono" dir="ltr">23 Aug</span> أنّ نبضة المنتج
+          الحقيقية على هذا الخط تدوم <span class="mono" dir="ltr">607 ms</span> على أحد
+          المداخل. فمستوى يدوم <span class="mono" dir="ltr">27 ms</span> على نفس النوع من
+          الإشارة <strong>ليس منتجاً</strong> — هو رجفة.
+        </p>
+        <div class="note alarm">
+          <strong>ولهذا تناقض شعورك مع تحذير النظام.</strong> الاثنان يحدثان معاً على نفس
+          الجهاز في نفس اليوم: <span class="mono" dir="ltr">M1</span> يعدّ زيادة
+          (<span class="mono" dir="ltr">1.53×</span>) و<span class="mono" dir="ltr">M2</span>
+          يعدّ نقصاً (<span class="mono" dir="ltr">0.83×</span>).
+        </div>
+      </div>
+    </article>
+
+    <!-- F4 -->
+    <article class="find">
+      <div class="find-head">
+        <span class="find-id">F4</span>
+        <span class="find-title">السليم أكبر من الإجمالي — وهذا مستحيل</span>
+        <span class="chip proved">مُثبَت من قاعدة البيانات</span>
+      </div>
+      <div class="find-body">
+        <p>
+          عدّادا <span class="mono" dir="ltr">M1</span> على نفس أمر التشغيل
+          (<span class="mono" dir="ltr">9ba23450…</span>):
+        </p>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>العدّاد</th><th>الدور</th><th class="n">الحافّة</th><th class="n">العنوان</th><th class="n">المُراكَم</th></tr></thead>
+            <tbody>
+              <tr><td class="n">EDGECOUNTER01_DI1</td><td>GOOD</td><td class="n">RISING</td><td class="n">1</td><td class="n bad">425</td></tr>
+              <tr><td class="n">EDGECOUNTER01_DI0_M01</td><td>TOTAL</td><td class="n">RISING</td><td class="n">0</td><td class="n">361</td></tr>
+              <tr class="hi"><td colspan="4">المرفوض المشتقّ = الإجمالي − السليم</td><td class="n bad">−64</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          الكود ينصّ: <em>«‎TOTAL edge → bad is derived: rejected = total − good»</em>.
+          فناتج اليوم رفضٌ سالب. السليم لا يمكن أن يتجاوز الإجمالي، والمدخلان يخطئان
+          كلٌّ على حدة وبمقدار مختلف.
+        </p>
+      </div>
+    </article>
+
+    <!-- F5 -->
+    <article class="find">
+      <div class="find-head">
+        <span class="find-id">F5</span>
+        <span class="find-title">أخذ العيّنات يعمل فوق طاقته طوال اليوم</span>
+        <span class="chip proved">مُثبَت من السجلّ</span>
+      </div>
+      <div class="find-body">
+        <p>
+          الجهازان مضبوطان على <span class="mono" dir="ltr">20 ms</span>، ورحلة المودباس
+          وحدها تستغرق <span class="mono" dir="ltr">21–69 ms</span> عادةً. فالفترة الفعليّة
+          هي زمن الرحلة، لا الإعداد. وسجّل الإيدج قفزات حادّة:
+        </p>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th class="n">الوقت</th><th>الجهاز</th><th class="n">زمن الرحلة</th><th>ما يعنيه</th></tr></thead>
+            <tbody>
+              <tr class="hi"><td class="n">11:27:28</td><td>EDGECOUNTER01</td><td class="n bad">1423 ms</td><td>‎~1 قطعة تمرّ دون أن يُنظر إليها</td></tr>
+              <tr class="hi"><td class="n">11:51:48</td><td>EDGECOUNTER01</td><td class="n bad">1395 ms</td><td>المثل</td></tr>
+              <tr><td class="n">11:55:40</td><td>EDGE_COUNTER_M03</td><td class="n bad">879 ms</td><td>نصف ثانية عمياء</td></tr>
+              <tr><td class="n">11:55:06</td><td>EDGECOUNTER01</td><td class="n">233 ms</td><td>‎~9 عيّنات ضائعة</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          ملاحظة إعداد: الكود يمنح أجهزة العدّ الجديدة
+          <span class="mono" dir="ltr">100 ms</span> افتراضياً
+          (<span class="mono" dir="ltr">local-api.controller.ts:328</span>)، وهذان مضبوطان
+          على <span class="mono" dir="ltr">20 ms</span> — رقمٌ لا يمكن بلوغه ولا يفيد،
+          لأنّ السقف هو زمن الرحلة.
+        </div>
+      </div>
+    </article>
+
+    <!-- F6 -->
+    <article class="find">
+      <div class="find-head">
+        <span class="find-id">F6</span>
+        <span class="find-title">أسماء وعناوين وحوافّ غير متطابقة</span>
+        <span class="chip likely">نظافة إعداد — تُربك التشخيص</span>
+      </div>
+      <div class="find-body">
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>الوسم</th><th>ماكينة · الدور</th><th class="n">العنوان الفعلي</th><th class="n">الحافّة</th></tr></thead>
+            <tbody>
+              <tr class="hi"><td class="n">EDGE_COUNTER_M02_DI0</td><td>M2 · TOTAL</td><td class="n bad">1 — لا 0</td><td class="n bad">FALLING</td></tr>
+              <tr class="hi"><td class="n">EDGE_COUNTER_M02_DI1</td><td>M2 · GOOD</td><td class="n bad">0 — لا 1</td><td class="n">RISING</td></tr>
+              <tr class="hi"><td class="n">EDGE_COUNTER_M03_DI3</td><td>M3 · GOOD</td><td class="n bad">2 — لا 3</td><td class="n bad">FALLING</td></tr>
+              <tr><td class="n">EDGE_COUNTER_M04_DI3</td><td>M4 · GOOD</td><td class="n">3</td><td class="n">RISING</td></tr>
+              <tr><td class="n">EDGECOUNTER01_DI0_M01</td><td>M1 · TOTAL</td><td class="n">0</td><td class="n">RISING</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          الاسم يقول شيئاً والعنوان يقول آخر في ثلاثة أوسمة. وأخطر منه:
+          <strong>عدّادا M2 يستعملان حافّتين متعاكستين</strong> — الإجمالي على الهابطة
+          والسليم على الصاعدة. فهما يستجيبان للارتدادة نفسها بشكل مختلف، وهذا جزء من
+          سبب اختلافهما.
+        </p>
+      </div>
+    </article>
+
+    <!-- F7 -->
+    <article class="find">
+      <div class="find-head">
+        <span class="find-id">F7</span>
+        <span class="find-title">عدّاد الطاقة كان ميّتاً ساعتين</span>
+        <span class="chip info">انتهى ذاتياً</span>
+      </div>
+      <div class="find-body">
+        <p>
+          <span class="mono" dir="ltr">pm5110M05</span> على المنفذ التسلسلي
+          <span class="mono" dir="ltr">COM2</span> سجّل
+          <span class="mono" dir="ltr">33,632</span> مهلة قراءة بين
+          <span class="mono" dir="ltr">06:09</span> و<span class="mono" dir="ltr">08:00</span>
+          محليّاً — ‎2,102‎ لكلّ وسم من أوسمته الستّة عشر. ثمّ تعافى، ويقرأ
+          <span class="mono" dir="ltr">GOOD</span> منذ ذلك الحين.
+        </p>
+        <div class="note">
+          للمقارنة: جهازا العدّ سجّلا <strong>18 مهلة فقط</strong> في اليوم كلّه. مشكلة
+          العدّ ليست مشكلة اتّصال — الشبكة سليمة، والإشارة هي التي تُقرأ خطأ.
+        </div>
+      </div>
+    </article>
+
+    <!-- F8 -->
+    <article class="find">
+      <div class="find-head">
+        <span class="find-id">F8</span>
+        <span class="find-title">تحويل الوحدات ليس هو الخلل — لكنّه يشبهه على الشاشة</span>
+        <span class="chip fixed">سليم بالتصميم</span>
+      </div>
+      <div class="find-body">
+        <p>
+          كلّ قيم <span class="mono" dir="ltr">M2</span> الدقيقية من مضاعفات ‎4‎، وكلّ قيم
+          <span class="mono" dir="ltr">M3</span> و<span class="mono" dir="ltr">M4</span> من
+          مضاعفات ‎160‎. هذا ليس عدّاً مضاعفاً — هو ردّ الوحدة إلى القطعة الأساسية:
+          كرتونة = ‎4‎ أكياس، وبالتة = ‎40‎ كرتونة = ‎160‎ كيساً.
+        </p>
+        <p>
+          ذكرته هنا لأنّه <strong>يبدو</strong> كعدّ مضاعف لمن ينظر إلى الشاشة، ولئلّا
+          يختلط بالخلل الحقيقي. الدليل على أنّه سليم أنّ سرعة التصميم للماكينات الأربع
+          تخرج <span class="mono" dir="ltr">2700</span> قطعة/ساعة بعد التحويل — أي أنّ الخطّ
+          متوازن كما صُمّم.
+        </p>
+      </div>
+    </article>
+
+    <!-- F9 -->
+    <article class="find">
+      <div class="find-head">
+        <span class="find-id">F9</span>
+        <span class="find-title">العدّ يحتجز ثمّ يفرّغ دفعةً واحدة</span>
+        <span class="chip proved">من فرضيّتك — ومُثبَت</span>
+      </div>
+      <div class="find-body">
+        <p>هذا هو العطل الذي قادت إليه فرضيّتك. مسار التفريغ فيه سطر واحد يقرّر كلّ شيء:</p>
+        <p class="mono" dir="ltr" style="font-size:12.5px;background:var(--sunk);border:1px solid var(--line-soft);border-radius:6px;padding:12px 14px;color:var(--ink)">
+          if (!c.joId || !c.running) continue;
+        </p>
+        <p>
+          لا أمرَ تشغيل، أو الماكينة ليست <span class="mono" dir="ltr">RUNNING</span> &#8594;
+          يتخطّى. لا يكتب شيئاً، و<strong>لا يقدّم مؤشّر ما تمّت مزامنته</strong>. لكنّ
+          <span class="mono" dir="ltr">observe()</span> يظلّ يعدّ بلا شرط. فالحاصل يتراكم
+          محتجزاً، وعند أوّل دقيقة يجتمع فيها الشرطان يُفرَّغ <em>كلّه</em> في دقيقة واحدة.
+        </p>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th class="n">الدقيقة</th><th>ماكينة</th><th class="n">مسجَّل</th><th class="n">الحدّ</th><th>الحالة المسجّلة</th></tr></thead>
+            <tbody>
+              <tr class="hi"><td class="n">12:57</td><td>M1</td><td class="n bad">286</td><td class="n">45</td><td>RUNNING — أوّل دقيقة بعد بدء WO-0004</td></tr>
+              <tr class="hi"><td class="n">12:57</td><td>M2</td><td class="n bad">280</td><td class="n">45</td><td>RUNNING — الثانية نفسها</td></tr>
+              <tr><td class="n">08:08</td><td>M2</td><td class="n bad">490</td><td class="n">45</td><td class="bad">BREAKDOWN</td></tr>
+              <tr><td class="n">08:10</td><td>M3</td><td class="n bad">937</td><td class="n">45</td><td>RUNNING</td></tr>
+              <tr><td class="n">08:00</td><td>M4</td><td class="n bad">320</td><td class="n">45</td><td class="bad">STARVED</td></tr>
+              <tr><td class="n">07:54</td><td>M1</td><td class="n bad">150</td><td class="n">45</td><td class="bad">BLOCKED</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          وهذا يفسّر ما بدا مستحيلاً: <strong>إنتاجٌ مسجَّل وماكينةٌ متعطّلة أو جائعة</strong>.
+          الدفعة تهبط في الدقيقة التي يختمها كاتب الدقائق وقتها، لا في الدقيقة التي وقعت
+          فيها النبضات. ونصيب كلّ ماكينة من ذلك:
+        </p>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>ماكينة</th><th class="n">إجمالي اليوم</th><th class="n">سُجّل والماكينة واقفة</th><th class="n">النسبة</th></tr></thead>
+            <tbody>
+              <tr><td>M1</td><td class="n">5,675</td><td class="n">436</td><td class="n">7.8٪</td></tr>
+              <tr><td>M2</td><td class="n">4,836</td><td class="n">722</td><td class="n">14.9٪</td></tr>
+              <tr><td>M3</td><td class="n">6,880</td><td class="n ok">0</td><td class="n ok">0٪</td></tr>
+              <tr class="hi"><td>M4</td><td class="n">1,120</td><td class="n bad">960</td><td class="n bad">85.7٪</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          <strong>هذا عطل توقيت ونسبة، لا عطل كمّية.</strong> الدفعة تنقل العدّات بين
+          الدقائق ولا تخلقها — فهي تفسّر القفزات (‎286‎، ‎490‎، ‎937‎) وتفسّر «إنتاجاً أثناء
+          العطل»، لكنّها <em>لا</em> تفسّر أن يُغلَق أمرٌ على ‎126٪‎ من كمّيته. الزيادة في
+          الإجمالي تبقى على حساب <span class="mono" dir="ltr">F1–F3</span>.
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- ══ The day ══════════════════════════════════════════════════════ -->
+  <section id="day">
+    <div class="section-head">
+      <div class="eyebrow">The day itself</div>
+      <h2>ماذا جرى على الخطّ</h2>
+    </div>
+
+    <div class="card">
+      <h3>أوامر التشغيل</h3>
+      <div class="tscroll">
+        <table>
+          <thead><tr><th>الأمر · الماكينة</th><th class="n">مخطّط</th><th class="n">مُسجَّل</th><th class="n">النسبة</th><th>الحالة</th></tr></thead>
+          <tbody>
+            <tr class="hi"><td>WO-2026-0003 · M1</td><td class="n">3,520</td><td class="n">4,443</td><td class="n bad">126٪</td><td>COMPLETE</td></tr>
+            <tr class="hi"><td>WO-2026-0003 · M2</td><td class="n">880</td><td class="n">1,127</td><td class="n bad">128٪</td><td>COMPLETE</td></tr>
+            <tr class="hi"><td>WO-2026-0003 · M3</td><td class="n">22</td><td class="n">41</td><td class="n bad">186٪</td><td>COMPLETE</td></tr>
+            <tr><td>WO-2026-0003 · M4</td><td class="n">22</td><td class="n">10</td><td class="n">45٪</td><td>COMPLETE</td></tr>
+            <tr><td>WO-2026-0004 · M1</td><td class="n">8,000</td><td class="n">434</td><td class="n">5٪</td><td>PAUSED</td></tr>
+            <tr><td>WO-2026-0004 · M2</td><td class="n">2,000</td><td class="n">85</td><td class="n">4٪</td><td>PAUSED</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        <strong>الإفراط في الإنتاج هو بالضبط ما ينتجه عدّاد يزيد.</strong> الأمر «يكتمل»
+        قبل أن تُصنَع الكمّية فعلاً، فيقفل النظام أمراً لم يُستوفَ. ‎M3‎ سجّل ‎41‎ بالتة
+        بينما نسبة الخطّ من إنتاج ‎M2‎ تقول ‎~28‎.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>حالات الماكينات — دقائق اليوم</h3>
+      <div class="tscroll">
+        <table>
+          <thead><tr><th>ماكينة</th><th class="n">تشغيل</th><th class="n">عطل</th><th class="n">انتظار مادّة</th><th class="n">محجوز المخرج</th><th class="n">خامل</th><th class="n">نوبات عطل</th></tr></thead>
+          <tbody>
+            <tr><td>M1 — Big Betti</td><td class="n">139</td><td class="n bad">190</td><td class="n">—</td><td class="n">127</td><td class="n">937</td><td class="n">39</td></tr>
+            <tr><td>M2 — Cartomac</td><td class="n">237</td><td class="n bad">141</td><td class="n">684</td><td class="n">1</td><td class="n">329</td><td class="n bad">64</td></tr>
+            <tr><td>M3 — Euro-Pack</td><td class="n ok">534</td><td class="n">1</td><td class="n">526</td><td class="n">—</td><td class="n">331</td><td class="n">9</td></tr>
+            <tr><td>M4 — Uni-Tech</td><td class="n">29</td><td class="n">11</td><td class="n bad">1,001</td><td class="n">—</td><td class="n">351</td><td class="n">13</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        ‎M4‎ انتظر المادّة <span class="mono" dir="ltr">1,001</span> دقيقة — الخطّ كان
+        جائعاً من أعلاه طوال اليوم تقريباً. و‎M2‎ سجّل ‎64‎ نوبة عطل منفصلة، أي عطلاً كلّ
+        ‎‎~‎2.2‎ دقيقة من تشغيله: هذا نمط تقطّع، لا عطل واحد.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ Fixes ════════════════════════════════════════════════════════ -->
+  <section id="fixes">
+    <div class="section-head">
+      <div class="eyebrow">What to do · ranked</div>
+      <h2>الإصلاحات، مرتّبة بالأثر</h2>
+    </div>
+
+    <div class="fixes">
+      <div class="fix">
+        <div class="fix-head"><span class="fix-num">01</span><span class="fix-title">أثبت السبب في عشر دقائق قبل تغيير أيّ كود</span></div>
+        <p>
+          ارفع <span class="mono" dir="ltr">pollIntervalMs</span> لجهاز
+          <span class="mono" dir="ltr">EDGECOUNTER01</span> من ‎20‎ إلى ‎200‎، وشغّل ‎M1‎ عشر
+          دقائق. لو كان السبب ارتداداً، <strong>ينخفض العدّ</strong> نحو ‎45‎/دقيقة لأنّ
+          العيّنات الأبطأ لا تلتقط الرجفة. ولو كان العدّ يرتفع أو يثبت، فالسبب غيره
+          وأخبرني.
+        </p>
+        <p class="where">تغيير إعداد فقط · قابل للتراجع فوراً</p>
+      </div>
+
+      <div class="fix">
+        <div class="fix-head"><span class="fix-num">02</span><span class="fix-title">أضِف حدّاً أدنى للفاصل بين عدّتين</span></div>
+        <p>
+          فلتر واحد يحلّ الارتداد كلّه: تجاهل أيّ حافّة تصل قبل مضيّ
+          <span class="mono" dir="ltr">N</span> مللي ثانية من سابقتها. القيمة الآمنة تُشتقّ
+          من الفيزياء لا من التخمين — عند ‎45‎ قطعة/دقيقة، أسرع فاصل حقيقي
+          <span class="mono" dir="ltr">1333 ms</span>، فحدّ ‎200 ms‎ يقتل كلّ رجفة ولا يمسّ
+          منتجاً واحداً. المكان موجود بالفعل: <span class="mono" dir="ltr">EdgeCounter.debounceMs</span>.
+        </p>
+        <p class="where">counter.service.ts:298 · rising-edge-counter.ts:66</p>
+      </div>
+
+      <div class="fix">
+        <div class="fix-head"><span class="fix-num">03</span><span class="fix-title">اجعل التحذير يذكر الاحتمالين</span></div>
+        <p>
+          نصّه اليوم يقول «العدّات ستكون منخفضة» فقط. ونفس القياس يعني أنّها قد تكون
+          مرتفعة. تحذيرٌ يسمّي عطلاً واحداً من اثنين يوجّه المصنع إلى الاتّجاه الخطأ —
+          وهو ما حدث بالضبط: أنت رأيت الزيادة والنظام كان يقول نقصاً.
+        </p>
+        <p class="where">counter.service.ts:462</p>
+      </div>
+
+      <div class="fix">
+        <div class="fix-head"><span class="fix-num">04</span><span class="fix-title">أنذِر عند تجاوز الحدّ الفيزيائي</span></div>
+        <p>
+          دقيقةٌ تُسجَّل فيها قطعٌ أكثر ممّا تسمح به دورة الماكينة هي <em>برهان</em> على
+          خلل قياس، لا مجرّد اشتباه. لا يحتاج النظام إلى ذكاء ليكشفها: عنده
+          <span class="mono" dir="ltr">designSpeedPph</span> في كلّ صف دقيقة. اليوم مرّت
+          ‎60‎ دقيقة كهذه بلا كلمة واحدة.
+        </p>
+        <p class="where">oee-standard.writer.ts · على كتابة كلّ دقيقة</p>
+      </div>
+
+      <div class="fix">
+        <div class="fix-head"><span class="fix-num">05</span><span class="fix-title">أنذِر عند «السليم أكبر من الإجمالي»</span></div>
+        <p>
+          مستحيلٌ حسابياً وسهل الكشف. حالياً ينتج رفضاً سالباً يمرّ صامتاً إلى تقارير
+          الجودة — <span class="mono" dir="ltr">F4</span>.
+        </p>
+        <p class="where">counter.service.ts · عند اشتقاق rejected</p>
+      </div>
+
+      <div class="fix">
+        <div class="fix-head"><span class="fix-num">06</span><span class="fix-title">اختم الدفعة بزمنها، لا بزمن تفريغها</span></div>
+        <p>
+          عطل <span class="mono" dir="ltr">F9</span>. حلّان، والثاني أصحّ: إمّا أن يفرّغ
+          العدّاد ما تراكم <em>قبل</em> أن يقف الشرط بدل أن يحتجزه، وإمّا أن يحمل كلّ
+          تراكم زمنَ أوّل نبضة فيه فتهبط الدفعة في دقيقتها الحقيقية. الأوّل يمنع القفزة،
+          والثاني يمنعها ويصحّح النسبة الزمنية معاً.
+        </p>
+        <p class="where">counter.service.ts:565 — <span dir="ltr">if (!c.joId || !c.running) continue;</span></p>
+      </div>
+
+      <div class="fix">
+        <div class="fix-head"><span class="fix-num">07</span><span class="fix-title">صحّح الأسماء والعناوين ووحّد الحوافّ</span></div>
+        <p>
+          ثلاثة أوسمة اسمها لا يطابق عنوانها، وماكينتان تستعملان حافّتين متعاكستين
+          لعدّاديهما. لا يغيّر هذا رقماً بذاته، لكنّه يجعل كلّ تشخيص لاحق أبطأ ويخفي
+          الخطأ التالي. وحّد الحافّة لكلّ ماكينة، أو اكتب في الوسم <em>لماذا</em> اختلفت.
+        </p>
+        <p class="where">tag_definitions · إعداد</p>
+      </div>
+    </div>
+
+    <div class="note alarm">
+      <strong>حتى يُصلَح العدّ، أرقام الإنتاج والجودة والأداء لهذا اليوم غير صالحة للاعتماد.</strong>
+      الإتاحية وحالات الماكينات سليمة — مصدرها إشارات الحالة لا العدّادات. أمّا
+      <span class="mono" dir="ltr">Performance</span> و<span class="mono" dir="ltr">Quality</span>
+      و<span class="mono" dir="ltr">OEE</span> فمبنيّة على عدّ نعرف الآن أنّه يزيد على ‎M1‎
+      وينقص على ‎M2‎.
+    </div>
+  </section>
+
+  <footer>
+    <div>
+      كلّ رقم هنا مقيس: من <span class="mono" dir="ltr">edge log/out.log</span> و
+      <span class="mono" dir="ltr">modbus-error.log</span> ليوم ‎25 أغسطس‎، ومن قاعدة
+      البيانات المستعادة من الهوستنجر على الدوكر المحلّي.
+    </div>
+    <div class="mono" dir="ltr" style="font-size:11.5px">
+      docs/html/Edge-Day-Report-2026-08-25-AR.html · generated 26 Aug 2026
+    </div>
+  </footer>
+</div>

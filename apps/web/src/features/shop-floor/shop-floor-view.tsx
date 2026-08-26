@@ -416,8 +416,10 @@ function ShopFloorCard({
         const gd = parseInt(addGood, 10) || 0;
         const sd = parseInt(addScrap, 10) || 0;
         // In 'set' mode the inputs are the ABSOLUTE totals; in 'add' they are deltas.
-        const newGood = isSet ? gd : jo.actualQtyGood + gd;
-        const newRejected = isSet ? sd : jo.actualQtyRejected + sd;
+        // Floored the same way the server floors them, so the preview cannot
+        // promise a total the save will not produce.
+        const newGood = Math.max(0, isSet ? gd : jo.actualQtyGood + gd);
+        const newRejected = Math.max(0, isSet ? sd : jo.actualQtyRejected + sd);
         const newTotal = newGood + newRejected;
         const newQuality = newTotal > 0 ? (newGood / newTotal) * 100 : 100;
         const nothing = isSet ? (addGood === '' && addScrap === '') : (gd === 0 && sd === 0 && !showHandover);
@@ -463,8 +465,10 @@ function ShopFloorCard({
                 <label className="text-xs font-semibold text-green-400 flex items-center gap-1">
                   <Check className="w-3.5 h-3.5" />{isSet ? t('sfv.goodTotal', { defaultValue: 'Good (total)' }) : t('sfv.addGood')}
                 </label>
+                {/* A total is floored at zero; a delta may be negative, which is
+                    how a mis-entered count is taken back. */}
                 <input
-                  type="number" inputMode="numeric" min={0}
+                  type="number" inputMode="numeric" min={isSet ? 0 : undefined}
                   value={addGood}
                   onChange={(e) => setAddGood(e.target.value)}
                   placeholder="+0"
@@ -477,7 +481,7 @@ function ShopFloorCard({
                   <X className="w-3.5 h-3.5" />{isSet ? t('sfv.rejectTotal', { defaultValue: 'Rejected (total)' }) : t('sfv.addBadScrap')}
                 </label>
                 <input
-                  type="number" inputMode="numeric" min={0}
+                  type="number" inputMode="numeric" min={isSet ? 0 : undefined}
                   value={addScrap}
                   onChange={(e) => setAddScrap(e.target.value)}
                   placeholder="+0"

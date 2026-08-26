@@ -287,7 +287,7 @@ export class OeeStandardWriter {
       at,
     );
 
-    return {
+    const row = {
       bucketStart,
       isFinalized: false,
       factoryId: jo.factoryId,
@@ -305,5 +305,54 @@ export class OeeStandardWriter {
       goodParts, rejectedParts, theoreticalParts,
       designSpeedPph: designSpeed,
     };
+
+    // ── The impossible minute ───────────────────────────────────────────────
+    // A machine cannot beat its own mechanical cycle. A minute holding more
+    // parts than the cycle allows is not a fast minute — it is PROOF that the
+    // count is wrong, and it needs no judgement to detect: the design speed is
+    // already in this row.
+    //
+    // On 25 Aug 2026 sixty such minutes were written for M1 alone — an average
+    // of 68.8 against a ceiling of 45 — and nothing anywhere said a word. The
+    // plant found it by eye, days later.
+    //
+    // A warning, not a rejection: the measurement is kept exactly as taken. The
+    // engine's job is to say that it cannot be true, not to decide what was.
+    this.flagImpossibleMinute(row, jo.machineId);
+    return row;
+  }
+
+  /**
+   * Say so when a minute holds more than the machine could have made.
+   *
+   * Throttled per machine, because a miscounting sensor produces one of these
+   * every minute and an unthrottled log would bury the fault it is reporting.
+   */
+  private readonly impossibleAt = new Map<string, number>();
+
+  private flagImpossibleMinute(
+    row: { goodParts: number; rejectedParts: number; operatingMin: number; designSpeedPph: number | null },
+    machineId: string,
+  ): void {
+    const design = row.designSpeedPph;
+    if (!design || design <= 0 || row.operatingMin <= 0) return;
+
+    // The ceiling for the time the machine was ACTUALLY operating, not for a
+    // whole minute — half a minute of running can only make half a minute's
+    // worth, and holding it to the full figure would miss the clearest cases.
+    const ceiling = (design / 60) * row.operatingMin;
+    const counted = row.goodParts + row.rejectedParts;
+    // A tenth over is arithmetic at the minute boundary; half again over is not.
+    if (counted <= ceiling * 1.1) return;
+
+    const now = Date.now();
+    if (now - (this.impossibleAt.get(machineId) ?? 0) < 10 * 60_000) return;
+    this.impossibleAt.set(machineId, now);
+    this.logger.warn(
+      `machine ${machineId}: minute counted ${counted} parts against a ceiling of `
+      + `${ceiling.toFixed(1)} (design ${design}/h over ${row.operatingMin.toFixed(2)} operating min) `
+      + '— the machine cannot beat its own cycle, so this count is wrong. '
+      + 'Check the counter for contact ring before reading any OEE figure from it.',
+    );
   }
 }

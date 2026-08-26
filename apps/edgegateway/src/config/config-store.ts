@@ -18,6 +18,15 @@ export interface StoredConfig {
   influxBucket?: string;
   mesPlatformUrl?: string;
   defaultPollIntervalMs?: number;
+  /**
+   * Per-machine counting limits, keyed by machine id.
+   *
+   * Lives in the gateway's own config rather than the database on purpose: a
+   * plant tuning a tolerance mid-shift must not need the platform to be
+   * reachable, and these govern what the gateway is willing to REPORT — which
+   * is the gateway's own business.
+   */
+  machineLimits?: Record<string, { debounceMs?: number; tolerancePerMin?: number | null }>;
 }
 
 export function configPath(): string {

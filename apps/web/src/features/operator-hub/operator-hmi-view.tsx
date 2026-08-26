@@ -318,15 +318,29 @@ function CountDialog({ jo, onClose, onSubmit, pending }: {
           <div className="text-[11px] text-amber-400 mb-2">Current: {jo.actualQtyGood ?? 0} good · {jo.actualQtyRejected ?? 0} rejected — edit to the correct totals.</div>
         )}
 
+        {mode === 'add' && (
+          <div className="text-[11px] text-muted-foreground mb-2">
+            Enter a negative number to take a count back &mdash; e.g. <span className="font-mono">-150</span> in
+            Rejected undoes 150 entered by mistake.
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-emerald-400">{mode === 'set' ? 'Accepted (total)' : 'Accepted (+)'}</span>
-            <input type="number" inputMode="numeric" min={0} value={good} onChange={(e) => setGood(e.target.value)}
+            <span className="text-xs font-medium text-emerald-400">{mode === 'set' ? 'Accepted (total)' : 'Accepted (±)'}</span>
+            {/*
+              A TOTAL cannot be negative, but a DELTA can — that is how a count
+              entered by mistake is taken back. Before this the only way to undo
+              an operator's slip was to edit the database by hand.
+            */}
+            <input type="number" inputMode="numeric" min={mode === 'set' ? 0 : undefined}
+              value={good} onChange={(e) => setGood(e.target.value)}
               className="h-12 text-lg text-center rounded-xl bg-emerald-500/5 border border-emerald-500/25 focus:outline-none focus:border-emerald-400" autoFocus />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-red-400">{mode === 'set' ? 'Rejected (total)' : 'Rejected (+)'}</span>
-            <input type="number" inputMode="numeric" min={0} value={scrap} onChange={(e) => setScrap(e.target.value)}
+            <span className="text-xs font-medium text-red-400">{mode === 'set' ? 'Rejected (total)' : 'Rejected (±)'}</span>
+            <input type="number" inputMode="numeric" min={mode === 'set' ? 0 : undefined}
+              value={scrap} onChange={(e) => setScrap(e.target.value)}
               className="h-12 text-lg text-center rounded-xl bg-red-500/5 border border-red-500/25 focus:outline-none focus:border-red-400" />
           </label>
         </div>

@@ -1,0 +1,865 @@
+<title>دلو لكل دقيقة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&family=Roboto+Mono:wght@400;500;700&display=swap">
+
+<style>
+  /* ── Tokens · light is the base set ──────────────────────────────────── */
+  :root {
+    --ground:      #f5f4f8;
+    --surface:     #ffffff;
+    --sunk:        #eceaf3;
+    --line:        #dcd9e6;
+    --line-soft:   #e8e5ef;
+
+    --ink:         #16141f;
+    --ink-2:       #454059;
+    --ink-3:       #6f6987;
+
+    --accent:      #4f46b8;
+    --accent-ink:  #3d359a;
+    --accent-wash: #eceaf9;
+
+    --todo:        #6f6987;
+    --now:         #9a6410;
+    --done:        #1a6b45;
+    --block:       #a32c3c;
+    --hold:        #5a6472;
+
+    --shadow: 0 1px 2px rgba(22,20,31,.05), 0 10px 26px -14px rgba(22,20,31,.2);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0f0e16;
+      --surface:     #17151f;
+      --sunk:        #121019;
+      --line:        #2b2739;
+      --line-soft:   #211e2d;
+
+      --ink:         #eae7f2;
+      --ink-2:       #b0aac2;
+      --ink-3:       #837d97;
+
+      --accent:      #9088f0;
+      --accent-ink:  #b4aeff;
+      --accent-wash: #1e1a35;
+
+      --todo:        #837d97;
+      --now:         #d9a441;
+      --done:        #4fbc86;
+      --block:       #ef8291;
+      --hold:        #7b8595;
+
+      --shadow: 0 1px 2px rgba(0,0,0,.45), 0 12px 32px -16px rgba(0,0,0,.75);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0f0e16;
+    --surface:     #17151f;
+    --sunk:        #121019;
+    --line:        #2b2739;
+    --line-soft:   #211e2d;
+
+    --ink:         #eae7f2;
+    --ink-2:       #b0aac2;
+    --ink-3:       #837d97;
+
+    --accent:      #9088f0;
+    --accent-ink:  #b4aeff;
+    --accent-wash: #1e1a35;
+
+    --todo:        #837d97;
+    --now:         #d9a441;
+    --done:        #4fbc86;
+    --block:       #ef8291;
+    --hold:        #7b8595;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 12px 32px -16px rgba(0,0,0,.75);
+  }
+
+  /* ── Base ────────────────────────────────────────────────────────────── */
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Tajawal", "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+    direction: rtl;
+  }
+
+  .wrap {
+    max-width: 1040px; margin: 0 auto; padding: 0 24px 96px;
+    display: flex; flex-direction: column; gap: 40px;
+  }
+
+  h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 700; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(28px, 4.2vw, 42px); line-height: 1.3; }
+  h2 { font-size: clamp(19px, 2.4vw, 24px); line-height: 1.4; }
+  h3 { font-size: 16px; font-weight: 500; }
+  p  { margin: 0; }
+
+  .mono, .id, .where { font-family: "Roboto Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  code {
+    font-family: "Roboto Mono", monospace; font-size: .84em;
+    background: var(--sunk); border: 1px solid var(--line-soft); border-radius: 4px;
+    padding: .1em .4em; direction: ltr; unicode-bidi: embed; display: inline-block;
+  }
+
+  .eyebrow {
+    font-family: "Roboto Mono", monospace; font-size: 11px; font-weight: 500;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3);
+    direction: ltr; text-align: right;
+  }
+
+  a { color: var(--accent-ink); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+  /* ── Masthead ────────────────────────────────────────────────────────── */
+  .masthead {
+    padding: 56px 0 30px; border-bottom: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .masthead .lede { font-size: 18px; color: var(--ink-2); max-width: 62ch; }
+  .stamp {
+    display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: flex-end;
+    font-family: "Roboto Mono", monospace; font-size: 11.5px; color: var(--ink-3); direction: ltr;
+  }
+
+  /* ── Keystone ────────────────────────────────────────────────────────── */
+  .keystone {
+    background: var(--surface); border: 2px solid var(--accent); border-radius: 12px;
+    padding: 26px 28px; display: flex; flex-direction: column; gap: 16px;
+  }
+  .keystone .k-label {
+    font-family: "Roboto Mono", monospace; font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--accent-ink); direction: ltr; text-align: right;
+  }
+  .keystone .k-claim { font-size: 20px; font-weight: 700; line-height: 1.6; }
+  .keystone p { color: var(--ink-2); max-width: 66ch; }
+
+  .flow {
+    direction: ltr; background: var(--sunk); border: 1px solid var(--line-soft);
+    border-radius: 9px; padding: 16px 18px; overflow-x: auto;
+    font-family: "Roboto Mono", monospace; font-size: 12.5px; line-height: 2;
+    color: var(--ink-2); white-space: pre;
+  }
+  .flow b { color: var(--ink); font-weight: 700; }
+  .flow i { color: var(--block); font-style: normal; }
+  .flow u { color: var(--done); text-decoration: none; }
+
+  /* ── Sections & groups ───────────────────────────────────────────────── */
+  section { display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 20px; }
+  .section-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .section-head .count {
+    font-family: "Roboto Mono", monospace; font-size: 12px; color: var(--ink-3);
+    direction: ltr; margin-inline-start: auto;
+  }
+  .lead { color: var(--ink-2); max-width: 66ch; font-size: 15px; }
+
+  /* ── Item rows ───────────────────────────────────────────────────────── */
+  .items { display: flex; flex-direction: column; gap: 8px; }
+
+  .item {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 9px;
+    box-shadow: var(--shadow); display: grid;
+    grid-template-columns: 26px 58px 1fr; gap: 0 14px;
+    padding: 14px 18px; align-items: start;
+    transition: opacity .15s;
+  }
+  .item.ticked { opacity: .48; }
+  .item.ticked .i-title { text-decoration: line-through; text-decoration-thickness: 1px; }
+
+  .tick {
+    appearance: none; -webkit-appearance: none;
+    width: 20px; height: 20px; margin-top: 4px;
+    border: 1.5px solid var(--line); border-radius: 5px; background: var(--sunk);
+    cursor: pointer; position: relative; flex-shrink: 0;
+  }
+  .tick:checked { background: var(--accent); border-color: var(--accent); }
+  .tick:checked::after {
+    content: ""; position: absolute; inset: 0;
+    background: no-repeat center/12px url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3 8.5l3.2 3.2L13 5' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  }
+
+  .id {
+    font-size: 12.5px; font-weight: 700; color: var(--accent-ink);
+    direction: ltr; text-align: right; padding-top: 6px;
+  }
+
+  .i-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .i-title { font-size: 16px; font-weight: 500; line-height: 1.55; }
+  .i-why { font-size: 14px; color: var(--ink-2); line-height: 1.7; }
+  .i-meta {
+    display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+    font-size: 11.5px; color: var(--ink-3); margin-top: 2px;
+  }
+  .where { direction: ltr; unicode-bidi: embed; }
+
+  .tag {
+    font-family: "Roboto Mono", monospace; font-size: 10px; font-weight: 700;
+    letter-spacing: .07em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap;
+  }
+  .t-high  { color: var(--block); }
+  .t-mid   { color: var(--now); }
+  .t-low   { color: var(--todo); }
+  .t-hold  { color: var(--hold); }
+  .t-data  { color: var(--done); }
+  .t-dep   { color: var(--accent-ink); border-style: dashed; }
+
+  /* ── Waves ───────────────────────────────────────────────────────────── */
+  .waves { display: flex; flex-direction: column; gap: 10px; }
+  .wave {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 9px;
+    padding: 15px 20px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .wave-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .wave-n {
+    font-family: "Roboto Mono", monospace; font-size: 12px; font-weight: 700;
+    color: var(--accent); direction: ltr;
+  }
+  .wave-t { font-size: 16px; font-weight: 500; }
+  .wave-ids {
+    font-family: "Roboto Mono", monospace; font-size: 11.5px; color: var(--ink-3);
+    direction: ltr; margin-inline-start: auto;
+  }
+  .wave p { font-size: 14px; color: var(--ink-2); max-width: 68ch; }
+
+  .note {
+    background: var(--accent-wash); border: 1px solid var(--line);
+    border-radius: 8px; padding: 14px 18px; font-size: 14.5px; color: var(--ink-2);
+  }
+  .note.warn { background: transparent; border-color: var(--now); }
+  .note strong { color: var(--ink); font-weight: 700; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center;
+    font-size: 12.5px; color: var(--ink-3);
+    border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; background: var(--surface);
+  }
+
+  .progress {
+    display: flex; align-items: center; gap: 12px;
+    font-family: "Roboto Mono", monospace; font-size: 12px; color: var(--ink-3); direction: ltr;
+  }
+  .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+  .tscroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 520px; }
+  thead th {
+    font-family: "Roboto Mono", monospace; font-size: 10.5px; font-weight: 700;
+    letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3);
+    text-align: right; padding: 11px 14px; border-bottom: 1px solid var(--line);
+    background: var(--sunk); white-space: nowrap;
+  }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); color: var(--ink-2); }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.n { font-family: "Roboto Mono", monospace; direction: ltr; text-align: left; white-space: nowrap; }
+
+  footer {
+    border-top: 1px solid var(--line); padding-top: 22px;
+    font-size: 13px; color: var(--ink-3); display: flex; flex-direction: column; gap: 6px;
+  }
+
+  @media (max-width: 600px) {
+    .wrap { padding: 0 16px 72px; }
+    .item { grid-template-columns: 24px 1fr; }
+    .item .id { grid-column: 2; padding-top: 0; text-align: right; }
+    .item .i-main { grid-column: 2; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <!-- ══ Masthead ═════════════════════════════════════════════════════ -->
+  <header class="masthead">
+    <div class="eyebrow">MES360 · SDPF · Repair plan · from the 25 Aug forensics</div>
+    <h1>دلو لكل دقيقة</h1>
+    <p class="lede">
+      كلّ ما اكتشفناه اليوم — العدّ المضاعف، التصحيح الذي يرجع، سجلّ الهالك الذي لا
+      يُحذف منه، والتشغيل التلقائي الذي بدأ أمراً والخطّ مشغول — يعود إلى قرار معماري
+      واحد. هذه قائمة العمل، مرتّبةً بذلك القرار.
+    </p>
+    <div class="stamp">
+      <span>34 action points</span>
+      <span>6 groups</span>
+      <span>4 waves</span>
+      <span>nothing started yet</span>
+    </div>
+  </header>
+
+  <div class="progress">
+    <span id="pcount">0 / 34</span>
+    <span class="bar"><i id="pbar"></i></span>
+    <span>ticked</span>
+  </div>
+
+  <!-- ══ Keystone ═════════════════════════════════════════════════════ -->
+  <section id="keystone">
+    <div class="keystone">
+      <div class="k-label">The keystone decision</div>
+      <div class="k-claim">
+        الايدج يرسل <strong>كم عدَّ في هذه الدقيقة</strong> — لا كم عدَّ منذ البداية.
+      </div>
+      <p>
+        اقتراحك، وهو صحيح. اليوم يحمل الايدج إجمالياً جارياً ويكتبه مطلقاً، فأي تعديل
+        تجريه على قاعدة البيانات يدهسه أوّل تفريغ لأنّ الايدج ما زال يحمل الإجمالي
+        القديم. ولهذا لم تنفع إعادة التشغيل ولا حذف البافر: البذرة في
+        <span class="mono" dir="ltr">gateway_counter_states</span> بـبوستجرس، لا في الملف.
+      </p>
+      <p>
+        الدلو يقلب العلاقة: كلّ دقيقة واقعة مستقلّة لها زمنها وكمّيتها. الخادم يجمع
+        الدلاء. تعديل دقيقة يبقى معدَّلاً لأنّ الايدج لا يملك رأياً في الإجماليات أصلاً.
+      </p>
+
+      <div class="flow">اليوم   <i>edge: accumulated=4443</i>  →  jobOrder.rejected = <i>ABSOLUTE</i>   → أي تصحيح يُدهس
+        بعده  <u>edge: bucket(tag, 12:57) = 68</u>  →  server: <u>UPSERT</u> ثم يجمع   → التصحيح يبقى</div>
+
+      <div class="note warn">
+        <strong>إضافة واحدة يحتاجها تصميمك.</strong> الدلو يجب أن يكون له مفتاح فريد
+        <span class="mono" dir="ltr">(tagId, minute)</span> ويُكتب بـ
+        <span class="mono" dir="ltr">UPSERT</span> لا <span class="mono" dir="ltr">increment</span>.
+        بدون ذلك، إعادة إرسال دلوٍ بعد انقطاع شبكة تضيفه مرّتين — وهو نفس العطل الذي
+        نحاول الخلاص منه بشكل جديد. ومع المفتاح، انقطاعُ ساعة يرفع ستّين دلواً كلٌّ في
+        دقيقته الصحيحة، وهو أفضل ممّا يفعله النظام اليوم.
+      </div>
+
+      <div class="note">
+        <strong>و<span class="mono" dir="ltr">oee_minutes</span> يصلح مرجعاً كما اقترحت.</strong>
+        هو أصلاً صفٌّ لكلّ ماكينة لكلّ دقيقة، وفيه
+        <span class="mono" dir="ltr">goodParts</span> و<span class="mono" dir="ltr">rejectedParts</span>.
+        فلا حاجة لجدول «good log» جديد — الدلو نفسه هو الصفّ. يبقى شرط واحد: أن يصير
+        الكتابة إليه مساراً واحداً مُلزِماً، لا كاتباً مشتقّاً يختم الدقائق بـ
+        <span class="mono" dir="ltr">isFinalized</span> ثمّ لا يعود إليها.
+      </div>
+    </div>
+  </section>
+
+  <div class="legend">
+    <span><span class="tag t-high">عالٍ</span> يوقف نزيفاً قائماً</span>
+    <span><span class="tag t-mid">متوسط</span> يمنع تكراره</span>
+    <span><span class="tag t-low">منخفض</span> وضوح وصيانة</span>
+    <span><span class="tag t-hold">مؤجّل</span> ينتظر قراراً</span>
+    <span><span class="tag t-data">بيانات</span> إصلاح لمرّة واحدة</span>
+    <span><span class="tag t-dep">يعتمد على</span> لا يبدأ قبله</span>
+  </div>
+
+  <!-- ══ A ════════════════════════════════════════════════════════════ -->
+  <section id="a">
+    <div class="section-head">
+      <h2>أ · سلامة العدّ عند المستشعر</h2>
+      <span class="count">8 items</span>
+    </div>
+    <p class="lead">
+      قبل أي كلام عن التصحيح: مستشعرٌ يضيف عدّاتٍ لا تقابلها منتجات يجعل كلّ تصحيح
+      مؤقّتاً بحكم التصميم. هذه المجموعة توقف المدخَل.
+    </p>
+
+    <div class="items">
+      <label class="item"><input type="checkbox" class="tick" data-id="A1">
+        <span class="id">A1</span>
+        <span class="i-main">
+          <span class="i-title">اختبار الـ200 ms على M1 — قبل أيّ سطر كود</span>
+          <span class="i-why">ارفع <span class="mono" dir="ltr">pollIntervalMs</span> من 20 إلى 200 وشغّل عشر دقائق. لو كان السبب ارتداداً انخفض العدّ نحو 45/دقيقة. لو ارتفع أو ثبت فالسبب غيره — ولا يصحّ أن نكتب علاجاً لتشخيص لم يُثبَت على السلك.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="where">devices · إعداد فقط، قابل للتراجع</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="A2">
+        <span class="id">A2</span>
+        <span class="i-main">
+          <span class="i-title">حدّ أدنى للفاصل بين عدّتين (debounce)</span>
+          <span class="i-why">لا يوجد اليوم أيّ فلتر زمني في مسار العدّ. عند 45 قطعة/دقيقة أسرع فاصل حقيقي 1333 ms، فحدّ 200 ms يقتل كلّ رجفة ولا يمسّ منتجاً. الخانة موجودة أصلاً في <span class="mono" dir="ltr">EdgeCounter.debounceMs</span> وغير مستعملة.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="where">counter.service.ts:298 · rising-edge-counter.ts:66</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="A3">
+        <span class="id">A3</span>
+        <span class="i-main">
+          <span class="i-title">إنذار عند تجاوز الحدّ الفيزيائي للماكينة</span>
+          <span class="i-why">دقيقةٌ فيها قطعٌ أكثر ممّا تسمح به الدورة هي برهانٌ على خلل قياس لا اشتباه. النظام يملك <span class="mono" dir="ltr">designSpeedPph</span> في كلّ صفّ دقيقة. مرّت 60 دقيقة كهذه اليوم بلا كلمة.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="where">oee-standard.writer.ts · على كتابة كلّ دقيقة</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="A4">
+        <span class="id">A4</span>
+        <span class="i-main">
+          <span class="i-title">إنذار عند «السليم أكبر من الإجمالي»</span>
+          <span class="i-why">M1 اليوم: سليم 425، إجمالي 361. المشتقّ <span class="mono" dir="ltr">rejected = total − good = −64</span> يُقصّ إلى صفر ويمرّ صامتاً إلى تقارير الجودة — وهو ما ثبّت مرفوض M1 على صفر مهما صحّح المشغّل.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="where">counter.service.ts:623</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="A5">
+        <span class="id">A5</span>
+        <span class="i-main">
+          <span class="i-title">فلترة الأوسمة اليتيمة عند الإقلاع</span>
+          <span class="i-why">في قاعدة البيانات الآن <strong>7 أوسمة بـ<span class="mono" dir="ltr">deviceId = NULL</span></strong> و12 غير مفعّلة، ومعها صفوف <span class="mono" dir="ltr">gateway_counter_states</span> بأرصدة قديمة (5477 · 2300 · 338). حذفتها من الواجهة وبقيت في الجداول. يجب أن يستبعدها المستقصي عند التحميل، لا أن تعتمد على إخفائها في الشاشة.</span>
+          <span class="i-meta"><span class="tag t-mid">متوسط</span><span class="where">modbus-poller.service.ts:169 — شرط التحميل</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="A6">
+        <span class="id">A6</span>
+        <span class="i-main">
+          <span class="i-title">ضبط فترة الاستقصاء على زمن الرحلة الحقيقي</span>
+          <span class="i-why">الجهازان مضبوطان على 20 ms ورحلة المودباس 21–69 ms، وقفزت إلى 1423 ms مرّتين اليوم. الرقم المضبوط لا يُبلَغ ولا يفيد — السقف هو الرحلة. والكود نفسه يمنح الأجهزة الجديدة 100 ms افتراضياً.</span>
+          <span class="i-meta"><span class="tag t-mid">متوسط</span><span class="where">devices · local-api.controller.ts:328</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="A7">
+        <span class="id">A7</span>
+        <span class="i-main">
+          <span class="i-title">توحيد الأسماء والعناوين والحوافّ</span>
+          <span class="i-why">ثلاثة أوسمة اسمها لا يطابق عنوانها (<span class="mono" dir="ltr">M02_DI0</span> يقرأ العنوان 1، و<span class="mono" dir="ltr">M03_DI3</span> يقرأ 2). وعدّادا M2 يستعملان حافّتين متعاكستين، فيستجيبان للارتدادة نفسها بشكل مختلف.</span>
+          <span class="i-meta"><span class="tag t-mid">متوسط</span><span class="where">tag_definitions · إعداد</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="A8">
+        <span class="id">A8</span>
+        <span class="i-main">
+          <span class="i-title">التحذير يذكر الاحتمالين لا واحداً</span>
+          <span class="i-why">نصّه اليوم ينتهي بـ«العدّات ستكون منخفضة»، ونفس القياس يعني أنّها قد تكون مرتفعة. حذّر 583 مرّة اليوم ووجّه القراءة إلى الاتّجاه المعاكس لما رأيته بعينك.</span>
+          <span class="i-meta"><span class="tag t-low">منخفض</span><span class="where">counter.service.ts:462</span></span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <!-- ══ B ════════════════════════════════════════════════════════════ -->
+  <section id="b">
+    <div class="section-head">
+      <h2>ب · نموذج الرفع — الدلاء وعقد الاستقبال</h2>
+      <span class="count">10 items</span>
+    </div>
+    <p class="lead">
+      حجر الزاوية، مفكوكاً إلى خطوات. لا يبدأ شيء من المجموعة «ج» قبل هذه.
+    </p>
+
+    <div class="items">
+      <label class="item"><input type="checkbox" class="tick" data-id="B1">
+        <span class="id">B1</span>
+        <span class="i-main">
+          <span class="i-title">الايدج يبني دلواً لكل دقيقة، مفتاحه <span class="mono" dir="ltr">(tagId, minute)</span></span>
+          <span class="i-why">بدل <span class="mono" dir="ltr">accumulated</span> الجاري: كم حافّة في هذه الدقيقة. الدلو يحمل زمنه، فيهبط في دقيقته الصحيحة مهما تأخّر رفعه.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="where">counter.service.ts · observe/flush</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="B2">
+        <span class="id">B2</span>
+        <span class="i-main">
+          <span class="i-title">الخادم يكتب الدلو بـ UPSERT لا increment</span>
+          <span class="i-why">الحماية من التكرار عند إعادة الإرسال بعد انقطاع. هذه هي الإضافة الوحيدة التي يحتاجها تصميمك — وبدونها نستبدل عطل عدٍّ مضاعف بعطل عدٍّ مضاعف آخر.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">B1</span><span class="where">API · مسار استقبال الدلاء</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="B3">
+        <span class="id">B3</span>
+        <span class="i-main">
+          <span class="i-title">إزالة الاحتجاز الذي يفرّغ دفعةً واحدة</span>
+          <span class="i-why"><span class="mono" dir="ltr">if (!c.joId || !c.running) continue;</span> يحتجز ولا يقدّم مؤشّر المزامنة، فيهبط المتراكم كلّه في دقيقة واحدة: 286 على M1 و280 على M2 في الثانية نفسها، و490 في دقيقة عطل. مع الدلاء تختفي المشكلة من جذرها — لأنّ الدلو يعرف دقيقته.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">B1</span><span class="where">counter.service.ts:565</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="B4">
+        <span class="id">B4</span>
+        <span class="i-main">
+          <span class="i-title">إيقاف الكتابة المطلقة لـ actualQtyRejected</span>
+          <span class="i-why">اليوم: <span class="mono" dir="ltr">joData.actualQtyRejected = autoBad + manualBad</span> في كلّ تفريغ. هذا السطر وحده هو الذي محا كلّ تصحيح جرّبته. مع الدلاء يصير المرفوض مجموع دلاء لا قيمةً تُفرَض.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">B1</span><span class="where">counter.service.ts:623</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="B5">
+        <span class="id">B5</span>
+        <span class="i-main">
+          <span class="i-title"><span class="mono" dir="ltr">gateway_counter_states</span> تصير سجلّ تقدّم لا إجمالياً</span>
+          <span class="i-why">تحفظ «آخر دقيقة رُفعت» بدل «الإجمالي». عندها لا يبقى رقمٌ محفوظٌ يعيد الايدج فرضه بعد إعادة التشغيل — وهو بالضبط ما جعل إعادة التشغيل وحذف البافر بلا أثر.</span>
+          <span class="i-meta"><span class="tag t-mid">متوسط</span><span class="tag t-dep">B1</span><span class="where">counter.service.ts:208 · load()</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="B6">
+        <span class="id">B6</span>
+        <span class="i-main">
+          <span class="i-title">جدول دلاء خام منفصل — لا <span class="mono" dir="ltr">oee_minutes</span> نفسه</span>
+          <span class="i-why">اقترحتَ استخدام <span class="mono" dir="ltr">oee_minutes</span> مباشرةً، ولا يصحّ لسببين ملموسين: الدلو لكلّ <strong>وسم</strong> والصفّ لكلّ <strong>ماكينة</strong> — و M1 لها عدّادان لا يسعهما صفّ واحد؛ والصفّ يخلط الخام (<span class="mono" dir="ltr">goodParts</span>) بالمشتقّ (<span class="mono" dir="ltr">operatingMin</span> من سجلّات الحالة)، فكلّ إعادة حساب تدهس شيئاً آخر. الخام في جدوله، و<span class="mono" dir="ltr">oee_minutes</span> يبقى مشتقّاً منه — عندها تُعاد بناء أيّ دقيقة من مصدرها متى شئت.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">B1</span><span class="where">schema · counter_buckets(machineId, tagId, minuteUtc, count, receivedAt, edgeSkewMs)</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="B7">
+        <span class="id">B7</span>
+        <span class="i-main">
+          <span class="i-title">هويّة الدلو = <span class="mono" dir="ltr">(machineId, minuteUtc)</span> — لا الدقيقة المقطوعة</span>
+          <span class="i-why">النصف الممتاز من اقتراحك مُتبنّى: <strong>الخادم ينشئ الصفّ والايدج يملؤه</strong>. أمّا جعل الهويّة «ماكينة + أمر تشغيل + دقيقة مقطوعة» ففيه أربعة أخطار: الدقيقة توجد قبل أن يوجد أمر تشغيل (فجوة الـ59 دقيقة أمس لم يكن فيها أمر أصلاً، ومنها جاءت القفزة)؛ و<span class="mono" dir="ltr">actualStart</span> حقلٌ <em>متغيّر</em> يصحّحه المشغّلون، فتنزاح هويّة كلّ دلو معه؛ والإيقاف المؤقّت يجعل «المنقضي» سؤالاً بإجابتين كلتاهما خاطئة لأحدهم؛ وكلّ سؤال يسأله المصنع بساعة الحائط («ماذا جرى 10:47؟»، حدود الورديات، التوقّفات المخطّطة) فتحتاج للرجوع إليها — أي أنّ الاعتماد على الساعة لم يُزَل بل اختفى عن العين.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">B6</span><span class="where">قرار تصميم — أمر التشغيل صفةٌ للدقيقة لا جزءٌ من اسمها</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="B8">
+        <span class="id">B8</span>
+        <span class="i-main">
+          <span class="i-title">الايدج لا يكتب في قاعدة البيانات — API / MQTT فقط</span>
+          <span class="i-why">أقوى نقطة طرحتَها، والمقياس أكبر ممّا يبدو: الايدج اليوم يكتب مباشرةً في <strong>41 موضعاً عبر 14 جدولاً</strong> — منها <span class="mono" dir="ltr">jobOrder.update</span> خمس مرّات و<span class="mono" dir="ltr">machineStateRecord</span> و<span class="mono" dir="ltr">tagDefinition.create</span>. أي أنّه لا يبلّغ فحسب، بل يعدّل بيانات المصنع الأساسية. هذا هو الجذر الذي جعل كتابةَ المشغّل وكتابةَ الايدج تتسابقان بلا حَكَم. حين يصير الـAPI هو الكاتب الوحيد، تسكن كلّ قاعدة في مكان واحد — ومنها القاعدة التي غابت أمس: <strong>دلوٌ متأخّر لا يدهس تصحيحاً بشرياً</strong>.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="where">apps/edgegateway · 41 كتابة مباشرة</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="B9">
+        <span class="id">B9</span>
+        <span class="i-main">
+          <span class="i-title">علامة مائية بثلاث حالات بدل <span class="mono" dir="ltr">isFinalized</span></span>
+          <span class="i-why">اليوم لا يميّز النظام بين «أنتجت صفراً» و«لا أعرف بعد» — كلاهما <span class="mono" dir="ltr">goodParts = 0</span>، وبدون التمييز لا معنى لأيّ مصالحة. الحالات: <strong>مفتوحة</strong> ما زالت تتراكم · <strong>مبدئية</strong> أُغلقت زمنياً والتلمترى ناقصة · <strong>مستقرّة</strong> أبلغ كلّ مصدر أو انتهت المهلة. والتقارير لا تُبنى إلّا على المستقرّة أو على المبدئية بعلامة ظاهرة. ودلوٌ يصل بعد الاستقرار يُقبل كـ<strong>تعديل مسجَّل</strong>: تقرير وردية طُبع الساعة 14:00 لا يصير رقماً آخر الساعة 16:00 بلا أثر.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">B6</span><span class="where">oee-standard.writer.ts:101 · isFinalized</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="B10">
+        <span class="id">B10</span>
+        <span class="i-main">
+          <span class="i-title">توقيتٌ مطلق ومقيس — <span class="mono" dir="ltr">timestamptz</span> وتسجيل الانحراف</span>
+          <span class="i-why">سؤالك عن اختلاف المنطقة الزمنية له إجابة في الجداول: <strong>كلّ أعمدة الوقت اليوم <span class="mono" dir="ltr">timestamp without time zone</span></strong> — <span class="mono" dir="ltr">bucketStart</span> و<span class="mono" dir="ltr">actualStart</span> و<span class="mono" dir="ltr">startTime</span> و<span class="mono" dir="ltr">lastEdgeAt</span>. لا منطقة مسجّلة في أيّ مكان، والاتّفاق بين الايدج والخادم ضمنيّ لا يفرضه شيء ولا يكشف خرقه شيء. اللازم: أعمدة <span class="mono" dir="ltr">timestamptz</span>، و<strong>ختمان لكلّ دلو</strong> — <span class="mono" dir="ltr">minuteUtc</span> ما يقيسه (الهويّة) و<span class="mono" dir="ltr">receivedAt</span> متى وصل (تشخيص فقط)؛ وقياس انحراف ساعة الايدج على كلّ رسالة وحفظه؛ ورفض الدلو المستحيل (دقيقة في المستقبل أو أقدم من نافذة معقولة) بالحجْر لا بالقبول؛ وأن ينضبط الايدج على <strong>ساعة الخادم</strong> لا على NTP — لأنّ المطلوب الاتّفاق مع سجلّ النظام، والمصنع قد لا يملك إنترنت.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">B6</span><span class="where">schema · جميع أعمدة الوقت · عقد الاستقبال</span></span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <!-- ══ C ════════════════════════════════════════════════════════════ -->
+  <section id="c">
+    <div class="section-head">
+      <h2>ج · مسارات التصحيح</h2>
+      <span class="count">10 items</span>
+    </div>
+    <p class="lead">
+      اقتراحك بالكامل، مفكوكاً. <span class="mono" dir="ltr">C1</span> و<span class="mono" dir="ltr">C2</span>
+      وحدهما يمكن تنفيذهما اليوم قبل الدلاء — والباقي يعتمد عليها.
+    </p>
+
+    <div class="items">
+      <label class="item"><input type="checkbox" class="tick" data-id="C1">
+        <span class="id">C1</span>
+        <span class="i-main">
+          <span class="i-title"><span class="mono" dir="ltr">reportJobOrderOutput</span> يكتب الحصّة اليدوية</span>
+          <span class="i-why">زرّ «Correct total» يكتب <span class="mono" dir="ltr">actualQty*</span> فقط ولا يمسّ <span class="mono" dir="ltr">manualQty*</span> — بينما «Add (+)» يكتبهما معاً وفيه تعليق يقول لماذا. هذا هو الفرق الحرفيّ بين تصحيح يبقى وتصحيح يُمحى.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="where">production.service.ts:4499 · قابل للتنفيذ فوراً</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="C2">
+        <span class="id">C2</span>
+        <span class="i-main">
+          <span class="i-title">السماح بإنقاص العدد</span>
+          <span class="i-why"><span class="mono" dir="ltr">Math.max(0, …)</span> في <span class="mono" dir="ltr">addJobOrderCount</span> يقصّ أي فرق سالب إلى صفر. فلا يوجد اليوم مسارٌ عاملٌ لتخفيض رقم إطلاقاً — وهو أوّل ما احتجته صباحاً.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="where">production.service.ts:4602</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="C3">
+        <span class="id">C3</span>
+        <span class="i-main">
+          <span class="i-title">اختبار: تصحيحٌ ينجو من تفريغٍ لاحق</span>
+          <span class="i-why">لا يوجد اختبار واحد اليوم يمسك هذا. ولهذا وصل العطل إليك بدل أن يتوقّف عندنا. يُكتب مع <span class="mono" dir="ltr">C1</span> لا بعده.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">C1</span><span class="where">apps/api · spec</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="C4">
+        <span class="id">C4</span>
+        <span class="i-main">
+          <span class="i-title">الايدج يكتب الهالك الآلي في سجلّ الهالك</span>
+          <span class="i-why">اليوم لا يظهر في <span class="mono" dir="ltr">scrap_logs</span> إلّا ما أدخله المشغّل بيده. فالهالك الآلي لا أثر له يمكن حذفه أو تعديله — وهو ما جعلك تبحث عن الـ150 ولا تجدها.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">B1</span><span class="where">counter.service.ts · مسار الكتابة</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="C5">
+        <span class="id">C5</span>
+        <span class="i-main">
+          <span class="i-title">تصنيف كلّ حدث: آليّ من الماكينة / يدويّ من المشغّل</span>
+          <span class="i-why">حقل مصدر على كلّ صفّ. بدونه لا تعرف الشاشة أيّ صفٍّ يجوز حذفه وأيّه أثرٌ للقياس، ولا يعرف الحساب أيّهما يعيد اشتقاقه.</span>
+          <span class="i-meta"><span class="tag t-mid">متوسط</span><span class="tag t-dep">C4</span><span class="where">scrap_logs · عمود source</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="C6">
+        <span class="id">C6</span>
+        <span class="i-main">
+          <span class="i-title">سجلّ الهالك يقبل الحذف والتعديل</span>
+          <span class="i-why">الشاشة والـAPI كلاهما للقراءة فقط اليوم — نقطة النهاية الوحيدة هي <span class="mono" dir="ltr">@Get('scrap-logs')</span>. يلزم <span class="mono" dir="ltr">PATCH</span> و<span class="mono" dir="ltr">DELETE</span> مع أثر تدقيق: مَن غيّر، ومتى، ولماذا.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">C5</span><span class="where">production.controller.ts:909 · scrap-log-view.tsx</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="C7">
+        <span class="id">C7</span>
+        <span class="i-main">
+          <span class="i-title">سجلّ الجيد = دلاء الدقائق، معروضةً عبر <span class="mono" dir="ltr">oee_minutes</span></span>
+          <span class="i-why">كما اقترحت: لا جدول جديد. الجدول قائم وفيه صفٌّ لكلّ ماكينة لكلّ دقيقة مع <span class="mono" dir="ltr">goodParts</span>. الشرط أن يصير مساراً مُلزِماً للكتابة لا مخزناً مشتقّاً — اليوم يختم الدقائق بـ<span class="mono" dir="ltr">isFinalized</span> ولا يعود إليها، ولهذا بقي تعديلك اليدوي قائماً بينما استمرّ الايدج يبثّ 153. والأهمّ: قيمة الدقيقة اليوم محسوبة بالطرح — <span class="mono" dir="ltr">cumulative − Σ(الدقائق المختومة)</span> — فخفضُك دقيقةً بمقدار 150 كان يرفع التالية بـ150. كنت تصارع حلقةً تُعيد خلق ما تحذفه.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">B6 · B9</span><span class="where">oee-standard.writer.ts:260 — قيمة الدقيقة اليوم بقيّةُ طرح لا قياس</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="C8">
+        <span class="id">C8</span>
+        <span class="i-main">
+          <span class="i-title">التصحيح ينتشر إلى كلّ مكان مسجَّل فيه</span>
+          <span class="i-why">حذف حدثٍ أو تعديله يجب أن يمسّ: صفّ الدقيقة، وأمر التشغيل، وحالة الماكينة الحيّة، والسجلّ. عمليّة واحدة في معاملة واحدة — لا أربع تعديلات يدوية كما اضطُررت اليوم.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">C6 · C7</span><span class="where">API · خدمة تصحيح واحدة</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="C9">
+        <span class="id">C9</span>
+        <span class="i-main">
+          <span class="i-title">شاشة Correct count تفتح السجلّين مع حذف/تعديل لكلّ صفّ</span>
+          <span class="i-why">اقتراحك حرفياً: بدل خانتَي إجمالي، صفحةٌ مختصرة تعرض أحداث الهالك ودلاء الجيد للأمر الحالي، وأمام كلّ صفّ حذفٌ وتعديل. المشغّل يصحّح الواقعة لا الإجمالي.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="tag t-dep">C8</span><span class="where">operator-hmi-view.tsx:278 · shop-floor-view.tsx:457</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="C10">
+        <span class="id">C10</span>
+        <span class="i-main">
+          <span class="i-title">زرّ «صفّر عدّاد هذه الماكينة»</span>
+          <span class="i-why">لا سبيل اليوم إلّا SQL مباشر على <span class="mono" dir="ltr">gateway_counter_states</span> — اكتشفت ذلك بالطريقة الصعبة. يصير غير ضروريّ إن نُفِّذ <span class="mono" dir="ltr">B5</span>، فيبقى للطوارئ وحدها.</span>
+          <span class="i-meta"><span class="tag t-mid">متوسط</span><span class="tag t-dep">B5</span><span class="where">إعدادات · منطقة الخطر</span></span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <!-- ══ D ════════════════════════════════════════════════════════════ -->
+  <section id="d">
+    <div class="section-head">
+      <h2>د · التشغيل التلقائي لأوامر التشغيل</h2>
+      <span class="count">4 items</span>
+    </div>
+    <p class="lead">
+      المجدوِل يبحث عن <span class="mono" dir="ltr">plannedStart ≤ now</span> ولا شيء غير ذلك.
+      لا يسأل هل الخطّ مشغول، ولا متى فات الوقت، ولا يخبر أحداً حين يفشل.
+      مستقلّة عن الدلاء — يمكن البدء بها في أيّ وقت.
+    </p>
+
+    <div class="items">
+      <label class="item"><input type="checkbox" class="tick" data-id="D1">
+        <span class="id">D1</span>
+        <span class="i-main">
+          <span class="i-title">لا يبدأ أمرٌ والخطّ ما زال يشغّل غيره</span>
+          <span class="i-why">هذا ما حدث اليوم: WO-0004 بدأ و WO-0003 لم ينتهِ. الشرط الحالي لا يفحص انشغال الخطّ إطلاقاً. البديل: يتخطّى ويُشعِر — «كان يجب أن يبدأ، وهناك أمرٌ يعمل».</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="where">work-order-scheduler.service.ts:30</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="D2">
+        <span class="id">D2</span>
+        <span class="i-main">
+          <span class="i-title">لا يبدأ أمرٌ فات وقته</span>
+          <span class="i-why"><span class="mono" dir="ltr">plannedStart: { lte: now }</span> تطابق إلى الأبد — أمرٌ مخطّطٌ للأسبوع الماضي يبدأ اليوم من تلقاء نفسه. يلزم حدّ أعلى قابل للضبط، وبعده يصير إشعاراً لا تشغيلاً.</span>
+          <span class="i-meta"><span class="tag t-high">عالٍ</span><span class="where">work-order-scheduler.service.ts:34</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="D3">
+        <span class="id">D3</span>
+        <span class="i-main">
+          <span class="i-title">إشعارٌ حقيقيّ بدل <span class="mono" dir="ltr">logger.warn</span></span>
+          <span class="i-why">كلّ فشلٍ اليوم يذهب إلى ملفّ سجلّ لا يقرأه أحد في المصنع. وحدة <span class="mono" dir="ltr">notifications</span> موجودة وجاهزة للربط.</span>
+          <span class="i-meta"><span class="tag t-mid">متوسط</span><span class="where">work-order-scheduler.service.ts:43 · modules/notifications</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="D4">
+        <span class="id">D4</span>
+        <span class="i-main">
+          <span class="i-title">أيقونة تفعيل/إلغاء تومض عند الاقتراب أو التعطّل</span>
+          <span class="i-why">حالة التشغيل التلقائي غير مرئيّة اليوم إلّا داخل نموذج الأمر. أيقونة مستقلّة: هادئة حين لا شيء مستحقّ، ووامضة حين اقترب موعدٌ أو فات وشيءٌ يمنعه.</span>
+          <span class="i-meta"><span class="tag t-mid">متوسط</span><span class="tag t-dep">D1 · D3</span><span class="where">web · شريط الجدولة</span></span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <!-- ══ E ════════════════════════════════════════════════════════════ -->
+  <section id="e">
+    <div class="section-head">
+      <h2>هـ · الجدولة مقابل الواقع</h2>
+      <span class="count">2 items · مؤجّلة بقرار</span>
+    </div>
+    <p class="lead">
+      مذكورة للاكتمال. مؤجّلة بقرارك حتى تُحسم أسئلة تقرير «من يملك الدقيقة».
+    </p>
+
+    <div class="items">
+      <label class="item"><input type="checkbox" class="tick" data-id="E1">
+        <span class="id">E1</span>
+        <span class="i-main">
+          <span class="i-title">ربط التوقّف المخطّط بأمر التشغيل</span>
+          <span class="i-why">العمودان <span class="mono" dir="ltr">workOrderId</span> و<span class="mono" dir="ltr">jobOrderId</span> موجودان في <span class="mono" dir="ltr">downtime_events</span> و<span class="mono" dir="ltr">NULL</span> في كلّ توقّف محجوز. فالتغيير مثبَّت على ساعة الحائط، ويُحتسب اليوم 108 دقائق-ماكينة لتغييرٍ لم يقع.</span>
+          <span class="i-meta"><span class="tag t-hold">مؤجّل</span><span class="where">قرار Q1</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="E2">
+        <span class="id">E2</span>
+        <span class="i-main">
+          <span class="i-title">اعتماد أسبقية الجدول في المعادلات</span>
+          <span class="i-why">مُطبَّقة اليوم في «Where the time went» عرضاً فقط. نقلها إلى المحرّك يرفع الإتاحية والأداء و OEE — ورقمٌ يرتفع لأنّنا غيّرنا طريقة العدّ ليس تحسّناً.</span>
+          <span class="i-meta"><span class="tag t-hold">مؤجّل</span><span class="where">قرارات Q1–Q5</span></span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <!-- ══ F ════════════════════════════════════════════════════════════ -->
+  <section id="f">
+    <div class="section-head">
+      <h2>و · إصلاحات بيانات — مرّة واحدة على الهوستنجر</h2>
+      <span class="count">4 items</span>
+    </div>
+    <p class="lead">
+      لا تُصلح كوداً، بل تنظّف ما خلّفه يوم أمس. <strong>لا تنفّذها على أمر تشغيل
+      <span class="mono" dir="ltr">EXECUTING</span></strong> — أوقفه أو انتظر اكتماله، وإلّا دهسها الايدج خلال ثوانٍ.
+    </p>
+
+    <div class="items">
+      <label class="item"><input type="checkbox" class="tick" data-id="F1">
+        <span class="id">F1</span>
+        <span class="i-main">
+          <span class="i-title">الـ150 اليتيمة في <span class="mono" dir="ltr">manualQtyRejected</span></span>
+          <span class="i-why">WO-2026-0003 · M1: العمود يقول 156، وسجلّات الهالك المتبقّية 6، والفارق 150 — هو الرقم الذي حذفته من السجلّ وبقي هنا. صحّح العمودين معاً (<span class="mono" dir="ltr">manualQtyRejected</span> و<span class="mono" dir="ltr">actualQtyRejected</span>) إلى 6.</span>
+          <span class="i-meta"><span class="tag t-data">بيانات</span><span class="where">job_orders · الأمر COMPLETE الآن فالتصحيح يثبت</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="F2">
+        <span class="id">F2</span>
+        <span class="i-main">
+          <span class="i-title">هالك يدويّ ضائع على M3 و M4</span>
+          <span class="i-why">M3: <span class="mono" dir="ltr">manualQtyRejected = 2</span> وسجلّ الهالك يثبت 2، و<span class="mono" dir="ltr">actualQtyRejected = 0</span>. و M4: 4 مقابل 0. إدخالُ المشغّل مسجَّلٌ ومحذوفٌ في آن.</span>
+          <span class="i-meta"><span class="tag t-data">بيانات</span><span class="where">job_orders · WO-2026-0003</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="F3">
+        <span class="id">F3</span>
+        <span class="i-main">
+          <span class="i-title">صفوف <span class="mono" dir="ltr">gateway_counter_states</span> لأوسمة محذوفة</span>
+          <span class="i-why">أرصدة قديمة (5477 · 2300 · 356 · 338 · 35 · 34 · 33 · 29 · 23) لأوسمة لم تعد مستعملة. لا تؤثّر ما دامت غير مستقصاة، لكنّها تُربك أيّ تشخيص لاحق — وتصير خطرة لو أُعيد تفعيل وسمٍ منها.</span>
+          <span class="i-meta"><span class="tag t-data">بيانات</span><span class="tag t-dep">A5</span><span class="where">gateway_counter_states</span></span>
+        </span>
+      </label>
+
+      <label class="item"><input type="checkbox" class="tick" data-id="F4">
+        <span class="id">F4</span>
+        <span class="i-main">
+          <span class="i-title">مراجعة تعديلاتك اليدوية على <span class="mono" dir="ltr">oee_minutes</span></span>
+          <span class="i-why">صفوف الـ150 التي حوّلتها إلى صفر باقية، ولا شيء يبقيها متّسقة مع أوامر التشغيل. تُوثَّق وتُقارَن قبل أن يُبنى عليها أيّ تقرير — وإلّا صار مصدر الاختلاف مجهولاً بعد أسبوع.</span>
+          <span class="i-meta"><span class="tag t-data">بيانات</span><span class="where">oee_minutes · 25 Aug</span></span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <!-- ══ Waves ════════════════════════════════════════════════════════ -->
+  <section id="waves">
+    <div class="section-head">
+      <h2>ترتيب مقترح — أربع موجات</h2>
+    </div>
+    <p class="lead">اقتراحٌ لا قرار. القرار لك، والاعتماديات وحدها ملزمة.</p>
+
+    <div class="waves">
+      <div class="wave">
+        <div class="wave-head"><span class="wave-n">01</span><span class="wave-t">أوقف النزيف — بلا نشر</span><span class="wave-ids">A1 · F1 · F2</span></div>
+        <p>اختبار الـ200 ms يثبّت التشخيص، وإصلاحا البيانات يعيدان جودة أمس إلى الصواب. لا كود، ولا مخاطرة، ويمكن اليوم.</p>
+      </div>
+
+      <div class="wave">
+        <div class="wave-head"><span class="wave-n">02</span><span class="wave-t">اجعل التصحيح يبقى</span><span class="wave-ids">C1 · C2 · C3 · A3 · A4</span></div>
+        <p>تعديلان صغيران يجعلان زرّ التصحيح يعمل فعلاً، واختبارٌ يمنع عودته، وإنذاران يجعلان العطل التالي يُكتشف عندنا لا عندك. أصغر دفعة تغيّر يومك.</p>
+      </div>
+
+      <div class="wave">
+        <div class="wave-head"><span class="wave-n">03</span><span class="wave-t">المستشعر والمجدوِل</span><span class="wave-ids">A2 · A5 · A6 · A7 · A8 · D1 · D2 · D3 · D4</span></div>
+        <p>الـdebounce يوقف المدخَل، وفلترة الأوسمة تنظّف الإقلاع، والمجدوِل يكفّ عن بدء أمرٍ والخطّ مشغول. مستقلّتان عن بعضهما — يمكن أن تسيرا بالتوازي.</p>
+      </div>
+
+      <div class="wave">
+        <div class="wave-head"><span class="wave-n">04</span><span class="wave-t">الدلاء — التغيير المعماري</span><span class="wave-ids">B1–B10 · C4–C10</span></div>
+        <p>الأكبر والأبقى. يُبنى بعد أن تكون الموجات السابقة قد أوقفت الضرر، لأنّه يغيّر كيف يُكتب كلّ عدد في النظام — ولا يصحّ أن يُبنى فوق مستشعرٍ ما زال يضاعف. وداخله <span class="mono" dir="ltr">B8</span> هو الجذر الحقيقي: ما دام الايدج يكتب في قاعدة البيانات مباشرةً، تبقى كلّ قاعدةٍ نضعها قابلةً للالتفاف عليها من خلف ظهر الـAPI.</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>ملاحظة على الترتيب.</strong> الموجة الرابعة هي الحلّ الحقيقي لكلّ ما أرهقك
+      اليوم، لكنّها الأطول. الموجة الثانية تعطيك زرّ تصحيحٍ يعمل خلال ساعات — وهي
+      الفرق بين أن تنتظر المعمار وأن تستطيع تشغيل الخطّ غداً.
+    </div>
+  </section>
+
+  <footer>
+    <div>
+      كلّ بند هنا مربوطٌ بموضعٍ حقيقي في الكود أو صفٍّ حقيقي في قاعدة البيانات المستعادة،
+      لا بتقدير. والأرقام كلّها مقيسة من يوم 25 أغسطس.
+    </div>
+    <div class="mono" dir="ltr" style="font-size:11.5px">
+      docs/html/SDPF-Repair-Plan-AR.html · 34 action points · nothing implemented yet
+    </div>
+  </footer>
+</div>
+
+<script>
+  // Ticks persist per viewer so the list can be worked through across sessions.
+  // Storage can throw outright (private windows, blocked site data, thumbnailers),
+  // so every read and write is guarded and the page renders correctly without it.
+  (function () {
+    var KEY = 'sdpf-repair-plan-v1';
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('.tick'));
+    var bar = document.getElementById('pbar');
+    var count = document.getElementById('pcount');
+
+    function load() {
+      try {
+        var raw = localStorage.getItem(KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) { return {}; }
+    }
+    function save(state) {
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+    }
+    function paint() {
+      var done = 0;
+      boxes.forEach(function (b) {
+        var row = b.closest('.item');
+        if (row) row.classList.toggle('ticked', b.checked);
+        if (b.checked) done++;
+      });
+      if (count) count.textContent = done + ' / ' + boxes.length;
+      if (bar) bar.style.width = (boxes.length ? (done / boxes.length) * 100 : 0) + '%';
+    }
+
+    var state = load();
+    boxes.forEach(function (b) {
+      if (state[b.dataset.id]) b.checked = true;
+      b.addEventListener('change', function () {
+        state[b.dataset.id] = b.checked;
+        save(state);
+        paint();
+      });
+    });
+    paint();
+  })();
+</script>

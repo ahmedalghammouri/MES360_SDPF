@@ -897,7 +897,7 @@ export class ProductionController {
   @Patch('job-orders/:id/add-count')
   @RequirePermissions('production:execute')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Smart incremental count — ADDS good / scrap(bad) qty to the running totals (each scrap → ScrapLog), and controls handover qty' })
+  @ApiOperation({ summary: 'Smart incremental count — ADDS good / scrap(bad) qty to the running totals (each scrap → ScrapLog), and controls handover qty. Deltas may be NEGATIVE to take a count back; the resulting totals are floored at zero.' })
   async addJobOrderCount(
     @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) id: string,

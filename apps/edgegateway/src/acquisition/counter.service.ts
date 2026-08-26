@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { detectEdge, totalizerDelta, totalizerWidth, type CounterRole, type EdgeType } from '@mes360/industrial-drivers';
+import { readConfigFile, writeConfigFile } from '../config/config-store';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -14,6 +15,96 @@ export interface CounterTag {
   edgeType: EdgeType;
   /** Registers the value spans — sets the wrap point for a TOTALIZER. */
   wordCount?: number | null;
+}
+
+/**
+ * What a machine is allowed to do in one minute, and how fast a real pulse can
+ * arrive. Held per machine, edited from the gateway's own settings page, and
+ * re-read on every use so a plant can tune a limit mid-shift without a restart.
+ */
+export interface MachineLimit {
+  /**
+   * Ignore an edge arriving sooner than this after the last one COUNTED.
+   *
+   * A photo-eye's contact rings when it makes: one carton produces a burst of
+   * transitions over a few tens of milliseconds, and a sampler looking every
+   * 27 ms catches two of them as two separate pulses. Measured on this plant on
+   * 25 Aug 2026: M1 recorded 68.8 parts a minute against a mechanical ceiling of
+   * 45, in 60 of 65 full running minutes.
+   *
+   * The safe value comes from the machine, not from taste: at 45 parts a minute
+   * the fastest real gap is 1333 ms, so 200 ms kills every ring and cannot
+   * touch a product. Zero disables it.
+   */
+  debounceMs: number;
+  /**
+   * Allowance around the machine's own design rate, in counts per minute.
+   *
+   * The cap is `designPerMin + tolerancePerMin`, and `designPerMin` comes from
+   * the running order's ideal cycle time — in the counter's OWN unit, so a
+   * cartoner is capped in cartons and a filler in sachets with no conversion.
+   * May be negative (a tighter cap than design) or zero (design exactly).
+   *
+   * `null` means no cap: the plant has not stated a limit, and inventing one
+   * would silently discard real production.
+   */
+  tolerancePerMin: number | null;
+}
+
+/** What one minute's balance did to a machine's counts. */
+export interface BalanceResult {
+  good: number;
+  bad: number;
+  trimmedGood: number;
+  trimmedBad: number;
+}
+
+/**
+ * Hold a minute's counts to what the machine can physically make.
+ *
+ * ── The rule, as the plant stated it ────────────────────────────────────────
+ * The cap is the machine's design rate plus an allowance the plant sets, and a
+ * minute over that cap is trimmed to it. What gets trimmed is not arbitrary:
+ * **the rejects go first, and the good is protected.** A count the sensor
+ * invented is far more likely to have been booked as a reject than as a
+ * saleable unit, and a plant would rather understate its scrap than overstate
+ * its output.
+ *
+ * Worked against the plant's own two examples, at design 45 and tolerance +5:
+ *
+ *   40 good + 15 bad = 55 → over by 5 → all 5 off the bad → 40 good + 10 bad
+ *   55 good +  1 bad = 56 → over by 6 → 1 off the bad, then 5 off the good
+ *                                     → 50 good +  0 bad
+ *
+ * A tolerance may be negative (a tighter cap than design) or zero (design
+ * exactly). It NEVER pads upward: a stopped machine made nothing, and a cap is
+ * a ceiling, not a target.
+ *
+ * ── What this costs, stated plainly ─────────────────────────────────────────
+ * Trimming DISCARDS measured counts. That is the same class of silent
+ * correction that produced the trouble this was written to contain, so it is
+ * not silent: every trim is counted, surfaced on the health endpoint and
+ * logged. Those counters are also the feedback signal for the debounce — once
+ * the sensor stops double-counting, the trims fall to zero on their own, and a
+ * trim rate that stays high says the gate is still not tight enough.
+ */
+export function balanceMinute(
+  good: number, bad: number, roomLeft: number,
+): BalanceResult {
+  const total = good + bad;
+  if (roomLeft < 0 || total <= roomLeft) {
+    return { good, bad, trimmedGood: 0, trimmedBad: 0 };
+  }
+  let excess = total - roomLeft;
+  const trimmedBad = Math.min(bad, excess);
+  excess -= trimmedBad;
+  const trimmedGood = Math.min(good, excess);
+  return {
+    good: good - trimmedGood,
+    bad: bad - trimmedBad,
+    trimmedGood,
+    trimmedBad,
+  };
 }
 
 export interface CountEvent {
@@ -34,12 +125,22 @@ interface CounterMem {
   accumulated: number; // total edges counted for the current JO (advanced on EVERY edge, DB or not)
   synced: number;      // the `accumulated` value already written to the JO in Postgres
   jobOrderId: string | null;
+  /** When an edge was last COUNTED — the debounce clock. Not persisted. */
+  lastCountedAt?: number;
+  /** Edges seen but suppressed as contact ring. Diagnostics only. */
+  suppressed?: number;
 }
 
 /** What the batch writer needs to know about a machine, fetched once per batch. */
 interface MachineWriteContext {
   joId: string | null;
   running: boolean;
+  /**
+   * Counts per minute the machine can physically make, from the running order's
+   * ideal cycle time. Null when nothing is executing or no cycle time is set —
+   * and then no cap is applied, because a cap needs a number the plant stated.
+   */
+  designPerMin: number | null;
   priorGood: number;
   priorScrap: number;
   manualGood: number;
@@ -296,12 +397,127 @@ export class CounterService {
     const inc = tag.edgeType === 'TOTALIZER'
       ? totalizerDelta(mem.lastRaw, raw, totalizerWidth(tag.wordCount))
       : detectEdge(mem.lastRaw, raw, tag.edgeType);
+
+    // The level ALWAYS advances, whether or not the edge is counted. Suppressing
+    // the level as well would break edge detection outright: the next real pulse
+    // would be compared against a stale baseline and missed.
     mem.lastRaw = raw;
-    if (inc > 0) {
-      mem.accumulated += inc;
-      this.pending.add(tag.id);
-      this.dirty = true;
+    if (inc <= 0) return;
+
+    // ── The debounce gate ─────────────────────────────────────────────────
+    // A totalizer is exempt: the device did the counting, and a register that
+    // advances twice in quick succession advanced twice.
+    if (tag.edgeType !== 'TOTALIZER') {
+      const gap = this.debounceMsFor(tag.machineId);
+      if (gap > 0) {
+        const now = Date.now();
+        if (mem.lastCountedAt !== undefined && now - mem.lastCountedAt < gap) {
+          // Contact ring, not a product. Recorded rather than dropped in
+          // silence — this counter is how the plant finds out whether the gate
+          // is set too tight and is eating real pulses.
+          mem.suppressed = (mem.suppressed ?? 0) + inc;
+          return;
+        }
+        mem.lastCountedAt = now;
+      }
     }
+
+    mem.accumulated += inc;
+    this.pending.add(tag.id);
+    this.dirty = true;
+  }
+
+  /**
+   * How much a machine has already been credited THIS minute, and what the
+   * balance has taken off it.
+   *
+   * Keyed by machine and reset when the minute turns. A step toward the bucket
+   * model rather than a detour from it: the moment counts are held per minute
+   * here, a minute becomes a thing the gateway can name — which is the whole
+   * premise of what comes next.
+   */
+  /** Throttle for the good-above-total warning, per machine. */
+  private readonly goodOverTotalAt = new Map<string, number>();
+
+  private readonly minuteTally = new Map<string, {
+    minute: number; emitted: number;
+    trimmedGood: number; trimmedBad: number; warnedAt: number;
+  }>();
+
+  /** Room left in this machine's minute, or -1 when no cap applies. */
+  private roomLeftThisMinute(machineId: string, designPerMin: number | null): number {
+    const tol = this.limits()[machineId]?.tolerancePerMin;
+    if (designPerMin === null || typeof tol !== 'number') return -1; // no cap stated
+    const minute = Math.floor(Date.now() / 60_000);
+    let t = this.minuteTally.get(machineId);
+    if (!t || t.minute !== minute) {
+      t = { minute, emitted: 0, trimmedGood: 0, trimmedBad: 0, warnedAt: t?.warnedAt ?? 0 };
+      this.minuteTally.set(machineId, t);
+    }
+    // Floored at zero: a tolerance below the negative of the design rate would
+    // otherwise produce a cap under zero and reject everything.
+    const cap = Math.max(0, designPerMin + tol);
+    return Math.max(0, cap - t.emitted);
+  }
+
+  /** What the balance has taken off each machine — surfaced on the health view. */
+  balanceTrims(): Array<{ machineId: string; trimmedGood: number; trimmedBad: number }> {
+    return [...this.minuteTally.entries()].map(([machineId, t]) => ({
+      machineId, trimmedGood: t.trimmedGood, trimmedBad: t.trimmedBad,
+    }));
+  }
+
+  /**
+   * Per-machine limits, read live from the gateway's config file.
+   *
+   * Deliberately not cached beyond one second: a plant changing a tolerance
+   * mid-shift expects the next minute to obey it, and a restart to apply a
+   * number is exactly the friction that stops these being used at all.
+   */
+  private limitsAt = 0;
+  private limitsCache: Record<string, { debounceMs?: number; tolerancePerMin?: number | null }> = {};
+
+  private limits(): Record<string, { debounceMs?: number; tolerancePerMin?: number | null }> {
+    const now = Date.now();
+    if (now - this.limitsAt > 1000) {
+      this.limitsCache = readConfigFile().machineLimits ?? {};
+      this.limitsAt = now;
+    }
+    return this.limitsCache;
+  }
+
+  /** The debounce window for a machine. Zero — the default — is off. */
+  private debounceMsFor(machineId: string | null): number {
+    if (!machineId) return 0;
+    const v = this.limits()[machineId]?.debounceMs;
+    return typeof v === 'number' && v > 0 ? v : 0;
+  }
+
+  /** Read the stored limits, for the settings screen. */
+  machineLimits(): Record<string, { debounceMs: number; tolerancePerMin: number | null }> {
+    const out: Record<string, { debounceMs: number; tolerancePerMin: number | null }> = {};
+    for (const [k, v] of Object.entries(this.limits())) {
+      out[k] = {
+        debounceMs: typeof v.debounceMs === 'number' ? v.debounceMs : 0,
+        tolerancePerMin: typeof v.tolerancePerMin === 'number' ? v.tolerancePerMin : null,
+      };
+    }
+    return out;
+  }
+
+  /** Write one machine's limits and make them live on the next cycle. */
+  setMachineLimit(machineId: string, patch: { debounceMs?: number; tolerancePerMin?: number | null }) {
+    const all = { ...(readConfigFile().machineLimits ?? {}) };
+    const cur = all[machineId] ?? {};
+    all[machineId] = {
+      debounceMs: patch.debounceMs !== undefined ? Math.max(0, Math.trunc(patch.debounceMs)) : cur.debounceMs,
+      tolerancePerMin: patch.tolerancePerMin !== undefined
+        ? (patch.tolerancePerMin === null ? null : Math.trunc(patch.tolerancePerMin))
+        : cur.tolerancePerMin,
+    };
+    writeConfigFile({ machineLimits: all });
+    this.limitsAt = 0; // next read is fresh
+    return this.machineLimits()[machineId];
   }
 
 
@@ -599,6 +815,39 @@ export class CounterService {
     const events: CountEvent[] = [];
 
     for (const m of plan.values()) {
+      // ── The minute's balance ─────────────────────────────────────────────
+      // Applied BEFORE anything else reads these deltas, so the derived scrap,
+      // the job-order write, the live tile and the published event all describe
+      // the same minute. Trimming after any one of them had been built would
+      // put two different accounts of one minute into the system, which is the
+      // exact failure this whole effort exists to remove.
+      const ctxM = ctx.get(m.machineId);
+      const room = this.roomLeftThisMinute(m.machineId, ctxM?.designPerMin ?? null);
+      if (room >= 0) {
+        const bal = balanceMinute(m.goodDelta, m.scrapDelta, room);
+        if (bal.trimmedGood > 0 || bal.trimmedBad > 0) {
+          const t = this.minuteTally.get(m.machineId)!;
+          t.trimmedGood += bal.trimmedGood;
+          t.trimmedBad += bal.trimmedBad;
+          const now = Date.now();
+          if (now - t.warnedAt > 60_000) {
+            t.warnedAt = now;
+            // Named, not buried. A plant that cannot see the trim cannot tell a
+            // sensor that has been fixed from a cap that is hiding it.
+            this.logger.warn(
+              `machine ${m.machineId}: minute over its cap — trimmed `
+              + `${bal.trimmedBad} reject(s) and ${bal.trimmedGood} good. `
+              + 'Rejects are taken first. If this persists, the counter is still '
+              + 'over-counting: tighten the debounce rather than the tolerance.',
+            );
+          }
+        }
+        m.goodDelta = bal.good;
+        m.scrapDelta = bal.bad;
+        const t = this.minuteTally.get(m.machineId)!;
+        t.emitted += bal.good + bal.bad;
+      }
+
       // A machine with a TOTAL counter and NO good counter knows how much it
       // made and nothing about how much of it was good. Deriving scrap as
       // `total - good` there reads the absent good counter as zero and books
@@ -617,6 +866,28 @@ export class CounterService {
       // race the good counter's own write.
       if (m.totalAcc !== null && m.goodAcc !== null) {
         const autoGood = m.goodAcc;
+        // ── Good above total ────────────────────────────────────────────────
+        // Arithmetically impossible: a machine cannot pass more units than it
+        // made. The clamp below keeps the write sane, but on its own it makes
+        // the fault INVISIBLE — the plant sees a plausible zero and never learns
+        // that its two counters disagree.
+        //
+        // M1 on 25 Aug 2026: good 425, total 361. The derived reject was -64,
+        // clamped to 0, and the operator could then not make the rejected figure
+        // be anything at all — every correction landed on a number the next
+        // flush overwrote with zero.
+        if (autoGood > m.totalAcc) {
+          const now = Date.now();
+          if (now - (this.goodOverTotalAt.get(m.machineId) ?? 0) > 10 * 60_000) {
+            this.goodOverTotalAt.set(m.machineId, now);
+            this.logger.warn(
+              `machine ${m.machineId}: good counter reads ${autoGood} but total reads `
+              + `${m.totalAcc} — good cannot exceed total. Derived rejects are pinned `
+              + 'at zero until this is fixed, and no manual correction to the rejected '
+              + 'figure will hold. The two inputs are miscounting independently.',
+            );
+          }
+        }
         const autoBad = Math.max(0, m.totalAcc - autoGood);
         // Absolute, because it is DERIVED rather than counted — plus whatever
         // the operator entered by hand, which a sensor must never overwrite.
@@ -714,6 +985,10 @@ export class CounterService {
           id: true, machineId: true,
           actualQtyGood: true, actualQtyRejected: true,
           manualQtyGood: true, manualQtyRejected: true,
+          // The cap's basis. Per OUTPUT unit, which is the same unit the counter
+          // counts in — so a cartoner is capped in cartons and a filler in
+          // sachets, with no conversion and no chance of one creeping in.
+          idealCycleTimeSec: true,
         },
       }),
       this.prisma.machineCurrentStatus.findMany({
@@ -740,6 +1015,9 @@ export class CounterService {
         priorScrap: jo?.actualQtyRejected ?? 0,
         manualGood: jo?.manualQtyGood ?? 0,
         manualBad: jo?.manualQtyRejected ?? 0,
+        designPerMin: jo?.idealCycleTimeSec && jo.idealCycleTimeSec > 0
+          ? 60 / jo.idealCycleTimeSec
+          : null,
       });
     }
     return out;

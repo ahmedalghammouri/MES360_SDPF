@@ -579,6 +579,47 @@ export class LocalApiController {
    * reconcile them: the signals themselves are different shapes, and the answer
    * is at the sensor.
    */
+  /**
+   * What each machine is allowed to count, and what the balance has taken off.
+   *
+   * Served together on purpose: a limit and its effect are one question. Reading
+   * "tolerance +5" without "and it trimmed 340 counts this hour" tells a plant
+   * nothing about whether the limit is protecting it or hiding a broken sensor.
+   */
+  @Get('machine-limits')
+  async machineLimits() {
+    const stored = this.counter.machineLimits();
+    const trims = new Map(this.counter.balanceTrims().map((t) => [t.machineId, t]));
+    const machines = await this.prisma.machine.findMany({
+      where: { isActive: true },
+      select: { id: true, code: true, name: true },
+      orderBy: { code: 'asc' },
+    });
+    return machines.map((m) => ({
+      machineId: m.id,
+      code: m.code,
+      name: m.name,
+      // Zero debounce and a null tolerance are both OFF, and both are the
+      // default. A limit a plant has not stated is not a limit.
+      debounceMs: stored[m.id]?.debounceMs ?? 0,
+      tolerancePerMin: stored[m.id]?.tolerancePerMin ?? null,
+      trimmedGood: trims.get(m.id)?.trimmedGood ?? 0,
+      trimmedBad: trims.get(m.id)?.trimmedBad ?? 0,
+    }));
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('machine-limits/:machineId')
+  setMachineLimit(
+    @Param('machineId') machineId: string,
+    @Body() b: { debounceMs?: number; tolerancePerMin?: number | null },
+  ) {
+    // Applied on the next cycle — no restart. A tolerance that needs the service
+    // bounced is a tolerance nobody adjusts during a shift, which is the only
+    // time anybody wants to.
+    return this.counter.setMachineLimit(machineId, b);
+  }
+
   @Get('counter-health')
   async counterHealth() {
     const diags = this.counter.counterDiagnostics();
