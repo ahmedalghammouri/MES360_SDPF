@@ -52,9 +52,32 @@ export function ShiftBand({
     return () => clearInterval(id);
   }, []);
 
-  const products = distinct(jobOrders, (o) => o.product);
-  const orders = distinct(jobOrders, (o) => o.workOrder);
-  const pos = distinct(jobOrders, (o) => o.productionOrder);
+  /**
+   * The context strip names what is RUNNING, not everything the shift has seen.
+   *
+   * `jobOrders` deliberately carries every order that overlapped the window,
+   * because the shift's totals came from all of them and a screen that drops a
+   * closed order shows figures with no visible source. That is right for the
+   * TOTALS and wrong for this strip: an order that finished at 21:18 was still
+   * being announced at 02:04 as though the line were running it, beside "Open
+   * job orders 0" -- two lines of the same header contradicting each other.
+   *
+   * So the strip reads the live orders, and says plainly when there are none.
+   * The totals below keep their full window and keep saying which window it is.
+   */
+  const live = jobOrders.filter((o) => !o.actualEnd);
+  const running = live.length > 0;
+
+  const products = distinct(live, (o) => o.product);
+  const orders = distinct(live, (o) => o.workOrder);
+  const pos = distinct(live, (o) => o.productionOrder);
+
+  // What the shift produced still came from somewhere, so the closed orders are
+  // named rather than hidden -- just not in the "running now" position.
+  const finished = distinct(
+    jobOrders.filter((o) => o.actualEnd),
+    (o) => o.workOrder,
+  ).filter((w) => !orders.includes(w));
 
   if (!shift) {
     return (
@@ -136,10 +159,13 @@ export function ShiftBand({
 
       <div className="flex flex-wrap gap-x-6 gap-y-1 px-4 pb-3 pt-2 text-xs">
         <Ctx label="Scope" value={scopeLabel} />
-        <Ctx label="Product" value={products.length ? products.join(' · ') : '—'} />
-        <Ctx label="Work order" value={orders.length ? orders.join(' · ') : '—'} />
+        <Ctx label="Product" value={products.length ? products.join(' · ') : 'Nothing running'} />
+        <Ctx label="Work order" value={orders.length ? orders.join(' · ') : 'Nothing running'} />
         <Ctx label="Production order" value={pos.length ? pos.join(' · ') : '—'} />
-        <Ctx label="Open job orders" value={String(jobOrders.filter((o) => !o.actualEnd).length)} />
+        <Ctx label="Open job orders" value={String(live.length)} />
+        {!running && finished.length > 0 && (
+          <Ctx label="Ran earlier this shift" value={finished.join(' · ')} />
+        )}
       </div>
     </div>
   );
