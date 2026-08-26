@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>قفزة عدّادات الخط 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:      #eef1ef;
+    --panel:       #ffffff;
+    --panel-sunk:  #e6eae7;
+    --ink:         #10161a;
+    --ink-2:       #4c5a61;
+    --ink-3:       #7d8b91;
+    --rule:        #d3dad6;
+    --rule-strong: #b6c0bb;
+
+    /* The two series this report is about, and the moment they resolve. */
+    --level:   #14706a;   /* what the counter actually accumulated */
+    --synced:  #a86410;   /* what had been reported to the order    */
+    --alarm:   #a72a1b;   /* the release                            */
+    --level-fill:  rgba(20, 112, 106, .13);
+    --alarm-fill:  rgba(167, 42, 27, .12);
+    --synced-fill: rgba(168, 100, 16, .13);
+
+    --shadow: 0 1px 2px rgba(16, 22, 26, .05), 0 8px 24px -12px rgba(16, 22, 26, .18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0d1114;
+      --panel:       #151b1f;
+      --panel-sunk:  #101619;
+      --ink:         #e4ebe8;
+      --ink-2:       #9aa8ad;
+      --ink-3:       #6d7a80;
+      --rule:        #26302f;
+      --rule-strong: #3a4746;
+
+      --level:   #4cc0b6;
+      --synced:  #e0a13c;
+      --alarm:   #ef6a55;
+      --level-fill:  rgba(76, 192, 182, .15);
+      --alarm-fill:  rgba(239, 106, 85, .15);
+      --synced-fill: rgba(224, 161, 60, .15);
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .7);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0d1114;
+    --panel:       #151b1f;
+    --panel-sunk:  #101619;
+    --ink:         #e4ebe8;
+    --ink-2:       #9aa8ad;
+    --ink-3:       #6d7a80;
+    --rule:        #26302f;
+    --rule-strong: #3a4746;
+
+    --level:   #4cc0b6;
+    --synced:  #e0a13c;
+    --alarm:   #ef6a55;
+    --level-fill:  rgba(76, 192, 182, .15);
+    --alarm-fill:  rgba(239, 106, 85, .15);
+    --synced-fill: rgba(224, 161, 60, .15);
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .7);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    font-size: 17px;
+    line-height: 1.85;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .doc {
+    direction: rtl;
+    text-align: right;
+    max-width: 78rem;
+    margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1rem, 4vw, 3rem) 6rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  /* Narrative sits in a narrow measure; evidence panels break out wider. */
+  .say { max-width: 40rem; }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.1rem);
+    line-height: 1.24;
+    font-weight: 600;
+    letter-spacing: -.015em;
+    margin: 0 0 .6rem;
+    text-wrap: balance;
+    max-width: 22ch;
+  }
+
+  h2 {
+    font-size: clamp(1.3rem, 2.6vw, 1.65rem);
+    font-weight: 600;
+    line-height: 1.4;
+    margin: 0 0 .9rem;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 .45rem;
+  }
+
+  p { margin: 0 0 1.1rem; }
+  p:last-child { margin-bottom: 0; }
+
+  b, strong { font-weight: 600; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .7rem;
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 1rem;
+    direction: ltr;
+    text-align: right;
+  }
+
+  .lede {
+    font-size: 1.2rem;
+    line-height: 1.7;
+    color: var(--ink-2);
+    font-weight: 300;
+    max-width: 44rem;
+  }
+
+  header { border-bottom: 1px solid var(--rule); padding-bottom: 2.5rem; margin-bottom: 3rem; }
+
+  .meta {
+    display: flex; flex-wrap: wrap; gap: .5rem 2rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .74rem; color: var(--ink-3);
+    direction: ltr; justify-content: flex-end;
+    margin-top: 1.6rem;
+  }
+
+  section { margin-bottom: 3.75rem; }
+
+  /* ── The one-line answer ────────────────────────────────────── */
+  .verdict {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-right: 3px solid var(--alarm);
+    border-radius: 3px;
+    padding: 1.5rem 1.75rem;
+    box-shadow: var(--shadow);
+    margin: 2.25rem 0 0;
+    max-width: 46rem;
+  }
+  .verdict p { font-size: 1.08rem; line-height: 1.75; }
+
+  /* ── Evidence panel ─────────────────────────────────────────── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    box-shadow: var(--shadow);
+    margin: 1.75rem 0;
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: 1rem 1.35rem .85rem;
+    border-bottom: 1px solid var(--rule);
+    background: var(--panel-sunk);
+  }
+  .panel-head h3 { margin: 0; font-size: .95rem; }
+  .panel-head .note { font-size: .82rem; color: var(--ink-2); margin: .25rem 0 0; line-height: 1.6; }
+  .panel-body { padding: 1.35rem; }
+
+  /* ── Tables ─────────────────────────────────────────────────── */
+  .scroll { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .92rem;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    padding: .68rem .9rem;
+    text-align: right;
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  thead th {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--rule-strong);
+    background: var(--panel-sunk);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-family: "IBM Plex Mono", monospace; font-size: .88rem; }
+  td.mach { font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: .88rem; }
+  .bad  { color: var(--alarm); font-weight: 600; }
+  .good { color: var(--level); font-weight: 600; }
+  .dim  { color: var(--ink-3); }
+
+  /* ── Code ───────────────────────────────────────────────────── */
+  pre {
+    direction: ltr; text-align: left;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .81rem;
+    line-height: 1.75;
+    background: var(--panel-sunk);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 1.1rem 1.25rem;
+    overflow-x: auto;
+    margin: 0;
+    color: var(--ink);
+    tab-size: 2;
+  }
+  pre .c { color: var(--ink-3); }
+  pre .k { color: var(--synced); }
+  pre .hl { color: var(--alarm); font-weight: 600; }
+  pre .ok { color: var(--level); font-weight: 500; }
+  code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .86em;
+    background: var(--panel-sunk);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: .08em .38em;
+    direction: ltr;
+    display: inline-block;
+  }
+
+  /* ── Numbered argument steps ────────────────────────────────── */
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 1.5rem; }
+  .steps > li {
+    display: grid;
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    gap: 1.1rem;
+    align-items: start;
+  }
+  .steps .n {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    border: 1px solid var(--rule-strong);
+    border-radius: 2px;
+    height: 2.4rem;
+    display: grid;
+    place-items: center;
+    direction: ltr;
+  }
+  .steps p { margin: .35rem 0 0; font-size: .96rem; line-height: 1.75; color: var(--ink-2); }
+  .steps h3 { line-height: 2.4rem; margin: 0; }
+
+  /* ── Key/value strip ────────────────────────────────────────── */
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 1.75rem 0;
+  }
+  .facts div { background: var(--panel); padding: 1.1rem 1.2rem; }
+  .facts dt {
+    font-size: .72rem; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 600; margin-bottom: .3rem;
+  }
+  .facts dd {
+    margin: 0;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 1.32rem; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    direction: ltr; text-align: right;
+    line-height: 1.3;
+  }
+  .facts .sub { display: block; font-family: "IBM Plex Sans Arabic", sans-serif; font-size: .78rem; font-weight: 400; color: var(--ink-3); direction: rtl; text-align: right; margin-top: .2rem; line-height: 1.5; }
+
+  figure { margin: 0; }
+  figcaption {
+    font-size: .82rem; color: var(--ink-2);
+    margin-top: .9rem; line-height: 1.65;
+    padding-top: .8rem; border-top: 1px solid var(--rule);
+  }
+  svg { display: block; width: 100%; height: auto; }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 1.1rem;
+    font-size: .8rem; color: var(--ink-2);
+    margin-bottom: 1rem;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: .45rem; }
+  .swatch { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+  .swatch.dot { width: 9px; height: 9px; border-radius: 50%; }
+
+  .aside {
+    border-right: 2px solid var(--rule-strong);
+    padding: .15rem 1.1rem;
+    margin: 1.75rem 0;
+    color: var(--ink-2);
+    font-size: .96rem;
+    max-width: 40rem;
+  }
+
+  hr {
+    border: 0; border-top: 1px solid var(--rule);
+    margin: 3.5rem 0;
+  }
+
+  a { color: var(--level); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--level); outline-offset: 3px; border-radius: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="doc">
+
+  <header>
+    <p class="eyebrow">SDPF · POWDER PACKING LINE 1 · 26 AUG 2026</p>
+    <h1>لماذا قفزت العدّادات</h1>
+    <p class="lede">
+      دقيقة واحدة على كل ماكينة حملت إنتاج ستّ عشرة ساعة. هذا ما حدث بالضبط،
+      وكيف عرفناه، ولماذا لم يكن عدّاً مضاعفاً.
+    </p>
+    <div class="meta">
+      <span>M1 Big Betti · M2 Cartomac · M3 Euro-Pack · M4 Uni-Tech</span>
+      <span>WO-2026-0004</span>
+    </div>
+  </header>
+
+  <!-- ── الخلاصة ─────────────────────────────────────────────── -->
+  <section>
+    <div class="say">
+      <h2>الخلاصة أولاً</h2>
+      <p>
+        العدّاد لم يعدّ خطأً، ولم يعدّ ضِعفاً. عدّ <b>صحيحاً</b> طوال الليل —
+        لكنّ بوّابة الإرسال كانت مغلقة، والعدّ تراكم خلفها.
+      </p>
+      <p>
+        ولأن التراكم لم يكن يُلغى بل <b>يُؤجَّل</b>، فحين انفتحت البوّابة خرج
+        كلّه دفعةً واحدة، ووصل النظام في اللحظة نفسها. فسجّله في الدقيقة التي
+        وصل فيها — لا في الساعات التي حدث فيها.
+      </p>
+    </div>
+
+    <div class="verdict">
+      <p>
+        <b>القفزة ليست خطأ في العدّ. هي خطأ في التوقيت.</b>
+        الرقم صحيح؛ الدقيقة التي وُضع فيها خاطئة بستّ عشرة ساعة.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── ما ظهر ──────────────────────────────────────────────── -->
+  <section>
+    <div class="say">
+      <h2>ما رأيته على الشاشة</h2>
+      <p>
+        ثلاث دقائق فقط، في ثلاث ماكينات، حملت كل الفائض. السقف الميكانيكي
+        للخط <b>٤٥ قطعة في الدقيقة</b> — وهو الرقم الذي يجعل هذه الدقائق
+        مستحيلة لا مشبوهة فقط.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>الدقائق المستحيلة</h3>
+        <p class="note">من <code>oee_minutes</code>، بالوحدة الأساسية (قطعة)</p>
+      </div>
+      <div class="panel-body scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>الماكينة</th>
+              <th>اللحظة</th>
+              <th>القطع في تلك الدقيقة</th>
+              <th>كم ضِعف السقف</th>
+              <th>حالة الماكينة المسجَّلة</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mach">M1</td>
+              <td class="num">05:54</td>
+              <td class="num bad">1,260</td>
+              <td class="num bad">×28</td>
+              <td class="dim">RUNNING</td>
+            </tr>
+            <tr>
+              <td class="mach">M2</td>
+              <td class="num">05:55</td>
+              <td class="num bad">2,100</td>
+              <td class="num bad">×46</td>
+              <td class="bad">STARVED</td>
+            </tr>
+            <tr>
+              <td class="mach">M4</td>
+              <td class="num">06:33</td>
+              <td class="num bad">960</td>
+              <td class="num bad">×21</td>
+              <td class="dim">RUNNING</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="say">
+      <div class="aside">
+        <p style="margin:0">
+          انظر إلى صفّ <b>M2</b>: دقيقة مسجَّلة <code>STARVED</code> — أي أن
+          الماكينة كانت متوقّفة لنقص تغذية — ومكتوب فيها ٢١٠٠ قطعة. ماكينة
+          متوقّفة لا تنتج شيئاً. هذا وحده يثبت أن الرقم <b>وصل</b> في تلك
+          الدقيقة ولم <b>يحدث</b> فيها.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── الرسم ───────────────────────────────────────────────── -->
+  <section>
+    <div class="say">
+      <h2>الصورة الكاملة</h2>
+      <p>
+        هذا هو عدّ M1 دقيقةً بدقيقة. الخط مسطّح تماماً عند الصفر لستّ عشرة
+        ساعة، ثم عمود واحد.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>‏M1 — القطع المسجَّلة في كل دقيقة</h3>
+        <p class="note">من 25 أغسطس 12:57 إلى 26 أغسطس 05:56 · ‏1,081 دقيقة</p>
+      </div>
+      <div class="panel-body">
+        <figure>
+          <div class="legend">
+            <span><i class="swatch" style="background:var(--level)"></i> إنتاج طبيعي</span>
+            <span><i class="swatch" style="background:var(--alarm)"></i> الدفعة المحتجزة</span>
+            <span><i class="swatch dot" style="background:var(--ink-3)"></i> السقف الميكانيكي · 45/دقيقة</span>
+          </div>
+          <svg viewBox="0 0 900 300" role="img" aria-label="مخطط يبيّن عمود واحد بارتفاع 1260 قطعة بعد ستّ عشرة ساعة من الأصفار">
+            <!-- grid -->
+            <g stroke="var(--rule)" stroke-width="1">
+              <line x1="70" y1="30"  x2="880" y2="30"  />
+              <line x1="70" y1="93"  x2="880" y2="93"  />
+              <line x1="70" y1="156" x2="880" y2="156" />
+              <line x1="70" y1="219" x2="880" y2="219" />
+            </g>
+            <line x1="70" y1="255" x2="880" y2="255" stroke="var(--rule-strong)" stroke-width="1.5"/>
+
+            <!-- y labels -->
+            <g fill="var(--ink-3)" font-family="IBM Plex Mono, monospace" font-size="11" text-anchor="end">
+              <text x="60" y="34">1400</text>
+              <text x="60" y="97">1050</text>
+              <text x="60" y="160">700</text>
+              <text x="60" y="223">350</text>
+              <text x="60" y="259">0</text>
+            </g>
+
+            <!-- design ceiling: 45 pieces on a 1400 scale over 225px -> 7.2px above baseline -->
+            <line x1="70" y1="247.8" x2="880" y2="247.8" stroke="var(--ink-3)" stroke-width="1.5" stroke-dasharray="3 3"/>
+            <text x="76" y="243" fill="var(--ink-3)" font-family="IBM Plex Mono, monospace" font-size="10">45</text>
+
+            <!-- early real production 12:57-13:30: 286,47,54,38,9 -->
+            <g fill="var(--level)">
+              <rect x="92"  y="209.0" width="4" height="46.0"/>
+              <rect x="98"  y="247.4" width="4" height="7.6"/>
+              <rect x="104" y="246.3" width="4" height="8.7"/>
+              <rect x="110" y="248.9" width="4" height="6.1"/>
+              <rect x="140" y="253.5" width="4" height="1.5"/>
+            </g>
+
+            <!-- the flat night -->
+            <line x1="146" y1="255" x2="812" y2="255" stroke="var(--level)" stroke-width="2.5"/>
+
+            <!-- the release: 1260 -> 202.5px tall -->
+            <rect x="816" y="52.5" width="9" height="202.5" fill="var(--alarm)"/>
+            <rect x="836" y="254.2" width="4" height="0.8" fill="var(--level)"/>
+
+            <!-- annotation for the flat span -->
+            <g stroke="var(--rule-strong)" stroke-width="1">
+              <line x1="146" y1="278" x2="812" y2="278"/>
+              <line x1="146" y1="273" x2="146" y2="283"/>
+              <line x1="812" y1="273" x2="812" y2="283"/>
+            </g>
+            <text x="479" y="295" fill="var(--ink-2)" font-family="IBM Plex Mono, monospace" font-size="11" text-anchor="middle">983 min · zero counted</text>
+
+            <!-- callout on the spike -->
+            <g>
+              <line x1="820" y1="48" x2="820" y2="24" stroke="var(--alarm)" stroke-width="1"/>
+              <text x="814" y="18" fill="var(--alarm)" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" text-anchor="end">1,260 @ 05:54</text>
+            </g>
+
+            <!-- x labels -->
+            <g fill="var(--ink-3)" font-family="IBM Plex Mono, monospace" font-size="11">
+              <text x="88" y="272">12:57</text>
+              <text x="790" y="272">05:54</text>
+            </g>
+          </svg>
+          <figcaption>
+            العمود الأحمر ليس ذروة إنتاج. هو <b>ستّ عشرة ساعة</b> من العدّ
+            سُجِّلت في ستّين ثانية. لاحظ الخطّ المنقّط عند ٤٥ — السقف الحقيقي
+            للماكينة — وكم هو قريب من الصفر بالمقارنة.
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ما ليس السبب ────────────────────────────────────────── -->
+  <section>
+    <div class="say">
+      <h2>ما استبعدناه، وكيف</h2>
+      <p>
+        قبل أي تفسير، هذه الاحتمالات قُتلت بالبيانات لا بالرأي.
+      </p>
+    </div>
+
+    <ol class="steps say" style="max-width:44rem">
+      <li>
+        <span class="n">01</span>
+        <div>
+          <h3>ليس عدّاً مضاعفاً</h3>
+          <p>
+            لو كان العدّاد يعدّ ٢ بدل ١، لانتشر الخطأ على <b>كل</b> الدقائق
+            بنسبة ثابتة. لكن سكربت المطابقة وجد أن الفائض كلّه يقع في
+            <b>دقيقة واحدة لكل ماكينة</b> — ثلاث دقائق من أصل 1,081.
+            التضاعف لا يتصرّف هكذا.
+          </p>
+        </div>
+      </li>
+      <li>
+        <span class="n">02</span>
+        <div>
+          <h3>كاتب الدقائق لم يتوقّف</h3>
+          <p>
+            الاحتمال البديهي: أن يكون النظام متوقّفاً ثم «لحق نفسه». لكنه كتب
+            <b>983 صفّ دقيقة</b> لكل ماكينة أثناء الفجوة — بانتظام، دقيقةً
+            بدقيقة، وكلّها بصفر عدّ. كان حيّاً وسليماً طوال الوقت.
+          </p>
+        </div>
+      </li>
+      <li>
+        <span class="n">03</span>
+        <div>
+          <h3>أوامر التشغيل لم تُغلَق ولم تُستبدل</h3>
+          <p>
+            الأربعة كانت <code>EXECUTING</code> بلا انقطاع منذ 25 أغسطس 12:55.
+            لا تسليم بين أوامر، ولا إعادة بدء، ولا إعادة إسناد عدّاد.
+          </p>
+        </div>
+      </li>
+    </ol>
+
+    <dl class="facts say" style="max-width:44rem">
+      <div>
+        <dt>الفجوة</dt>
+        <dd>16h 24m
+        <span class="sub">25 أغسطس 13:30 ← 26 أغسطس 05:54</span></dd>
+      </div>
+      <div>
+        <dt>دقائق كُتبت فيها</dt>
+        <dd>983
+        <span class="sub">لكل ماكينة · الكاتب كان يعمل</span></dd>
+      </div>
+      <div>
+        <dt>دقائق عدّت شيئاً</dt>
+        <dd>0
+        <span class="sub">ولا واحدة، في الأربع ماكينات</span>
+      </dd></div>
+    </dl>
+  </section>
+
+  <hr>
+
+  <!-- ── الآلية ──────────────────────────────────────────────── -->
+  <section>
+    <div class="say">
+      <h2>الآلية</h2>
+      <p>
+        في الايدج، كل عدّاد يحمل رقمين:
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>الرقمان اللذان يفسّران كل شيء</h3>
+      </div>
+      <div class="panel-body scroll">
+        <table>
+          <thead>
+            <tr><th>الرقم</th><th>معناه</th><th>متى يتقدّم</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mach" style="color:var(--level)">accumulated</td>
+              <td>كل نبضة رآها العدّاد منذ بداية الأمر</td>
+              <td class="good">دائماً — مع كل نبضة، بلا شرط</td>
+            </tr>
+            <tr>
+              <td class="mach" style="color:var(--synced)">synced</td>
+              <td>ما أُبلِغ به أمر التشغيل فعلاً</td>
+              <td class="bad">فقط عند نجاح الإرسال</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="say">
+      <p>
+        الفرق بينهما هو <b>ما لم يُبلَّغ بعد</b>. وفي الحالة الطبيعية يكون
+        صفراً أو نبضات قليلة. المشكلة أن بوّابة الإرسال كانت مغلقة، بينما
+        <code>accumulated</code> يواصل التقدّم.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>السطر المسؤول</h3>
+        <p class="note">apps/edgegateway/src/acquisition/counter.service.ts · قبل الإصلاح</p>
+      </div>
+      <div class="panel-body">
+<pre><span class="c">// observe() — يعمل مع كل نبضة، بلا أي شرط</span>
+mem.accumulated += inc;          <span class="c">// ← يتقدّم دائماً</span>
+
+<span class="c">// writeBatch() — يعمل عند كل إرسال</span>
+<span class="hl">if (!c.joId || !c.running) continue;</span>   <span class="c">// ← يتخطّى الإرسال…</span>
+<span class="c">//                                          …و synced يبقى مكانه</span>
+
+const delta = accumulated - mem.synced;   <span class="c">// الفجوة تتّسع بلا حدّ</span>
+</pre>
+      </div>
+    </div>
+
+    <div class="say">
+      <p>
+        <code>continue</code> يتخطّى الإرسال، لكنه <b>لا يُلغي</b> ما تراكم.
+        فالفرق يظلّ محفوظاً، ينتظر أول لحظة يصبح فيها الشرط صحيحاً.
+      </p>
+      <p>
+        طوال الليل قرأت الماكينات <code>IDLE</code> و<code>STARVED</code>
+        (‏M1 كانت <code>IDLE</code> في 982 دقيقة من 983). فبقيت البوّابة
+        مغلقة، والعدّ يتراكم خلفها. وفي 05:54 صارت الحالة
+        <code>RUNNING</code> — وخرج كل شيء في إرسال واحد.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── لماذا دقيقة واحدة ───────────────────────────────────── -->
+  <section>
+    <div class="say">
+      <h2>ولماذا انحشر كلّه في دقيقة واحدة</h2>
+      <p>
+        لأن كاتب الدقائق لا يسأل «كم أُنتج في هذه الدقيقة». يسأل سؤالاً
+        آخر تماماً:
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-body">
+<pre><span class="c">// oee-standard.writer.ts</span>
+goodParts = <span class="k">MAX</span>(0, toBase(jo.actualQtyGood) - <span class="k">SUM</span>(الدقائق المحجوزة))
+<span class="c">//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>
+<span class="c">//          «كم زاد الإجمالي منذ آخر مرة» — لا «كم أُنتج الآن»</span>
+</pre>
+      </div>
+    </div>
+
+    <div class="say">
+      <p>
+        هذا التصميم سليم ومقصود: يجعل مجموع الدقائق مطابقاً لإجمالي أمر
+        التشغيل دائماً، مهما ضاعت رسالة أو تأخّرت. لكنه يعني أيضاً أن
+        <b>الكاتب يثق بالإجمالي ثقةً كاملة</b>.
+      </p>
+      <p>
+        فحين قفز <code>actualQtyGood</code> بمقدار ١٢٦٠ في لحظة، حجز الكاتب
+        ١٢٦٠ في تلك الدقيقة. لم يخطئ — نفّذ ما طُلب منه بالضبط. الخطأ حدث
+        قبله بستّ عشرة ساعة.
+      </p>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ── الأثر الثاني ────────────────────────────────────────── -->
+  <section>
+    <div class="say">
+      <h2>الأثر الثاني — الذي لم تصطدم به بعد</h2>
+      <p>
+        حين صحّحت الأرقام يدوياً من الشوب فلور، صحّحت <b>أمر التشغيل</b>.
+        لكن الدقائق المختومة لا تتغيّر. فصار عندك رقمان مختلفان لنفس
+        الشيء — وهو ما رأيته في <em>Output and time</em>.
+      </p>
+      <p>
+        والأسوأ: انظر إلى <code>MAX(0, …)</code> في المعادلة أعلاه.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>لماذا كان الإنتاج القادم سيختفي</h3>
+      </div>
+      <div class="panel-body">
+<pre>الدقائق المحجوزة  = 1699    <span class="c">(الرقم المتضخّم)</span>
+أمر التشغيل بعد التصحيح = 1201
+
+delta = MAX(0, 1201 - 1699) = MAX(0, <span class="hl">-498</span>) = <span class="hl">0</span>
+
+<span class="c">↳ وسيبقى صفراً حتى يتجاوز الإنتاج الحقيقي 1699 من جديد.</span>
+<span class="c">↳ أي أن 498 قطعة قادمة كانت ستُسجَّل كـ «لا شيء».</span>
+</pre>
+      </div>
+    </div>
+
+    <div class="say">
+      <p>
+        سكربت المطابقة يمسح هذا الدَّين أيضاً: بعد تشغيله يصبح مجموع الدقائق
+        مساوياً لإجمالي أمر التشغيل تماماً، فيعود الفرق إلى الصفر — والإنتاج
+        الجديد يُسجَّل طبيعياً من أول قطعة.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>الفجوة بين الشوب فلور والتحليلات</h3>
+        <p class="note">قبل المطابقة · قيست على النسخة المستعادة</p>
+      </div>
+      <div class="panel-body scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>الماكينة</th><th>الوحدة</th>
+              <th>الشوب فلور</th><th>الدقائق</th><th>الفارق</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="mach">M1</td><td class="dim">INNER</td><td class="num">1,201</td><td class="num bad">1,699</td><td class="num bad">+498</td></tr>
+            <tr><td class="mach">M2</td><td class="dim">CARTON</td><td class="num">341</td><td class="num bad">612</td><td class="num bad">+271</td></tr>
+            <tr><td class="mach">M3</td><td class="dim">PALLET</td><td class="num">6</td><td class="num good">6</td><td class="num good">0</td></tr>
+            <tr><td class="mach">M4</td><td class="dim">PALLET</td><td class="num">5</td><td class="num bad">9</td><td class="num bad">+4</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="say">
+      <div class="aside">
+        <p style="margin:0">
+          ‏<b>M3 مطابقة تماماً.</b> هذا ليس صدفة — هو ضبط الشاهد في التجربة:
+          ماكينة على نفس الخط، نفس الأمر، نفس الليلة، لم تحتجز دفعة فلم
+          تقفز. لو كان السبب عدّاً مضاعفاً لأصابها مثل غيرها.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ── الإصلاح ─────────────────────────────────────────────── -->
+  <section>
+    <div class="say">
+      <h2>ما تغيّر</h2>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>قاعدتان بدل شرط واحد</h3>
+      </div>
+      <div class="panel-body">
+<pre><span class="c">// كان: شرط واحد يحتجز الحالتين</span>
+<span class="hl">if (!c.joId || !c.running) continue;</span>
+
+<span class="c">// صار: كل حالة تُعالَج بما تستحقّ</span>
+<span class="ok">if (!c.joId) {</span>              <span class="c">// لا أمر تشغيل أصلاً →</span>
+  mem.synced = accumulated;   <span class="c">// تُسقَط، لا تُدَّخر</span>
+  this.orphaned.set(…);       <span class="c">// وتُحصى، لتكون مرئية</span>
+  continue;
+}
+<span class="c">// أمر EXECUTING + نبضة = وحدة صُنعت → تُحجَز فوراً،</span>
+<span class="c">// مهما قال محرّك الحالة عن الماكينة.</span>
+</pre>
+      </div>
+    </div>
+
+    <ol class="steps say" style="max-width:44rem">
+      <li>
+        <span class="n">١</span>
+        <div>
+          <h3>نبضة بلا أمر تشغيل تُسقَط وتُحصى</h3>
+          <p>
+            نبضة تصل ولا أمر تشغيل خلفها لا تخصّ أيّ أمر — فلا يجوز أن
+            تُنسَب إلى أوّل أمر يبدأ بعدها. تُسقَط، لكن تُسجَّل في عدّاد
+            منفصل: عدّاد يدور بلا جدولة خبرٌ يستحقّ أن يُرى، سواء كان الخطّ
+            يتحرّك خارج أمر أو المدخل يلتقط ضوضاء.
+          </p>
+        </div>
+      </li>
+      <li>
+        <span class="n">٢</span>
+        <div>
+          <h3>حالة الماكينة لم تعد تحجز العدّ</h3>
+          <p>
+            أمر <code>EXECUTING</code> ونبضة على المدخل يعنيان أن وحدة
+            صُنعت. رأي محرّك الحالة لا يُلغي وحدة مادية. وحجزُ العدّ لم يكن
+            يُسقطه أصلاً — كان يدفعه لاحقاً في الدقيقة الخطأ، وهكذا حملت
+            دقيقة <code>STARVED</code> ألفين ومئة قطعة.
+          </p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="say">
+      <p>
+        اختبار في مجموعة الايدج يعيد إنتاج قفزة 25–26 أغسطس بالقاعدة القديمة
+        ويثبت اختفاءها بالجديدة — فالخطأ صار <b>مرئياً</b> لا موصوفاً، ولا
+        يمكن أن يعود دون أن يسقط الاختبار.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── التحقق ──────────────────────────────────────────────── -->
+  <section>
+    <div class="say">
+      <h2>تحقّق بنفسك</h2>
+      <p>ثلاثة استعلامات تعيد بناء كل ما سبق على قاعدتك.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>الدقائق المستحيلة</h3>
+        <p class="note">أي دقيقة تتجاوز السقف الميكانيكي</p>
+      </div>
+      <div class="panel-body">
+<pre>SELECT m.code, o."bucketStart", o."goodParts", o."machineState"
+FROM oee_minutes o JOIN machines m ON m.id = o."machineId"
+WHERE o."goodParts" &gt; o."designSpeedPph" / 60
+ORDER BY o."goodParts" DESC LIMIT 20;
+</pre>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>هل كان الكاتب حيّاً أثناء الفجوة</h3>
+        <p class="note">صفوف كثيرة بعدّ صفر = حيّ · لا صفوف = متوقّف</p>
+      </div>
+      <div class="panel-body">
+<pre>SELECT m.code, count(*) AS rows_written,
+       count(*) FILTER (WHERE o."goodParts" &gt; 0) AS of_which_counted
+FROM oee_minutes o JOIN machines m ON m.id = o."machineId"
+WHERE o."bucketStart" BETWEEN '2026-08-25 13:30' AND '2026-08-26 05:54'
+GROUP BY 1 ORDER BY 1;
+</pre>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>الفجوة بين الشوب فلور والتحليلات، الآن</h3>
+        <p class="note">‏surplus موجب = الدقائق ما زالت متضخّمة</p>
+      </div>
+      <div class="panel-body">
+<pre>docker exec -i mes-postgres-prod psql -U mes_user -d mes360 \
+  &lt; apps/api/prisma/sql/match-minutes-to-shopfloor.sql
+</pre>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section class="say">
+    <h2>في جملة واحدة</h2>
+    <p style="font-size:1.12rem;line-height:1.75">
+      العدّاد كان يعدّ، والبوّابة كانت مغلقة، والتراكم كان يُؤجَّل لا يُلغى —
+      فحين فُتحت البوّابة وصل ليلٌ كامل في دقيقة واحدة، وسجّله النظام حيث
+      وصل لا حيث حدث.
+    </p>
+  </section>
+
+</div>
+
+</body>
+</html>
