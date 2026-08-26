@@ -46,19 +46,19 @@ model Enterprise {
 // ============================================================
 
 model Factory {
-  id           String   @id @default(uuid())
-  enterpriseId String
-  code         String   @unique
-  name         String
-  nameAr       String?
-  city         String?
-  country      String   @default("SA")
-  address      String?
-  lat          Float?
-  lng          Float?
-  color        String   @default("#00C8FF")
-  glowColor    String   @default("rgba(0,200,255,0.3)")
-  timezone     String   @default("Asia/Riyadh")
+  id                         String   @id @default(uuid())
+  enterpriseId               String
+  code                       String   @unique
+  name                       String
+  nameAr                     String?
+  city                       String?
+  country                    String   @default("SA")
+  address                    String?
+  lat                        Float?
+  lng                        Float?
+  color                      String   @default("#00C8FF")
+  glowColor                  String   @default("rgba(0,200,255,0.3)")
+  timezone                   String   @default("Asia/Riyadh")
   // ── Display unit (see common/units.util.ts) ──────────────────────────────
   // ALL internal arithmetic is done in PIECE, the smallest rung of the packaging
   // ladder, because that is the only unit in which quantities from different
@@ -67,7 +67,7 @@ model Factory {
   // never alter a stored quantity or a calculation — it is a rendering choice.
   // Deliberately separate from SKU.baseUnit, which governs inventory stock and
   // must not be repurposed for display.
-  displayUnit  String   @default("INNER")
+  displayUnit                String   @default("INNER")
   /// Write the shift schedule into machine state history.
   ///
   /// OFF by default, deliberately. Turning it on makes planned-stop
@@ -75,11 +75,11 @@ model Factory {
   /// for a plant whose breaks genuinely repeat on a rule. A plant that plans
   /// day by day should book dated downtime events instead, and would find a
   /// recurring template writing windows nobody scheduled.
-  plannedStopMaterialisation Boolean @default(false)
-  isActive     Boolean  @default(true)
-  metadata     Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  plannedStopMaterialisation Boolean  @default(false)
+  isActive                   Boolean  @default(true)
+  metadata                   Json?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
   enterprise             Enterprise             @relation(fields: [enterpriseId], references: [id])
   areas                  Area[]
@@ -143,17 +143,16 @@ model Factory {
   materialRequests       MaterialRequest[]
   storageTransfers       StorageTransfer[]
 
-  machineStateRules      MachineStateRule[]
-  scheduleAttainment     ScheduleAttainmentDaily[]
+  machineStateRules  MachineStateRule[]
+  scheduleAttainment ScheduleAttainmentDaily[]
 
   plannedStopTemplates PlannedStopTemplate[]
   scheduleRules        ScheduleRule[]
   workOrderStopRules   WorkOrderStopRule[]
-
+  oeeMinutes           OeeMinute[]
+  oeeScheduleMinutes   OeeScheduleMinute[]
 
   @@map("factories")
-  oeeMinutes OeeMinute[]
-  oeeScheduleMinutes OeeScheduleMinute[]
 }
 
 // ============================================================
@@ -199,16 +198,16 @@ enum AreaType {
 // ============================================================
 
 model ProductionLine {
-  id          String   @id @default(uuid())
-  factoryId   String
-  areaId      String
-  code        String
-  name        String
-  nameAr      String?
-  type        LineType @default(PACKING)
-  description String?
-  isActive    Boolean  @default(true)
-  sortOrder   Int      @default(0)
+  id                  String    @id @default(uuid())
+  factoryId           String
+  areaId              String
+  code                String
+  name                String
+  nameAr              String?
+  type                LineType  @default(PACKING)
+  description         String?
+  isActive            Boolean   @default(true)
+  sortOrder           Int       @default(0)
   // ── Line OEE calculation basis (NCC PoC) ─────────────────────────────────
   // Which method produces this line's headline OEE. ROLLUP is the historic
   // quantity-weighted aggregation of every machine; BOTTLENECK measures the line
@@ -222,24 +221,22 @@ model ProductionLine {
   // A line can finish through more than one outfeed (parallel palletizers), so
   // this is a list. EMPTY = every machine on the line is treated as outfeed.
   outfeedMachineIds   String[]  @default([])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  factory        Factory         @relation(fields: [factoryId], references: [id])
-  area           Area            @relation(fields: [areaId], references: [id])
-  machines       Machine[]
-  workOrders     WorkOrder[]
-  shiftInstances ShiftInstance[]
-  energyMeters   EnergyMeter[]
-  energyTariffs  EnergyTariff[]
-  devices        Device[]
-  tagDefinitions TagDefinition[]
-
-  @@unique([factoryId, code])
+  factory            Factory             @relation(fields: [factoryId], references: [id])
+  area               Area                @relation(fields: [areaId], references: [id])
+  machines           Machine[]
+  workOrders         WorkOrder[]
+  shiftInstances     ShiftInstance[]
+  energyMeters       EnergyMeter[]
+  energyTariffs      EnergyTariff[]
+  devices            Device[]
+  tagDefinitions     TagDefinition[]
   plannedStopTargets PlannedStopTarget[]
   workOrderStopRules WorkOrderStopRule[]
 
-
+  @@unique([factoryId, code])
   @@map("production_lines")
 }
 
@@ -321,20 +318,18 @@ model Machine {
   routingSteps        RoutingStep[]
   jobOrders           JobOrder[]
   stepOptions         RoutingStepMachineOption[]
+  machineStateRules   MachineStateRule[]
+
+  plannedStopTargets PlannedStopTarget[]
+  workOrderStopRules WorkOrderStopRule[]
+  oeeMinutes         OeeMinute[]
+  oeeScheduleMinutes OeeScheduleMinute[]
+  lineBalance        LineBalanceConfig?
 
   @@unique([factoryId, code])
   @@index([factoryId])
   @@index([lineId])
-  machineStateRules MachineStateRule[]
-
-  plannedStopTargets PlannedStopTarget[]
-  workOrderStopRules WorkOrderStopRule[]
-
-
   @@map("machines")
-  oeeMinutes OeeMinute[]
-  oeeScheduleMinutes OeeScheduleMinute[]
-  lineBalance       LineBalanceConfig?
 }
 
 enum MachineType {
@@ -707,14 +702,12 @@ model SKU {
   recipes                Recipe[]
   changeRequests         ChangeRequest[]
   finishedGoodsLots      FinishedGoodsLot[]
+  workOrderStopRules     WorkOrderStopRule[]
 
   @@unique([factoryId, itemNumber])
   @@index([factoryId])
   @@index([categoryId])
   @@index([baseWeightId])
-  workOrderStopRules WorkOrderStopRule[]
-
-
   @@map("skus")
 }
 
@@ -769,15 +762,16 @@ model ProductionOrder {
   updatedAt      DateTime              @updatedAt
   deletedAt      DateTime?
 
-  factory            Factory             @relation(fields: [factoryId], references: [id])
-  sku                SKU?                @relation(fields: [skuId], references: [id])
+  factory            Factory                   @relation(fields: [factoryId], references: [id])
+  sku                SKU?                      @relation(fields: [skuId], references: [id])
   workOrders         WorkOrder[]
   rescheduleRequests RescheduleRequest[]
+  stopPlan           ProductionOrderStop[]
   materialRequests   MaterialRequest[]
+  scheduleAttainment ScheduleAttainmentDaily[]
 
   @@index([factoryId, status])
   @@map("production_orders")
-  scheduleAttainment ScheduleAttainmentDaily[]
 }
 
 // ── RESCHEDULE GOVERNANCE ───────────────────────────────────────────────────
@@ -1132,9 +1126,87 @@ model ShiftTemplate {
   scheduleRule ScheduleRule?         @relation(fields: [scheduleRuleId], references: [id])
   instances    ShiftInstance[]
   plannedStops PlannedStopTemplate[]
+  breaks       ShiftBreak[]
 
   @@unique([factoryId, code])
   @@map("shift_templates")
+}
+
+/// How often one of an order's planned stops recurs.
+enum StopRecurrence {
+  /// Once for the whole order, at its first actual start.
+  ONCE
+  /// Again at the start of every shift the order runs through.
+  PER_SHIFT
+  /// Again every time the order is resumed after a pause.
+  PER_RESTART
+}
+
+/// A stop the plant KNOWS it will take when this order runs.
+///
+/// Cleaning, startup and changeover are not surprises — they are part of the
+/// order, and until now the plant typed them in by hand every time. The plan
+/// lives on the order; the EVENTS are created from it when the order actually
+/// starts, per machine, so a plan edited tomorrow cannot rewrite yesterday.
+///
+/// Per machine, not per line: the events land against each step's own job
+/// order, which is where the timeline, the OEE denominator and the counter all
+/// already look. One line-wide event would have to be apportioned back to four
+/// machines by something, and that something would be a second rule.
+model ProductionOrderStop {
+  id                String         @id @default(uuid())
+  productionOrderId String
+  /// CLEANING | STARTUP | CHANGEOVER | OTHER — drives the reason code only.
+  kind              String         @default("OTHER")
+  /// What the operator sees on the timeline. Free text, because a plant's own
+  /// word for a stop beats a category every time.
+  label             String
+  durationMin       Int
+  /// Order of execution within one occurrence. Two stops with the same sequence
+  /// are laid out in the order they were created.
+  sequence          Int            @default(0)
+  recurrence        StopRecurrence @default(ONCE)
+  /// Whether these minutes still cost the OEE reading. A changeover does; a
+  /// meal break does not. Same meaning as on DowntimeEvent, deliberately.
+  affectsOEE        Boolean        @default(true)
+  isActive          Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  productionOrder ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  @@index([productionOrderId])
+  @@map("production_order_stops")
+}
+
+/// A break inside a shift — as many as the shift actually has.
+///
+/// The template used to carry `breakMinutes` and `cleaningMinutes`: two numbers
+/// with no start time, which could not express "twenty minutes at ten and forty
+/// at one". Those fields are already marked deprecated and read by nothing.
+///
+/// Events are created when the shift OCCURRENCE begins, not in advance and not
+/// forever — a break at 10:00 exists on the days that shift runs, and on no
+/// others.
+model ShiftBreak {
+  id              String   @id @default(uuid())
+  shiftTemplateId String
+  label           String
+  /// HH:mm, plant-local, inside the shift. A time outside the shift's own
+  /// window is a configuration error and is reported rather than clamped.
+  startTime       String
+  durationMin     Int
+  sequence        Int      @default(0)
+  /// A meal break leaves the denominator; a cleaning break may not.
+  affectsOEE      Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shiftTemplate ShiftTemplate @relation(fields: [shiftTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([shiftTemplateId])
+  @@map("shift_breaks")
 }
 
 model ShiftInstance {
@@ -1162,14 +1234,14 @@ model ShiftInstance {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  factory             Factory              @relation(fields: [factoryId], references: [id])
-  shiftTemplate       ShiftTemplate        @relation(fields: [shiftTemplateId], references: [id])
-  line                ProductionLine?      @relation(fields: [lineId], references: [id])
-  operator            User?                @relation("ShiftOperator", fields: [operatorId], references: [id])
-  supervisor          User?                @relation("ShiftSupervisor", fields: [supervisorId], references: [id])
-  workOrders          WorkOrder[]
-  stateRecords        MachineStateRecord[]
-  oeeRecords          OEERecord[]
+  factory       Factory              @relation(fields: [factoryId], references: [id])
+  shiftTemplate ShiftTemplate        @relation(fields: [shiftTemplateId], references: [id])
+  line          ProductionLine?      @relation(fields: [lineId], references: [id])
+  operator      User?                @relation("ShiftOperator", fields: [operatorId], references: [id])
+  supervisor    User?                @relation("ShiftSupervisor", fields: [supervisorId], references: [id])
+  workOrders    WorkOrder[]
+  stateRecords  MachineStateRecord[]
+  oeeRecords    OEERecord[]
 
   @@index([factoryId, shiftDate])
   @@map("shift_instances")
@@ -1231,18 +1303,16 @@ model DowntimeCause {
   parent   DowntimeCause?  @relation("DowntimeCauseTree", fields: [parentId], references: [id], onDelete: SetNull)
   children DowntimeCause[] @relation("DowntimeCauseTree")
 
-  factory        Factory              @relation(fields: [factoryId], references: [id])
-  machine        Machine?             @relation(fields: [machineId], references: [id])
-  stateRecords   MachineStateRecord[]
-  downtimeEvents DowntimeEvent[]
+  factory              Factory               @relation(fields: [factoryId], references: [id])
+  machine              Machine?              @relation(fields: [machineId], references: [id])
+  stateRecords         MachineStateRecord[]
+  downtimeEvents       DowntimeEvent[]
+  plannedStopTemplates PlannedStopTemplate[]
+  workOrderStopRules   WorkOrderStopRule[]
 
   @@index([factoryId])
   @@index([machineId])
   @@index([parentId])
-  plannedStopTemplates PlannedStopTemplate[]
-  workOrderStopRules   WorkOrderStopRule[]
-
-
   @@map("downtime_causes")
 }
 
@@ -1356,7 +1426,6 @@ model OEERecord {
   @@index([machineId, recordDate])
   @@map("oee_records")
 }
-
 
 // MACHINE RUNTIME HOURS (for PM scheduling)
 model MachineRuntimeHours {
@@ -2281,9 +2350,9 @@ model TagDefinition {
   // a wrapper's table rests for minutes between pallets while a filler's does not.
   //
   /// RUN_MODE_PULSED: window over which edges are counted to detect pulsing.
-  pulseWindowMs Int? @default(6000)
+  pulseWindowMs   Int? @default(6000)
   /// RUN_MODE_PULSED: edges inside that window that mean "pulsing", not one stop.
-  pulseMinEdges Int? @default(4)
+  pulseMinEdges   Int? @default(4)
   /// PROCESSING: how long the signal must stay inactive before the machine counts
   /// as starved rather than merely between units. Too short reports starvation
   /// between every pallet; too long lets a real stoppage go unrecorded.
@@ -3475,25 +3544,25 @@ model JobOrder {
   // Quantities
   plannedQtyIn      Float? // input quantity planned
   plannedQtyOut     Float? // expected output quantity
-  actualQtyGood     Float   @default(0) // total good = auto (counter) + manual
-  actualQtyRejected Float   @default(0) // total scrap = auto (counter) + manual
+  actualQtyGood     Float  @default(0) // total good = auto (counter) + manual
+  actualQtyRejected Float  @default(0) // total scrap = auto (counter) + manual
   // Operator-entered portion, tracked separately so the gateway counter never
   // overwrites manual scrap (and auto vs manual can be reconciled).
-  manualQtyGood     Float   @default(0)
-  manualQtyRejected Float   @default(0)
+  manualQtyGood     Float  @default(0)
+  manualQtyRejected Float  @default(0)
 
   /// Line-balance correction, in this step's outputUnit. Kept SEPARATE from the
   /// counted and manual quantities so a reconciled number can always be taken
   /// apart into what a sensor measured, what an operator entered, and what the
   /// balance inferred. Zero unless the line balancer is enabled for this machine.
-  balanceAdjGood     Float  @default(0)
-  balanceAdjRejected Float  @default(0)
+  balanceAdjGood     Float     @default(0)
+  balanceAdjRejected Float     @default(0)
   /// When the balancer last touched this row — so a stale correction is visible.
   balancedAt         DateTime?
-  handoverQty       Float   @default(0) // qty actually transferred to next step
-  handoverCriteria  Float? // min qty before successor becomes READY
-  outputUnit        String? // PIECE, CARTON, PALLET — unit of plannedQtyOut / actualQtyGood
-  inputUnit         String? // unit of plannedQtyIn (step's consumed unit)
+  handoverQty        Float     @default(0) // qty actually transferred to next step
+  handoverCriteria   Float? // min qty before successor becomes READY
+  outputUnit         String? // PIECE, CARTON, PALLET — unit of plannedQtyOut / actualQtyGood
+  inputUnit          String? // unit of plannedQtyIn (step's consumed unit)
 
   // OEE denominator — stamped from MachineCycleTime at JO creation
   idealCycleTimeSec Float?
@@ -3519,15 +3588,14 @@ model JobOrder {
   operator             User?                 @relation("JOOperator", fields: [operatorId], references: [id])
   scrapLogs            ScrapLog[]
   materialConsumptions MaterialConsumption[]
+  downtimeEvents       DowntimeEvent[]
+  oeeMinutes           OeeMinute[]
+  oeeScheduleMinutes   OeeScheduleMinute[]
 
   @@index([workOrderId])
   @@index([factoryId, status])
   @@index([machineId])
-  downtimeEvents DowntimeEvent[]
-
   @@map("job_orders")
-  oeeMinutes OeeMinute[]
-  oeeScheduleMinutes OeeScheduleMinute[]
 }
 
 // Per-step scrap / rejection log — every increment of actualQtyRejected creates one entry
@@ -3854,7 +3922,7 @@ enum PlannedStopScope {
 }
 
 model PlannedStopTemplate {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   factoryId String
   code      String
   name      String
@@ -3899,10 +3967,10 @@ model PlannedStopTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  factory       Factory                    @relation(fields: [factoryId], references: [id])
-  cause         DowntimeCause?             @relation(fields: [causeId], references: [id])
-  shiftTemplate ShiftTemplate?             @relation(fields: [shiftTemplateId], references: [id], onDelete: Cascade)
-  scheduleRule  ScheduleRule?              @relation(fields: [scheduleRuleId], references: [id], onDelete: Cascade)
+  factory       Factory             @relation(fields: [factoryId], references: [id])
+  cause         DowntimeCause?      @relation(fields: [causeId], references: [id])
+  shiftTemplate ShiftTemplate?      @relation(fields: [shiftTemplateId], references: [id], onDelete: Cascade)
+  scheduleRule  ScheduleRule?       @relation(fields: [scheduleRuleId], references: [id], onDelete: Cascade)
   targets       PlannedStopTarget[]
 
   @@unique([factoryId, code])
@@ -3912,10 +3980,10 @@ model PlannedStopTemplate {
 
 /// The lines or machines a scoped stop applies to. Empty for FACTORY scope.
 model PlannedStopTarget {
-  id        String  @id @default(uuid())
+  id         String  @id @default(uuid())
   templateId String
-  lineId    String?
-  machineId String?
+  lineId     String?
+  machineId  String?
 
   template PlannedStopTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   line     ProductionLine?     @relation(fields: [lineId], references: [id])
@@ -3941,12 +4009,12 @@ model ScheduleRule {
   daysOfWeek Json @default("[]")
 
   /// First date it applies (inclusive). Null = from today.
-  startDate DateTime?
+  startDate   DateTime?
   /// Last date it applies (inclusive). Null with isPerpetual = runs indefinitely.
-  endDate DateTime?
+  endDate     DateTime?
   /// True = no end. Kept explicit rather than inferred from a null endDate, so
   /// "forever" is a decision somebody made and not a field they forgot.
-  isPerpetual Boolean @default(false)
+  isPerpetual Boolean   @default(false)
 
   /// A single dated occurrence — Friday overtime — which ignores daysOfWeek.
   oneOffDate DateTime?
@@ -4017,7 +4085,6 @@ enum WorkOrderStopTrigger {
   ALWAYS
 }
 
-
 // ============================================================
 // OEE STANDARD ENGINE — the Insights Hub time model, one row per minute
 // ------------------------------------------------------------
@@ -4081,8 +4148,8 @@ model ScheduleAttainmentDaily {
   factoryId         String
   productionOrderId String
   /// Carried so a line or product roll-up is a filter rather than a join.
-  lineId String?
-  skuId  String?
+  lineId            String?
+  skuId             String?
 
   /// All three in the SKU's base unit, so orders in different packaging add up.
   scheduledQty Float @default(0)
@@ -4112,11 +4179,11 @@ model OeeMinute {
   /// The minute this row accounts for: [bucketStart, bucketStart + 60s).
   bucketStart DateTime
   /// False while the minute is still in progress and may be re-upserted.
-  isFinalized Boolean @default(false)
+  isFinalized Boolean  @default(false)
 
-  factoryId  String
-  machineId  String
-  jobOrderId String
+  factoryId   String
+  machineId   String
+  jobOrderId  String
   /// Carried so a work-order roll-up does not need a second query per row.
   workOrderId String?
 
@@ -4150,24 +4217,24 @@ model OeeMinute {
 
   // ── The time model. These six are mutually exclusive and sum to totalMin. ──
   /// The minute itself, clipped to the job order's actual occupancy of it.
-  totalMin Float @default(0)
+  totalMin            Float @default(0)
   /// Scheduled stops (breaks, cleaning) and states the plant marked as planned.
-  plannedStopMin Float @default(0)
+  plannedStopMin      Float @default(0)
   /// Unplanned downtime that counts against this machine — the availability loss.
   availabilityLossMin Float @default(0)
   /// Stopped, but by the line rather than by the machine: starved, blocked, and
   /// anything else a State Rule marks as downtime that does not affect OEE.
-  externalLossMin Float @default(0)
+  externalLossMin     Float @default(0)
   /// The machine reported no state at all. Neither running nor stopped — and
   /// counting silence as either is the failure this column exists to prevent.
-  unmeasuredMin Float @default(0)
+  unmeasuredMin       Float @default(0)
   /// Net production time: the machine was running.
-  operatingMin Float @default(0)
+  operatingMin        Float @default(0)
   /// The part of `availabilityLossMin` that came from stops shorter than the
   /// machine's `downtimeThreshold`. A SUBSET, not a sixth bucket — it is not
   /// subtracted from the availability loss, so the six above still sum to
   /// totalMin and the audit still closes.
-  microStopMin Float @default(0)
+  microStopMin        Float @default(0)
 
   // ── Counts, as deltas for this minute, in PIECES ──
   goodParts     Float @default(0)
@@ -4177,9 +4244,9 @@ model OeeMinute {
   /// speed of the product it was running. Stored per minute rather than derived
   /// later because design speed changes with the product, and the reference is
   /// explicit that a mixed window sums each product's own theoretical output.
-  theoreticalParts Float @default(0)
+  theoreticalParts Float  @default(0)
   /// Parts per hour at 100% speed — kept for display and for auditing the above.
-  designSpeedPph Float?
+  designSpeedPph   Float?
 
   createdAt DateTime @default(now())
 
@@ -4194,7 +4261,6 @@ model OeeMinute {
   @@index([workOrderId])
   @@map("oee_minutes")
 }
-
 
 // ============================================================
 // OEE SCHEDULE ENGINE — the same time model over the COMMITTED slot
@@ -4231,7 +4297,7 @@ model OeeScheduleMinute {
   id String @id @default(uuid())
 
   bucketStart DateTime
-  isFinalized Boolean @default(false)
+  isFinalized Boolean  @default(false)
 
   factoryId   String
   machineId   String
@@ -4258,9 +4324,9 @@ model OeeScheduleMinute {
   unmeasuredMin       Float @default(0)
   operatingMin        Float @default(0)
 
-  goodParts        Float @default(0)
-  rejectedParts    Float @default(0)
-  theoreticalParts Float @default(0)
+  goodParts        Float  @default(0)
+  rejectedParts    Float  @default(0)
+  theoreticalParts Float  @default(0)
   designSpeedPph   Float?
 
   createdAt DateTime @default(now())
@@ -4276,7 +4342,6 @@ model OeeScheduleMinute {
   @@index([workOrderId])
   @@map("oee_schedule_minutes")
 }
-
 
 /// ─────────────────────────────────────────────────────────────────────────────
 /// LINE BALANCE — how much a machine's count may be trusted, and what sits

@@ -6,6 +6,7 @@ import { OEEService } from './oee.service';
 import { KpiService } from './kpi.service';
 import { ApsService } from '../aps/aps.service';
 import { HistorianService } from '../historian/historian.service';
+import { AutoPlannedStopService } from './auto-planned-stop.service';
 import { PrismaService } from '../../database/prisma.service';
 
 const mockPrisma = {
@@ -62,6 +63,10 @@ describe('ProductionService', () => {
         { provide: KpiService, useValue: mockKpi },
         { provide: ApsService, useValue: mockAps },
         { provide: HistorianService, useValue: mockHistorian },
+        // Books an order's own planned stops on the transition into
+        // execution. Stubbed to zero here: these tests are about the
+        // transition itself, and a real one would need a stop plan.
+        { provide: AutoPlannedStopService, useValue: { onJobOrderStart: jest.fn().mockResolvedValue(0) } },
       ],
     }).compile();
 

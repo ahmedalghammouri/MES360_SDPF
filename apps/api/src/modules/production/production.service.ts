@@ -13,6 +13,7 @@ import { OEEService } from './oee.service';
 import { KpiService } from './kpi.service';
 import { ApsService } from '../aps/aps.service';
 import { HistorianService } from '../historian/historian.service';
+import { AutoPlannedStopService } from './auto-planned-stop.service';
 import {
   convertUnits, isConvertibleUnit, normaliseUnit, piecesPer, smallestLadderUnit,
   toPieces, sumInPieces, UNIT_LADDER, type SkuPackaging,
@@ -65,6 +66,8 @@ export class ProductionService implements OnApplicationBootstrap {
     private readonly eventEmitter: EventEmitter2,
     private readonly apsService: ApsService,
     private readonly historian: HistorianService,
+    /** Books the stops an order and a shift already say they will take. */
+    private readonly autoStops: AutoPlannedStopService,
   ) {}
 
   /**
@@ -4158,6 +4161,145 @@ export class ProductionService implements OnApplicationBootstrap {
     return step.cycleTimeSec ?? (step.cycleTimeMins != null ? step.cycleTimeMins * 60 : null);
   }
 
+  // ── An order's own planned stops ────────────────────────────────────────
+
+  async getStopPlan(factoryId: string | null, productionOrderId: string) {
+    const po = await this.prisma.productionOrder.findFirst({
+      where: { id: productionOrderId, ...(factoryId ? { factoryId } : {}) },
+      select: { id: true },
+    });
+    if (!po) throw new NotFoundException('Production order not found');
+    return this.prisma.productionOrderStop.findMany({
+      where: { productionOrderId, isActive: true },
+      orderBy: { sequence: 'asc' },
+    });
+  }
+
+  /**
+   * Replace an order's stop plan.
+   *
+   * A wholesale replace rather than per-row edits, because the plan is a
+   * SEQUENCE — the order of cleaning, startup and changeover is part of what it
+   * says, and patching one row at a time makes that order something the caller
+   * has to maintain by hand.
+   *
+   * Rows are soft-retired rather than deleted, and events already booked are
+   * never touched. Editing this tomorrow says what happens NEXT time; a plan
+   * that silently moved yesterday's booked cleaning would make every historical
+   * report unreproducible — and the plant has just spent a week finding out
+   * what unreproducible numbers cost.
+   */
+  async setStopPlan(
+    factoryId: string | null,
+    productionOrderId: string,
+    items: Array<{
+      kind?: string; label: string; durationMin: number;
+      sequence?: number; recurrence?: string; affectsOEE?: boolean;
+    }>,
+  ) {
+    const po = await this.prisma.productionOrder.findFirst({
+      where: { id: productionOrderId, ...(factoryId ? { factoryId } : {}) },
+      select: { id: true, orderNumber: true },
+    });
+    if (!po) throw new NotFoundException('Production order not found');
+
+    const RECURRENCES = ['ONCE', 'PER_SHIFT', 'PER_RESTART'];
+    for (const [i, it] of items.entries()) {
+      if (!it.label?.trim()) throw new BadRequestException(`Stop ${i + 1} has no name`);
+      if (!Number.isFinite(it.durationMin) || it.durationMin <= 0) {
+        throw new BadRequestException(`"${it.label}" needs a duration in minutes`);
+      }
+      if (it.recurrence && !RECURRENCES.includes(it.recurrence)) {
+        throw new BadRequestException(
+          `"${it.label}": ${it.recurrence} is not a recurrence — use ${RECURRENCES.join(', ')}`,
+        );
+      }
+    }
+
+    await this.prisma.$transaction([
+      // Retired, not deleted: a booked event names the plan row it came from,
+      // and a hard delete would orphan that reference on every past occurrence.
+      this.prisma.productionOrderStop.updateMany({
+        where: { productionOrderId }, data: { isActive: false },
+      }),
+      ...items.map((it, i) => this.prisma.productionOrderStop.create({
+        data: {
+          productionOrderId,
+          kind: it.kind ?? 'OTHER',
+          label: it.label.trim(),
+          durationMin: Math.round(it.durationMin),
+          sequence: it.sequence ?? i,
+          recurrence: (it.recurrence ?? 'ONCE') as any,
+          // A changeover costs the reading; a meal break does not. Defaulted
+          // from the kind rather than assumed, so an unnamed kind still has to
+          // state its own answer.
+          affectsOEE: it.affectsOEE ?? (it.kind !== 'CLEANING'),
+        },
+      })),
+    ]);
+
+    this.logger.log(`PO ${po.orderNumber}: stop plan set to ${items.length} item(s)`);
+    return this.getStopPlan(factoryId, productionOrderId);
+  }
+
+  /**
+   * Move EVERY step of a work order at once.
+   *
+   * ── Why this exists ─────────────────────────────────────────────────────
+   * A line's four steps run start-to-start: the operator starts them together,
+   * pauses them together and finishes them together. Doing that one card at a
+   * time is four taps that must all land, and on 25 Aug 2026 they did not — one
+   * machine ended up in a different state from its siblings and nothing said
+   * so. The tablet asked for one button; this is the one call behind it.
+   *
+   * Each step is transitioned through the SAME path a single card uses, so
+   * every guard, every stop plan and every state sync applies exactly as it
+   * would have. This is a loop, deliberately, not a bulk UPDATE: a batch that
+   * skipped those rules would be a second way to start production.
+   *
+   * A step that legitimately cannot move — already complete, dependency unmet —
+   * is REPORTED rather than failing the batch. The operator asked for the line
+   * to start; a step that was already running is not an error worth refusing
+   * the other three for.
+   */
+  async setWorkOrderJobStatuses(
+    factoryId: string | null,
+    userId: string | null,
+    workOrderId: string,
+    status: string,
+    dto: { notes?: string } = {},
+  ) {
+    const factoryFilter = factoryId ? { factoryId } : {};
+    const jos = await this.prisma.jobOrder.findMany({
+      where: { workOrderId, ...factoryFilter },
+      orderBy: { sequenceOrder: 'asc' },
+      select: { id: true, status: true, operationName: true, sequenceOrder: true },
+    });
+    if (jos.length === 0) throw new NotFoundException('No job orders on this work order');
+
+    const moved: string[] = [];
+    const skipped: Array<{ step: string; reason: string }> = [];
+
+    for (const jo of jos) {
+      if (jo.status === status) {
+        skipped.push({ step: jo.operationName, reason: `already ${status}` });
+        continue;
+      }
+      try {
+        await this.updateJobOrderStatus(factoryId, userId, jo.id, status, dto);
+        moved.push(jo.operationName);
+      } catch (e) {
+        skipped.push({ step: jo.operationName, reason: (e as Error).message });
+      }
+    }
+
+    this.logger.log(
+      `WO ${workOrderId} → ${status}: ${moved.length} step(s) moved`
+      + (skipped.length ? `, ${skipped.length} skipped` : ''),
+    );
+    return { status, moved, skipped, total: jos.length };
+  }
+
   async updateJobOrderStatus(
     factoryId: string | null,
     userId: string | null,
@@ -4333,6 +4475,28 @@ export class ProductionService implements OnApplicationBootstrap {
         workOrderId: jo.workOrderId,
         startedAt: updated.actualStart ?? new Date(),
       });
+    }
+
+    // ── The order's own planned stops ───────────────────────────────────────
+    // Booked from the ACTUAL start, which is the whole point: the order that
+    // ran two hours late on 25 Aug 2026 had its changeover booked against the
+    // planned time, and 108 machine-minutes were credited to a changeover that
+    // never happened.
+    //
+    // A first start and a resume are different occurrences and bring different
+    // stops with them — a resumed order does not clean the line again, but it
+    // may well need bringing back up to speed. Swallowed on failure: a stop
+    // plan that cannot be laid must never stop production from starting.
+    if (status === 'EXECUTING') {
+      const trigger = jo.actualStart ? 'RESTART' : 'FIRST_START';
+      const startedAt = trigger === 'FIRST_START'
+        ? (updated.actualStart ?? new Date())
+        : new Date();
+      await this.autoStops.onJobOrderStart(jobOrderId, trigger, startedAt)
+        .then((n) => {
+          if (n > 0) this.logger.log(`JO ${jobOrderId}: booked ${n} planned stop(s) on ${trigger}`);
+        })
+        .catch((e) => this.logger.warn(`stop plan for JO ${jobOrderId} not laid: ${(e as Error).message}`));
     }
 
     // Incremental ("أول بأول") material consumption when a routing step finishes:

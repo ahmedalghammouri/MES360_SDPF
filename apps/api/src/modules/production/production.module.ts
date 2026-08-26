@@ -19,6 +19,7 @@ import { RecipeService } from './recipe.service';
 import { TraceabilityService } from './traceability.service';
 import { TraceabilityController } from './traceability.controller';
 import { WorkOrderSchedulerService } from './work-order-scheduler.service';
+import { AutoPlannedStopService } from './auto-planned-stop.service';
 import { MaterialRequestService } from './material-request.service';
 import { MaterialRequestController } from './material-request.controller';
 import { LiveController } from './live.controller';
@@ -31,7 +32,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
   controllers: [LiveController, MachineStatusController, ProductionController, DowntimeController, RecipeController, TraceabilityController, MaterialRequestController],
   providers: [
     CycleTimeSyncService,
-    AttainmentSnapshotService,LiveKpiService, MachineStatusService, OeeAnalyticsService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService, WorkOrderSchedulerService, MaterialRequestService],
+    AttainmentSnapshotService,LiveKpiService, MachineStatusService, OeeAnalyticsService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService, WorkOrderSchedulerService, AutoPlannedStopService, MaterialRequestService],
   exports: [
     AttainmentSnapshotService,LiveKpiService, ProductionService, OEEService, KpiService, ScheduleKpiService, DowntimeService, RecipeService, TraceabilityService],
 })

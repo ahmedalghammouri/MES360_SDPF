@@ -63,8 +63,9 @@ function harness(row: Row) {
   // rest of the constructor is stubbed so the test stays about the arithmetic.
   const kpi = { propagateFromJobOrder: jest.fn().mockResolvedValue(undefined) } as any;
   const historian = { sampleActiveJobOrders: jest.fn().mockResolvedValue(undefined) } as any;
+  const autoStops = { onJobOrderStart: jest.fn().mockResolvedValue(0) } as any;
   const svc = new ProductionService(
-    prisma, {} as any, kpi, { emit: jest.fn() } as any, {} as any, historian,
+    prisma, {} as any, kpi, { emit: jest.fn() } as any, {} as any, historian, autoStops,
   ) as any;
   return { svc, prisma, row };
 }

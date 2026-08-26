@@ -87,6 +87,99 @@ export class ShiftService {
     return templates.map((t) => this.decorateTemplate(t));
   }
 
+  // ── A shift's real breaks ──────────────────────────────────────────────
+
+  async listBreaks(factoryId: string | null, shiftTemplateId: string) {
+    const fid = this.requireFactory(factoryId);
+    const t = await this.prisma.shiftTemplate.findFirst({
+      where: { id: shiftTemplateId, factoryId: fid }, select: { id: true },
+    });
+    if (!t) throw new NotFoundException('Shift template not found');
+    return this.prisma.shiftBreak.findMany({
+      where: { shiftTemplateId, isActive: true },
+      orderBy: { sequence: 'asc' },
+    });
+  }
+
+  /**
+   * Replace a shift's breaks.
+   *
+   * Validated against the shift's own window, and REFUSED rather than clamped
+   * when a break falls outside it: a break at 21:00 on a shift that ends at
+   * 19:30 is a mistake somebody made, and moving it quietly to the last legal
+   * minute would book a stop nobody asked for and hide the mistake that caused
+   * it.
+   *
+   * Rows are retired rather than deleted — a booked event names the break it
+   * came from, and a hard delete orphans that reference on every past shift.
+   * Editing here says what happens on the NEXT occurrence; breaks already
+   * booked stay exactly as they were booked.
+   */
+  async setBreaks(
+    factoryId: string | null,
+    shiftTemplateId: string,
+    items: Array<{
+      label: string; startTime: string; durationMin: number;
+      sequence?: number; affectsOEE?: boolean;
+    }>,
+  ) {
+    const fid = this.requireFactory(factoryId);
+    const t = await this.prisma.shiftTemplate.findFirst({
+      where: { id: shiftTemplateId, factoryId: fid },
+      select: { id: true, code: true, startTime: true, shiftDurationHours: true },
+    });
+    if (!t) throw new NotFoundException('Shift template not found');
+
+    const hhmm = (v: string) => {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(v?.trim() ?? '');
+      if (!m) return null;
+      const h = Number(m[1]); const mi = Number(m[2]);
+      if (h > 23 || mi > 59) return null;
+      return h * 60 + mi;
+    };
+
+    const shiftStart = hhmm(t.startTime)!;
+    const lengthMin = Math.round((t.shiftDurationHours ?? 12) * 60);
+
+    for (const [i, it] of items.entries()) {
+      if (!it.label?.trim()) throw new BadRequestException(`Break ${i + 1} has no name`);
+      const at = hhmm(it.startTime);
+      if (at === null) {
+        throw new BadRequestException(`"${it.label}": ${it.startTime} is not a time (use HH:mm)`);
+      }
+      if (!Number.isFinite(it.durationMin) || it.durationMin <= 0) {
+        throw new BadRequestException(`"${it.label}" needs a duration in minutes`);
+      }
+      let offset = at - shiftStart;
+      if (offset < 0) offset += 24 * 60;
+      if (offset + it.durationMin > lengthMin) {
+        throw new BadRequestException(
+          `"${it.label}" at ${it.startTime} for ${it.durationMin}m falls outside shift `
+          + `${t.code} (${t.startTime}, ${lengthMin} min). Move it inside the shift or `
+          + 'shorten it — it is not clamped, because a stop nobody asked for is worse '
+          + 'than a rejected save.',
+        );
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.shiftBreak.updateMany({ where: { shiftTemplateId }, data: { isActive: false } }),
+      ...items.map((it, i) => this.prisma.shiftBreak.create({
+        data: {
+          shiftTemplateId,
+          label: it.label.trim(),
+          startTime: it.startTime.trim(),
+          durationMin: Math.round(it.durationMin),
+          sequence: it.sequence ?? i,
+          // A meal break leaves the denominator. Cleaning inside a shift may
+          // not — so it is stated rather than assumed.
+          affectsOEE: it.affectsOEE ?? false,
+        },
+      })),
+    ]);
+    return this.listBreaks(factoryId, shiftTemplateId);
+  }
+
   async getTemplate(factoryId: string | null, id: string) {
     const fid = this.requireFactory(factoryId);
     const t = await this.prisma.shiftTemplate.findFirst({

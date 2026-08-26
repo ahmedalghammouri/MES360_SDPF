@@ -1,4 +1,5 @@
 import {
+  Put,
   Controller, Get, Post, Patch, Delete, Body, Param, Query,
   HttpCode, HttpStatus, ParseUUIDPipe, NotFoundException,
 } from '@nestjs/common';
@@ -943,6 +944,59 @@ export class ProductionController {
     @Body() body: { operatorId: string | null },
   ) {
     return this.productionService.assignJobOrderOperator(user.factoryId, id, body.operatorId);
+  }
+
+  /**
+   * Start, pause, resume or complete EVERY step of a work order together.
+   *
+   * The line's steps run start-to-start; the operator treats them as one thing
+   * and the tablet should too. Four separate taps is four chances for one to be
+   * missed, which is exactly what left one machine out of step on 25 Aug 2026.
+   */
+  @Patch('work-orders/:id/job-orders/status')
+  @RequirePermissions('production:execute')
+  @AuditLog('WORK_ORDER_JOB_STATUS')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Transition EVERY job order of a work order at once. Steps that cannot move are '
+      + 'reported in `skipped` rather than failing the batch.',
+  })
+  async setWorkOrderJobStatuses(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { status: string; notes?: string },
+  ) {
+    return this.productionService.setWorkOrderJobStatuses(
+      user.factoryId, user.id, id, body.status, { notes: body.notes },
+    );
+  }
+
+  // ── An order's own planned stops ─────────────────────────────────────────
+
+  @Get('production-orders/:id/stop-plan')
+  @RequirePermissions('production:read')
+  @ApiOperation({ summary: 'Cleaning, startup and changeover this order will take, in order' })
+  async getStopPlan(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.productionService.getStopPlan(user.factoryId, id);
+  }
+
+  @Put('production-orders/:id/stop-plan')
+  @RequirePermissions('production:write')
+  @AuditLog('PRODUCTION_ORDER_STOP_PLAN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Replace the order\'s stop plan. Editing it never rewrites stops already booked — '
+      + 'the plan says what happens NEXT time.',
+  })
+  async setStopPlan(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { items: Array<{
+      kind?: string; label: string; durationMin: number;
+      sequence?: number; recurrence?: string; affectsOEE?: boolean;
+    }> },
+  ) {
+    return this.productionService.setStopPlan(user.factoryId, id, body.items ?? []);
   }
 
   @Patch('job-orders/:id/status')

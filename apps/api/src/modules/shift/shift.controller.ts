@@ -1,4 +1,5 @@
 import {
+  Put,
   Controller, Get, Post, Patch, Delete, Body, Param, Query,
   ParseUUIDPipe, ParseBoolPipe, HttpCode, HttpStatus,
 } from '@nestjs/common';
@@ -57,6 +58,36 @@ export class ShiftController {
     @Body() dto: UpdateShiftTemplateDto,
   ) {
     return this.service.updateTemplate(user.factoryId, id, dto);
+  }
+
+  // ── A shift's real breaks ──────────────────────────────────────
+  //
+  // The template used to carry `breakMinutes` and `cleaningMinutes`: two numbers
+  // with no start time, already marked deprecated and read by nothing. They
+  // could not express "twenty minutes at ten and forty at one", which is what a
+  // shift actually has.
+
+  @Get('templates/:id/breaks')
+  @ApiOperation({ summary: "This shift's breaks, in order" })
+  listBreaks(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    return this.service.listBreaks(user.factoryId, id);
+  }
+
+  @Put('templates/:id/breaks')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Replace this shift's breaks. Events are created when a shift OCCURRENCE "
+      + 'begins, so editing these never rewrites a break already booked.',
+  })
+  setBreaks(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { items: Array<{
+      label: string; startTime: string; durationMin: number;
+      sequence?: number; affectsOEE?: boolean;
+    }> },
+  ) {
+    return this.service.setBreaks(user.factoryId, id, body.items ?? []);
   }
 
   @Delete('templates/:id')
