@@ -254,3 +254,33 @@ export function projectBreaks(
   }
   return out;
 }
+
+/**
+ * Every shift start strictly inside (fromMs, toMs], with the template it began.
+ *
+ * A per-shift stop recurs at each handover the order lives through, so an
+ * estimate spanning two shifts has to know where the second one begins. Shares
+ * the day-walk with `projectBreaks` deliberately: two ways of working out when a
+ * shift starts is two answers waiting to disagree.
+ */
+export function shiftStartsBetween(
+  templates: ShiftShape[], fromMs: number, toMs: number,
+): Array<[number, ShiftShape]> {
+  if (toMs <= fromMs || templates.length === 0) return [];
+
+  const out: Array<[number, ShiftShape]> = [];
+  const DAY = 86_400_000;
+  const first = new Date(fromMs - DAY);
+  first.setHours(0, 0, 0, 0);
+
+  for (let day = first.getTime(); day <= toMs; day += DAY) {
+    for (const tpl of templates) {
+      const [h, m] = String(tpl.startTime ?? '').split(':').map(Number);
+      if (!Number.isFinite(h)) continue;
+      const d = new Date(day);
+      const t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m || 0, 0, 0).getTime();
+      if (t > fromMs && t <= toMs) out.push([t, tpl]);
+    }
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}

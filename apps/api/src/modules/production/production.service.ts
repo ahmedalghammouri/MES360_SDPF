@@ -46,7 +46,10 @@ import { isTrendBucket, type TrendBucket } from '../../common/trend-bucket.util'
 // window ends up counted once in one place and four times in another.
 import { merge, spanMinutes, type Span } from '../oee-standard/minute-classification';
 import { canBypass, canRestore, outputStepAfter, checkBypassPassword, type BypassStep } from './step-bypass';
-import { projectBreaks, type ShiftShape } from './planned-stop-plan';
+import {
+  projectBreaks, layStops, shiftStartsBetween,
+  type ShiftShape, type StopPlanItem,
+} from './planned-stop-plan';
 import { stepDurationMins } from './step-duration';
 
 const VALID_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
@@ -1227,6 +1230,13 @@ export class ProductionService implements OnApplicationBootstrap {
     // then add the planned stoppage (breaks/cleaning/planned downtime) that
     // intersects the run window. Surfaces a realistic completion time. ──
     const horizon = fromIso ? new Date(fromIso).getTime() : (po.plannedStart ? +po.plannedStart : Date.now());
+    // The order's own cleaning / startup / changeover. Booked from the ACTUAL
+    // start, so an order that has not begun has none of them on the calendar --
+    // the estimate has to read the plan itself. See plannedStoppageMins.
+    const orderStops = await this.prisma.productionOrderStop.findMany({
+      where: { productionOrderId: po.id, isActive: true },
+      orderBy: { sequence: 'asc' },
+    }) as unknown as StopPlanItem[];
     let smart: {
       computedFinish: string | null;
       workContentMins: number;
@@ -1261,7 +1271,7 @@ export class ProductionService implements OnApplicationBootstrap {
       }
       const sched = scheduleOps(ops, horizon, machineFree, calendar);
       const workContentMins = Math.round((sched.finish - horizon) / 60_000);
-      const stoppage = await this.plannedStoppageMins(factoryId, horizon, sched.finish, machineIds);
+      const stoppage = await this.plannedStoppageMins(factoryId, horizon, sched.finish, machineIds, orderStops);
       const totalDurationMins = workContentMins + stoppage;
       const computedFinishMs = horizon + totalDurationMins * 60_000;
       // Attach the computed window onto each step for the preview table
@@ -1390,14 +1400,22 @@ export class ProductionService implements OnApplicationBootstrap {
     const round3 = (x: number) => Math.round(x * 1000) / 1000;
     const demand = new Map<string, { qty: number; code: string; name: string; unit: string; available: number }>();
     const jobOrdersToCreate: any[] = [];
+    // Same two chains as previewAutoGenerateWOs: what is ISSUED carries the
+    // packaging ceiling, what is WORKED does not. See step-duration.ts.
+    let exactQty = prevQty;
+    let exactUnit = prevUnit;
     for (const step of rawSteps) {
       const resolvedMachine = await this.resolveStepMachine(step as any, factoryId);
       const inputUnit = (step as any).inUnit ?? prevUnit;
       const outputUnit = (step as any).outUnit ?? this.resolveStepOutputUnit((step as any).operationName, inputUnit);
       const inputQty = this.convertUnits(prevQty, prevUnit, inputUnit, skuPkg);
       const outputQty = this.convertUnits(inputQty, inputUnit, outputUnit, skuPkg);
+      const exactIn = this.exactUnits(exactQty, exactUnit, inputUnit, skuPkg);
+      const exactOut = this.exactUnits(exactIn, inputUnit, outputUnit, skuPkg);
       prevUnit = outputUnit;
       prevQty = outputQty;
+      exactUnit = outputUnit;
+      exactQty = exactOut;
       const cycleSec: number | null = (step as any).cycleTimeSec ?? ((step as any).cycleTimeMins != null ? (step as any).cycleTimeMins * 60 : null);
 
       // Aggregate material demand from this step's routing materials.
@@ -1420,9 +1438,8 @@ export class ProductionService implements OnApplicationBootstrap {
         plannedQtyOut: outputQty,
         outputUnit,
         cycleTimeSec: cycleSec,
-        estimatedDurationMins: cycleSec != null
-          ? Math.round((outputQty * cycleSec) / 60 + ((step as any).setupTimeMins ?? 0))
-          : (process?.totalCycleTimeMins && rawSteps.length ? process.totalCycleTimeMins / rawSteps.length : null),
+        estimatedDurationMins: stepDurationMins(exactOut, cycleSec, (step as any).setupTimeMins ?? 0)
+          ?? (process?.totalCycleTimeMins && rawSteps.length ? process.totalCycleTimeMins / rawSteps.length : null),
         setupTimeMins: (step as any).setupTimeMins ?? 0,
         predecessors: (step as any).predecessors ?? [],
       });
@@ -1453,6 +1470,8 @@ export class ProductionService implements OnApplicationBootstrap {
       }
       const sched = scheduleOps(ops, horizon, machineFree, calendar);
       const workContentMins = Math.round((sched.finish - horizon) / 60_000);
+      // No production order here, so no order stop plan to project -- this
+      // preview answers "what would this SKU take", not "what will THIS order do".
       const stoppage = await this.plannedStoppageMins(factoryId, horizon, sched.finish, machineIds);
       const totalDurationMins = workContentMins + stoppage;
       const computedFinishMs = horizon + totalDurationMins * 60_000;
@@ -1525,6 +1544,7 @@ export class ProductionService implements OnApplicationBootstrap {
    */
   private async plannedStoppageMins(
     factoryId: string | null, fromMs: number, toMs: number, machineIds?: string[],
+    orderStops?: StopPlanItem[],
   ): Promise<number> {
     if (toMs <= fromMs) return 0;
     // ── Two sources, one union ──────────────────────────────────
@@ -1591,6 +1611,36 @@ export class ProductionService implements OnApplicationBootstrap {
     });
     for (const sp of projectBreaks(templates as unknown as ShiftShape[], fromMs, toMs)) {
       spans.push(sp as Span);
+    }
+
+    // ── The order's OWN stops ──────────────────────────────────────
+    // The changeover and cleaning an order carries in its stop plan have the
+    // same problem the shift breaks had, for the same reason: they are booked
+    // from the order's ACTUAL start, so an order that has not begun has none of
+    // them on the calendar and the estimate reads them as zero.
+    //
+    // They lay back to back from the start of this window, which IS the order's
+    // start here — the preview is asking "if it began now, when would it
+    // finish". Same merge as everything else, so a stop already booked counts
+    // once.
+    if (orderStops && orderStops.length > 0) {
+      for (const st of layStops(orderStops, new Date(fromMs), 'FIRST_START')) {
+        const a = Math.max(+st.from, fromMs);
+        const b = Math.min(+st.to, toMs);
+        if (b > a) spans.push([a, b] as Span);
+      }
+      // A per-shift stop recurs at every handover the order lives through, not
+      // only the one it starts in.
+      for (const [shiftStart] of shiftStartsBetween(
+        templates as unknown as ShiftShape[], fromMs, toMs,
+      )) {
+        if (shiftStart <= fromMs) continue;
+        for (const st of layStops(orderStops, new Date(shiftStart), 'SHIFT_CHANGE')) {
+          const a = Math.max(+st.from, fromMs);
+          const b = Math.min(+st.to, toMs);
+          if (b > a) spans.push([a, b] as Span);
+        }
+      }
     }
 
     return Math.round(spanMinutes(merge(spans)));
