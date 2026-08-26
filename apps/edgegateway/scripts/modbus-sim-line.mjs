@@ -21,6 +21,14 @@
 //            the whole point of the flag.
 //
 // ── Usage ────────────────────────────────────────────────────────────────────
+// PowerShell has no inline `VAR=x cmd` prefix — set the variable first, and it
+// holds for the rest of that window:
+//
+//   cd "D:\NEW WORKS\New folder\MES360_SDPF\apps\edgegateway"
+//   $env:DATABASE_URL = "postgresql://mes_user:mes_password@localhost:5433/mes360?schema=public"
+//   node scripts/modbus-sim-line.mjs --point-local --speed 5
+//
+// bash / git-bash:
 //   cd apps/edgegateway
 //   node scripts/modbus-sim-line.mjs                 # clean pulses, true rate
 //   node scripts/modbus-sim-line.mjs --ring          # reproduce the 25 Aug fault
@@ -30,6 +38,11 @@
 //
 // Env: DATABASE_URL must point at the database the gateway is using.
 
+// Console output here is deliberately plain ASCII. A Windows terminal on the
+// default code page renders an arrow or a box-drawing glyph as mojibake, and a
+// tool whose first screen looks broken does not get trusted with a number. The
+// comments keep their typography — they are read in an editor, which has no
+// code page to get wrong.
 import pkg from 'modbus-serial';
 import { PrismaClient } from '@prisma/client';
 
