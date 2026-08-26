@@ -47,6 +47,7 @@ import { isTrendBucket, type TrendBucket } from '../../common/trend-bucket.util'
 import { merge, spanMinutes, type Span } from '../oee-standard/minute-classification';
 import { canBypass, canRestore, outputStepAfter, checkBypassPassword, type BypassStep } from './step-bypass';
 import { projectBreaks, type ShiftShape } from './planned-stop-plan';
+import { stepDurationMins } from './step-duration';
 
 const VALID_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   PLANNED: ['RELEASED', 'IN_PROGRESS', 'CANCELLED'],
@@ -1073,6 +1074,25 @@ export class ProductionService implements OnApplicationBootstrap {
     return coarser ? Math.ceil(converted) : Math.round(converted);
   }
 
+  /**
+   * The same conversion WITHOUT the planning rounding.
+   *
+   * `convertUnits` above ceils when it coarsens, because a job order cannot be
+   * issued for part of a pallet. That is right for the quantity and wrong for
+   * the clock: the palletiser only ever sees 1500 cartons, so quoting it for a
+   * ceiled 24 pallets bought 187 minutes of estimate for 180 minutes of work.
+   * See step-duration.ts.
+   */
+  private exactUnits(
+    qty: number,
+    fromUnit: string,
+    toUnit: string,
+    pkg: { unitsPerInner: number; innersPerCarton: number; cartonsPerPallet: number },
+  ): number {
+    if (!isConvertibleUnit(fromUnit) || !isConvertibleUnit(toUnit)) return qty;
+    return convertUnits(qty, fromUnit, toUnit, pkg);
+  }
+
   /** Calculate the expected output quantity when the unit changes between steps. */
   private calcOutputQty(
     outputUnit: string,
@@ -1152,14 +1172,25 @@ export class ProductionService implements OnApplicationBootstrap {
     // Explicit step In/Out units win; the operation-name heuristic is the
     // legacy fallback. Duration = qtyOut × cycleTimeSec (+ setup).
     const jobOrdersToCreate: any[] = [];
+    // Two chains, deliberately. `prevQty` is what gets ISSUED, rounded so no
+    // job order asks for part of a pallet. `exactQty` is what actually passes
+    // through the machines, and it is the only one the clock may use.
+    let exactQty = prevQty;
+    let exactUnit = prevUnit;
     for (const step of rawSteps) {
       const resolvedMachine = await this.resolveStepMachine(step as any, factoryId);
       const inputUnit  = (step as any).inUnit ?? prevUnit;
       const outputUnit = (step as any).outUnit ?? this.resolveStepOutputUnit((step as any).operationName, inputUnit);
       const inputQty   = this.convertUnits(prevQty, prevUnit, inputUnit, skuPkg);
       const outputQty  = this.convertUnits(inputQty, inputUnit, outputUnit, skuPkg);
+
+      const exactIn  = this.exactUnits(exactQty, exactUnit, inputUnit, skuPkg);
+      const exactOut = this.exactUnits(exactIn, inputUnit, outputUnit, skuPkg);
+
       prevUnit = outputUnit;
       prevQty  = outputQty;
+      exactUnit = outputUnit;
+      exactQty  = exactOut;
 
       const cycleSec: number | null = (step as any).cycleTimeSec
         ?? ((step as any).cycleTimeMins != null ? (step as any).cycleTimeMins * 60 : null);
@@ -1179,9 +1210,10 @@ export class ProductionService implements OnApplicationBootstrap {
         plannedQtyOut: outputQty,
         outputUnit,
         cycleTimeSec: cycleSec,
-        estimatedDurationMins: cycleSec != null
-          ? Math.round((outputQty * cycleSec) / 60 + ((step as any).setupTimeMins ?? 0))
-          : (process?.totalCycleTimeMins && rawSteps.length
+        // exactOut, NOT outputQty: the issued quantity carries a ceiling that
+        // belongs to packaging, not to how long the machine runs.
+        estimatedDurationMins: stepDurationMins(exactOut, cycleSec, (step as any).setupTimeMins ?? 0)
+          ?? (process?.totalCycleTimeMins && rawSteps.length
             ? process.totalCycleTimeMins / rawSteps.length
             : null),
         setupTimeMins: (step as any).setupTimeMins ?? 0,
