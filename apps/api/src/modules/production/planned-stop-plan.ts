@@ -182,3 +182,75 @@ export function layBreaks(
   }
   return { laid, outside };
 }
+
+// ── Projecting a shift's breaks into the future ─────────────────────────────
+
+/** A shift template, reduced to what break placement needs. */
+export interface ShiftShape {
+  /** HH:mm, plant-local. */
+  startTime: string;
+  shiftDurationHours: number;
+  breaks: BreakItem[];
+}
+
+/** Half-open interval in epoch milliseconds. */
+export type BreakSpan = [number, number];
+
+/**
+ * Every occurrence of every shift break that falls inside [fromMs, toMs].
+ *
+ * ── Why this has to exist ───────────────────────────────────────────────────
+ * Shift breaks become real `downtimeEvent` rows only when their shift STARTS.
+ * A work order being scheduled for tomorrow therefore looks out on a calendar
+ * with no breaks in it at all, and its finish estimate reads "+0m planned
+ * stoppage" for a plant that stops for an hour every morning. The plant sees
+ * a finish time it cannot hit and no explanation on the screen.
+ *
+ * ── The double count this is NOT ────────────────────────────────────────────
+ * An earlier version of the estimate averaged break minutes across templates,
+ * multiplied by a guessed number of shifts, and ADDED the result to the real
+ * events. Wherever a break had already been materialised, the same minutes were
+ * counted twice, and the estimate got worse the better the plant had configured
+ * itself. It was removed for that.
+ *
+ * This returns SPANS with real clock times, not a total. The caller merges them
+ * with the event spans, so a break that has already become an event overlaps its
+ * own projection and counts once. Union, not sum — which is the same reason the
+ * events themselves are merged across machines.
+ */
+export function projectBreaks(
+  templates: ShiftShape[], fromMs: number, toMs: number,
+): BreakSpan[] {
+  if (toMs <= fromMs || templates.length === 0) return [];
+
+  const out: BreakSpan[] = [];
+  const DAY = 86_400_000;
+
+  // Start a day early: a shift that began yesterday evening can still be
+  // running now, and its breaks belong to this window.
+  const first = new Date(fromMs - DAY);
+  first.setHours(0, 0, 0, 0);
+
+  for (let day = first.getTime(); day <= toMs; day += DAY) {
+    for (const tpl of templates) {
+      const [h, m] = String(tpl.startTime ?? '').split(':').map(Number);
+      if (!Number.isFinite(h)) continue;
+
+      // Built from a local date rather than by adding milliseconds, so a day
+      // that is not 24 hours long still starts the shift at the stated clock.
+      const d = new Date(day);
+      const shiftStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m || 0, 0, 0);
+
+      const lengthMin = Math.round((tpl.shiftDurationHours || 0) * 60);
+      if (lengthMin <= 0) continue;
+
+      const { laid } = layBreaks(tpl.breaks ?? [], shiftStart, lengthMin);
+      for (const b of laid) {
+        const s = Math.max(+b.from, fromMs);
+        const e = Math.min(+b.to, toMs);
+        if (e > s) out.push([s, e]);
+      }
+    }
+  }
+  return out;
+}

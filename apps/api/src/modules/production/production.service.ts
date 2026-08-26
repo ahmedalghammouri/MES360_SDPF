@@ -46,6 +46,7 @@ import { isTrendBucket, type TrendBucket } from '../../common/trend-bucket.util'
 // window ends up counted once in one place and four times in another.
 import { merge, spanMinutes, type Span } from '../oee-standard/minute-classification';
 import { canBypass, canRestore, outputStepAfter, checkBypassPassword, type BypassStep } from './step-bypass';
+import { projectBreaks, type ShiftShape } from './planned-stop-plan';
 
 const VALID_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   PLANNED: ['RELEASED', 'IN_PROGRESS', 'CANCELLED'],
@@ -1494,16 +1495,24 @@ export class ProductionService implements OnApplicationBootstrap {
     factoryId: string | null, fromMs: number, toMs: number, machineIds?: string[],
   ): Promise<number> {
     if (toMs <= fromMs) return 0;
-    // ── Removed: an estimate that was also a double count ───────────────────
-    // This used to average `breakMinutes + cleaningMinutes` across every shift
-    // template, multiply by an estimated number of shifts spanned, and add that
-    // to the real planned-downtime events below. Where those breaks had actually
-    // been materialised as events — which is the normal case — the same minutes
-    // were counted twice, and the finish time drifted later the more correctly
-    // the plant had configured itself.
+    // ── Two sources, one union ──────────────────────────────────
+    // Planned stops that have HAPPENED, or are under way, are downtime events
+    // with real start times. Planned stops not yet reached are still only a
+    // shift template: a break becomes an event when its shift STARTS, so a work
+    // order scheduled for tomorrow looks out on a calendar with none in it and
+    // reports "+0m planned stoppage" for a plant that stops an hour every
+    // morning. The operator is shown a finish time the line cannot hit.
     //
-    // Planned stops are now rows with real start times, so the events loop below
-    // is the whole answer. Nothing is estimated, and nothing is counted twice.
+    // An earlier version answered this by averaging break minutes across
+    // templates and ADDING the guess to the events. Wherever a break had
+    // already been materialised the same minutes counted twice, and the
+    // estimate drifted later the better the plant had configured itself. That
+    // is why it was removed, and this is not a return to it.
+    //
+    // The difference: the projection produces SPANS at real clock times, which
+    // go into the same merge as the events. A break that has already become an
+    // event overlaps its own projection and counts ONCE. Union, not sum —
+    // exactly the rule the events themselves already needed.
     const events = await this.prisma.downtimeEvent.findMany({
       where: {
         ...(factoryId ? { factoryId } : {}),
@@ -1537,6 +1546,19 @@ export class ProductionService implements OnApplicationBootstrap {
       const s = Math.max(+e.startTime, fromMs);
       const en = Math.min(e.endTime ? +e.endTime : toMs, toMs);
       if (en > s) spans.push([s, en]);
+    }
+
+    // The breaks the shift calendar says are coming, whether or not anything
+    // has booked them yet.
+    const templates = await this.prisma.shiftTemplate.findMany({
+      where: { ...(factoryId ? { factoryId } : {}), isActive: true },
+      select: {
+        startTime: true, shiftDurationHours: true,
+        breaks: { where: { isActive: true }, orderBy: { sequence: 'asc' } },
+      },
+    });
+    for (const sp of projectBreaks(templates as unknown as ShiftShape[], fromMs, toMs)) {
+      spans.push(sp as Span);
     }
 
     return Math.round(spanMinutes(merge(spans)));
