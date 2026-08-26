@@ -1,4 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
+
+/**
+ * A minute holding more parts than the machine could have made.
+ *
+ * ── Why this needs no judgement ─────────────────────────────────────────────
+ * A machine cannot beat its own mechanical cycle. A minute over that ceiling is
+ * not a fast minute — it is PROOF the count is wrong, and the design speed is
+ * already in the row, so nothing has to be inferred.
+ *
+ * The ceiling is scaled to the time the machine was ACTUALLY operating, not to
+ * a whole minute: half a minute of running can only make half a minute's worth,
+ * and holding it to the full figure would miss the clearest cases of all.
+ *
+ * A tenth over is arithmetic at the minute boundary — a pulse landing either
+ * side of the second. Half again over is not, and on 25 Aug 2026 sixty such
+ * minutes were written for M1 alone at an average of 68.8 against a ceiling of
+ * 45, with nothing anywhere saying a word.
+ *
+ * Returns null when there is nothing to report, including when the machine was
+ * not operating or has no design speed — a ceiling needs a number the plant
+ * stated, and inventing one would produce alarms out of silence.
+ */
+export function impossibleMinute(
+  counted: number, operatingMin: number, designSpeedPph: number | null,
+): { counted: number; ceiling: number } | null {
+  if (!designSpeedPph || designSpeedPph <= 0 || operatingMin <= 0) return null;
+  const ceiling = (designSpeedPph / 60) * operatingMin;
+  if (counted <= ceiling * 1.1) return null;
+  return { counted, ceiling };
+}
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -334,25 +364,23 @@ export class OeeStandardWriter {
     row: { goodParts: number; rejectedParts: number; operatingMin: number; designSpeedPph: number | null },
     machineId: string,
   ): void {
-    const design = row.designSpeedPph;
-    if (!design || design <= 0 || row.operatingMin <= 0) return;
+    const verdict = impossibleMinute(
+      row.goodParts + row.rejectedParts, row.operatingMin, row.designSpeedPph,
+    );
+    if (!verdict) return;
 
-    // The ceiling for the time the machine was ACTUALLY operating, not for a
-    // whole minute — half a minute of running can only make half a minute's
-    // worth, and holding it to the full figure would miss the clearest cases.
-    const ceiling = (design / 60) * row.operatingMin;
-    const counted = row.goodParts + row.rejectedParts;
-    // A tenth over is arithmetic at the minute boundary; half again over is not.
-    if (counted <= ceiling * 1.1) return;
-
+    // Throttled per machine: a miscounting sensor produces one of these every
+    // minute, and an unthrottled log buries the fault it is reporting.
     const now = Date.now();
     if (now - (this.impossibleAt.get(machineId) ?? 0) < 10 * 60_000) return;
     this.impossibleAt.set(machineId, now);
     this.logger.warn(
-      `machine ${machineId}: minute counted ${counted} parts against a ceiling of `
-      + `${ceiling.toFixed(1)} (design ${design}/h over ${row.operatingMin.toFixed(2)} operating min) `
+      `machine ${machineId}: minute counted ${verdict.counted} parts against a ceiling of `
+      + `${verdict.ceiling.toFixed(1)} (design ${row.designSpeedPph}/h over `
+      + `${row.operatingMin.toFixed(2)} operating min) `
       + '— the machine cannot beat its own cycle, so this count is wrong. '
       + 'Check the counter for contact ring before reading any OEE figure from it.',
     );
   }
+
 }

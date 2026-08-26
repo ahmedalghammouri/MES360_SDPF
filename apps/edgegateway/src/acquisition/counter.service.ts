@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { detectEdge, totalizerDelta, totalizerWidth, type CounterRole, type EdgeType } from '@mes360/industrial-drivers';
 import { readConfigFile, writeConfigFile } from '../config/config-store';
+import { aliasingWarning, deriveRejects } from './config-audit';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -674,17 +675,7 @@ export class CounterService {
 
     if (p.minSamples <= CounterService.ALIAS_SAMPLES && now - p.reportedAt > 60_000) {
       p.reportedAt = now;
-      this.logger.warn(
-        `counter ${tag.id}: shortest signal level seen lasted ${p.minSamples} sample(s) / ${p.minMs}ms. `
-        + 'A level this short can fail in EITHER direction and this measurement '
-        + 'cannot tell which: a real pulse narrower than the sample period is '
-        + 'MISSED and the count comes out low, while contact ring sampled twice '
-        + 'is COUNTED TWICE and the count comes out high. On 25 Aug 2026 this '
-        + 'plant had both at once — M1 reading 1.53x its mechanical ceiling while '
-        + 'M2 read 0.83x, on the same device on the same day. '
-        + "Lower this device's poll interval to see the true shape, then set a "
-        + "debounce from the machine's real cycle if the shape says ring.",
-      );
+      this.logger.warn(aliasingWarning(tag.id, p.minSamples, p.minMs));
     }
   }
 
@@ -871,34 +862,29 @@ export class CounterService {
       // so this is a subtraction rather than a query — and it can no longer
       // race the good counter's own write.
       if (m.totalAcc !== null && m.goodAcc !== null) {
-        const autoGood = m.goodAcc;
-        // ── Good above total ────────────────────────────────────────────────
-        // Arithmetically impossible: a machine cannot pass more units than it
-        // made. The clamp below keeps the write sane, but on its own it makes
-        // the fault INVISIBLE — the plant sees a plausible zero and never learns
-        // that its two counters disagree.
-        //
-        // M1 on 25 Aug 2026: good 425, total 361. The derived reject was -64,
-        // clamped to 0, and the operator could then not make the rejected figure
-        // be anything at all — every correction landed on a number the next
-        // flush overwrote with zero.
-        if (autoGood > m.totalAcc) {
+        const derived = deriveRejects(m.totalAcc, m.goodAcc, m.manualBad);
+        // Good above total is arithmetically impossible — a machine cannot pass
+        // more units than it made. The clamp inside `deriveRejects` keeps the
+        // write sane; without this warning it also makes the fault INVISIBLE,
+        // and the operator is left unable to correct a figure that every flush
+        // resets to zero.
+        if (derived.impossible) {
           const now = Date.now();
           if (now - (this.goodOverTotalAt.get(m.machineId) ?? 0) > 10 * 60_000) {
             this.goodOverTotalAt.set(m.machineId, now);
             this.logger.warn(
-              `machine ${m.machineId}: good counter reads ${autoGood} but total reads `
+              `machine ${m.machineId}: good counter reads ${m.goodAcc} but total reads `
               + `${m.totalAcc} — good cannot exceed total. Derived rejects are pinned `
               + 'at zero until this is fixed, and no manual correction to the rejected '
               + 'figure will hold. The two inputs are miscounting independently.',
             );
           }
         }
-        const autoBad = Math.max(0, m.totalAcc - autoGood);
+        const autoBad = Math.max(0, m.totalAcc - m.goodAcc);
         // Absolute, because it is DERIVED rather than counted — plus whatever
         // the operator entered by hand, which a sensor must never overwrite.
-        joData.actualQtyRejected = autoBad + m.manualBad;
-        m.scrapAbsolute = autoBad + m.manualBad;
+        joData.actualQtyRejected = derived.rejected;
+        m.scrapAbsolute = derived.rejected;
       }
 
       if (Object.keys(joData).length) {

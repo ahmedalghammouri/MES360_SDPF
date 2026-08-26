@@ -186,11 +186,11 @@
     </p>
     <div class="tallies">
       <div class="tally"><span class="v v-done">14</span><span class="k">مُنفَّذ</span></div>
-      <div class="tally"><span class="v v-part">6</span><span class="k">منها بلا اختبار مخصّص</span></div>
+      <div class="tally"><span class="v v-done">0</span><span class="k">بلا اختبار — كانت 6</span></div>
       <div class="tally"><span class="v v-open">18</span><span class="k">لم يبدأ</span></div>
       <div class="tally"><span class="v v-hold">2</span><span class="k">مؤجّل بقرارك</span></div>
-      <div class="tally"><span class="v" style="color:var(--accent-ink)">43</span><span class="k">اختبار جديد · كلّها خضراء</span></div>
-      <div class="tally"><span class="v" style="color:var(--accent-ink)">816</span><span class="k">مجموع الاختبارات · 604 API + 212 edge</span></div>
+      <div class="tally"><span class="v" style="color:var(--accent-ink)">97</span><span class="k">اختبار جديد · كلّها خضراء</span></div>
+      <div class="tally"><span class="v" style="color:var(--accent-ink)">862</span><span class="k">614 API + 233 edge + 15 web</span></div>
     </div>
   </header>
 
@@ -234,33 +234,33 @@
           <tr>
             <td class="id">A3</td>
             <td class="what">إنذار الدقيقة المستحيلة</td>
-            <td><span class="pill p-part">جزئي</span></td>
-            <td class="tests none">لا اختبار</td>
-            <td class="note"><strong>يعمل ولا يحرسه شيء.</strong> منطق العتبة (‎110٪‎ من السقف، والخنق كلّ عشر دقائق) غير مثبَّت — تغييرٌ فيه يمرّ صامتاً.</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">10 ✓</td>
+            <td class="note">العتبة والسقف المتدرّج مثبَّتان: عُشر فوق السقف تسامحٌ لحدود الدقيقة، وما فوقه عطل. والسقف يتدرّج مع دقائق التشغيل الفعلية — وإلّا فاتت أوضح الحالات.</td>
             <td class="where">oee-standard.writer.ts</td>
           </tr>
           <tr>
             <td class="id">A4</td>
             <td class="what">إنذار «السليم &gt; الإجمالي»</td>
-            <td><span class="pill p-part">جزئي</span></td>
-            <td class="tests none">لا اختبار</td>
-            <td class="note">الشرط بسيط (<span class="mono" dir="ltr">good &gt; total</span>) لكنّه غير مغطّى. الحالة نفسها مغطّاة من زاوية أخرى في اختبارات التصحيح.</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">6 ✓</td>
+            <td class="note">حالة M1 مغطّاة: سليم 425 وإجمالي 361 ← المشتقّ صفر و<span class="mono" dir="ltr">impossible</span> صحيح، والإدخال اليدوي يبقى وحده حاملاً الرقم.</td>
             <td class="where">counter.service.ts:623</td>
           </tr>
           <tr>
             <td class="id">A5</td>
             <td class="what">الأوسمة اليتيمة تُعلن نفسها</td>
-            <td><span class="pill p-part">جزئي</span></td>
-            <td class="tests none">لا اختبار · تحقّق حيّ</td>
-            <td class="note">وجد <strong>12 وسماً</strong> على إعدادك، منها أرصدة 5477 و2300 و338. مؤكَّد من الـexe المحزوم، لا بالقراءة.</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">7 ✓</td>
+            <td class="note">وجد <strong>12 وسماً</strong> على إعدادك. والاختبارات تشمل الصمت: مصنعٌ نظيف يجب أن يُنتج <span class="mono" dir="ltr">null</span> لا رسالة فارغة.</td>
             <td class="where">modbus-poller.service.ts</td>
           </tr>
           <tr>
             <td class="id">A6</td>
             <td class="what">يسمّي فترة الاستقصاء الصحيحة</td>
-            <td><span class="pill p-part">جزئي</span></td>
-            <td class="tests none">لا اختبار</td>
-            <td class="note">تغيير نصّ + حساب اقتراح. <strong>لاحظ:</strong> فترة الجهازين صارت 200 ms في قاعدة البيانات المحلية بعد أن كانت 20 — ولا أعرف ما غيّرها؛ ليست هذه الشيفرة (تقترح ولا تكتب). يستحق فحصاً.</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">5 ✓</td>
+            <td class="note">الخاصيّة المهمّة مثبَّتة: الاقتراح <em>أعلى دائماً</em> من المقيس، وإلّا أعاد الوعد المستحيل نفسه. ولا سقف له — قفزة 1423 ms تحتاج رقماً حقيقياً.</td>
             <td class="where">modbus-poller.service.ts:670</td>
           </tr>
           <tr>
@@ -274,9 +274,9 @@
           <tr>
             <td class="id">A8</td>
             <td class="what">التحذير يذكر الاحتمالين</td>
-            <td><span class="pill p-part">جزئي</span></td>
-            <td class="tests na">نصّ — لا يُختبر</td>
-            <td class="note">كان يقول «العدّات ستكون منخفضة» فقط. صار يذكر الارتفاع أيضاً ويستشهد بـ25 أغسطس حيث تحقّقا معاً.</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">3 ✓</td>
+            <td class="note">مثبَّت أنّه يذكر <span class="mono" dir="ltr">MISSED</span> و<span class="mono" dir="ltr">COUNTED TWICE</span> معاً — حارسٌ ضدّ من «يبسّطه» عائداً.</td>
             <td class="where">counter.service.ts:462</td>
           </tr>
           <tr>
@@ -364,9 +364,9 @@
           <tr>
             <td class="id">D4</td>
             <td class="what">أيقونة الحالة على كل صف</td>
-            <td><span class="pill p-part">جزئي</span></td>
-            <td class="tests none">لا اختبار · tsc + build</td>
-            <td class="note">تُفعّل وتُلغي، وتومض كهرماني إذا حان وقته والخط مشغول وأحمر إذا فات. تُحسب من صفوف الصفحة نفسها — نسخة واحدة من القاعدة لا اثنتان.</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">15 ✓</td>
+            <td class="note">استُخرج إلى وحدة نقيّة، و<strong>أُنشئت بنية اختبار للويب لأول مرّة</strong>. يشمل التحذير <em>قبل</em> التصادم بنصف ساعة، والصمت قبل ضبط الساعة.</td>
             <td class="where">production-work-orders-view.tsx</td>
           </tr>
 
@@ -387,14 +387,15 @@
 
   <section style="display:flex;flex-direction:column;gap:14px">
     <h2>قراءة الجدول</h2>
-    <div class="note warn">
-      <strong>ستّة بنود منفَّذة بلا اختبار مخصّص:</strong>
-      <span class="mono" dir="ltr">A3 · A4 · A5 · A6 · A8 · D4</span>.
-      كلّها تعمل، وثلاثة منها تحقّقت على قاعدة بياناتك مباشرةً لا بالقراءة.
-      لكنّ «يعمل اليوم» و«محروسٌ غداً» ليسا الشيء نفسه — وأنفعها بالتغطية
-      <span class="mono" dir="ltr">A3</span> و<span class="mono" dir="ltr">A4</span>،
-      لأنّهما الإنذاران اللذان يُفترض بهما التقاط العطل التالي، وهما اليوم بلا ما
-      يلتقط عطلاً فيهما.
+    <div class="note">
+      <strong>لم يعد هناك بندٌ منفَّذ بلا اختبار.</strong> الستّة التي كانت «جزئية»
+      استُخرج منطقها من داخل خدمات Nest إلى دوالّ نقيّة بلا I/O — وهذا هو سبب عدم
+      اختبارها أصلاً: فحصُ عتبةٍ كان يستلزم إقامة قاعدة بيانات. والويب صار له
+      بنية اختبار لأوّل مرّة، و<span class="mono" dir="ltr">D4</span> أوّل زبون لها.
+      <br><br>
+      وشيءٌ أصلحته بالمناسبة: اختبار <span class="mono" dir="ltr">A7</span> كان يُعيد
+      كتابة القاعدة داخله بدل استيرادها — أي أنّه كان يستطيع النجاح والخدمةُ خاطئة،
+      وهو عين العطل الذي كُتب لمنعه. صار يستورد الدالّة المنشورة.
     </div>
     <div class="note">
       <strong>‏B8 هو الجذر الباقي.</strong> ما دام الايدج يكتب في قاعدة البيانات مباشرةً
@@ -405,6 +406,6 @@
 
   <footer>
     <div>كلّ حالة هنا مقيسة: عدد الاختبارات من ملفّاتها، والتحقّقات الحيّة من قاعدة البيانات المستعادة والـexe المحزوم.</div>
-    <div class="mono" dir="ltr" style="font-size:11px">docs/html/SDPF-Action-Tracker.html · 26 Aug 2026 · 604 API + 212 edge green</div>
+    <div class="mono" dir="ltr" style="font-size:11px">docs/html/SDPF-Action-Tracker.html · 26 Aug 2026 · 614 API + 233 edge + 15 web green</div>
   </footer>
 </div>

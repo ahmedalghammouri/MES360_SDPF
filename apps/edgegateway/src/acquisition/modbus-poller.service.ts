@@ -11,6 +11,7 @@ import { MqttService } from '../services/mqtt.service';
 import { GatewayContextService } from '../context/gateway-context.service';
 import { IngestService, type TagReadingRecord } from './ingest.service';
 import { CounterService, type CounterTag } from './counter.service';
+import { auditBindings, describeOrphans, suggestedIntervalMs } from './config-audit';
 import { EnergyReadingService, type MeterContext } from './energy-reading.service';
 import { StatusService, type StatusTag } from './status.service';
 import { AlarmService } from './alarm.service';
@@ -156,30 +157,17 @@ export class ModbusPollerService implements OnModuleDestroy {
         },
         orderBy: { code: 'asc' },
       });
-      if (rows.length === 0) return;
-
-      const withState = await this.prisma.gatewayCounterState.findMany({
+      const stored = await this.prisma.gatewayCounterState.findMany({
         where: { tagId: { in: rows.map((r) => r.id) } },
         select: { tagId: true, accumulated: true },
       });
-      const acc = new Map(withState.map((w) => [w.tagId, w.accumulated]));
-
-      const lines = rows.map((r) => {
-        const why = r.deviceId === null ? 'no device' : 'inactive';
-        const carried = acc.get(r.id);
-        return `  ${r.machine?.code ?? '—'} ${r.code} (${why}, address ${r.address ?? '—'})`
-          + (carried ? ` — still carries a stored count of ${carried}` : '');
-      });
-      this.logger.warn(
-        `${rows.length} counter tag(s) exist in the database but are not polled. `
-        + 'They cannot affect a reading, but a stored count on one of them looks '
-        + 'identical to a live count to anyone reading the table:\n'
-        + lines.join('\n'),
-      );
+      const message = describeOrphans(rows, new Map(stored.map((w) => [w.tagId, w.accumulated])));
+      if (message) this.logger.warn(message);
     } catch {
       // A configuration audit must never be the reason polling does not start.
     }
   }
+
 
   /**
    * Configuration that is legal, loads cleanly, and is still a trap.
@@ -211,65 +199,13 @@ export class ModbusPollerService implements OnModuleDestroy {
     this.bindingsReported = true;
 
     const notes: string[] = [];
-
-    for (const dev of devices) {
-      const tags = dev.tagDefinitions ?? [];
-
-      // Name against address.
-      //
-      // `address` is a STRING column — it holds "100" and "40001" for register
-      // types where the leading digit is meaningful. Comparing a number to it
-      // directly is always unequal, which made the first version of this audit
-      // flag every tag on the plant including the seven that agree. Both sides
-      // are normalised to a number here, and a non-numeric address is skipped
-      // rather than guessed at.
-      for (const t of tags) {
-        const named = /DI(\d+)/i.exec(t.code ?? '');
-        if (!named || t.address === null || t.address === undefined) continue;
-        const actual = Number(t.address);
-        if (!Number.isFinite(actual)) continue;
-        if (Number(named[1]) !== actual) {
-          notes.push(`  ${dev.name} · ${t.code} is named DI${named[1]} but reads input ${actual}`);
-        }
-      }
-
-      // One input, two live tags.
-      const byAddress = new Map<number, string[]>();
-      for (const t of tags) {
-        if (t.address === null) continue;
-        const list = byAddress.get(t.address) ?? [];
-        list.push(t.code);
-        byAddress.set(t.address, list);
-      }
-      for (const [addr, codes] of byAddress) {
-        if (codes.length > 1) {
-          notes.push(`  ${dev.name} · input ${addr} is read by ${codes.length} active tags: ${codes.join(', ')}`);
-        }
-      }
-
-      // A machine's counter pair disagreeing about which edge counts.
-      const byMachine = new Map<string, any[]>();
-      for (const t of tags) {
-        if (t.tagType !== 'COUNTER' || !t.machine) continue;
-        const list = byMachine.get(t.machine.code) ?? [];
-        list.push(t);
-        byMachine.set(t.machine.code, list);
-      }
-      for (const [code, list] of byMachine) {
-        const edges = new Set(list.map((t) => t.edgeType));
-        if (edges.size > 1) {
-          notes.push(`  ${dev.name} · ${code} counts on two different edges: `
-            + list.map((t) => `${t.counterRole}=${t.edgeType}`).join(' ')
-            + ' — the pair will respond differently to the same contact ring');
-        }
-      }
-    }
+    for (const dev of devices) notes.push(...auditBindings(dev.name, dev.tagDefinitions ?? []));
 
     if (notes.length === 0) return;
     this.logger.warn(
       `${notes.length} counter binding(s) load cleanly but do not agree with themselves. `
       + 'None of these stop a reading; all of them make the next fault harder to '
-      + 'find than it needs to be:\n' + notes.join('\n'),
+      + 'find than it needs to be:\n' + notes.map((n) => `  ${n}`).join('\n'),
     );
   }
 
@@ -762,10 +698,7 @@ export class ModbusPollerService implements OnModuleDestroy {
           // the cycle is not, something after the read is holding the loop, and
           // that is a defect.
           // What the interval SHOULD be, from what the wire actually does.
-          // A warning that only says a number is wrong leaves the reader to
-          // guess the right one, and the guess on this plant was 20ms — a value
-          // no Modbus round-trip can meet, set on both counter devices.
-          const suggest = Math.max(50, Math.ceil((achieved * 1.5) / 10) * 10);
+          const suggest = suggestedIntervalMs(achieved);
           this.logger.warn(
             readMs >= dev.intervalMs
               ? `${dev.name}: sampling at its limit — the Modbus round-trip alone takes ${readMs}ms, `

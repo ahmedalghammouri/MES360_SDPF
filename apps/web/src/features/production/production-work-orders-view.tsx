@@ -38,6 +38,7 @@ import { useArchive } from '@/hooks/use-archive';
 import { Archive as ArchiveIcon, RotateCcw } from 'lucide-react';
 import { useRowSelection } from '@/hooks/use-row-selection';
 import { BulkActionsBar } from '@/components/ui/bulk-actions-bar';
+import { autoStartState, type AutoState } from './auto-start-state';
 
 const STATUS_COLORS: Record<string, 'secondary' | 'default' | 'outline' | 'destructive'> = {
   PLANNED: 'secondary', RELEASED: 'secondary', IN_PROGRESS: 'default',
@@ -74,44 +75,6 @@ interface WorkOrder {
   /** Which line it would contend for — two lines can share a name. */
   lineId?: string | null;
   materialStatus?: 'OK' | 'AWAITING_MATERIALS' | 'SCHEDULED_FOR_DELIVERY'; materialReadyDate?: string | null;
-}
-
-/** How long before its planned start an armed order is worth watching. */
-const DUE_SOON_MIN = 30;
-/** The scheduler's own grace window — past this it will not start at all. */
-const AUTO_START_GRACE_MIN = 4 * 60;
-
-/**
- * What auto-start is about to do with this order, decided from the same facts
- * the scheduler uses.
- *
- * Computed in the browser from rows already on the page rather than fetched:
- * the list holds every order and its line, which is exactly what "is something
- * blocking it" needs. A second endpoint would be a second copy of the rule, and
- * a second chance for the two to disagree.
- */
-type AutoState = 'off' | 'armed' | 'soon' | 'held' | 'stale';
-
-function autoStartState(order: WorkOrder, all: WorkOrder[], now: number): AutoState {
-  if (!order.autoStart) return 'off';
-  if (!now) return 'armed'; // before the clock is set — see nowMs
-  if (!['PLANNED', 'RELEASED'].includes(order.status)) return 'armed';
-
-  const start = new Date(order.plannedStart).getTime();
-  const lateMin = (now - start) / 60_000;
-
-  // Past the scheduler's window it will not fire at all — the loudest state,
-  // because nothing further will happen without a person.
-  if (lateMin > AUTO_START_GRACE_MIN) return 'stale';
-
-  // Due or nearly due AND the line is taken. This is the 25 August shape, and
-  // the one worth catching before it happens rather than after.
-  const blocked = !!order.lineId && all.some(
-    (o) => o.id !== order.id && o.lineId === order.lineId && o.status === 'IN_PROGRESS',
-  );
-  if (lateMin > -DUE_SOON_MIN && blocked) return 'held';
-  if (lateMin > -DUE_SOON_MIN) return 'soon';
-  return 'armed';
 }
 
 /**
