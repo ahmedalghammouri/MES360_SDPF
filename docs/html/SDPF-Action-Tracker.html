@@ -225,13 +225,13 @@
       ميدانية مؤكَّدة لا فوق نتيجة مختبرية. صفّه بالمصفاة أعلاه لتراه وحده.
     </p>
     <div class="tallies">
-      <div class="tally"><span class="v v-done">14</span><span class="k">مُنفَّذ · كلّه مختبَر</span></div>
+      <div class="tally"><span class="v v-done">18</span><span class="k">مُنفَّذ · كلّه مختبَر</span></div>
       <div class="tally"><span class="v v-done">0</span><span class="k">بلا اختبار — كانت 6</span></div>
-      <div class="tally"><span class="v v-open">4</span><span class="k">مهامّ اليوم — N1..N4</span></div>
+      <div class="tally"><span class="v v-done">4/4</span><span class="k">مهامّ اليوم — N1..N4</span></div>
       <div class="tally"><span class="v v-hold">19</span><span class="k">الخطّة المستقبلية</span></div>
       
       <div class="tally"><span class="v" style="color:var(--accent-ink)">97</span><span class="k">اختبار جديد · كلّها خضراء</span></div>
-      <div class="tally"><span class="v" style="color:var(--accent-ink)">✓</span><span class="k">862 · 614 API + 233 edge + 15 web</span></div>
+      <div class="tally"><span class="v" style="color:var(--accent-ink)">✓</span><span class="k">932 · 639 API + 242 edge + 15 web + 36 جديدة</span></div>
     </div>
   </header>
 
@@ -427,39 +427,39 @@
 
           <tr class="grp"><td colspan="6">ز · مهامّ اليوم — أضيفت 26 أغسطس</td></tr>
 
-          <tr data-id="N1" data-track="now" data-status="open" data-group="ز">
+          <tr data-id="N1" data-track="now" data-status="done" data-group="ز">
             <td class="id">N1</td>
             <td class="what">شريط الجدولة يعرض المخطَّط فعلاً، لا اليوم كلّه</td>
-            <td><span class="pill p-open">مفتوح</span></td>
-            <td class="tests na">—</td>
-            <td class="note">الشريط العلوي يملأ <strong>ساعات الوردية</strong> بالأخضر، فيدّعي أنّ الخطّ كان مخطّطاً للإنتاج طوال الأسبوع. الصحيح أنّ الإنتاج يجدوله <em>أمر الإنتاج</em>: ما يغطّيه أمرٌ فهو إنتاج مخطّط، وما تغطّيه توقّفات محجوزة فهي بأسمائها، وما عدا ذلك <strong>غير مخطّط لشيء</strong> ويجب أن يُرسم بلون ثالث لا بالأخضر. عيبٌ في شيفرتي أنا: <span class="mono" dir="ltr">scheduledHours</span> تقرأ قوالب الورديات، و«مأهول» ليست «مجدول للإنتاج».</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">11 ✓</td>
+            <td class="note">الشريط يتبع أوامر التشغيل. قِيس على أسبوع الصورة: كان يرسم <strong>10,440</strong> دقيقة إنتاج مخطّط لكل ماكينة والأوامر تفسّر <strong>1,244</strong> — و<strong>87٪</strong> من الأسبوع لم يكن مجدولاً لشيء، وصار يبقى فارغاً. وكشفت كتابة الاختبار عيباً كنت قد شحنته: ماكينةٌ بجدول نظيف بلا توقّفات لم تكن تُرسم إطلاقاً.</td>
             <td class="where">state-timeline.service.ts</td>
           </tr>
 
-          <tr data-id="N2" data-track="now" data-status="open" data-group="ز">
+          <tr data-id="N2" data-track="now" data-status="done" data-group="ز">
             <td class="id">N2</td>
             <td class="what">ماكينة بلا أمر تشغيل يجب أن تقرأ IDLE</td>
-            <td><span class="pill p-open">مفتوح</span></td>
-            <td class="tests na">—</td>
-            <td class="note">الجذر معروف: <span class="mono" dir="ltr">stoppedState()</span> يُرجع <span class="mono" dir="ltr">IDLE</span> عند غياب أمر تشغيل، لكنّه <strong>لا يُستدعى إلّا حين تنطفئ إشارة التشغيل</strong>. M1 انطفأت إشارتها فصارت IDLE، والباقي بقيت مضاءة فبقيت على حالها. أي أنّ إيقاف الأمر لا يُعيد تقييم الماكينات إطلاقاً — والحالة تُشتقّ من الإشارة وحدها بينما أمر التشغيل يُستشار فقط بعد أن تقول الإشارة «واقفة».</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">9 ✓</td>
+            <td class="note">تعريفان لحقيقة واحدة: <span class="mono" dir="ltr">stoppedState</span> يعدّ EXECUTING و<span class="mono" dir="ltr">hasWorkScheduled</span> يعدّ EXECUTING و PAUSED. صار تعريفاً واحداً، وأحد الاختبارات يؤكّد <strong>أنّ المسارين يتّفقان</strong> مهما كانت الإجابة. وعكستُ قراراً موثّقاً — حدّثت اختباره ولم أحذفه.</td>
             <td class="where">status.service.ts:381</td>
           </tr>
 
-          <tr data-id="N3" data-track="now" data-status="open" data-group="ز">
+          <tr data-id="N3" data-track="now" data-status="done" data-group="ز">
             <td class="id">N3</td>
             <td class="what">توقّفات أمر الإنتاج تُنشأ ذاتياً</td>
-            <td><span class="pill p-open">مفتوح</span></td>
-            <td class="tests na">—</td>
-            <td class="note">تنظيف وبدء وتغيير: مدّة لكلٍّ وترتيبٌ بينها، تُعرَّف على أمر الإنتاج <strong>عند الإنشاء وعند التعديل</strong>، وتُنشئ أحداث توقّف مخطّط من <em>وقت البدء الفعلي</em> لا المخطّط. ولكلٍّ قاعدة تكرار: مرّة واحدة للأمر · مع كلّ وردية · مع كلّ إعادة تشغيل. وتعديل الغد لا يمسّ حدث الأمس. يوفّر ما أدخلناه بيد أمس.</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">22 ✓</td>
+            <td class="note">جدول <span class="mono" dir="ltr">production_order_stops</span> + محرّك + شاشة. مُثبَت على قاعدة بياناتك: <strong>12 حدثاً</strong> عند البدء الأول (3 توقّفات × 4 ماكينات)، <strong>0</strong> عند الإعادة، <strong>4</strong> عند الاستئناف — متتالية من البدء الفعلي ومربوطة بأمر التشغيل.</td>
             <td class="where">production_orders · جدول جديد</td>
           </tr>
 
-          <tr data-id="N4" data-track="now" data-status="open" data-group="ز">
+          <tr data-id="N4" data-track="now" data-status="done" data-group="ز">
             <td class="id">N4</td>
             <td class="what">فترات راحة متعدّدة لكلّ وردية</td>
-            <td><span class="pill p-open">مفتوح</span></td>
-            <td class="tests na">—</td>
-            <td class="note">قالب الوردية اليوم فيه <span class="mono" dir="ltr">breakMinutes</span> و<span class="mono" dir="ltr">cleaningMinutes</span> — رقمان مفردان، وهما ما تقول شاشة التعديل نفسها إنّهما استُبدلا بالتوقّفات المخطّطة. المطلوب: أكثر من راحة، لكلٍّ وقت بدء ومدّة، تُنشئ أحداثها <strong>مع بداية كلّ وردية فقط</strong> — لا إلى ما لا نهاية.</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">7 ✓</td>
+            <td class="note">جدول <span class="mono" dir="ltr">shift_breaks</span> + محرّك متعدّد الفترات + شاشة. راحةٌ خارج ورديتها <strong>تُرفَض ولا تُقصّ</strong> — والنقل الصامت يخلق توقّفاً لم يطلبه أحد ويخفي الخطأ.</td>
             <td class="where">shift_templates · جدول جديد</td>
           </tr>
 
@@ -499,7 +499,7 @@
 
   <footer>
     <div>كلّ حالة هنا مقيسة: عدد الاختبارات من ملفّاتها، والتحقّقات الحيّة من قاعدة البيانات المستعادة والـexe المحزوم.</div>
-    <div class="mono" dir="ltr" style="font-size:11px">docs/html/SDPF-Action-Tracker.html · 26 Aug 2026 · 38 items · 862 tests green · bucket architecture deferred by decision</div>
+    <div class="mono" dir="ltr" style="font-size:11px">docs/html/SDPF-Action-Tracker.html · 26 Aug 2026 · 38 items · 932 tests green · bucket architecture deferred by decision</div>
   </footer>
 </div>
 
