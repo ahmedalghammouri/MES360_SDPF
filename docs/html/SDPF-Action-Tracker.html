@@ -1,0 +1,410 @@
+<title>لوحة التتبّع</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:  #f4f6f8;
+    --surface: #ffffff;
+    --sunk:    #eaeef2;
+    --line:    #d8dfe6;
+    --line-soft:#e6ebf0;
+
+    --ink:   #0f171e;
+    --ink-2: #40505f;
+    --ink-3: #6c7d8d;
+
+    --accent:     #1f6f8b;
+    --accent-ink: #17566c;
+    --accent-wash:#e6f1f5;
+
+    --done:  #14683f;
+    --part:  #8a5a00;
+    --open:  #6c7d8d;
+    --hold:  #5d6b7a;
+    --fail:  #a8271f;
+
+    --shadow: 0 1px 2px rgba(15,23,30,.05), 0 8px 22px -12px rgba(15,23,30,.18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:  #0b1116;
+      --surface: #131b22;
+      --sunk:    #0f171d;
+      --line:    #24313b;
+      --line-soft:#1b242c;
+
+      --ink:   #e6edf3;
+      --ink-2: #a9b8c4;
+      --ink-3: #7b8b99;
+
+      --accent:     #4fb3d0;
+      --accent-ink: #86d0e6;
+      --accent-wash:#102730;
+
+      --done:  #4fbc86;
+      --part:  #d9a441;
+      --open:  #7b8b99;
+      --hold:  #78879a;
+      --fail:  #ef8078;
+
+      --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px -14px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:  #0b1116;
+    --surface: #131b22;
+    --sunk:    #0f171d;
+    --line:    #24313b;
+    --line-soft:#1b242c;
+
+    --ink:   #e6edf3;
+    --ink-2: #a9b8c4;
+    --ink-3: #7b8b99;
+
+    --accent:     #4fb3d0;
+    --accent-ink: #86d0e6;
+    --accent-wash:#102730;
+
+    --done:  #4fbc86;
+    --part:  #d9a441;
+    --open:  #7b8b99;
+    --hold:  #78879a;
+    --fail:  #ef8078;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px -14px rgba(0,0,0,.7);
+  }
+
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: "IBM Plex Sans Arabic", "Segoe UI", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.75; -webkit-font-smoothing: antialiased;
+    direction: rtl;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px 88px; display: flex; flex-direction: column; gap: 34px; }
+
+  h1, h2 { margin: 0; text-wrap: balance; font-weight: 700; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(26px, 3.8vw, 38px); line-height: 1.3; }
+  h2 { font-size: clamp(18px, 2.2vw, 22px); }
+  p  { margin: 0; }
+
+  .mono, .n { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3);
+    direction: ltr; text-align: right;
+  }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  header {
+    padding: 52px 0 26px; border-bottom: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  header .lede { font-size: 17px; color: var(--ink-2); max-width: 64ch; }
+
+  /* ── Tallies ─────────────────────────────────────────────────────────── */
+  .tallies { display: flex; flex-wrap: wrap; gap: 12px; direction: ltr; }
+  .tally {
+    flex: 1 1 130px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 9px; padding: 13px 15px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .tally .v { font-family: "IBM Plex Mono", monospace; font-size: 25px; font-weight: 700; line-height: 1.2; }
+  .tally .k { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+  .v-done { color: var(--done); } .v-part { color: var(--part); }
+  .v-open { color: var(--ink-2); } .v-hold { color: var(--hold); }
+
+  /* ── Table ───────────────────────────────────────────────────────────── */
+  .tscroll {
+    overflow-x: auto; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface); box-shadow: var(--shadow);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 960px; }
+  thead th {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600;
+    letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
+    text-align: right; padding: 11px 13px; border-bottom: 1px solid var(--line);
+    background: var(--sunk); white-space: nowrap; position: sticky; top: 0; z-index: 1;
+  }
+  tbody td { padding: 11px 13px; border-bottom: 1px solid var(--line-soft); color: var(--ink-2); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: var(--accent-wash); }
+  tbody tr.grp td {
+    background: var(--sunk); color: var(--ink); font-weight: 600; font-size: 12.5px;
+    letter-spacing: .02em; padding: 9px 13px;
+  }
+  td.id {
+    font-family: "IBM Plex Mono", monospace; font-weight: 700; color: var(--accent-ink);
+    direction: ltr; text-align: right; white-space: nowrap; width: 46px;
+  }
+  td.what { color: var(--ink); font-weight: 500; min-width: 210px; }
+  td.note { max-width: 420px; font-size: 13px; line-height: 1.65; }
+  td.tests { direction: ltr; text-align: left; white-space: nowrap; font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  td.where { direction: ltr; text-align: left; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-3); white-space: nowrap; }
+
+  .pill {
+    display: inline-block; font-family: "IBM Plex Mono", monospace;
+    font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap;
+  }
+  .p-done { color: var(--done); } .p-part { color: var(--part); }
+  .p-open { color: var(--open); } .p-hold { color: var(--hold); }
+  .p-you  { color: var(--accent-ink); }
+
+  .pass { color: var(--done); font-weight: 600; }
+  .none { color: var(--part); }
+  .na   { color: var(--ink-3); }
+
+  .note {
+    background: var(--accent-wash); border: 1px solid var(--line);
+    border-radius: 8px; padding: 13px 17px; font-size: 14px; color: var(--ink-2);
+  }
+  .note strong { color: var(--ink); font-weight: 600; }
+  .note.warn { background: transparent; border-color: var(--part); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12.5px; color: var(--ink-3); align-items: center; }
+
+  footer {
+    border-top: 1px solid var(--line); padding-top: 20px;
+    font-size: 12.5px; color: var(--ink-3); display: flex; flex-direction: column; gap: 5px;
+  }
+  @media (max-width: 640px) { .wrap { padding: 0 14px 64px; } .tally { flex: 1 1 100%; } }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">MES360 · SDPF · Action tracker · 26 Aug 2026</div>
+    <h1>لوحة التتبّع</h1>
+    <p class="lede">
+      الأربعة والثلاثون بنداً بحالتها الحقيقية، وحالة اختبار كلٍّ منها.
+      <strong>«لا اختبار» مكتوبة صراحةً حيث لا يوجد</strong> — بندٌ يعمل بلا اختبار
+      ليس في نفس درجة بندٍ يحرسه اختبار، والخلط بينهما هو ما جعل أعطال هذا الأسبوع
+      تصل إلى أرض المصنع بدل أن تتوقّف عندنا.
+    </p>
+    <div class="tallies">
+      <div class="tally"><span class="v v-done">14</span><span class="k">مُنفَّذ</span></div>
+      <div class="tally"><span class="v v-part">6</span><span class="k">منها بلا اختبار مخصّص</span></div>
+      <div class="tally"><span class="v v-open">18</span><span class="k">لم يبدأ</span></div>
+      <div class="tally"><span class="v v-hold">2</span><span class="k">مؤجّل بقرارك</span></div>
+      <div class="tally"><span class="v" style="color:var(--accent-ink)">43</span><span class="k">اختبار جديد · كلّها خضراء</span></div>
+      <div class="tally"><span class="v" style="color:var(--accent-ink)">816</span><span class="k">مجموع الاختبارات · 604 API + 212 edge</span></div>
+    </div>
+  </header>
+
+  <div class="legend">
+    <span><span class="pill p-done">مُنفَّذ</span> في الكود ومبنيّ</span>
+    <span><span class="pill p-part">جزئي</span> يعمل، بلا اختبار يحرسه</span>
+    <span><span class="pill p-open">مفتوح</span> لم يبدأ</span>
+    <span><span class="pill p-hold">مؤجّل</span> ينتظر قراراً</span>
+    <span><span class="pill p-you">عليك</span> خارج الكود</span>
+  </div>
+
+  <section>
+    <div class="tscroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>البند</th><th>الحالة</th><th>الاختبارات</th>
+            <th>ملاحظة</th><th>الموضع</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr class="grp"><td colspan="6">أ · سلامة العدّ عند المستشعر</td></tr>
+
+          <tr>
+            <td class="id">A1</td>
+            <td class="what">اختبار الـ200 ms على الخط</td>
+            <td><span class="pill p-you">عليك</span></td>
+            <td class="tests na">— إجراء ميداني</td>
+            <td class="note">أُثبت على المحاكي (2.92× ← 0.99×). يبقى تأكيده على منتج حقيقي بعد تشغيل الخط.</td>
+            <td class="where">devices · إعداد</td>
+          </tr>
+          <tr>
+            <td class="id">A2</td>
+            <td class="what">debounce لكل ماكينة</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">6 ✓</td>
+            <td class="note">مُثبت في الاتجاهين: 90 عدّة تصير 45، وعند 1400 ms يُكشف أنه <em>يأكل</em> إنتاجاً — فالحدّ الآمن مبرهَن لا مفترض. معطّل حتى تضبطه.</td>
+            <td class="where">counter.service.ts:298</td>
+          </tr>
+          <tr>
+            <td class="id">A3</td>
+            <td class="what">إنذار الدقيقة المستحيلة</td>
+            <td><span class="pill p-part">جزئي</span></td>
+            <td class="tests none">لا اختبار</td>
+            <td class="note"><strong>يعمل ولا يحرسه شيء.</strong> منطق العتبة (‎110٪‎ من السقف، والخنق كلّ عشر دقائق) غير مثبَّت — تغييرٌ فيه يمرّ صامتاً.</td>
+            <td class="where">oee-standard.writer.ts</td>
+          </tr>
+          <tr>
+            <td class="id">A4</td>
+            <td class="what">إنذار «السليم &gt; الإجمالي»</td>
+            <td><span class="pill p-part">جزئي</span></td>
+            <td class="tests none">لا اختبار</td>
+            <td class="note">الشرط بسيط (<span class="mono" dir="ltr">good &gt; total</span>) لكنّه غير مغطّى. الحالة نفسها مغطّاة من زاوية أخرى في اختبارات التصحيح.</td>
+            <td class="where">counter.service.ts:623</td>
+          </tr>
+          <tr>
+            <td class="id">A5</td>
+            <td class="what">الأوسمة اليتيمة تُعلن نفسها</td>
+            <td><span class="pill p-part">جزئي</span></td>
+            <td class="tests none">لا اختبار · تحقّق حيّ</td>
+            <td class="note">وجد <strong>12 وسماً</strong> على إعدادك، منها أرصدة 5477 و2300 و338. مؤكَّد من الـexe المحزوم، لا بالقراءة.</td>
+            <td class="where">modbus-poller.service.ts</td>
+          </tr>
+          <tr>
+            <td class="id">A6</td>
+            <td class="what">يسمّي فترة الاستقصاء الصحيحة</td>
+            <td><span class="pill p-part">جزئي</span></td>
+            <td class="tests none">لا اختبار</td>
+            <td class="note">تغيير نصّ + حساب اقتراح. <strong>لاحظ:</strong> فترة الجهازين صارت 200 ms في قاعدة البيانات المحلية بعد أن كانت 20 — ولا أعرف ما غيّرها؛ ليست هذه الشيفرة (تقترح ولا تكتب). يستحق فحصاً.</td>
+            <td class="where">modbus-poller.service.ts:670</td>
+          </tr>
+          <tr>
+            <td class="id">A7</td>
+            <td class="what">تدقيق ارتباطات الأوسمة</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">8 ✓</td>
+            <td class="note">النسخة الأولى وسمت 7 منها 3 صحيحة (قارنت رقماً بعمود نصّي). صار <strong>4 وكلّها حقيقية</strong>. مثبَّت في الاتجاهين — الارتباط السليم يجب أن يُنتج صمتاً.</td>
+            <td class="where">modbus-poller.service.ts</td>
+          </tr>
+          <tr>
+            <td class="id">A8</td>
+            <td class="what">التحذير يذكر الاحتمالين</td>
+            <td><span class="pill p-part">جزئي</span></td>
+            <td class="tests na">نصّ — لا يُختبر</td>
+            <td class="note">كان يقول «العدّات ستكون منخفضة» فقط. صار يذكر الارتفاع أيضاً ويستشهد بـ25 أغسطس حيث تحقّقا معاً.</td>
+            <td class="where">counter.service.ts:462</td>
+          </tr>
+          <tr>
+            <td class="id">A9</td>
+            <td class="what">موازنة الدقيقة (التسامح ±)</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">10 ✓</td>
+            <td class="note">بمثاليك حرفياً. الأولوية للمرفوض، ولا يضيف صعوداً أبداً، وكلّ تقليم مُحصى ومعروض — وهو إشارة التغذية الراجعة للـdebounce.</td>
+            <td class="where">counter.service.ts · balanceMinute</td>
+          </tr>
+
+          <tr class="grp"><td colspan="6">ب · نموذج الرفع — الدلاء وعقد الاستقبال</td></tr>
+
+          <tr><td class="id">B1</td><td class="what">دلو لكل دقيقة</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">حجر الزاوية. لم يبدأ.</td><td class="where">counter.service.ts</td></tr>
+          <tr><td class="id">B2</td><td class="what">UPSERT لا increment</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">الحماية من التكرار عند إعادة الإرسال. يعتمد على B1.</td><td class="where">API · استقبال</td></tr>
+          <tr><td class="id">B3</td><td class="what">إزالة احتجاز التفريغ</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note"><strong>شوهد حيّاً:</strong> M1 قفزت 434 ← 742 في تفريغة واحدة لحظة استئناف الأمر.</td><td class="where">counter.service.ts:565</td></tr>
+          <tr><td class="id">B4</td><td class="what">إيقاف الكتابة المطلقة للمرفوض</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">مُحتوى مؤقّتاً بـ C1 — التصحيح يعلن حصّته اليدوية فينجو. الجذر باقٍ.</td><td class="where">counter.service.ts:623</td></tr>
+          <tr><td class="id">B5</td><td class="what">حالة العدّاد سجلّ تقدّم</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">حتى تُنفَّذ، تبقى إعادة التشغيل وحذف البافر بلا أثر على الأرقام.</td><td class="where">counter.service.ts:208</td></tr>
+          <tr><td class="id">B6</td><td class="what">جدول دلاء خام منفصل</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">لا داخل <span class="mono" dir="ltr">oee_minutes</span> — الدلو لكل وسم والصفّ لكل ماكينة.</td><td class="where">schema</td></tr>
+          <tr><td class="id">B7</td><td class="what">الهويّة = (ماكينة، دقيقة UTC)</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">لا الدقيقة المقطوعة — <span class="mono" dir="ltr">actualStart</span> حقل متغيّر.</td><td class="where">قرار تصميم</td></tr>
+          <tr><td class="id">B8</td><td class="what">الايدج لا يكتب في قاعدة البيانات</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note"><strong>41 كتابة مباشرة عبر 14 جدولاً</strong> — الجذر الحقيقي. ما دام قائماً، كلّ قاعدة نضعها قابلة للالتفاف عليها.</td><td class="where">apps/edgegateway</td></tr>
+          <tr><td class="id">B9</td><td class="what">علامة مائية بثلاث حالات</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">النظام لا يميّز «أنتجت صفراً» عن «لا أعرف بعد».</td><td class="where">oee-standard.writer.ts:101</td></tr>
+          <tr><td class="id">B10</td><td class="what">timestamptz وتسجيل الانحراف</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">كلّ أعمدة الوقت اليوم بلا منطقة زمنية. الاتّفاق ضمنيّ ولا يفرضه شيء.</td><td class="where">schema · كل الأعمدة</td></tr>
+
+          <tr class="grp"><td colspan="6">ج · مسارات التصحيح</td></tr>
+
+          <tr>
+            <td class="id">C1</td>
+            <td class="what">التصحيح يكتب الحصّة اليدوية</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">5 ✓</td>
+            <td class="note">حالة M1 المستحيلة مغطّاة: سليم 425 &gt; إجمالي 361 فالمشتقّ صفر، والحصّة اليدوية وحدها تحمل الرقم.</td>
+            <td class="where">production.service.ts:4499</td>
+          </tr>
+          <tr>
+            <td class="id">C2</td>
+            <td class="what">السماح بالإنقاص</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">4 ✓</td>
+            <td class="note">الحقلان في التابلت يقبلان السالب الآن — كانا <span class="mono" dir="ltr">min={0}</span> فكان المسار غير قابل للوصول أصلاً. ولا سجلّ هالك بكمّية سالبة.</td>
+            <td class="where">production.service.ts:4602 · التابلت</td>
+          </tr>
+          <tr>
+            <td class="id">C3</td>
+            <td class="what">اختبار: تصحيح ينجو من تفريغ</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">9 ✓</td>
+            <td class="note">يطبّق صيغة ختم الايدج نفسها على النتيجة. مكتوبة يدوياً لا مستوردة — الايدج بناء منفصل، وأيّ اختلاف يظهر هنا هو الإشارة المطلوبة.</td>
+            <td class="where">count-correction-survives…spec.ts</td>
+          </tr>
+          <tr><td class="id">C4</td><td class="what">الايدج يكتب الهالك الآلي في السجلّ</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">اليوم لا أثر للهالك الآلي يمكن حذفه — ولهذا لم تجد الـ150.</td><td class="where">counter.service.ts</td></tr>
+          <tr><td class="id">C5</td><td class="what">تصنيف آليّ / يدويّ</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">يعتمد على C4.</td><td class="where">scrap_logs</td></tr>
+          <tr><td class="id">C6</td><td class="what">سجلّ الهالك يقبل الحذف والتعديل</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">الشاشة والـAPI للقراءة فقط — نقطة النهاية الوحيدة <span class="mono" dir="ltr">@Get</span>.</td><td class="where">production.controller.ts:909</td></tr>
+          <tr><td class="id">C7</td><td class="what">سجلّ الجيد = دلاء الدقائق</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">قيمة الدقيقة اليوم <strong>بقيّة طرح</strong> لا قياس — ولهذا كانت تعديلاتك تشفي نفسها.</td><td class="where">oee-standard.writer.ts:260</td></tr>
+          <tr><td class="id">C8</td><td class="what">التصحيح ينتشر لكل مكان</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">عمليّة واحدة بدل أربع تعديلات يدوية.</td><td class="where">API · خدمة واحدة</td></tr>
+          <tr><td class="id">C9</td><td class="what">شاشة Correct count بالسجلّين</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">يعتمد على C6 و C8.</td><td class="where">operator-hmi-view.tsx</td></tr>
+          <tr><td class="id">C10</td><td class="what">زرّ «صفّر عدّاد الماكينة»</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">يصير غير ضروري إن نُفِّذ B5.</td><td class="where">إعدادات · منطقة الخطر</td></tr>
+
+          <tr class="grp"><td colspan="6">د · التشغيل التلقائي</td></tr>
+
+          <tr>
+            <td class="id">D1</td>
+            <td class="what">لا يبدأ والخطّ مشغول</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">5 ✓</td>
+            <td class="note">شكل 25 أغسطس بعينه، ويبدأ ذاتياً حين يتحرّر الخط. أمرٌ بلا خطّ مسجَّل لا يُحجب — لا يمكن إثبات تعارضه.</td>
+            <td class="where">work-order-scheduler.service.ts</td>
+          </tr>
+          <tr>
+            <td class="id">D2</td>
+            <td class="what">لا يبدأ أمرٌ فات وقته</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">4 ✓</td>
+            <td class="note">نافذة أربع ساعات. والقِدَم يُفحص <em>قبل</em> انشغال الخط — وإلّا وجّه المصنع إلى السبب الخطأ.</td>
+            <td class="where">work-order-scheduler.service.ts</td>
+          </tr>
+          <tr>
+            <td class="id">D3</td>
+            <td class="what">إشعار حقيقي بدل السجلّ</td>
+            <td><span class="pill p-done">مُنفَّذ</span></td>
+            <td class="tests pass">3 ✓</td>
+            <td class="note">مرّة واحدة لكل سبب لا كل دقيقة، ويُبلَّغ ثانيةً إن تغيّر السبب. وفشل الإشعار لا يوقف الدورة.</td>
+            <td class="where">modules/notifications</td>
+          </tr>
+          <tr>
+            <td class="id">D4</td>
+            <td class="what">أيقونة الحالة على كل صف</td>
+            <td><span class="pill p-part">جزئي</span></td>
+            <td class="tests none">لا اختبار · tsc + build</td>
+            <td class="note">تُفعّل وتُلغي، وتومض كهرماني إذا حان وقته والخط مشغول وأحمر إذا فات. تُحسب من صفوف الصفحة نفسها — نسخة واحدة من القاعدة لا اثنتان.</td>
+            <td class="where">production-work-orders-view.tsx</td>
+          </tr>
+
+          <tr class="grp"><td colspan="6">هـ · الجدولة مقابل الواقع — مؤجّلة بقرارك</td></tr>
+          <tr><td class="id">E1</td><td class="what">ربط التوقّف المخطّط بأمر التشغيل</td><td><span class="pill p-hold">مؤجّل</span></td><td class="tests na">—</td><td class="note">‏108 دقيقة‑ماكينة تُحتسب اليوم لتغييرٍ لم يقع. ينتظر قرار Q1.</td><td class="where">downtime_events</td></tr>
+          <tr><td class="id">E2</td><td class="what">أسبقية الجدول في المعادلات</td><td><span class="pill p-hold">مؤجّل</span></td><td class="tests na">—</td><td class="note">مطبَّقة عرضاً فقط. نقلها للمحرّك يرفع OEE — ورقمٌ يرتفع لتغيّر العدّ ليس تحسّناً.</td><td class="where">قرارات Q1–Q5</td></tr>
+
+          <tr class="grp"><td colspan="6">و · إصلاحات بيانات — على الهوستنجر</td></tr>
+          <tr><td class="id">F1</td><td class="what">الـ150 اليتيمة</td><td><span class="pill p-you">عليك</span></td><td class="tests na">SQL جاهز</td><td class="note"><span class="mono" dir="ltr">manualQtyRejected</span> تقول 156 والسجلّات 6. الأمر <span class="mono" dir="ltr">COMPLETE</span> فالتصحيح يثبت.</td><td class="where">job_orders</td></tr>
+          <tr><td class="id">F2</td><td class="what">هالك ضائع على M3 و M4</td><td><span class="pill p-you">عليك</span></td><td class="tests na">SQL جاهز</td><td class="note">‏2 و4 مسجّلة يدوياً و<span class="mono" dir="ltr">actualQtyRejected = 0</span>.</td><td class="where">job_orders</td></tr>
+          <tr><td class="id">F3</td><td class="what">حالات عدّادات لأوسمة محذوفة</td><td><span class="pill p-you">عليك</span></td><td class="tests na">—</td><td class="note">صار الايدج يسمّيها عند الإقلاع (A5)، فالقائمة جاهزة للتنفيذ.</td><td class="where">gateway_counter_states</td></tr>
+          <tr><td class="id">F4</td><td class="what">مراجعة تعديلات oee_minutes</td><td><span class="pill p-you">عليك</span></td><td class="tests na">—</td><td class="note">تُوثَّق قبل أن يُبنى عليها تقرير، وإلّا صار مصدر الاختلاف مجهولاً.</td><td class="where">oee_minutes</td></tr>
+
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:14px">
+    <h2>قراءة الجدول</h2>
+    <div class="note warn">
+      <strong>ستّة بنود منفَّذة بلا اختبار مخصّص:</strong>
+      <span class="mono" dir="ltr">A3 · A4 · A5 · A6 · A8 · D4</span>.
+      كلّها تعمل، وثلاثة منها تحقّقت على قاعدة بياناتك مباشرةً لا بالقراءة.
+      لكنّ «يعمل اليوم» و«محروسٌ غداً» ليسا الشيء نفسه — وأنفعها بالتغطية
+      <span class="mono" dir="ltr">A3</span> و<span class="mono" dir="ltr">A4</span>،
+      لأنّهما الإنذاران اللذان يُفترض بهما التقاط العطل التالي، وهما اليوم بلا ما
+      يلتقط عطلاً فيهما.
+    </div>
+    <div class="note">
+      <strong>‏B8 هو الجذر الباقي.</strong> ما دام الايدج يكتب في قاعدة البيانات مباشرةً
+      في 41 موضعاً، تبقى كلّ قاعدة نضعها قابلة للالتفاف عليها من خلف ظهر الـAPI —
+      بما فيها القاعدة التي أصلحناها اليوم.
+    </div>
+  </section>
+
+  <footer>
+    <div>كلّ حالة هنا مقيسة: عدد الاختبارات من ملفّاتها، والتحقّقات الحيّة من قاعدة البيانات المستعادة والـexe المحزوم.</div>
+    <div class="mono" dir="ltr" style="font-size:11px">docs/html/SDPF-Action-Tracker.html · 26 Aug 2026 · 604 API + 212 edge green</div>
+  </footer>
+</div>

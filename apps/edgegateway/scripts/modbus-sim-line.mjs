@@ -166,10 +166,10 @@ async function restoreIps() {
       where: { id: d.id },
       data: { ipAddress: ip, config: Object.keys(cfg).length ? cfg : null },
     });
-    console.log(`  ${d.name} → ${ip}`);
+    console.log(`  ${d.name} -> ${ip}`);
     n++;
   }
-  if (n === 0) { console.log('Nothing to restore — no device carries a stashed field IP.'); return; }
+  if (n === 0) { console.log('Nothing to restore - no device carries a stashed field IP.'); return; }
   console.log(`Restored ${n} device(s). Restart the gateway to pick them up.`);
 }
 
@@ -184,7 +184,7 @@ async function pointLocal(devices) {
     await prisma.device.update({
       where: { id: d.id }, data: { ipAddress: '127.0.0.1', config: cfg },
     });
-    console.log(`  ${d.name}: ${d.ipAddress} → 127.0.0.1  (field IP stashed)`);
+    console.log(`  ${d.name}: ${d.ipAddress} -> 127.0.0.1  (field IP stashed)`);
   }
   console.log('Devices repointed. Restart the gateway, and run --restore-ips when finished.');
 }
@@ -203,7 +203,7 @@ async function main() {
   const pace = await loadPace();
 
   console.log('');
-  console.log(`SDPF Line 1 simulator — ${RING ? 'RING MODE (reproducing 25 Aug)' : 'clean pulses'}`
+  console.log(`SDPF Line 1 simulator - ${RING ? 'RING MODE (reproducing 25 Aug)' : 'clean pulses'}`
     + (SPEED !== 1 ? `, ${SPEED}x speed` : ''));
   console.log('');
 
@@ -229,7 +229,7 @@ async function main() {
     server.on('socketError', (e) => console.error(`[${dev.name}] socket: ${e?.message}`));
     server.on('serverError', (e) => console.error(`[${dev.name}] server: ${e?.message}`));
 
-    console.log(`▶ ${dev.name}  0.0.0.0:${dev.port} (unit ${dev.unitId ?? 1})`);
+    console.log(`> ${dev.name}  0.0.0.0:${dev.port} (unit ${dev.unitId ?? 1})`);
 
     // Group this device's counters by machine — a machine's TOTAL and GOOD must
     // pulse from ONE part, not from two independent trains, or Good > Total
@@ -237,7 +237,7 @@ async function main() {
     const byMachine = new Map();
     for (const t of dev.tagDefinitions) {
       if (t.tagType !== 'COUNTER' || !t.machine) {
-        console.log(`    DI${t.address}  ${t.code}  (status — held at 1)`);
+        console.log(`    DI${t.address}  ${t.code}  (status - held at 1)`);
         continue;
       }
       const g = byMachine.get(t.machine.id) ?? { machine: t.machine, tags: [] };
