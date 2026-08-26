@@ -42,6 +42,7 @@ import { useTranslation } from 'react-i18next';
 import { ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, Baseline } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { followingEdge, nowMarkerPct } from './now-marker';
 
 // ── Status roles ────────────────────────────────────────────────────────────
 
@@ -203,32 +204,81 @@ export function MachineStateGantt({
   rows,
   windowStart,
   windowEnd,
+  follow = false,
   className,
 }: {
   rows: GanttRow[];
   windowStart: string | Date | number;
   windowEnd: string | Date | number;
+  /**
+   * The chart is showing a window that ENDS AT NOW, so the right edge should
+   * track the clock rather than the instant the data was fetched.
+   *
+   * Without this the "now" marker is unreachable on a live screen: `windowEnd`
+   * is frozen at fetch time, real time walks past it within seconds, and the
+   * marker -- which only draws inside the view -- silently stops being drawn.
+   * A ticking clock ALONE makes that worse, not better, because it moves `now`
+   * past the fixed edge sooner. Both halves are needed or neither works.
+   */
+  follow?: boolean;
   className?: string;
 }) {
   const { t } = useTranslation(['production', 'common']);
 
-  const fullFrom = new Date(windowStart).getTime();
-  const fullTo = new Date(windowEnd).getTime();
+  const rawFrom = new Date(windowStart).getTime();
+  const rawTo = new Date(windowEnd).getTime();
+
+  /**
+   * The clock this chart draws its "now" marker against.
+   *
+   * Zero until mounted, deliberately: reading a clock during a server render
+   * and again on the client is a hydration mismatch by construction, and this
+   * component has paid for that before. The marker simply does not draw until
+   * the first tick, which is a frame away.
+   */
+  const [nowTs, setNowTs] = useState(0);
+  useEffect(() => {
+    setNowTs(Date.now());
+    // Thirty seconds. The bands are minute-grained, so a faster tick would
+    // re-render the whole chart to move a line by less than a pixel.
+    const id = setInterval(() => setNowTs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const fullFrom = rawFrom;
+  const fullTo = followingEdge(rawTo, nowTs, follow);
   const fullSpan = Math.max(MIN, fullTo - fullFrom);
 
   // The visible window. Zoom and pan move THIS, and everything re-renders
   // against it — no transform, so text and the 2px gaps stay exact.
-  const [view, setView] = useState({ from: fullFrom, to: fullTo });
+  const [view, setView] = useState({ from: rawFrom, to: rawTo });
+
+  /**
+   * Whether the reader has taken hold of the view.
+   *
+   * Following the clock must never yank a window somebody is reading. Once
+   * they zoom or pan, the right edge stops advancing until they press reset or
+   * change the date filter.
+   */
+  const [pinned, setPinned] = useState(false);
   const [textured, setTextured] = useState(false);
   const [hover, setHover] = useState<Hover | null>(null);
 
   const plotRef = useRef<HTMLDivElement>(null);
   const [plotWidth, setPlotWidth] = useState(800);
 
-  // Re-fit when the caller's window changes (a new date filter, say).
+  // Re-fit when the caller's window changes (a new date filter, say). Keyed on
+  // the RAW window: keying it on fullTo would re-fit every tick and undo a zoom.
   useEffect(() => {
-    setView({ from: fullFrom, to: fullTo });
-  }, [fullFrom, fullTo]);
+    setView({ from: rawFrom, to: rawTo });
+    setPinned(false);
+  }, [rawFrom, rawTo]);
+
+  // While following and untouched, the right edge walks with the clock.
+  useEffect(() => {
+    if (!follow || pinned) return;
+    setView((v) => (v.to === fullTo && v.from === fullFrom ? v : { from: fullFrom, to: fullTo }));
+  }, [follow, pinned, fullFrom, fullTo]);
 
   useEffect(() => {
     const el = plotRef.current;
@@ -253,6 +303,7 @@ export function MachineStateGantt({
 
   /** Zoom about a fixed point so what is under the pointer stays under it. */
   const zoomAt = useCallback((factor: number, anchorRatio = 0.5) => {
+    setPinned(true);
     setView((v) => {
       const s = v.to - v.from;
       const anchor = v.from + s * anchorRatio;
@@ -262,13 +313,17 @@ export function MachineStateGantt({
   }, [clamp]);
 
   const pan = useCallback((fraction: number) => {
+    setPinned(true);
     setView((v) => {
       const s = v.to - v.from;
       return clamp(v.from + s * fraction, v.to + s * fraction);
     });
   }, [clamp]);
 
-  const reset = useCallback(() => setView({ from: fullFrom, to: fullTo }), [fullFrom, fullTo]);
+  const reset = useCallback(() => {
+    setPinned(false);
+    setView({ from: fullFrom, to: fullTo });
+  }, [fullFrom, fullTo]);
 
   // Wheel zoom, anchored at the pointer. Non-passive so the page does not
   // scroll away underneath the gesture.
@@ -289,6 +344,7 @@ export function MachineStateGantt({
   // Drag to pan.
   const drag = useRef<{ x: number; from: number; to: number } | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
+    setPinned(true);
     drag.current = { x: e.clientX, from: view.from, to: view.to };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -303,8 +359,7 @@ export function MachineStateGantt({
 
   const ticks = useMemo(() => ticksFor(view.from, view.to, plotWidth), [view.from, view.to, plotWidth]);
 
-  const now = Date.now();
-  const nowPct = now >= view.from && now <= view.to ? ((now - view.from) / span) * 100 : null;
+  const nowPct = nowMarkerPct(nowTs, view.from, view.to);
 
   const rolesPresent = useMemo(() => {
     const set = new Set<StateRole>();

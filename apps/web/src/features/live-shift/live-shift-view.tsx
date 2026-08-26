@@ -456,6 +456,11 @@ function TimelinePanel() {
           rows={rows}
           windowStart={data!.window.from}
           windowEnd={data!.window.to}
+          // Every window this screen offers ends at the present moment, so the
+          // chart's right edge has to keep up with the clock -- otherwise the
+          // "now" marker sits exactly on a frozen edge and disappears seconds
+          // after the fetch that drew it.
+          follow
         />
       )}
     </Panel>
