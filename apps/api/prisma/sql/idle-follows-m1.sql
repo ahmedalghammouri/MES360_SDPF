@@ -29,9 +29,21 @@
 -- a line context. RUNNING is never rewritten: a machine that was running was
 -- demonstrably producing, and no amount of reasoning about M1 outweighs that.
 --
--- ── Usage ───────────────────────────────────────────────────────────────────
---   psql -f idle-follows-m1.sql                 -- PREVIEW only, changes nothing
---   psql -v apply=1 -f idle-follows-m1.sql      -- inside a transaction, applies
+-- ── Usage ────────────────────────────────────────────────────────────
+--   PREVIEW  (changes nothing)
+--     docker exec -i <pg> psql -U mes_user -d mes360 < idle-follows-m1.sql
+--
+--   APPLY    (you have to say COMMIT out loud)
+--     { cat idle-follows-m1.sql; echo "COMMIT;"; } | docker exec -i <pg> psql -U mes_user -d mes360 -v apply=1
+--
+-- THIS FILE CANNOT COMMIT ON ITS OWN, and that is deliberate. It opens a
+-- transaction and never closes it, so a plain run — piped or with -f — hits
+-- end-of-input with the transaction open and psql rolls the whole thing back.
+-- Verified in both directions: piped without the COMMIT, even the CREATE TABLE
+-- vanished; piped with it, the change persisted.
+--
+-- The consequence worth stating: running it with -v apply=1 and reading
+-- "UPDATE 62" does NOT mean anything was saved. Only the appended COMMIT does.
 --
 -- Edit the window in the `params` CTE first. Take a backup: this rewrites
 -- recorded measurements, and the originals are not kept anywhere else.
