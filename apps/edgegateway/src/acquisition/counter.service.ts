@@ -455,9 +455,18 @@ export class CounterService {
       t = { minute, emitted: 0, trimmedGood: 0, trimmedBad: 0, warnedAt: t?.warnedAt ?? 0 };
       this.minuteTally.set(machineId, t);
     }
-    // Floored at zero: a tolerance below the negative of the design rate would
-    // otherwise produce a cap under zero and reject everything.
-    const cap = Math.max(0, designPerMin + tol);
+    // Floored at ONE WHOLE UNIT, and that floor is load-bearing.
+    //
+    // A palletiser on this line is rated at 0.28 pallets a minute — one every
+    // three and a half. Capping a minute at 0.28 means the minute a pallet
+    // actually completes reads 1 > 0.28 and gets trimmed to 0.28 OF A PALLET, a
+    // number describing nothing. Every slow machine in the plant would have its
+    // real output shaved away by a limit meant to catch a runaway counter.
+    //
+    // You cannot make a fraction of a countable thing. A minute holding one unit
+    // is never evidence of over-counting, whatever the rated speed, so the cap
+    // never falls below one.
+    const cap = Math.max(1, designPerMin + tol);
     return Math.max(0, cap - t.emitted);
   }
 

@@ -163,3 +163,39 @@ describe('the minute balance takes rejects first', () => {
     });
   });
 });
+
+describe('a machine slower than one unit per minute', () => {
+  /**
+   * The palletiser is rated at 0.28 pallets a minute — one every three and a
+   * half. The cap is `design + tolerance` PER MINUTE, so an unfloored cap of
+   * 0.28 would read the minute a pallet actually completes as 1 > 0.28 and trim
+   * it to 0.28 of a pallet: a number describing nothing, and real output shaved
+   * away by a limit meant to catch a runaway counter.
+   *
+   * `roomLeftThisMinute` floors the cap at one whole unit. These pin the rule
+   * the floor exists for, at the value the caller hands in.
+   */
+  it('keeps the one pallet it made, whatever its rated speed', () => {
+    // cap floored to 1 for a design of 0.28 + no tolerance
+    expect(balanceMinute(1, 0, 1)).toEqual({
+      good: 1, bad: 0, trimmedGood: 0, trimmedBad: 0,
+    });
+  });
+
+  it('still catches a genuinely impossible minute on a slow machine', () => {
+    // Four pallets inside one minute on a machine that takes three and a half
+    // minutes each is exactly what the cap is for.
+    expect(balanceMinute(4, 0, 1)).toEqual({
+      good: 1, bad: 0, trimmedGood: 3, trimmedBad: 0,
+    });
+  });
+
+  it('never returns a fraction of a countable thing', () => {
+    // The shape of the bug: any cap below one produced a fractional count.
+    for (const cap of [1, 2, 45, 50]) {
+      const r = balanceMinute(1, 0, cap);
+      expect(Number.isInteger(r.good)).toBe(true);
+      expect(Number.isInteger(r.trimmedGood)).toBe(true);
+    }
+  });
+});
