@@ -9,6 +9,7 @@ import {
   CalendarPlus, Moon, Sun, AlertTriangle,
 } from 'lucide-react';
 
+import { api } from '@/services/api.client';
 import { TablePagination } from '@/components/ui/table-pagination';
 
 import { Button } from '@/components/ui/button';
@@ -162,6 +163,103 @@ function CoverageBar({ templates }: { templates: ShiftTemplate[] }) {
 const INSTANCE_STATUSES = ['ALL', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const;
 
 // ── Main view ────────────────────────────────────────────────────────────────
+interface BreakRow { id?: string; label: string; startTime: string; durationMin: string; affectsOEE: boolean }
+
+/**
+ * A shift's breaks — as many as it really has.
+ *
+ * ── What this replaces ────────────────────────────────────────────────────
+ * The template carried `breakMinutes` and `cleaningMinutes`: two numbers with
+ * no start time, which could not express "twenty minutes at ten and forty at
+ * one". They are already marked deprecated in the schema and read by nothing,
+ * and the plant went on typing the real breaks in by hand.
+ *
+ * Saving here does NOT create anything. Events are written when a shift
+ * OCCURRENCE begins, so a break added today appears on tomorrow's shift and
+ * never rewrites a break already booked. Said on the panel, because "I saved it
+ * and nothing happened" is the obvious first reaction otherwise.
+ *
+ * A break outside its own shift is refused by the server rather than clamped —
+ * moving it quietly to the last legal minute would book a stop nobody asked for
+ * and hide the mistake that caused it. The error comes back naming the shift's
+ * window.
+ */
+function BreaksEditor({
+  rows, onChange, shiftStart, durationHours,
+}: {
+  rows: BreakRow[];
+  onChange: (rows: BreakRow[]) => void;
+  shiftStart: string;
+  durationHours: string;
+}) {
+  const set = (i: number, patch: Partial<BreakRow>) =>
+    onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+
+  const total = rows.reduce((a, r) => a + (Number(r.durationMin) || 0), 0);
+
+  return (
+    <div className="space-y-2 col-span-2">
+      <div className="flex items-center justify-between">
+        <Label>Breaks</Label>
+        <span className="text-[11px] text-muted-foreground tabular-nums">
+          {rows.length === 0 ? 'none' : `${rows.length} · ${total} min total`}
+        </span>
+      </div>
+
+      {rows.length > 0 && (
+        <div className="space-y-1.5">
+          {rows.map((r, i) => (
+            <div key={i} className="grid grid-cols-[1fr_110px_92px_auto_auto] items-center gap-2">
+              <Input value={r.label} placeholder="Lunch"
+                onChange={(e) => set(i, { label: e.target.value })} />
+              <Input type="time" value={r.startTime}
+                onChange={(e) => set(i, { startTime: e.target.value })} />
+              <Input type="number" min={1} value={r.durationMin} placeholder="30"
+                onChange={(e) => set(i, { durationMin: e.target.value })} />
+              {/* A meal break leaves the OEE denominator; cleaning inside a
+                  shift may not. Stated per break rather than assumed, because
+                  the two are not the same kind of lost time. */}
+              <button type="button" onClick={() => set(i, { affectsOEE: !r.affectsOEE })}
+                title={r.affectsOEE ? 'Counts against OEE' : 'Excluded from OEE'}
+                className={cn('px-2.5 py-2 rounded-lg text-[11px] font-semibold border whitespace-nowrap transition-colors',
+                  r.affectsOEE
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-500'
+                    : 'border-border bg-muted/40 text-muted-foreground')}>
+                {r.affectsOEE ? 'Charged' : 'Excluded'}
+              </button>
+              <button type="button" onClick={() => onChange(rows.filter((_, j) => j !== i))}
+                aria-label={`Remove ${r.label || 'break'}`}
+                className="p-2 rounded-lg text-muted-foreground hover:text-red-400 transition-colors">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          <div className="grid grid-cols-[1fr_110px_92px_auto_auto] gap-2 px-0.5">
+            <span className="text-[10px] text-muted-foreground">name</span>
+            <span className="text-[10px] text-muted-foreground">starts at</span>
+            <span className="text-[10px] text-muted-foreground">minutes</span>
+            <span />
+            <span />
+          </div>
+        </div>
+      )}
+
+      <button type="button"
+        onClick={() => onChange([...rows, { label: '', startTime: shiftStart || '12:00', durationMin: '30', affectsOEE: false }])}
+        className="w-full py-2 rounded-lg border border-dashed border-border text-xs font-medium text-muted-foreground hover:border-brand-400/50 hover:text-brand-400 transition-colors">
+        + Add a break
+      </button>
+
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        Each break becomes a planned stop when the shift <b>next begins</b> — not now, and not
+        for shifts already past. A break outside the shift window ({shiftStart || '—'},
+        {' '}{durationHours || '—'}h) is refused rather than moved, so a stop nobody asked for
+        cannot appear.
+      </p>
+    </div>
+  );
+}
+
 export function ShiftConfigView() {
   const { t } = useTranslation('production');
   const { data: config } = useShiftConfig();
@@ -187,10 +285,34 @@ export function ShiftConfigView() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [deleting, setDeleting] = useState<ShiftTemplate | null>(null);
 
+  /**
+   * The breaks being edited, held apart from the template form.
+   *
+   * They are a separate resource with its own endpoint, because a break is not
+   * a field of a shift — it is a row, and there can be several. Saved after the
+   * template so a create has an id to hang them on.
+   */
+  const [breaks, setBreaks] = useState<BreakRow[]>([]);
+  const [breakErr, setBreakErr] = useState<string | null>(null);
+
   const patch = (p: Partial<FormState>) => setForm((s) => ({ ...s, ...p }));
 
-  const openCreate = () => { setEditing(null); setForm(EMPTY); setFormOpen(true); };
-  const openEdit = (t: ShiftTemplate) => { setEditing(t); setForm(toForm(t)); setFormOpen(true); };
+  const openCreate = () => {
+    setEditing(null); setForm(EMPTY); setBreaks([]); setBreakErr(null); setFormOpen(true);
+  };
+  const openEdit = (t: ShiftTemplate) => {
+    setEditing(t); setForm(toForm(t)); setBreakErr(null); setFormOpen(true);
+    setBreaks([]);
+    // Fetched rather than carried on the template: the list endpoint does not
+    // include them, and inventing an empty set would let a save wipe breaks the
+    // dialog never saw.
+    api.get(`/shifts/templates/${t.id}/breaks`)
+      .then((r: any) => setBreaks((r?.data ?? r ?? []).map((b: any) => ({
+        id: b.id, label: b.label, startTime: b.startTime,
+        durationMin: String(b.durationMin), affectsOEE: !!b.affectsOEE,
+      }))))
+      .catch(() => setBreakErr('Could not load this shift’s breaks — they are not shown, and saving now would replace them.'));
+  };
 
   const duration = Number(form.shiftDurationHours);
   const planned = Number(form.plannedProductionHours);
@@ -202,12 +324,41 @@ export function ShiftConfigView() {
     duration > 0 && planned >= 0 && planned <= duration &&
     form.days.length > 0;
 
+  /**
+   * Save the breaks for a template, then close.
+   *
+   * The server refuses a break that falls outside its shift rather than
+   * clamping it, so the message it sends back is shown as-is: it names the
+   * shift's own window, which is what the person needs to fix it.
+   */
+  const saveBreaks = async (templateId: string) => {
+    const items = breaks
+      .filter((b) => b.label.trim() && Number(b.durationMin) > 0)
+      .map((b, i) => ({
+        label: b.label.trim(), startTime: b.startTime,
+        durationMin: Number(b.durationMin), sequence: i, affectsOEE: b.affectsOEE,
+      }));
+    await api.put(`/shifts/templates/${templateId}/breaks`, { items });
+  };
+
   const submit = () => {
     const payload = toPayload(form);
+    setBreakErr(null);
+    const then = async (id: string) => {
+      try {
+        await saveBreaks(id);
+        setFormOpen(false);
+      } catch (e: any) {
+        // The shift itself saved; only the breaks did not. Keeping the dialog
+        // open with the reason is the honest outcome — closing it would imply
+        // the breaks landed.
+        setBreakErr(e?.response?.data?.message ?? 'The shift saved, but its breaks did not.');
+      }
+    };
     if (editing) {
-      updateMut.mutate({ id: editing.id, body: payload }, { onSuccess: () => setFormOpen(false) });
+      updateMut.mutate({ id: editing.id, body: payload }, { onSuccess: () => then(editing.id) });
     } else {
-      createMut.mutate(payload, { onSuccess: () => setFormOpen(false) });
+      createMut.mutate(payload, { onSuccess: (created: any) => then((created?.data ?? created)?.id) });
     }
   };
 
@@ -471,6 +622,15 @@ export function ShiftConfigView() {
               {t('shiftCfg.targetUnitHelp')}
             </p>
           </div>
+
+          <BreaksEditor rows={breaks} onChange={setBreaks}
+            shiftStart={form.startTime} durationHours={form.shiftDurationHours} />
+
+          {breakErr && (
+            <div className="col-span-2 rounded-lg border border-red-500/40 bg-red-500/5 p-3 text-xs text-red-400">
+              {breakErr}
+            </div>
+          )}
 
           <div className="space-y-2 col-span-2">
             <Label>{t('shiftCfg.workingDays')}</Label>

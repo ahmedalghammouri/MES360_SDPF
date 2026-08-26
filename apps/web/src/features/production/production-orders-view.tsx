@@ -196,6 +196,145 @@ interface POFormDialogProps {
   initial?: ProductionOrder | null;
 }
 
+interface StopRow {
+  kind: string; label: string; durationMin: string; recurrence: string; affectsOEE: boolean;
+}
+
+/** What each kind means for the OEE reading, unless the order says otherwise. */
+const STOP_KINDS = [
+  { value: 'CLEANING', label: 'Cleaning', charged: false },
+  { value: 'STARTUP', label: 'Startup', charged: true },
+  { value: 'CHANGEOVER', label: 'Change over', charged: true },
+  { value: 'OTHER', label: 'Other', charged: true },
+];
+
+const RECURRENCES = [
+  { value: 'ONCE', label: 'Once', hint: 'once for the whole order' },
+  { value: 'PER_SHIFT', label: 'Each shift', hint: 'again at every handover' },
+  { value: 'PER_RESTART', label: 'Each restart', hint: 'again whenever it resumes' },
+];
+
+/**
+ * The stops this order already knows it will take.
+ *
+ * ── What this replaces ────────────────────────────────────────────────────
+ * On 25 Aug 2026 somebody entered cleaning, startup, changeover and a lunch
+ * break by hand, four machines at a time, for two days. None of those was a
+ * surprise — they belong to the order, and this is where the order says so.
+ *
+ * ── The two things the panel has to make clear ────────────────────────────
+ * They run BACK TO BACK from the order's ACTUAL start, in this order. The
+ * running total under the list shows where the last one lands, because "when
+ * does production actually begin" is the question a planner is really asking.
+ *
+ * Editing this NEVER changes a stop already booked. A plan says what happens
+ * next time; a past occurrence is a record of what was decided then. Without
+ * that said plainly, an edit made tomorrow looks like it rewrote yesterday.
+ */
+function StopPlanEditor({
+  rows, onChange,
+}: { rows: StopRow[]; onChange: (r: StopRow[]) => void }) {
+  const set = (i: number, patch: Partial<StopRow>) =>
+    onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+
+  const move = (i: number, by: number) => {
+    const j = i + by;
+    if (j < 0 || j >= rows.length) return;
+    const next = [...rows];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  // Where the last stop ends, if all of them run at a start.
+  let cursor = 0;
+  const ends = rows.map((r) => { cursor += Number(r.durationMin) || 0; return cursor; });
+
+  return (
+    <div className="col-span-2 space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>Planned stops for this order</Label>
+        <span className="text-[11px] text-muted-foreground tabular-nums">
+          {rows.length === 0 ? 'none' : `${cursor} min before production starts`}
+        </span>
+      </div>
+
+      {rows.length > 0 && (
+        <div className="space-y-1.5">
+          {rows.map((r, i) => (
+            <div key={i} className="grid grid-cols-[auto_1fr_120px_78px_130px_auto_auto] items-center gap-2">
+              <div className="flex flex-col">
+                <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
+                  aria-label="Move earlier"
+                  className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-25 leading-none">▲</button>
+                <button type="button" onClick={() => move(i, 1)} disabled={i === rows.length - 1}
+                  aria-label="Move later"
+                  className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-25 leading-none">▼</button>
+              </div>
+
+              <Input value={r.label} placeholder="Cleaning — start of shift"
+                onChange={e => set(i, { label: e.target.value })} />
+
+              <select value={r.kind}
+                onChange={e => {
+                  const k = STOP_KINDS.find(x => x.value === e.target.value)!;
+                  // The kind carries a sensible default for whether it costs
+                  // the reading, and the operator can still overrule it.
+                  set(i, { kind: k.value, affectsOEE: k.charged });
+                }}
+                className="h-10 px-2 rounded-lg bg-muted/40 border border-border text-xs">
+                {STOP_KINDS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
+              </select>
+
+              <Input type="number" min={1} value={r.durationMin} placeholder="30"
+                onChange={e => set(i, { durationMin: e.target.value })} />
+
+              <select value={r.recurrence} onChange={e => set(i, { recurrence: e.target.value })}
+                title={RECURRENCES.find(x => x.value === r.recurrence)?.hint}
+                className="h-10 px-2 rounded-lg bg-muted/40 border border-border text-xs">
+                {RECURRENCES.map(x => <option key={x.value} value={x.value}>{x.label}</option>)}
+              </select>
+
+              <button type="button" onClick={() => set(i, { affectsOEE: !r.affectsOEE })}
+                title={r.affectsOEE ? 'These minutes still count against OEE' : 'Excluded from the OEE denominator'}
+                className={cn('px-2.5 h-10 rounded-lg text-[11px] font-semibold border whitespace-nowrap',
+                  r.affectsOEE
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-500'
+                    : 'border-border bg-muted/40 text-muted-foreground')}>
+                {r.affectsOEE ? 'Charged' : 'Excluded'}
+              </button>
+
+              <button type="button" onClick={() => onChange(rows.filter((_, j) => j !== i))}
+                aria-label={`Remove ${r.label || 'stop'}`}
+                className="p-2 rounded-lg text-muted-foreground hover:text-red-400">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+
+          <div className="text-[11px] text-muted-foreground tabular-nums pl-7">
+            {rows.map((r, i) => `${r.label || 'stop'} +${ends[i]}m`).join('  ·  ')}
+          </div>
+        </div>
+      )}
+
+      <button type="button"
+        onClick={() => onChange([...rows, {
+          kind: 'CLEANING', label: '', durationMin: '30',
+          recurrence: 'ONCE', affectsOEE: false,
+        }])}
+        className="w-full py-2 rounded-lg border border-dashed border-border text-xs font-medium text-muted-foreground hover:border-brand-400/50 hover:text-brand-400">
+        + Add a planned stop
+      </button>
+
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        These are booked automatically when the order <b>actually starts</b>, back to back in this
+        order, against each machine's own step. Editing them later changes what happens
+        <b> next time</b> — stops already booked are never rewritten.
+      </p>
+    </div>
+  );
+}
+
 function POFormDialog({ open, onClose, initial }: POFormDialogProps) {
   const { t } = useTranslation(['production', 'common']);
   const isEdit = !!initial;
@@ -213,6 +352,30 @@ function POFormDialog({ open, onClose, initial }: POFormDialogProps) {
     customer:       initial?.customer ?? '',
     notes:          initial?.notes ?? '',
   });
+
+  /**
+   * The order's stop plan, held apart from the form.
+   *
+   * A separate resource with its own endpoint — a stop is a row, not a field,
+   * and there can be several in a stated order. Loaded on open so an edit sees
+   * what is really there; saving an empty list the dialog never loaded would
+   * silently clear the plan.
+   */
+  const [stops, setStops] = React.useState<StopRow[]>([]);
+  const [stopErr, setStopErr] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setStopErr(null);
+    setStops([]);
+    if (!initial?.id) return;
+    api.get(`/production/production-orders/${initial.id}/stop-plan`)
+      .then((r: any) => setStops((r?.data ?? r ?? []).map((x: any) => ({
+        kind: x.kind, label: x.label, durationMin: String(x.durationMin),
+        recurrence: x.recurrence, affectsOEE: !!x.affectsOEE,
+      }))))
+      .catch(() => setStopErr('Could not load this order’s stop plan — it is not shown, and saving now would replace it.'));
+  }, [open, initial?.id]);
 
   React.useEffect(() => {
     if (open) setForm({
@@ -240,8 +403,26 @@ function POFormDialog({ open, onClose, initial }: POFormDialogProps) {
     mutationFn: (dto: any) => isEdit
       ? api.patch(`/production/production-orders/${initial!.id}`, dto)
       : api.post('/production/production-orders', dto),
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
       qc.invalidateQueries({ queryKey: ['production-orders'] });
+      const id = initial?.id ?? (res?.data ?? res)?.id;
+      if (id) {
+        try {
+          await api.put(`/production/production-orders/${id}/stop-plan`, {
+            items: stops
+              .filter(x => x.label.trim() && Number(x.durationMin) > 0)
+              .map((x, i) => ({
+                kind: x.kind, label: x.label.trim(), durationMin: Number(x.durationMin),
+                sequence: i, recurrence: x.recurrence, affectsOEE: x.affectsOEE,
+              })),
+          });
+        } catch (e: any) {
+          // The order saved and the plan did not. Saying so and staying open is
+          // the honest outcome — closing would imply the plan landed.
+          setStopErr(e?.response?.data?.message ?? 'The order saved, but its stop plan did not.');
+          return;
+        }
+      }
       toast({ title: isEdit ? t('po.toast.poUpdated') : t('po.toast.poCreated'), description: form.orderNumber });
       onClose();
     },
@@ -380,6 +561,14 @@ function POFormDialog({ open, onClose, initial }: POFormDialogProps) {
             <Label>{t('poform.notes')}</Label>
             <Textarea placeholder={t('poform.notesPlaceholder')} rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} />
           </div>
+
+          <StopPlanEditor rows={stops} onChange={setStops} />
+
+          {stopErr && (
+            <div className="col-span-2 rounded-lg border border-red-500/40 bg-red-500/5 p-3 text-xs text-red-400">
+              {stopErr}
+            </div>
+          )}
         </div>
     </InlineFormPanel>
   );

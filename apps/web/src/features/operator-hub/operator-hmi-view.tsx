@@ -20,7 +20,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Play, Pause, CheckSquare, Plus, AlertTriangle, Loader2, Package, Clock, Factory,
-  Cpu,
+  Cpu, Layers, RotateCcw,
 } from 'lucide-react';
 
 import { api } from '@/services/api.client';
@@ -47,6 +47,80 @@ interface JO {
 }
 
 const ACTIVE: JOStatus[] = ['EXECUTING', 'PAUSED', 'READY'];
+
+/**
+ * One row of controls per work order on the line.
+ *
+ * Grouped by work order rather than shown as a single global bar: two orders
+ * can be on the floor at once, and a button that started "everything" would
+ * start the one the operator was not looking at.
+ *
+ * The counts under each button say what the line is actually doing right now,
+ * so a half-started line — the state nobody noticed on 25 August — is visible
+ * before the operator presses anything.
+ */
+function LineControls({
+  jobs, pending, onAction,
+}: {
+  jobs: JO[];
+  pending: boolean;
+  onAction: (workOrderId: string, status: string) => void;
+}) {
+  const byWo = new Map<string, { number: string; jobs: JO[] }>();
+  for (const jo of jobs) {
+    const id = jo.workOrder?.id;
+    if (!id) continue;
+    const hit = byWo.get(id) ?? { number: jo.workOrder?.orderNumber ?? '—', jobs: [] };
+    hit.jobs.push(jo);
+    byWo.set(id, hit);
+  }
+  if (byWo.size === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2 mb-4">
+      {[...byWo.entries()].map(([woId, g]) => {
+        const running = g.jobs.filter((j) => j.status === 'EXECUTING').length;
+        const paused = g.jobs.filter((j) => j.status === 'PAUSED').length;
+        const total = g.jobs.length;
+        // Half the line running and half paused is the state that went unseen.
+        // Saying so plainly is most of this component's value.
+        const mixed = running > 0 && running < total;
+
+        return (
+          <div key={woId} className={cn(
+            'rounded-2xl border bg-card/60 p-3',
+            mixed ? 'border-amber-500/40' : 'border-border/60',
+          )}>
+            <div className="flex items-center justify-between gap-2 mb-2.5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Layers size={14} className="text-brand-400 shrink-0" />
+                  <span className="text-sm font-bold text-foreground">Whole line</span>
+                  <span className="text-xs font-mono text-brand-400/80">{g.number}</span>
+                </div>
+                <div className={cn('text-[11px] mt-0.5', mixed ? 'text-amber-400' : 'text-foreground/50')}>
+                  {mixed
+                    ? `${running} of ${total} steps running — the line is only half started`
+                    : `${total} step${total === 1 ? '' : 's'} · ${running} running · ${paused} paused`}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <ActionBtn onClick={() => onAction(woId, 'EXECUTING')} icon={<Play size={16} />}
+                label={paused > 0 && running === 0 ? 'Resume all' : 'Start all'} tone="green" disabled={pending} />
+              <ActionBtn onClick={() => onAction(woId, 'PAUSED')} icon={<Pause size={16} />}
+                label="Pause all" tone="amber" disabled={pending} />
+              <ActionBtn onClick={() => onAction(woId, 'COMPLETE')} icon={<CheckSquare size={16} />}
+                label="Complete all" tone="emerald" disabled={pending} />
+              <ActionBtn onClick={() => onAction(woId, 'READY')} icon={<RotateCcw size={16} />}
+                label="Reset" tone="sky" disabled={pending} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function OperatorHmiView() {
   const { toast } = useToast();
@@ -92,6 +166,41 @@ export function OperatorHmiView() {
     onError: (e: any) => toast({ variant: 'destructive', title: 'Action failed', description: e?.response?.data?.message }),
   });
 
+  /**
+   * Move every step of a work order together.
+   *
+   * The line's four steps run start-to-start: the operator starts them
+   * together, pauses them together and finishes them together. Four separate
+   * taps is four chances for one to be missed — which is how one machine ended
+   * up in a different state from its siblings on 25 Aug 2026, with nothing
+   * saying so.
+   *
+   * A step that legitimately cannot move is reported, not silently dropped:
+   * "3 moved, 1 skipped" is the truth, and an operator who is told which step
+   * held back can go and look at it.
+   */
+  const lineTransition = useMutation({
+    mutationFn: ({ workOrderId, status }: { workOrderId: string; status: string }) =>
+      api.patch(`/production/work-orders/${workOrderId}/job-orders/status`, { status }),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ['shop-floor-jobs'] });
+      const d = res?.data ?? res;
+      const moved = d?.moved?.length ?? 0;
+      const skipped = d?.skipped ?? [];
+      toast({
+        title: `${moved} step${moved === 1 ? '' : 's'} → ${d?.status ?? ''}`,
+        description: skipped.length
+          ? `Held back: ${skipped.map((x: any) => `${x.step} (${x.reason})`).join(' · ')}`
+          : undefined,
+        variant: skipped.length ? 'default' : undefined,
+      });
+    },
+    onError: (e: any) => toast({
+      variant: 'destructive', title: 'Line action failed',
+      description: e?.response?.data?.message,
+    }),
+  });
+
   const addCount = useMutation({
     mutationFn: ({ id, goodDelta, scrapDelta, scrapCategory, scrapReason }: { id: string; goodDelta: number; scrapDelta: number; scrapCategory?: string; scrapReason?: string }) =>
       api.patch(`/production/job-orders/${id}/add-count`, {
@@ -128,6 +237,12 @@ export function OperatorHmiView() {
 
       {/* Machine-state summary dashboard */}
       <div className="mb-4"><MachineSummary /></div>
+
+      {/* The whole line, in one place. Sits above the cards because it acts on
+          all of them, and an action whose reach is wider than the thing under
+          your thumb has to look that way. */}
+      <LineControls jobs={jobs} pending={lineTransition.isPending}
+        onAction={(workOrderId, status) => lineTransition.mutate({ workOrderId, status })} />
 
 
       {isLoading ? (
@@ -248,7 +363,9 @@ function TileMini({ label, value, tone = 'default', icon }: { label: string; val
     </div>
   );
 }
-function ActionBtn({ onClick, icon, label, tone }: { onClick: () => void; icon: React.ReactNode; label: string; tone: string }) {
+function ActionBtn({ onClick, icon, label, tone, disabled }: {
+  onClick: () => void; icon: React.ReactNode; label: string; tone: string; disabled?: boolean;
+}) {
   const cls: Record<string, string> = {
     green: 'bg-green-500/15 text-green-400 active:bg-green-500/25',
     amber: 'bg-amber-500/15 text-amber-400 active:bg-amber-500/25',
@@ -257,7 +374,9 @@ function ActionBtn({ onClick, icon, label, tone }: { onClick: () => void; icon: 
     emerald: 'bg-emerald-500/15 text-emerald-400 active:bg-emerald-500/25',
   };
   return (
-    <button onClick={onClick} className={cn('flex flex-col items-center justify-center gap-1 h-16 rounded-xl font-semibold text-xs transition active:scale-95', cls[tone])}>
+    <button onClick={onClick} disabled={disabled}
+      className={cn('flex flex-col items-center justify-center gap-1 h-16 rounded-xl font-semibold text-xs transition active:scale-95',
+        cls[tone], disabled && 'opacity-40 pointer-events-none')}>
       {icon}{label}
     </button>
   );
