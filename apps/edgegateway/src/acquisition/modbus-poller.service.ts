@@ -181,6 +181,98 @@ export class ModbusPollerService implements OnModuleDestroy {
     }
   }
 
+  /**
+   * Configuration that is legal, loads cleanly, and is still a trap.
+   *
+   * None of these stop the gateway. All three cost hours when something later
+   * goes wrong, because they make the reader's mental model quietly false:
+   *
+   *   NAME vs ADDRESS   a tag called `..._DI3` reading input 2. Three tags on
+   *                     this plant do exactly that, and every conversation about
+   *                     them has to start by establishing which number is real.
+   *
+   *   MIXED POLARITY    one machine's GOOD on RISING and its TOTAL on FALLING.
+   *                     Perfectly valid — sensors differ — but the two then
+   *                     respond differently to the same contact ring, and the
+   *                     pair drifts apart for a reason nothing on screen
+   *                     explains. M2 carries this today.
+   *
+   *   ADDRESS CLASH     two active tags on one device reading one input. The
+   *                     poller obliges; the plant sees one physical signal
+   *                     counted under two names.
+   *
+   * Reported once per process with the specifics, because a warning a reader
+   * cannot act on is just noise.
+   */
+  private bindingsReported = false;
+
+  private auditTagBindings(devices: any[]): void {
+    if (this.bindingsReported) return;
+    this.bindingsReported = true;
+
+    const notes: string[] = [];
+
+    for (const dev of devices) {
+      const tags = dev.tagDefinitions ?? [];
+
+      // Name against address.
+      //
+      // `address` is a STRING column — it holds "100" and "40001" for register
+      // types where the leading digit is meaningful. Comparing a number to it
+      // directly is always unequal, which made the first version of this audit
+      // flag every tag on the plant including the seven that agree. Both sides
+      // are normalised to a number here, and a non-numeric address is skipped
+      // rather than guessed at.
+      for (const t of tags) {
+        const named = /DI(\d+)/i.exec(t.code ?? '');
+        if (!named || t.address === null || t.address === undefined) continue;
+        const actual = Number(t.address);
+        if (!Number.isFinite(actual)) continue;
+        if (Number(named[1]) !== actual) {
+          notes.push(`  ${dev.name} · ${t.code} is named DI${named[1]} but reads input ${actual}`);
+        }
+      }
+
+      // One input, two live tags.
+      const byAddress = new Map<number, string[]>();
+      for (const t of tags) {
+        if (t.address === null) continue;
+        const list = byAddress.get(t.address) ?? [];
+        list.push(t.code);
+        byAddress.set(t.address, list);
+      }
+      for (const [addr, codes] of byAddress) {
+        if (codes.length > 1) {
+          notes.push(`  ${dev.name} · input ${addr} is read by ${codes.length} active tags: ${codes.join(', ')}`);
+        }
+      }
+
+      // A machine's counter pair disagreeing about which edge counts.
+      const byMachine = new Map<string, any[]>();
+      for (const t of tags) {
+        if (t.tagType !== 'COUNTER' || !t.machine) continue;
+        const list = byMachine.get(t.machine.code) ?? [];
+        list.push(t);
+        byMachine.set(t.machine.code, list);
+      }
+      for (const [code, list] of byMachine) {
+        const edges = new Set(list.map((t) => t.edgeType));
+        if (edges.size > 1) {
+          notes.push(`  ${dev.name} · ${code} counts on two different edges: `
+            + list.map((t) => `${t.counterRole}=${t.edgeType}`).join(' ')
+            + ' — the pair will respond differently to the same contact ring');
+        }
+      }
+    }
+
+    if (notes.length === 0) return;
+    this.logger.warn(
+      `${notes.length} counter binding(s) load cleanly but do not agree with themselves. `
+      + 'None of these stop a reading; all of them make the next fault harder to '
+      + 'find than it needs to be:\n' + notes.join('\n'),
+    );
+  }
+
   /** Reconcile runtime against DB config every 10s (also the first load). */
   @Interval('poller-reload', 10_000)
   async reload() {
@@ -208,8 +300,10 @@ export class ModbusPollerService implements OnModuleDestroy {
     const seen = new Set<string>();
     const defaultInterval = this.config.get<number>('defaultPollIntervalMs') ?? 1000;
 
-    // Say once what is in the database but not in the plant.
+    // Say once what is in the database but not in the plant, and once what is
+    // in the plant but does not agree with itself.
     void this.auditOrphanTags();
+    void this.auditTagBindings(configured);
 
     // Which tags may drive machine state, decided across ALL devices before any
     // is rebuilt — the rules are about a MACHINE, and a machine's signals can be
@@ -667,11 +761,18 @@ export class ModbusPollerService implements OnModuleDestroy {
           // already sampling as fast as it can. If the round-trip is quick and
           // the cycle is not, something after the read is holding the loop, and
           // that is a defect.
+          // What the interval SHOULD be, from what the wire actually does.
+          // A warning that only says a number is wrong leaves the reader to
+          // guess the right one, and the guess on this plant was 20ms — a value
+          // no Modbus round-trip can meet, set on both counter devices.
+          const suggest = Math.max(50, Math.ceil((achieved * 1.5) / 10) * 10);
           this.logger.warn(
             readMs >= dev.intervalMs
               ? `${dev.name}: sampling at its limit — the Modbus round-trip alone takes ${readMs}ms, `
                 + `so its ${dev.intervalMs}ms interval cannot be met${rate}. `
-                + 'Effective sample rate is the round-trip, not the interval.'
+                + 'Effective sample rate is the round-trip, not the interval. '
+                + `Set the interval to about ${suggest}ms so it describes what this device can do; `
+                + 'a lower number does not sample faster, it only hides the ceiling.'
               : `${dev.name}: poll cycle ${took}ms exceeds its ${dev.intervalMs}ms interval `
                 + `while the Modbus read took only ${readMs}ms${rate}. `
                 + 'Something after the read is holding the loop; counter pulses '
