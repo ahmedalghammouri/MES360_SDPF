@@ -788,6 +788,27 @@ export function ProductionWorkOrdersView() {
                           onDelete={canDelete ? () => setDeleteDialog({ id: order.id, orderNumber: order.orderNumber }) : undefined}
                           extraActions={[
                             {
+                              /*
+                               * Auto-start, in words, beside Edit.
+                               *
+                               * The pill in the Auto column shows STATE at a
+                               * glance and pulses when an order is due and
+                               * blocked — but an icon column is easy to miss,
+                               * and it does not say what tapping it will do.
+                               * Both earn their place: the column is for
+                               * scanning a list, this is for acting on one row.
+                               */
+                              label: order.autoStart ? 'Turn auto-start off' : 'Turn auto-start on',
+                              icon: order.autoStart ? ZapOff : Zap,
+                              onClick: () => updateMutation.mutate({
+                                id: order.id, dto: { autoStart: !order.autoStart },
+                              }),
+                              // Only meaningful while an order has not started.
+                              // Offering it on one already running would imply
+                              // it could still be made to start itself.
+                              hidden: !['PLANNED', 'RELEASED'].includes(order.status),
+                            },
+                            {
                               label: t('startOrder'),
                               icon: Play,
                               onClick: () => startMutation.mutate(order.id),

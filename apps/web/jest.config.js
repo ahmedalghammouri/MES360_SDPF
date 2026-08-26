@@ -27,7 +27,13 @@ module.exports = {
   moduleFileExtensions: ['ts', 'tsx', 'js', 'json'],
   testRegex: '.*\\.spec\\.tsx?$',
   transform: {
-    '^.+\\.tsx?$': [tsJest, { isolatedModules: true, diagnostics: false }],
+    // tsconfig.spec.json, not the app's — the app config excludes specs so that
+    // `next build` (and the Docker web stage, which has no API workspace to
+    // borrow jest's types from) never needs them.
+    '^.+\\.tsx?$': [tsJest, {
+      tsconfig: path.resolve(__dirname, 'tsconfig.spec.json'),
+      isolatedModules: true,
+    }],
   },
   moduleNameMapper: {
     '^@/(.*)$': path.resolve(__dirname, 'src/$1'),
