@@ -46,10 +46,16 @@ BEGIN;
 
 CREATE TEMP TABLE _repair_params ON COMMIT DROP AS
 SELECT
-  -- The window to repair. Narrow it to the shift you are actually fixing —
-  -- a wide window rewrites more history than anyone reviewed.
-  TIMESTAMP '2026-08-25 00:00:00' AS win_from,
-  TIMESTAMP '2026-08-26 00:00:00' AS win_to,
+  -- The window to repair, written in PLANT LOCAL TIME (Asia/Riyadh). Narrow it
+  -- to the shift you are actually fixing -- a wide window rewrites more history
+  -- than anyone reviewed.
+  --
+  -- The conversion is not decoration. These columns are `timestamp WITHOUT time
+  -- zone` holding UTC, so a bare TIMESTAMP '2026-08-25 00:00:00' means UTC
+  -- midnight = 03:00 in the plant. Written that way the script would repair
+  -- three hours of the wrong day at each end and miss three of the right one.
+  (TIMESTAMP '2026-08-25 00:00:00' AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'utc' AS win_from,
+  (TIMESTAMP '2026-08-26 00:00:00' AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'utc' AS win_to,
   'M1'::text                      AS leader_code,
   -- Only these are ever rewritten. RUNNING is deliberately absent.
   ARRAY['STARVED', 'BLOCKED', 'BREAKDOWN']::text[] AS rewritable;
