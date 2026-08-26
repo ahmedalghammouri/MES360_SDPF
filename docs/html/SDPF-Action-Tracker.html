@@ -164,7 +164,46 @@
   .note strong { color: var(--ink); font-weight: 600; }
   .note.warn { background: transparent; border-color: var(--part); }
 
-  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12.5px; color: var(--ink-3); align-items: center; }
+  /* ── Filters ─────────────────────────────────────────────────────────
+     Chips rather than a dropdown: the whole point is to see at a glance
+     which slice you are looking at, and a collapsed <select> hides that
+     behind a click. */
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 13px 16px; box-shadow: var(--shadow);
+    position: sticky; top: 0; z-index: 3;
+  }
+  .fgroup { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .fgroup.grow { flex: 1 1 240px; justify-content: flex-end; }
+  .flabel {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+    margin-inline-end: 2px;
+  }
+  .chip {
+    font: inherit; font-size: 12.5px; line-height: 1;
+    padding: 7px 12px; border-radius: 999px; cursor: pointer;
+    background: var(--sunk); color: var(--ink-2);
+    border: 1px solid var(--line); transition: background .12s, color .12s, border-color .12s;
+  }
+  .chip:hover { color: var(--ink); }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  :root[data-theme="dark"] .chip.on,
+  :root:not([data-theme="light"]) .chip.on { color: #08131a; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .chip.on { color: #fff; } }
+  #q {
+    font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px;
+    background: var(--sunk); color: var(--ink);
+    border: 1px solid var(--line); min-width: 180px; flex: 1 1 auto;
+  }
+  #q::placeholder { color: var(--ink-3); }
+  .fcount {
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-3);
+    white-space: nowrap; direction: ltr;
+  }
+  tbody tr.hide { display: none; }
+  .empty-row td { text-align: center; color: var(--ink-3); padding: 28px 13px; }
 
   footer {
     border-top: 1px solid var(--line); padding-top: 20px;
@@ -179,28 +218,44 @@
     <div class="eyebrow">MES360 · SDPF · Action tracker · 26 Aug 2026</div>
     <h1>لوحة التتبّع</h1>
     <p class="lede">
-      الأربعة والثلاثون بنداً بحالتها الحقيقية، وحالة اختبار كلٍّ منها.
-      <strong>«لا اختبار» مكتوبة صراحةً حيث لا يوجد</strong> — بندٌ يعمل بلا اختبار
-      ليس في نفس درجة بندٍ يحرسه اختبار، والخلط بينهما هو ما جعل أعطال هذا الأسبوع
-      تصل إلى أرض المصنع بدل أن تتوقّف عندنا.
+      ثمانيةٌ وثلاثون بنداً بحالتها الحقيقية وتغطية اختبارها، مقسومةً بقرارك إلى
+      <strong>الآن</strong> و<strong>الخطّة المستقبلية</strong>. معمار الدلاء
+      (<span class="mono" dir="ltr">B</span> و<span class="mono" dir="ltr">C4–C10</span>)
+      أُجِّل عن عمد: يغيّر كيف يُكتب كلّ عدد في النظام، والصواب أن يُبنى فوق نتيجة
+      ميدانية مؤكَّدة لا فوق نتيجة مختبرية. صفّه بالمصفاة أعلاه لتراه وحده.
     </p>
     <div class="tallies">
-      <div class="tally"><span class="v v-done">14</span><span class="k">مُنفَّذ</span></div>
+      <div class="tally"><span class="v v-done">14</span><span class="k">مُنفَّذ · كلّه مختبَر</span></div>
       <div class="tally"><span class="v v-done">0</span><span class="k">بلا اختبار — كانت 6</span></div>
-      <div class="tally"><span class="v v-open">18</span><span class="k">لم يبدأ</span></div>
-      <div class="tally"><span class="v v-hold">2</span><span class="k">مؤجّل بقرارك</span></div>
+      <div class="tally"><span class="v v-open">4</span><span class="k">مهامّ اليوم — N1..N4</span></div>
+      <div class="tally"><span class="v v-hold">19</span><span class="k">الخطّة المستقبلية</span></div>
+      
       <div class="tally"><span class="v" style="color:var(--accent-ink)">97</span><span class="k">اختبار جديد · كلّها خضراء</span></div>
-      <div class="tally"><span class="v" style="color:var(--accent-ink)">862</span><span class="k">614 API + 233 edge + 15 web</span></div>
+      <div class="tally"><span class="v" style="color:var(--accent-ink)">✓</span><span class="k">862 · 614 API + 233 edge + 15 web</span></div>
     </div>
   </header>
 
-  <div class="legend">
-    <span><span class="pill p-done">مُنفَّذ</span> في الكود ومبنيّ</span>
-    <span><span class="pill p-part">جزئي</span> يعمل، بلا اختبار يحرسه</span>
-    <span><span class="pill p-open">مفتوح</span> لم يبدأ</span>
-    <span><span class="pill p-hold">مؤجّل</span> ينتظر قراراً</span>
-    <span><span class="pill p-you">عليك</span> خارج الكود</span>
-  </div>
+  <section class="filters" aria-label="تصفية البنود">
+    <div class="fgroup">
+      <span class="flabel">المسار</span>
+      <button class="chip on" data-f="track" data-v="all">الكلّ</button>
+      <button class="chip" data-f="track" data-v="now">الآن</button>
+      <button class="chip" data-f="track" data-v="future">الخطّة المستقبلية</button>
+      <button class="chip" data-f="track" data-v="yours">عليك</button>
+    </div>
+    <div class="fgroup">
+      <span class="flabel">الحالة</span>
+      <button class="chip on" data-f="status" data-v="all">الكلّ</button>
+      <button class="chip" data-f="status" data-v="done">مُنفَّذ</button>
+      <button class="chip" data-f="status" data-v="open">مفتوح</button>
+      <button class="chip" data-f="status" data-v="hold">مؤجّل</button>
+    </div>
+    <div class="fgroup grow">
+      <input id="q" type="search" placeholder="بحث في البنود والملاحظات…" aria-label="بحث">
+      <span id="count" class="fcount"></span>
+    </div>
+  </section>
+
 
   <section>
     <div class="tscroll">
@@ -215,7 +270,7 @@
 
           <tr class="grp"><td colspan="6">أ · سلامة العدّ عند المستشعر</td></tr>
 
-          <tr>
+          <tr data-id="A1" data-track="yours" data-status="you" data-group="أ">
             <td class="id">A1</td>
             <td class="what">اختبار الـ200 ms على الخط</td>
             <td><span class="pill p-you">عليك</span></td>
@@ -223,7 +278,7 @@
             <td class="note">أُثبت على المحاكي (2.92× ← 0.99×). يبقى تأكيده على منتج حقيقي بعد تشغيل الخط.</td>
             <td class="where">devices · إعداد</td>
           </tr>
-          <tr>
+          <tr data-id="A2" data-track="now" data-status="done" data-group="أ">
             <td class="id">A2</td>
             <td class="what">debounce لكل ماكينة</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -231,7 +286,7 @@
             <td class="note">مُثبت في الاتجاهين: 90 عدّة تصير 45، وعند 1400 ms يُكشف أنه <em>يأكل</em> إنتاجاً — فالحدّ الآمن مبرهَن لا مفترض. معطّل حتى تضبطه.</td>
             <td class="where">counter.service.ts:298</td>
           </tr>
-          <tr>
+          <tr data-id="A3" data-track="now" data-status="done" data-group="أ">
             <td class="id">A3</td>
             <td class="what">إنذار الدقيقة المستحيلة</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -239,7 +294,7 @@
             <td class="note">العتبة والسقف المتدرّج مثبَّتان: عُشر فوق السقف تسامحٌ لحدود الدقيقة، وما فوقه عطل. والسقف يتدرّج مع دقائق التشغيل الفعلية — وإلّا فاتت أوضح الحالات.</td>
             <td class="where">oee-standard.writer.ts</td>
           </tr>
-          <tr>
+          <tr data-id="A4" data-track="now" data-status="done" data-group="أ">
             <td class="id">A4</td>
             <td class="what">إنذار «السليم &gt; الإجمالي»</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -247,7 +302,7 @@
             <td class="note">حالة M1 مغطّاة: سليم 425 وإجمالي 361 ← المشتقّ صفر و<span class="mono" dir="ltr">impossible</span> صحيح، والإدخال اليدوي يبقى وحده حاملاً الرقم.</td>
             <td class="where">counter.service.ts:623</td>
           </tr>
-          <tr>
+          <tr data-id="A5" data-track="now" data-status="done" data-group="أ">
             <td class="id">A5</td>
             <td class="what">الأوسمة اليتيمة تُعلن نفسها</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -255,7 +310,7 @@
             <td class="note">وجد <strong>12 وسماً</strong> على إعدادك. والاختبارات تشمل الصمت: مصنعٌ نظيف يجب أن يُنتج <span class="mono" dir="ltr">null</span> لا رسالة فارغة.</td>
             <td class="where">modbus-poller.service.ts</td>
           </tr>
-          <tr>
+          <tr data-id="A6" data-track="now" data-status="done" data-group="أ">
             <td class="id">A6</td>
             <td class="what">يسمّي فترة الاستقصاء الصحيحة</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -263,7 +318,7 @@
             <td class="note">الخاصيّة المهمّة مثبَّتة: الاقتراح <em>أعلى دائماً</em> من المقيس، وإلّا أعاد الوعد المستحيل نفسه. ولا سقف له — قفزة 1423 ms تحتاج رقماً حقيقياً.</td>
             <td class="where">modbus-poller.service.ts:670</td>
           </tr>
-          <tr>
+          <tr data-id="A7" data-track="now" data-status="done" data-group="أ">
             <td class="id">A7</td>
             <td class="what">تدقيق ارتباطات الأوسمة</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -271,7 +326,7 @@
             <td class="note">النسخة الأولى وسمت 7 منها 3 صحيحة (قارنت رقماً بعمود نصّي). صار <strong>4 وكلّها حقيقية</strong>. مثبَّت في الاتجاهين — الارتباط السليم يجب أن يُنتج صمتاً.</td>
             <td class="where">modbus-poller.service.ts</td>
           </tr>
-          <tr>
+          <tr data-id="A8" data-track="now" data-status="done" data-group="أ">
             <td class="id">A8</td>
             <td class="what">التحذير يذكر الاحتمالين</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -279,7 +334,7 @@
             <td class="note">مثبَّت أنّه يذكر <span class="mono" dir="ltr">MISSED</span> و<span class="mono" dir="ltr">COUNTED TWICE</span> معاً — حارسٌ ضدّ من «يبسّطه» عائداً.</td>
             <td class="where">counter.service.ts:462</td>
           </tr>
-          <tr>
+          <tr data-id="A9" data-track="now" data-status="done" data-group="أ">
             <td class="id">A9</td>
             <td class="what">موازنة الدقيقة (التسامح ±)</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -290,20 +345,20 @@
 
           <tr class="grp"><td colspan="6">ب · نموذج الرفع — الدلاء وعقد الاستقبال</td></tr>
 
-          <tr><td class="id">B1</td><td class="what">دلو لكل دقيقة</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">حجر الزاوية. لم يبدأ.</td><td class="where">counter.service.ts</td></tr>
-          <tr><td class="id">B2</td><td class="what">UPSERT لا increment</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">الحماية من التكرار عند إعادة الإرسال. يعتمد على B1.</td><td class="where">API · استقبال</td></tr>
-          <tr><td class="id">B3</td><td class="what">إزالة احتجاز التفريغ</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note"><strong>شوهد حيّاً:</strong> M1 قفزت 434 ← 742 في تفريغة واحدة لحظة استئناف الأمر.</td><td class="where">counter.service.ts:565</td></tr>
-          <tr><td class="id">B4</td><td class="what">إيقاف الكتابة المطلقة للمرفوض</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">مُحتوى مؤقّتاً بـ C1 — التصحيح يعلن حصّته اليدوية فينجو. الجذر باقٍ.</td><td class="where">counter.service.ts:623</td></tr>
-          <tr><td class="id">B5</td><td class="what">حالة العدّاد سجلّ تقدّم</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">حتى تُنفَّذ، تبقى إعادة التشغيل وحذف البافر بلا أثر على الأرقام.</td><td class="where">counter.service.ts:208</td></tr>
-          <tr><td class="id">B6</td><td class="what">جدول دلاء خام منفصل</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">لا داخل <span class="mono" dir="ltr">oee_minutes</span> — الدلو لكل وسم والصفّ لكل ماكينة.</td><td class="where">schema</td></tr>
-          <tr><td class="id">B7</td><td class="what">الهويّة = (ماكينة، دقيقة UTC)</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">لا الدقيقة المقطوعة — <span class="mono" dir="ltr">actualStart</span> حقل متغيّر.</td><td class="where">قرار تصميم</td></tr>
-          <tr><td class="id">B8</td><td class="what">الايدج لا يكتب في قاعدة البيانات</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note"><strong>41 كتابة مباشرة عبر 14 جدولاً</strong> — الجذر الحقيقي. ما دام قائماً، كلّ قاعدة نضعها قابلة للالتفاف عليها.</td><td class="where">apps/edgegateway</td></tr>
-          <tr><td class="id">B9</td><td class="what">علامة مائية بثلاث حالات</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">النظام لا يميّز «أنتجت صفراً» عن «لا أعرف بعد».</td><td class="where">oee-standard.writer.ts:101</td></tr>
-          <tr><td class="id">B10</td><td class="what">timestamptz وتسجيل الانحراف</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">كلّ أعمدة الوقت اليوم بلا منطقة زمنية. الاتّفاق ضمنيّ ولا يفرضه شيء.</td><td class="where">schema · كل الأعمدة</td></tr>
+          <tr data-id="B1" data-track="future" data-status="open" data-group="ب"><td class="id">B1</td><td class="what">دلو لكل دقيقة</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">حجر الزاوية. لم يبدأ.</td><td class="where">counter.service.ts</td></tr>
+          <tr data-id="B2" data-track="future" data-status="open" data-group="ب"><td class="id">B2</td><td class="what">UPSERT لا increment</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">الحماية من التكرار عند إعادة الإرسال. يعتمد على B1.</td><td class="where">API · استقبال</td></tr>
+          <tr data-id="B3" data-track="future" data-status="open" data-group="ب"><td class="id">B3</td><td class="what">إزالة احتجاز التفريغ</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note"><strong>شوهد حيّاً:</strong> M1 قفزت 434 ← 742 في تفريغة واحدة لحظة استئناف الأمر.</td><td class="where">counter.service.ts:565</td></tr>
+          <tr data-id="B4" data-track="future" data-status="open" data-group="ب"><td class="id">B4</td><td class="what">إيقاف الكتابة المطلقة للمرفوض</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">مُحتوى مؤقّتاً بـ C1 — التصحيح يعلن حصّته اليدوية فينجو. الجذر باقٍ.</td><td class="where">counter.service.ts:623</td></tr>
+          <tr data-id="B5" data-track="future" data-status="open" data-group="ب"><td class="id">B5</td><td class="what">حالة العدّاد سجلّ تقدّم</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">حتى تُنفَّذ، تبقى إعادة التشغيل وحذف البافر بلا أثر على الأرقام.</td><td class="where">counter.service.ts:208</td></tr>
+          <tr data-id="B6" data-track="future" data-status="open" data-group="ب"><td class="id">B6</td><td class="what">جدول دلاء خام منفصل</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">لا داخل <span class="mono" dir="ltr">oee_minutes</span> — الدلو لكل وسم والصفّ لكل ماكينة.</td><td class="where">schema</td></tr>
+          <tr data-id="B7" data-track="future" data-status="open" data-group="ب"><td class="id">B7</td><td class="what">الهويّة = (ماكينة، دقيقة UTC)</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">لا الدقيقة المقطوعة — <span class="mono" dir="ltr">actualStart</span> حقل متغيّر.</td><td class="where">قرار تصميم</td></tr>
+          <tr data-id="B8" data-track="future" data-status="open" data-group="ب"><td class="id">B8</td><td class="what">الايدج لا يكتب في قاعدة البيانات</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note"><strong>41 كتابة مباشرة عبر 14 جدولاً</strong> — الجذر الحقيقي. ما دام قائماً، كلّ قاعدة نضعها قابلة للالتفاف عليها.</td><td class="where">apps/edgegateway</td></tr>
+          <tr data-id="B9" data-track="future" data-status="open" data-group="ب"><td class="id">B9</td><td class="what">علامة مائية بثلاث حالات</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">النظام لا يميّز «أنتجت صفراً» عن «لا أعرف بعد».</td><td class="where">oee-standard.writer.ts:101</td></tr>
+          <tr data-id="B10" data-track="future" data-status="open" data-group="ب"><td class="id">B10</td><td class="what">timestamptz وتسجيل الانحراف</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">كلّ أعمدة الوقت اليوم بلا منطقة زمنية. الاتّفاق ضمنيّ ولا يفرضه شيء.</td><td class="where">schema · كل الأعمدة</td></tr>
 
           <tr class="grp"><td colspan="6">ج · مسارات التصحيح</td></tr>
 
-          <tr>
+          <tr data-id="C1" data-track="now" data-status="done" data-group="ج">
             <td class="id">C1</td>
             <td class="what">التصحيح يكتب الحصّة اليدوية</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -311,7 +366,7 @@
             <td class="note">حالة M1 المستحيلة مغطّاة: سليم 425 &gt; إجمالي 361 فالمشتقّ صفر، والحصّة اليدوية وحدها تحمل الرقم.</td>
             <td class="where">production.service.ts:4499</td>
           </tr>
-          <tr>
+          <tr data-id="C2" data-track="now" data-status="done" data-group="ج">
             <td class="id">C2</td>
             <td class="what">السماح بالإنقاص</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -319,7 +374,7 @@
             <td class="note">الحقلان في التابلت يقبلان السالب الآن — كانا <span class="mono" dir="ltr">min={0}</span> فكان المسار غير قابل للوصول أصلاً. ولا سجلّ هالك بكمّية سالبة.</td>
             <td class="where">production.service.ts:4602 · التابلت</td>
           </tr>
-          <tr>
+          <tr data-id="C3" data-track="now" data-status="done" data-group="ج">
             <td class="id">C3</td>
             <td class="what">اختبار: تصحيح ينجو من تفريغ</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -327,17 +382,17 @@
             <td class="note">يطبّق صيغة ختم الايدج نفسها على النتيجة. مكتوبة يدوياً لا مستوردة — الايدج بناء منفصل، وأيّ اختلاف يظهر هنا هو الإشارة المطلوبة.</td>
             <td class="where">count-correction-survives…spec.ts</td>
           </tr>
-          <tr><td class="id">C4</td><td class="what">الايدج يكتب الهالك الآلي في السجلّ</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">اليوم لا أثر للهالك الآلي يمكن حذفه — ولهذا لم تجد الـ150.</td><td class="where">counter.service.ts</td></tr>
-          <tr><td class="id">C5</td><td class="what">تصنيف آليّ / يدويّ</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">يعتمد على C4.</td><td class="where">scrap_logs</td></tr>
-          <tr><td class="id">C6</td><td class="what">سجلّ الهالك يقبل الحذف والتعديل</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">الشاشة والـAPI للقراءة فقط — نقطة النهاية الوحيدة <span class="mono" dir="ltr">@Get</span>.</td><td class="where">production.controller.ts:909</td></tr>
-          <tr><td class="id">C7</td><td class="what">سجلّ الجيد = دلاء الدقائق</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">قيمة الدقيقة اليوم <strong>بقيّة طرح</strong> لا قياس — ولهذا كانت تعديلاتك تشفي نفسها.</td><td class="where">oee-standard.writer.ts:260</td></tr>
-          <tr><td class="id">C8</td><td class="what">التصحيح ينتشر لكل مكان</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">عمليّة واحدة بدل أربع تعديلات يدوية.</td><td class="where">API · خدمة واحدة</td></tr>
-          <tr><td class="id">C9</td><td class="what">شاشة Correct count بالسجلّين</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">يعتمد على C6 و C8.</td><td class="where">operator-hmi-view.tsx</td></tr>
-          <tr><td class="id">C10</td><td class="what">زرّ «صفّر عدّاد الماكينة»</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">يصير غير ضروري إن نُفِّذ B5.</td><td class="where">إعدادات · منطقة الخطر</td></tr>
+          <tr data-id="C4" data-track="future" data-status="open" data-group="ج"><td class="id">C4</td><td class="what">الايدج يكتب الهالك الآلي في السجلّ</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">اليوم لا أثر للهالك الآلي يمكن حذفه — ولهذا لم تجد الـ150.</td><td class="where">counter.service.ts</td></tr>
+          <tr data-id="C5" data-track="future" data-status="open" data-group="ج"><td class="id">C5</td><td class="what">تصنيف آليّ / يدويّ</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">يعتمد على C4.</td><td class="where">scrap_logs</td></tr>
+          <tr data-id="C6" data-track="future" data-status="open" data-group="ج"><td class="id">C6</td><td class="what">سجلّ الهالك يقبل الحذف والتعديل</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">الشاشة والـAPI للقراءة فقط — نقطة النهاية الوحيدة <span class="mono" dir="ltr">@Get</span>.</td><td class="where">production.controller.ts:909</td></tr>
+          <tr data-id="C7" data-track="future" data-status="open" data-group="ج"><td class="id">C7</td><td class="what">سجلّ الجيد = دلاء الدقائق</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">قيمة الدقيقة اليوم <strong>بقيّة طرح</strong> لا قياس — ولهذا كانت تعديلاتك تشفي نفسها.</td><td class="where">oee-standard.writer.ts:260</td></tr>
+          <tr data-id="C8" data-track="future" data-status="open" data-group="ج"><td class="id">C8</td><td class="what">التصحيح ينتشر لكل مكان</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">عمليّة واحدة بدل أربع تعديلات يدوية.</td><td class="where">API · خدمة واحدة</td></tr>
+          <tr data-id="C9" data-track="future" data-status="open" data-group="ج"><td class="id">C9</td><td class="what">شاشة Correct count بالسجلّين</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">يعتمد على C6 و C8.</td><td class="where">operator-hmi-view.tsx</td></tr>
+          <tr data-id="C10" data-track="future" data-status="open" data-group="ج"><td class="id">C10</td><td class="what">زرّ «صفّر عدّاد الماكينة»</td><td><span class="pill p-open">مفتوح</span></td><td class="tests na">—</td><td class="note">يصير غير ضروري إن نُفِّذ B5.</td><td class="where">إعدادات · منطقة الخطر</td></tr>
 
           <tr class="grp"><td colspan="6">د · التشغيل التلقائي</td></tr>
 
-          <tr>
+          <tr data-id="D1" data-track="now" data-status="done" data-group="د">
             <td class="id">D1</td>
             <td class="what">لا يبدأ والخطّ مشغول</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -345,7 +400,7 @@
             <td class="note">شكل 25 أغسطس بعينه، ويبدأ ذاتياً حين يتحرّر الخط. أمرٌ بلا خطّ مسجَّل لا يُحجب — لا يمكن إثبات تعارضه.</td>
             <td class="where">work-order-scheduler.service.ts</td>
           </tr>
-          <tr>
+          <tr data-id="D2" data-track="now" data-status="done" data-group="د">
             <td class="id">D2</td>
             <td class="what">لا يبدأ أمرٌ فات وقته</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -353,7 +408,7 @@
             <td class="note">نافذة أربع ساعات. والقِدَم يُفحص <em>قبل</em> انشغال الخط — وإلّا وجّه المصنع إلى السبب الخطأ.</td>
             <td class="where">work-order-scheduler.service.ts</td>
           </tr>
-          <tr>
+          <tr data-id="D3" data-track="now" data-status="done" data-group="د">
             <td class="id">D3</td>
             <td class="what">إشعار حقيقي بدل السجلّ</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -361,7 +416,7 @@
             <td class="note">مرّة واحدة لكل سبب لا كل دقيقة، ويُبلَّغ ثانيةً إن تغيّر السبب. وفشل الإشعار لا يوقف الدورة.</td>
             <td class="where">modules/notifications</td>
           </tr>
-          <tr>
+          <tr data-id="D4" data-track="now" data-status="done" data-group="د">
             <td class="id">D4</td>
             <td class="what">أيقونة الحالة على كل صف</td>
             <td><span class="pill p-done">مُنفَّذ</span></td>
@@ -370,15 +425,53 @@
             <td class="where">production-work-orders-view.tsx</td>
           </tr>
 
+          <tr class="grp"><td colspan="6">ز · مهامّ اليوم — أضيفت 26 أغسطس</td></tr>
+
+          <tr data-id="N1" data-track="now" data-status="open" data-group="ز">
+            <td class="id">N1</td>
+            <td class="what">شريط الجدولة يعرض المخطَّط فعلاً، لا اليوم كلّه</td>
+            <td><span class="pill p-open">مفتوح</span></td>
+            <td class="tests na">—</td>
+            <td class="note">الشريط العلوي يملأ <strong>ساعات الوردية</strong> بالأخضر، فيدّعي أنّ الخطّ كان مخطّطاً للإنتاج طوال الأسبوع. الصحيح أنّ الإنتاج يجدوله <em>أمر الإنتاج</em>: ما يغطّيه أمرٌ فهو إنتاج مخطّط، وما تغطّيه توقّفات محجوزة فهي بأسمائها، وما عدا ذلك <strong>غير مخطّط لشيء</strong> ويجب أن يُرسم بلون ثالث لا بالأخضر. عيبٌ في شيفرتي أنا: <span class="mono" dir="ltr">scheduledHours</span> تقرأ قوالب الورديات، و«مأهول» ليست «مجدول للإنتاج».</td>
+            <td class="where">state-timeline.service.ts</td>
+          </tr>
+
+          <tr data-id="N2" data-track="now" data-status="open" data-group="ز">
+            <td class="id">N2</td>
+            <td class="what">ماكينة بلا أمر تشغيل يجب أن تقرأ IDLE</td>
+            <td><span class="pill p-open">مفتوح</span></td>
+            <td class="tests na">—</td>
+            <td class="note">الجذر معروف: <span class="mono" dir="ltr">stoppedState()</span> يُرجع <span class="mono" dir="ltr">IDLE</span> عند غياب أمر تشغيل، لكنّه <strong>لا يُستدعى إلّا حين تنطفئ إشارة التشغيل</strong>. M1 انطفأت إشارتها فصارت IDLE، والباقي بقيت مضاءة فبقيت على حالها. أي أنّ إيقاف الأمر لا يُعيد تقييم الماكينات إطلاقاً — والحالة تُشتقّ من الإشارة وحدها بينما أمر التشغيل يُستشار فقط بعد أن تقول الإشارة «واقفة».</td>
+            <td class="where">status.service.ts:381</td>
+          </tr>
+
+          <tr data-id="N3" data-track="now" data-status="open" data-group="ز">
+            <td class="id">N3</td>
+            <td class="what">توقّفات أمر الإنتاج تُنشأ ذاتياً</td>
+            <td><span class="pill p-open">مفتوح</span></td>
+            <td class="tests na">—</td>
+            <td class="note">تنظيف وبدء وتغيير: مدّة لكلٍّ وترتيبٌ بينها، تُعرَّف على أمر الإنتاج <strong>عند الإنشاء وعند التعديل</strong>، وتُنشئ أحداث توقّف مخطّط من <em>وقت البدء الفعلي</em> لا المخطّط. ولكلٍّ قاعدة تكرار: مرّة واحدة للأمر · مع كلّ وردية · مع كلّ إعادة تشغيل. وتعديل الغد لا يمسّ حدث الأمس. يوفّر ما أدخلناه بيد أمس.</td>
+            <td class="where">production_orders · جدول جديد</td>
+          </tr>
+
+          <tr data-id="N4" data-track="now" data-status="open" data-group="ز">
+            <td class="id">N4</td>
+            <td class="what">فترات راحة متعدّدة لكلّ وردية</td>
+            <td><span class="pill p-open">مفتوح</span></td>
+            <td class="tests na">—</td>
+            <td class="note">قالب الوردية اليوم فيه <span class="mono" dir="ltr">breakMinutes</span> و<span class="mono" dir="ltr">cleaningMinutes</span> — رقمان مفردان، وهما ما تقول شاشة التعديل نفسها إنّهما استُبدلا بالتوقّفات المخطّطة. المطلوب: أكثر من راحة، لكلٍّ وقت بدء ومدّة، تُنشئ أحداثها <strong>مع بداية كلّ وردية فقط</strong> — لا إلى ما لا نهاية.</td>
+            <td class="where">shift_templates · جدول جديد</td>
+          </tr>
+
           <tr class="grp"><td colspan="6">هـ · الجدولة مقابل الواقع — مؤجّلة بقرارك</td></tr>
-          <tr><td class="id">E1</td><td class="what">ربط التوقّف المخطّط بأمر التشغيل</td><td><span class="pill p-hold">مؤجّل</span></td><td class="tests na">—</td><td class="note">‏108 دقيقة‑ماكينة تُحتسب اليوم لتغييرٍ لم يقع. ينتظر قرار Q1.</td><td class="where">downtime_events</td></tr>
-          <tr><td class="id">E2</td><td class="what">أسبقية الجدول في المعادلات</td><td><span class="pill p-hold">مؤجّل</span></td><td class="tests na">—</td><td class="note">مطبَّقة عرضاً فقط. نقلها للمحرّك يرفع OEE — ورقمٌ يرتفع لتغيّر العدّ ليس تحسّناً.</td><td class="where">قرارات Q1–Q5</td></tr>
+          <tr data-id="E1" data-track="future" data-status="hold" data-group="ه"><td class="id">E1</td><td class="what">ربط التوقّف المخطّط بأمر التشغيل</td><td><span class="pill p-hold">مؤجّل</span></td><td class="tests na">—</td><td class="note">‏108 دقيقة‑ماكينة تُحتسب اليوم لتغييرٍ لم يقع. ينتظر قرار Q1.</td><td class="where">downtime_events</td></tr>
+          <tr data-id="E2" data-track="future" data-status="hold" data-group="ه"><td class="id">E2</td><td class="what">أسبقية الجدول في المعادلات</td><td><span class="pill p-hold">مؤجّل</span></td><td class="tests na">—</td><td class="note">مطبَّقة عرضاً فقط. نقلها للمحرّك يرفع OEE — ورقمٌ يرتفع لتغيّر العدّ ليس تحسّناً.</td><td class="where">قرارات Q1–Q5</td></tr>
 
           <tr class="grp"><td colspan="6">و · إصلاحات بيانات — على الهوستنجر</td></tr>
-          <tr><td class="id">F1</td><td class="what">الـ150 اليتيمة</td><td><span class="pill p-you">عليك</span></td><td class="tests na">SQL جاهز</td><td class="note"><span class="mono" dir="ltr">manualQtyRejected</span> تقول 156 والسجلّات 6. الأمر <span class="mono" dir="ltr">COMPLETE</span> فالتصحيح يثبت.</td><td class="where">job_orders</td></tr>
-          <tr><td class="id">F2</td><td class="what">هالك ضائع على M3 و M4</td><td><span class="pill p-you">عليك</span></td><td class="tests na">SQL جاهز</td><td class="note">‏2 و4 مسجّلة يدوياً و<span class="mono" dir="ltr">actualQtyRejected = 0</span>.</td><td class="where">job_orders</td></tr>
-          <tr><td class="id">F3</td><td class="what">حالات عدّادات لأوسمة محذوفة</td><td><span class="pill p-you">عليك</span></td><td class="tests na">—</td><td class="note">صار الايدج يسمّيها عند الإقلاع (A5)، فالقائمة جاهزة للتنفيذ.</td><td class="where">gateway_counter_states</td></tr>
-          <tr><td class="id">F4</td><td class="what">مراجعة تعديلات oee_minutes</td><td><span class="pill p-you">عليك</span></td><td class="tests na">—</td><td class="note">تُوثَّق قبل أن يُبنى عليها تقرير، وإلّا صار مصدر الاختلاف مجهولاً.</td><td class="where">oee_minutes</td></tr>
+          <tr data-id="F1" data-track="yours" data-status="you" data-group="و"><td class="id">F1</td><td class="what">الـ150 اليتيمة</td><td><span class="pill p-you">عليك</span></td><td class="tests na">SQL جاهز</td><td class="note"><span class="mono" dir="ltr">manualQtyRejected</span> تقول 156 والسجلّات 6. الأمر <span class="mono" dir="ltr">COMPLETE</span> فالتصحيح يثبت.</td><td class="where">job_orders</td></tr>
+          <tr data-id="F2" data-track="yours" data-status="you" data-group="و"><td class="id">F2</td><td class="what">هالك ضائع على M3 و M4</td><td><span class="pill p-you">عليك</span></td><td class="tests na">SQL جاهز</td><td class="note">‏2 و4 مسجّلة يدوياً و<span class="mono" dir="ltr">actualQtyRejected = 0</span>.</td><td class="where">job_orders</td></tr>
+          <tr data-id="F3" data-track="yours" data-status="you" data-group="و"><td class="id">F3</td><td class="what">حالات عدّادات لأوسمة محذوفة</td><td><span class="pill p-you">عليك</span></td><td class="tests na">—</td><td class="note">صار الايدج يسمّيها عند الإقلاع (A5)، فالقائمة جاهزة للتنفيذ.</td><td class="where">gateway_counter_states</td></tr>
+          <tr data-id="F4" data-track="yours" data-status="you" data-group="و"><td class="id">F4</td><td class="what">مراجعة تعديلات oee_minutes</td><td><span class="pill p-you">عليك</span></td><td class="tests na">—</td><td class="note">تُوثَّق قبل أن يُبنى عليها تقرير، وإلّا صار مصدر الاختلاف مجهولاً.</td><td class="where">oee_minutes</td></tr>
 
         </tbody>
       </table>
@@ -406,6 +499,75 @@
 
   <footer>
     <div>كلّ حالة هنا مقيسة: عدد الاختبارات من ملفّاتها، والتحقّقات الحيّة من قاعدة البيانات المستعادة والـexe المحزوم.</div>
-    <div class="mono" dir="ltr" style="font-size:11px">docs/html/SDPF-Action-Tracker.html · 26 Aug 2026 · 614 API + 233 edge + 15 web green</div>
+    <div class="mono" dir="ltr" style="font-size:11px">docs/html/SDPF-Action-Tracker.html · 26 Aug 2026 · 38 items · 862 tests green · bucket architecture deferred by decision</div>
   </footer>
 </div>
+
+<script>
+  /**
+   * The filter. Chips set a slice, the search box narrows it, and a group
+   * header hides itself when nothing under it survives — otherwise you get a
+   * heading with no rows, which reads as a bug rather than as a filter.
+   */
+  (function () {
+    var state = { track: 'all', status: 'all', q: '' };
+    var rows = Array.prototype.slice.call(document.querySelectorAll('tbody tr[data-id]'));
+    var groups = Array.prototype.slice.call(document.querySelectorAll('tbody tr.grp'));
+    var count = document.getElementById('count');
+    var q = document.getElementById('q');
+
+    function matches(tr) {
+      if (state.track !== 'all' && tr.dataset.track !== state.track) return false;
+      if (state.status !== 'all' && tr.dataset.status !== state.status) return false;
+      if (state.q && tr.textContent.toLowerCase().indexOf(state.q) === -1) return false;
+      return true;
+    }
+
+    function apply() {
+      var shown = 0;
+      rows.forEach(function (tr) {
+        var ok = matches(tr);
+        tr.classList.toggle('hide', !ok);
+        if (ok) shown++;
+      });
+      // A group header survives only if something under it did.
+      groups.forEach(function (g) {
+        var any = false;
+        for (var n = g.nextElementSibling; n && !n.classList.contains('grp'); n = n.nextElementSibling) {
+          if (n.dataset.id && !n.classList.contains('hide')) { any = true; break; }
+        }
+        g.classList.toggle('hide', !any);
+      });
+      if (count) count.textContent = shown + ' / ' + rows.length;
+
+      var tb = rows.length ? rows[0].parentNode : null;
+      var empty = document.getElementById('emptyRow');
+      if (shown === 0 && tb && !empty) {
+        var tr = document.createElement('tr');
+        tr.id = 'emptyRow'; tr.className = 'empty-row';
+        tr.innerHTML = '<td colspan="6">لا بنود تطابق هذه التصفية</td>';
+        tb.appendChild(tr);
+      } else if (shown > 0 && empty) {
+        empty.remove();
+      }
+    }
+
+    document.querySelectorAll('.chip').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var f = b.dataset.f;
+        state[f] = b.dataset.v;
+        document.querySelectorAll('.chip[data-f="' + f + '"]').forEach(function (o) {
+          o.classList.toggle('on', o === b);
+        });
+        apply();
+      });
+    });
+    if (q) {
+      q.addEventListener('input', function () {
+        state.q = q.value.trim().toLowerCase();
+        apply();
+      });
+    }
+    apply();
+  })();
+</script>

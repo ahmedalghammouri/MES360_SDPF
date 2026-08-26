@@ -26,7 +26,13 @@ describe('StatusService — three states on one bit', () => {
       downtimeEvent: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
       workOrder: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
     };
-    const inference = { classify: jest.fn(async (_m: string, s: string) => s) };
+    // `stoppedState` now asks the inference service whether the machine has
+    // work, instead of running its own job-order query with its own idea of
+    // what counts — see one-definition-of-work.spec.ts.
+    const inference = {
+      classify: jest.fn(async (_m: string, s: string) => s),
+      hasWorkScheduled: jest.fn(async () => true),
+    };
     const svc = new StatusService(prisma as never, inference as never);
     /** `derive` is private; this is the behaviour under test. */
     const derive = (tag: StatusTag, v: number) => (svc as never as {
@@ -133,7 +139,13 @@ describe('StatusService — sampling a flashing lamp', () => {
       downtimeEvent: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
       workOrder: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
     };
-    const inference = { classify: jest.fn(async (_m: string, s: string) => s) };
+    // `stoppedState` now asks the inference service whether the machine has
+    // work, instead of running its own job-order query with its own idea of
+    // what counts — see one-definition-of-work.spec.ts.
+    const inference = {
+      classify: jest.fn(async (_m: string, s: string) => s),
+      hasWorkScheduled: jest.fn(async () => true),
+    };
     const svc = new StatusService(prisma as never, inference as never);
     const derive = (tag: StatusTag, v: number) => (svc as never as {
       derive(t: StatusTag, n: number): Promise<string | null>;

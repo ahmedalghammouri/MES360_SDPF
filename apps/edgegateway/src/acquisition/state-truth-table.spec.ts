@@ -40,6 +40,15 @@ describe('StateInferenceService — the truth table', () => {
     idleForMs?: number;
     /** Rule 0: with no job order the machine is IDLE and no tag is read. */
     scheduled?: boolean;
+    /**
+     * The job-order statuses actually on the machine.
+     *
+     * The count used to be stubbed at a flat 1, which could not express "an
+     * order exists but is PAUSED" — the situation the plant hit on 25 Aug. The
+     * stub now answers the query it was asked, so a test can state the
+     * statuses and let the service decide what they mean.
+     */
+    joStatuses?: string[];
   }) {
     const { states, processing = null, idleForMs = 10 * 60_000 } = opts;
     const prisma: any = {
@@ -47,7 +56,14 @@ describe('StateInferenceService — the truth table', () => {
       // job order is IDLE and its tags are never read. Every row of this table is
       // about a machine that IS working, so the mock says so — otherwise all of
       // them would assert against IDLE and prove nothing about the table.
-      jobOrder: { count: jest.fn().mockResolvedValue(opts.scheduled === false ? 0 : 1) },
+      jobOrder: {
+        count: jest.fn(async ({ where }: any) => {
+          if (opts.scheduled === false) return 0;
+          if (!opts.joStatuses) return 1;
+          const want = typeof where.status === 'string' ? [where.status] : (where.status?.in ?? []);
+          return opts.joStatuses.filter((x) => want.includes(x)).length;
+        }),
+      },
       machine: {
         findUnique: jest.fn(async ({ where }: any) => ({
           ...LINE.find((m) => m.id === where.id)!, lineId: 'L1',
@@ -216,13 +232,33 @@ describe('StateInferenceService — the truth table', () => {
       expect((s2 as never as { __prisma: any }).__prisma.tagDefinition.findFirst).not.toHaveBeenCalled();
     });
 
-    it('a PAUSED order still counts as scheduled — the stop is real', async () => {
-      // Mid-job and stopped is a stop on a real order, not an idle plant.
-      const s2 = build({ states: allRunning, processing: 1 });
-      await expect(s2.classify(ME, RUN)).resolves.not.toBe('IDLE');
+    /**
+     * ── A decision reversed on 26 Aug 2026, and why ─────────────────────────
+     * This used to assert the opposite: that a PAUSED order still counts as
+     * scheduled, because "mid-job and stopped is a stop on a real order, not an
+     * idle plant". That reasoning was sound as far as it went, and it is kept
+     * here because the argument still deserves to be findable.
+     *
+     * What it missed is that `StatusService.stoppedState` counted only
+     * EXECUTING, so the plant had TWO answers to one question. On 25 Aug all
+     * four orders on Line 1 were paused: M1's Run Mode bit dropped, took that
+     * path, and read IDLE; M2, M3 and M4 kept their bits high, took this one,
+     * and went on inferring STARVED and BLOCKED for an order nobody was
+     * running. Four machines, one situation, three states.
+     *
+     * The original worry — that the stop would be hidden — does not come true.
+     * IDLE is not downtime but it still occupies the clock and still counts
+     * against OEE; the pause is recorded, in full. What stops happening is the
+     * INFERENCE OF A CAUSE the system cannot know. A machine cannot be starved
+     * of material for an order that is not running, and saying so moved a real
+     * loss into an external one that OEE excludes.
+     */
+    it('a PAUSED order is NOT scheduled work — the pause is recorded as idle', async () => {
+      const s2 = build({ states: allRunning, processing: 1, joStatuses: ['PAUSED'] });
+      await expect(s2.classify(ME, RUN)).resolves.toBe('IDLE');
       expect((s2 as never as { __prisma: any }).__prisma.jobOrder.count).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ status: { in: ['EXECUTING', 'PAUSED'] } }),
+          where: expect.objectContaining({ status: 'EXECUTING' }),
         }),
       );
     });

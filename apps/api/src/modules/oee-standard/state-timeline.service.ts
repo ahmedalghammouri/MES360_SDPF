@@ -286,18 +286,32 @@ export class StateTimelineService {
       });
       byMachine.set(e.machineId, hit);
     }
-    if (byMachine.size === 0) return [];
 
-    // The hours the plant is actually MANNED. Everything between the booked
-    // stops is scheduled production only inside these; outside them nothing is
-    // drawn, because the plan track would otherwise claim the line was expected
-    // to run through hours no shift covers.
+    // The hours a WORK ORDER was actually planned to run on each machine.
     //
-    // On a 24-hour plant this changes nothing, which is exactly why it has to be
-    // written down rather than left to luck: this factory's two templates happen
-    // to tile the day, and the first single-shift plant to open the page would
-    // have seen sixteen hours of green it never scheduled.
-    const scheduled = await this.scheduledHours(factoryId, from, to);
+    // ── What this used to be, and why it was wrong ─────────────────────────
+    // It was the manned shift hours: every minute a shift covered, minus the
+    // booked stops, was drawn as scheduled production. On a 24-hour plant that
+    // paints the whole week green and claims the line was expected to produce
+    // continuously — which is not a schedule, it is an opening time.
+    //
+    // Production is scheduled by an ORDER. Where an order is planned, the plant
+    // intended to produce; where none is, it intended nothing, and that is a
+    // fact worth seeing rather than a gap to fill with green. The band is left
+    // blank there, so "we had no plan for this time" and "we planned to run and
+    // did not" stop looking identical.
+    const scheduled = await this.plannedProduction(factoryId, from, to, scope);
+
+    // A machine can appear in EITHER source. One with a planned order and no
+    // booked stops still has a plan to draw — the early return that skipped it
+    // was a leftover from when this function only knew about stops, and it made
+    // the commonest case of all draw nothing.
+    for (const [machineId, spans] of scheduled) {
+      if (spans.length > 0 && !byMachine.has(machineId)) {
+        byMachine.set(machineId, { code: '', stops: [] });
+      }
+    }
+    if (byMachine.size === 0) return [];
 
     const out: TimelineSegment[] = [];
     for (const [machineId, v] of byMachine) {
@@ -317,7 +331,8 @@ export class StateTimelineService {
       // them. Taken with the interval algebra rather than by walking a cursor,
       // so two stops booked over the same minutes cost that time once — the
       // same union rule a finish estimate uses, and for the same reason.
-      for (const [a, b] of subtract(scheduled, merge(stops.map((x) => [x.from, x.to] as Span)))) {
+      const plannedForMachine = scheduled.get(machineId) ?? [];
+      for (const [a, b] of subtract(plannedForMachine, merge(stops.map((x) => [x.from, x.to] as Span)))) {
         push(a, b, 'PRODUCTION', 'Production', 'running');
       }
       // Every booked stop is drawn as itself, named, whether or not it falls in
@@ -342,6 +357,64 @@ export class StateTimelineService {
    * existed — because refusing to draw a schedule the plant demonstrably keeps
    * would be a worse answer than the one assumption we can name.
    */
+  /**
+   * When each machine was planned to be PRODUCING, per its work orders.
+   *
+   * Keyed per machine, because two machines on one line can carry different
+   * steps of different orders — the palletiser's window is not the filler's.
+   * Returned merged, so two orders that overlap on a machine cost their time
+   * once.
+   *
+   * A machine with no order in the window gets an empty span list and its plan
+   * track draws nothing but its booked stops. That silence is the point: it
+   * says the plant scheduled no production here, which is different from
+   * scheduling production that then failed.
+   */
+  private async plannedProduction(
+    factoryId: string | null, from: Date, to: Date, scope: TimelineScope,
+  ): Promise<Map<string, Span[]>> {
+    const jos = await this.prisma.jobOrder.findMany({
+      where: {
+        ...(factoryId ? { factoryId } : {}),
+        machineId: { not: null },
+        // Anything that has not been cancelled still represents an intention.
+        status: { notIn: ['CANCELLED'] },
+        plannedStart: { lt: to },
+        plannedEnd: { gt: from },
+        ...(scope.machineId ? { machineId: scope.machineId } : {}),
+        ...(scope.lineId || scope.areaId
+          ? {
+            machine: {
+              ...(scope.lineId ? { lineId: scope.lineId } : {}),
+              ...(scope.areaId ? { areaId: scope.areaId } : {}),
+            },
+          }
+          : {}),
+      },
+      select: { machineId: true, plannedStart: true, plannedEnd: true, actualStart: true, actualEnd: true },
+    });
+
+    const out = new Map<string, Span[]>();
+    for (const jo of jos) {
+      // A step with no planned window states no intention, so it contributes
+      // none. Guessing one from its actual times would turn what HAPPENED into
+      // what was planned — the exact conflation these two bands exist to keep
+      // apart.
+      if (!jo.machineId || !jo.plannedStart || !jo.plannedEnd) continue;
+      // The PLANNED window is what the plan track is about. Where an order ran
+      // beyond it, that overrun is not something the plant planned — it is what
+      // the state track underneath is for.
+      const a = Math.max(+jo.plannedStart, +from);
+      const b = Math.min(+jo.plannedEnd, +to);
+      if (b <= a) continue;
+      const list = out.get(jo.machineId) ?? [];
+      list.push([a, b]);
+      out.set(jo.machineId, list);
+    }
+    for (const [k, v] of out) out.set(k, merge(v));
+    return out;
+  }
+
   private async scheduledHours(factoryId: string | null, from: Date, to: Date): Promise<Span[]> {
     const templates = await this.prisma.shiftTemplate.findMany({
       where: { ...(factoryId ? { factoryId } : {}), isActive: true },

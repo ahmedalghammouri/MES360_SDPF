@@ -682,9 +682,13 @@ function GanttRowBands({
     <div className="relative h-16 flex flex-col justify-center gap-1">
       {/* The plan sits above the machine, because it comes first in time and in
           the argument: this is what we said we would do. Thinner, so the eye
-          reads it as the annotation and the sensor's record as the subject --
-          and no empty-state text, since an absent schedule inside a zoom is not
-          a missing record. */}
+          reads it as the annotation and the sensor's record as the subject.
+          
+          A GAP here means nothing was scheduled — an absence of intention, not
+          an absence of data. That is why it stays blank and carries no
+          empty-state text: the plan track used to fill every manned hour with
+          green and so claimed the plant intended to run all week, which is an
+          opening time rather than a schedule. */}
       {track(planBands, 'h-4', t('gantt.track.plan'), null)}
       {track(bands, 'h-6', t('gantt.track.actual'), t('gantt.noData'))}
     </div>

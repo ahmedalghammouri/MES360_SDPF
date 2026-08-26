@@ -8,7 +8,14 @@
     "noEmit": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["node", "react", "react-dom"],
+    "types": ["node", "react", "react-dom", "jest"],
+    // `jest` is resolved from the API workspace, the same place jest.config.js
+    // takes ts-jest from. Without it `pnpm type-check` fails on every spec file
+    // — the tests still RUN (ts-jest has diagnostics off), which is exactly the
+    // kind of half-broken state that reads as working until someone runs the
+    // other command. See the note in jest.config.js: give this app its own
+    // devDependency when it grows a real suite, and drop both hops.
+    "typeRoots": ["./node_modules/@types", "../api/node_modules/@types"],
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,

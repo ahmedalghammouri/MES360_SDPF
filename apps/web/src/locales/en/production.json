@@ -2033,7 +2033,7 @@
     "track": {
       "plan": "Schedule",
       "actual": "Machine",
-      "legend": "Upper band: schedule · lower band: machine state"
+      "legend": "Upper band: what an order was planned for · lower band: what the machine did · blank above: nothing was scheduled"
     },
     "role": {
       "producing": "Producing",

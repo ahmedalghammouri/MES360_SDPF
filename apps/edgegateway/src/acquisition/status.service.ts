@@ -379,12 +379,17 @@ export class StatusService {
     return map[String(Math.round(numeric))] ?? null;
   }
 
-  /** A false run signal: a fault while an order is running, otherwise just idle. */
+  /**
+   * A false run signal: a fault while an order is running, otherwise just idle.
+   *
+   * Asks the inference service rather than counting job orders itself. It used
+   * to run its own query with its own idea of what counts as work, and the two
+   * definitions drifted — see `hasWorkScheduled`. Four machines in one
+   * situation showed three different states because of it.
+   */
   private async stoppedState(tag: StatusTag): Promise<string> {
-    const activeJo = await this.prisma.jobOrder.count({
-      where: { machineId: tag.machineId!, status: 'EXECUTING' },
-    });
-    return activeJo > 0 ? 'BREAKDOWN' : 'IDLE';
+    const working = await this.inference.hasWorkScheduled(tag.machineId!);
+    return working ? 'BREAKDOWN' : 'IDLE';
   }
 
   private async apply(factoryId: string, machineId: string, rawState: string, when: Date): Promise<void> {

@@ -281,16 +281,36 @@ export class StateInferenceService {
   /**
    * Is there a step running on this machine right now?
    *
-   * Cached briefly: this is asked on every poll for every machine, and a job
-   * order does not start and stop within a few seconds. The TTL is short
-   * enough that a machine goes live within one cache window of its order
-   * being released.
+   * ── ONE definition, and it used to be two ───────────────────────────────
+   * This counted EXECUTING *and* PAUSED, while `StatusService.stoppedState`
+   * counted only EXECUTING — two answers to one question, in two files.
+   *
+   * The plant saw it on 25 Aug 2026: all four job orders were PAUSED, M1's Run
+   * Mode bit happened to drop so it took the other path and correctly read
+   * IDLE, and M2/M3/M4 kept their bits high, took this path, were told there
+   * was work, and went on inferring STARVED and BLOCKED. Four machines in the
+   * same situation showing three different states, and neither rule was
+   * reachable from the other to notice.
+   *
+   * EXECUTING is the right answer. A PAUSED order is a deliberate stop: the
+   * machine is not being asked to produce, so it cannot be starved of material
+   * for it or blocked from discharging it. Inferring either manufactures an
+   * external loss out of a decision somebody made.
+   *
+   * This does NOT change the time model. `oee-standard.writer` still counts a
+   * paused order's minutes, because a pause occupies the clock and must be
+   * charged rather than vanish from the denominator. What changes is only what
+   * the MACHINE is said to be doing during them — which is idle.
+   *
+   * Cached briefly: asked on every poll for every machine, and a job order does
+   * not start and stop within a few seconds. Short enough that a machine goes
+   * live within one cache window of its order being released.
    */
-  private async hasWorkScheduled(machineId: string): Promise<boolean> {
+  async hasWorkScheduled(machineId: string): Promise<boolean> {
     const hit = this.workCache.get(machineId);
     if (hit && Date.now() - hit.at < StateInferenceService.WORK_TTL_MS) return hit.value;
     const count = await this.prisma.jobOrder.count({
-      where: { machineId, status: { in: ['EXECUTING', 'PAUSED'] } },
+      where: { machineId, status: 'EXECUTING' },
     });
     const value = count > 0;
     this.workCache.set(machineId, { at: Date.now(), value });
