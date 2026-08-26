@@ -257,6 +257,21 @@ export class CounterService {
    * effect before anybody notices.
    */
   private readonly ctxCache = new Map<string, { at: number; value: { joId: string | null; running: boolean; dbUp: boolean } }>();
+
+  /**
+   * Pulses counted while NO job order was executing, per tag, since start-up.
+   *
+   * Not production, and not an error either: a counter that turns with nothing
+   * scheduled means the line moved outside an order, or the input is picking up
+   * noise. Either is worth seeing, and neither may be attributed to whichever
+   * order happens to start next.
+   */
+  private readonly orphaned = new Map<string, number>();
+
+  /** What has been dropped for want of an order, for the diagnostics endpoint. */
+  orphanedCounts(): Array<{ tagId: string; count: number }> {
+    return [...this.orphaned].map(([tagId, count]) => ({ tagId, count }));
+  }
   private static readonly CTX_TTL_MS = 1_000;
   private readonly stateFile: string;
 
@@ -785,7 +800,38 @@ export class CounterService {
         mem.jobOrderId = c.joId;
       }
 
-      if (!c.joId || !c.running) continue;
+      // ── Pulses with no order behind them ──────────────────────────────
+      // `joId` is only ever an EXECUTING order, so this branch means the plant
+      // was not running anything. Those pulses belong to NO order, and the
+      // backlog is dropped rather than carried.
+      //
+      // Carrying it is what produced the jumps of 25-26 Aug 2026. The line sat
+      // with nothing executing from 13:30 until 05:54 the next morning while
+      // `accumulated` went on climbing; the moment an order started, sixteen
+      // hours of pulses flushed as ONE delta, and the writer booked all of it
+      // into the single minute it landed in: 1260 pieces on M1, 2100 on M2
+      // (in a minute recorded as STARVED), 960 on M4. The plant saw its counts
+      // "jump by 500" and had to correct four job orders by hand.
+      //
+      // Dropped counts are recorded, not silently swallowed — a counter that
+      // turns while nothing is scheduled is itself worth knowing about.
+      if (!c.joId) {
+        const orphaned = accumulated - mem.synced;
+        if (orphaned > 0) {
+          mem.synced = accumulated;
+          this.dirty = true;
+          this.orphaned.set(tag.id, (this.orphaned.get(tag.id) ?? 0) + orphaned);
+        }
+        continue;
+      }
+
+      // NOTE what is deliberately no longer here: `|| !c.running`.
+      //
+      // An EXECUTING order and a pulse on the input means a unit was made. The
+      // state engine's opinion about the machine cannot unmake a physical unit,
+      // and holding the count until the machine is agreed to be RUNNING did not
+      // discard it — it just paid it out later, in the wrong minute, which is
+      // how a minute marked STARVED came to carry 2100 pieces.
       const delta = accumulated - mem.synced;
       if (delta <= 0) continue;
 
