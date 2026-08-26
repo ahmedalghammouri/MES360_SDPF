@@ -54,20 +54,33 @@
   \set apply 0
 \endif
 
+-- The window, in PLANT LOCAL TIME, overridable without touching this file:
+--   -v win_from='2026-08-25 00:00:00' -v win_to='2026-08-27 00:00:00'
+-- Editing a script on a server to change a date is how the wrong date gets
+-- repaired, so the date is an argument and the file stays as reviewed.
+\if :{?win_from}
+\else
+  \set win_from '2026-08-25 00:00:00'
+\endif
+\if :{?win_to}
+\else
+  \set win_to '2026-08-26 00:00:00'
+\endif
+
 BEGIN;
 
 CREATE TEMP TABLE _repair_params ON COMMIT DROP AS
 SELECT
-  -- The window to repair, written in PLANT LOCAL TIME (Asia/Riyadh). Narrow it
-  -- to the shift you are actually fixing -- a wide window rewrites more history
-  -- than anyone reviewed.
+  -- The window to repair, in PLANT LOCAL TIME (Asia/Riyadh). Pass -v win_from
+  -- and -v win_to to narrow it to the shift you are actually fixing -- a wide
+  -- window rewrites more history than anyone reviewed.
   --
   -- The conversion is not decoration. These columns are `timestamp WITHOUT time
   -- zone` holding UTC, so a bare TIMESTAMP '2026-08-25 00:00:00' means UTC
   -- midnight = 03:00 in the plant. Written that way the script would repair
   -- three hours of the wrong day at each end and miss three of the right one.
-  (TIMESTAMP '2026-08-25 00:00:00' AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'utc' AS win_from,
-  (TIMESTAMP '2026-08-26 00:00:00' AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'utc' AS win_to,
+  (:'win_from'::timestamp AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'utc' AS win_from,
+  (:'win_to'::timestamp   AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'utc' AS win_to,
   'M1'::text                      AS leader_code,
   -- Only these are ever rewritten. RUNNING is deliberately absent.
   ARRAY['STARVED', 'BLOCKED', 'BREAKDOWN']::text[] AS rewritable;

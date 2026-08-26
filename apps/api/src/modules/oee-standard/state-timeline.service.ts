@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { activityLabel } from './activity-label';
 
 import { PrismaService } from '../../database/prisma.service';
 import {
@@ -212,10 +213,9 @@ export class StateTimelineService {
           machineId: r.machineId,
           machineCode: r.machineCode,
           state: r.state,
-          // The activity name the materialiser wrote, without the trailing
-          // provenance clause — "Line Cleaning — start of shift", not the
-          // whole sentence. Sensor records carry no note and keep just a state.
-          label: r.notes ? r.notes.split(' (')[0].trim() || undefined : undefined,
+          // The activity name a person wrote, with the machine's own markers
+          // stripped out — see activity-label.ts for why the column holds both.
+          label: activityLabel(r.notes),
           kind: this.kindOf(r.state, verdictFor(r.machineId, r.state)),
           from: r.from,
           to: r.to,
