@@ -3567,6 +3567,22 @@ model JobOrder {
   // OEE denominator — stamped from MachineCycleTime at JO creation
   idealCycleTimeSec Float?
 
+  /// BYPASS — this step is out of service, so the line's output is read from the
+  /// step BEFORE it. Set when a machine breaks mid-order and product now leaves
+  /// the line one station earlier.
+  ///
+  /// It is a property of the JOB ORDER, not of the minute, and that is
+  /// deliberate: step counts are cumulative for the whole order, and an upstream
+  /// step's total already includes everything the steps after it processed. So
+  /// once the wrapper is bypassed, the palletiser's running total IS the line's
+  /// output — for the whole order, not just the minutes since it broke.
+  ///
+  /// `MINUTE_FACTS` exposes this by joining job_orders, so the flag reaches the
+  /// historical minute store too without rewriting a single recorded minute.
+  bypassedAt   DateTime?
+  bypassedBy   String?
+  bypassReason String?
+
   operatorId  String? // assigned shop floor operator
   scrapReason String? // reason for actualQtyRejected
 

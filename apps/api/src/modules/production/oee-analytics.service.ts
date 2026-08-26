@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { KpiService, MINUTE_FACTS } from './kpi.service';
+import { KpiService, MINUTE_FACTS, FINAL_STEP } from './kpi.service';
 import { resolveLocalRange } from '../../common/plant-time.util';
 import { currentShiftStart } from '../../common/shift-window.util';
 import { oeeIdentityOf } from '../../common/oee-identity.util';
@@ -332,7 +332,7 @@ export class OeeAnalyticsService {
           AND "machineId" IN (${Prisma.join(machineIds)})
           AND "bucketStart" >= ${from} AND "bucketStart" < ${to}
       ),
-      fin AS (SELECT "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY "workOrderId")
+      fin AS (SELECT "workOrderId", ${FINAL_STEP} ms FROM scoped GROUP BY "workOrderId")
       SELECT COALESCE(SUM(s."totalBase"), 0)::float AS total,
              COALESCE(SUM(s."goodBase"), 0)::float  AS good,
              COALESCE(SUM(s."scrapBase"), 0)::float AS scrap

@@ -30,6 +30,18 @@ import type { PrismaClient } from '@prisma/client';
  * Only devices that actually carry a counter tag are touched. A meter polled
  * once a second is left alone — there is nothing to alias in an energy reading,
  * and polling it fast would only add traffic.
+ *
+ * ── A SEED SUPPLIES A DEFAULT; IT DOES NOT ENFORCE ONE ────────────────────
+ * This ran on every boot and only skipped a device ALREADY at or below 20 ms.
+ * So the plant slowed two devices to 200 ms against a live line, deployed, and
+ * the next container start put them back to 20 — silently, with no record that
+ * a decision had been overruled. The paragraph above said not to do that; the
+ * code did it anyway, for precisely the case it named.
+ *
+ * The rule now: a NULL interval has never been decided, so the seed fills it
+ * in. Any number a person put there — faster OR slower — is a decision and is
+ * left alone. Passing an explicit interval overrides that, because then a
+ * person is the one running the script.
  */
 export const COUNTER_POLL_MS = 20;
 
@@ -51,12 +63,14 @@ export async function setCounterPollRate(
     select: { id: true, name: true, pollIntervalMs: true },
   });
 
+  // An explicit --ms= is a person asking for a number, and overrides a setting.
+  // No argument means this is the boot-time seed, which may only fill a blank.
+  const asked = opts.intervalMs !== undefined;
+
   const changes: Array<{ device: string; from: number | null; to: number }> = [];
   for (const d of devices) {
-    // Only ever make it faster. A plant that has deliberately slowed a device —
-    // a flaky link, a device that cannot take the traffic — has made a decision,
-    // and a seed that runs on every boot must not keep overriding it.
-    if (d.pollIntervalMs !== null && d.pollIntervalMs <= target) continue;
+    if (d.pollIntervalMs !== null && !asked) continue;
+    if (d.pollIntervalMs === target) continue;
     changes.push({ device: d.name, from: d.pollIntervalMs, to: target });
     if (!opts.dryRun) {
       await prisma.device.update({ where: { id: d.id }, data: { pollIntervalMs: target } });

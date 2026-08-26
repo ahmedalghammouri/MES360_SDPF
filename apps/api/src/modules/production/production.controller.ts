@@ -971,6 +971,46 @@ export class ProductionController {
     );
   }
 
+  // ── Taking a broken machine out of the line ─────────────────────────
+
+  @Get('work-orders/:id/step-bypass')
+  @RequirePermissions('production:read')
+  @ApiOperation({
+    summary: 'Every step of the order, which are bypassed, and which one the line output '
+      + 'is currently read from',
+  })
+  async getStepBypass(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.productionService.getStepBypass(user.factoryId, id);
+  }
+
+  /**
+   * Bypass a step whose machine has gone out of service, or put it back.
+   *
+   * Password-gated: this moves the point the WHOLE LINE's good output is read
+   * from, on every screen and in both calculation engines at once. The gate is
+   * a deliberate pause, not authentication — `production:execute` and the audit
+   * record are what say who did it.
+   */
+  @Patch('job-orders/:id/bypass')
+  @RequirePermissions('production:execute')
+  @AuditLog('JOB_ORDER_BYPASS')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Take a step out of the line (or put it back). Requires the supervisor password, '
+      + 'and refuses to leave an order with no step counting.',
+  })
+  async setStepBypass(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { bypassed: boolean; password: string; reason?: string },
+  ) {
+    return this.productionService.setStepBypass(user.factoryId, user.id, id, {
+      bypassed: !!body.bypassed,
+      password: body.password,
+      reason: body.reason,
+    });
+  }
+
   // ── An order's own planned stops ─────────────────────────────────────────
 
   @Get('production-orders/:id/stop-plan')

@@ -45,6 +45,7 @@ import { isTrendBucket, type TrendBucket } from '../../common/trend-bucket.util'
 // re-derived: two implementations of "merge these spans" is how the same
 // window ends up counted once in one place and four times in another.
 import { merge, spanMinutes, type Span } from '../oee-standard/minute-classification';
+import { canBypass, canRestore, outputStepAfter, checkBypassPassword, type BypassStep } from './step-bypass';
 
 const VALID_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   PLANNED: ['RELEASED', 'IN_PROGRESS', 'CANCELLED'],
@@ -4262,6 +4263,99 @@ export class ProductionService implements OnApplicationBootstrap {
    * to start; a step that was already running is not an error worth refusing
    * the other three for.
    */
+  // ── Taking a step out of the line ───────────────────────────────────
+
+  /**
+   * What the tablet needs to draw the bypass control and its confirmation:
+   * every step of this work order, which are bypassed, and which one the line's
+   * output is read from right now.
+   */
+  async getStepBypass(factoryId: string | null, workOrderId: string) {
+    const steps = await this.prisma.jobOrder.findMany({
+      where: { workOrderId, ...(factoryId ? { factoryId } : {}) },
+      orderBy: { sequenceOrder: 'asc' },
+      select: {
+        id: true, sequenceOrder: true, operationName: true, status: true,
+        bypassedAt: true, bypassedBy: true, bypassReason: true,
+        actualQtyGood: true, actualQtyRejected: true,
+        machine: { select: { code: true, name: true } },
+      },
+    });
+    const lite: BypassStep[] = steps.map((s) => ({
+      id: s.id, sequenceOrder: s.sequenceOrder, operationName: s.operationName,
+      machineCode: s.machine?.code ?? null, bypassedAt: s.bypassedAt,
+    }));
+    const current = outputStepAfter(lite);
+    return {
+      workOrderId,
+      outputStepId: current?.id ?? null,
+      steps: steps.map((s) => ({
+        id: s.id,
+        sequenceOrder: s.sequenceOrder,
+        operationName: s.operationName,
+        status: s.status,
+        machineCode: s.machine?.code ?? null,
+        machineName: s.machine?.name ?? null,
+        good: s.actualQtyGood,
+        rejected: s.actualQtyRejected,
+        bypassedAt: s.bypassedAt,
+        bypassedBy: s.bypassedBy,
+        bypassReason: s.bypassReason,
+        isOutputStep: current?.id === s.id,
+        // What the confirmation dialog reads out before asking for a password.
+        outputMovesTo: s.bypassedAt ? null : (outputStepAfter(lite, s.id)?.id ?? null),
+      })),
+    };
+  }
+
+  /**
+   * Bypass a step, or put it back.
+   *
+   * This changes which machine the WHOLE LINE's output is read from, on every
+   * screen and in both engines at once — so it is gated on a password, refuses
+   * to leave an order with no counting step, and records who did it and why.
+   */
+  async setStepBypass(
+    factoryId: string | null,
+    userId: string | null,
+    jobOrderId: string,
+    dto: { bypassed: boolean; password: string; reason?: string },
+  ) {
+    const jo = await this.prisma.jobOrder.findFirst({
+      where: { id: jobOrderId, ...(factoryId ? { factoryId } : {}) },
+      select: { id: true, workOrderId: true },
+    });
+    if (!jo) throw new NotFoundException('Job order not found');
+
+    const gate = checkBypassPassword(dto.password);
+    if (!gate.ok) throw new BadRequestException(gate.reason);
+
+    const steps = await this.prisma.jobOrder.findMany({
+      where: { workOrderId: jo.workOrderId, ...(factoryId ? { factoryId } : {}) },
+      orderBy: { sequenceOrder: 'asc' },
+      select: {
+        id: true, sequenceOrder: true, operationName: true, bypassedAt: true,
+        machine: { select: { code: true } },
+      },
+    });
+    const lite: BypassStep[] = steps.map((x) => ({
+      id: x.id, sequenceOrder: x.sequenceOrder, operationName: x.operationName,
+      machineCode: x.machine?.code ?? null, bypassedAt: x.bypassedAt,
+    }));
+
+    const verdict = dto.bypassed ? canBypass(lite, jobOrderId) : canRestore(lite, jobOrderId);
+    if (!verdict.ok) throw new BadRequestException(verdict.reason);
+
+    await this.prisma.jobOrder.update({
+      where: { id: jobOrderId },
+      data: dto.bypassed
+        ? { bypassedAt: new Date(), bypassedBy: userId, bypassReason: dto.reason?.trim() || null }
+        : { bypassedAt: null, bypassedBy: null, bypassReason: null },
+    });
+
+    return this.getStepBypass(factoryId, jo.workOrderId);
+  }
+
   async setWorkOrderJobStatuses(
     factoryId: string | null,
     userId: string | null,

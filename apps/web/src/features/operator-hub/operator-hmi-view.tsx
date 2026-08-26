@@ -20,7 +20,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Play, Pause, CheckSquare, Plus, AlertTriangle, Loader2, Package, Clock, Factory,
-  Cpu, Layers, RotateCcw,
+  Cpu, Layers, RotateCcw, Unplug, ShieldAlert, Undo2,
 } from 'lucide-react';
 
 import { api } from '@/services/api.client';
@@ -44,6 +44,12 @@ interface JO {
   operatorId?: string;
   workOrder?: { id: string; orderNumber: string; sku?: { name: string; code: string } };
   machine?: { id?: string; name: string; code: string };
+  // Routing position, and whether this step is out of the line. Needed to work
+  // out which machine the line total is read from -- see BypassDialog.
+  workOrderId?: string;
+  sequenceOrder?: number;
+  bypassedAt?: string | null;
+  bypassReason?: string | null;
 }
 
 const ACTIVE: JOStatus[] = ['EXECUTING', 'PAUSED', 'READY'];
@@ -222,6 +228,38 @@ export function OperatorHmiView() {
     onError: (e: any) => toast({ variant: 'destructive', title: 'Adjust failed', description: e?.response?.data?.message }),
   });
 
+  /**
+   * Take a machine out of the line, or put it back.
+   *
+   * The line's good total is read from the LAST step product passes through.
+   * When that machine breaks, product leaves the line one station earlier and
+   * the total has to follow it — otherwise the line reports whatever the dead
+   * machine last counted, for the rest of the order.
+   */
+  const [bypassFor, setBypassFor] = useState<JO | null>(null);
+  const bypass = useMutation({
+    mutationFn: ({ id, bypassed, password, reason }: {
+      id: string; bypassed: boolean; password: string; reason?: string;
+    }) => api.patch(`/production/job-orders/${id}/bypass`, { bypassed, password, reason }),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ['shop-floor-jobs'] });
+      qc.invalidateQueries({ queryKey: ['step-bypass'] });
+      setBypassFor(null);
+      toast({
+        title: vars.bypassed ? 'Machine taken out of the line' : 'Machine back in the line',
+        description: vars.bypassed
+          ? 'The line total is now read from the step before it.'
+          : 'The line total is read from this machine again.',
+      });
+    },
+    // The password failure lands here, and the dialog stays open on purpose so
+    // it can be retyped without starting over.
+    onError: (e: any) => toast({
+      variant: 'destructive', title: 'Bypass refused',
+      description: e?.response?.data?.message ?? 'Could not change this step.',
+    }),
+  });
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
       {/* Shift strip */}
@@ -296,6 +334,21 @@ export function OperatorHmiView() {
                   <div className="h-full bg-sky-500 transition-all" style={{ width: `${pct}%` }} />
                 </div>
 
+                {/* Out of the line — stated on the card, not hidden in a menu, because
+                    it changes where the LINE's total comes from. */}
+                {jo.bypassedAt && (
+                  <div className="flex items-start gap-2 mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                    <Unplug size={15} className="text-amber-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-amber-400">Out of the line</div>
+                      <div className="text-[11px] text-foreground/60 leading-snug">
+                        The line total is read from the step before this one.
+                        {jo.bypassReason ? ` · ${jo.bypassReason}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Primary actions — large touch targets */}
                 <div className="grid grid-cols-3 gap-2">
                   {running ? (
@@ -306,6 +359,23 @@ export function OperatorHmiView() {
                   <ActionBtn onClick={() => setCountFor(jo)} icon={<Plus size={18} />} label="Count" tone="sky" />
                   <ActionBtn onClick={() => transition.mutate({ id: jo.id, status: 'COMPLETE' })} icon={<CheckSquare size={18} />} label="Complete" tone="emerald" />
                 </div>
+
+                {/* Deliberately BELOW the three, smaller and quieter: it is rare,
+                    and it is not one of the actions an operator reaches for on a
+                    normal shift. */}
+                <button
+                  onClick={() => setBypassFor(jo)}
+                  className={cn(
+                    'w-full mt-2 h-10 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95 border',
+                    jo.bypassedAt
+                      ? 'border-emerald-500/30 text-emerald-400 active:bg-emerald-500/15'
+                      : 'border-border/60 text-foreground/55 active:bg-muted/60',
+                  )}
+                >
+                  {jo.bypassedAt
+                    ? <><Undo2 size={14} /> Put this machine back in the line</>
+                    : <><Unplug size={14} /> Machine out of service — bypass it</>}
+                </button>
               </div>
             );
           })}
@@ -335,6 +405,17 @@ export function OperatorHmiView() {
             if (mode === 'set') setOutput.mutate({ id: countFor.id, actualQtyGood: g, actualQtyRejected: s, scrapCategory: cat, scrapReason: reason });
             else addCount.mutate({ id: countFor.id, goodDelta: g, scrapDelta: s, scrapCategory: cat, scrapReason: reason });
           }}
+        />
+      )}
+
+      {bypassFor && (
+        <BypassDialog
+          jo={bypassFor}
+          pending={bypass.isPending}
+          onClose={() => setBypassFor(null)}
+          onConfirm={(password, reason) => bypass.mutate({
+            id: bypassFor.id, bypassed: !bypassFor.bypassedAt, password, reason,
+          })}
         />
       )}
     </div>
@@ -486,6 +567,168 @@ function CountDialog({ jo, onClose, onSubmit, pending }: {
             className="flex-1 h-11 rounded-xl bg-sky-500 text-white font-semibold text-sm active:scale-95 disabled:opacity-50"
           >
             {pending ? 'Saving…' : mode === 'set' ? 'Save correction' : 'Save count'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Taking a machine out of the line — the confirmation.
+ *
+ * ── What the operator is actually agreeing to ───────────────────────────────
+ * Not "disable a machine". The line's good total is read from the LAST step a
+ * unit passes through, so bypassing that step moves the number the whole line
+ * is judged on to a different machine. The dialog therefore leads with the
+ * sentence that says so, naming both machines, BEFORE it asks for anything.
+ *
+ * The consequence is computed here from the same rule the server applies — the
+ * last step that is neither bypassed nor the one being bypassed now. The server
+ * decides for real and refuses if it disagrees; this is what the operator reads.
+ *
+ * ── Why a password ──────────────────────────────────────────────────────────
+ * Because the change is rare, wide, and easy to make with a thumb. It is a
+ * deliberate pause, not a login: the endpoint's permission check and the audit
+ * record are what say who did it.
+ */
+function BypassDialog({ jo, onClose, onConfirm, pending }: {
+  jo: JO;
+  onClose: () => void;
+  onConfirm: (password: string, reason: string) => void;
+  pending: boolean;
+}) {
+  const [password, setPassword] = useState('');
+  const [reason, setReason] = useState('');
+  const restoring = !!jo.bypassedAt;
+
+  /**
+   * The consequence comes from the SERVER, not from a copy of the rule here.
+   *
+   * "Which step is the line's output read from" is one rule, and it already
+   * exists twice — once in TypeScript for the live path, once in SQL for the
+   * minute store. A third copy in this dialog could drift, and its way of
+   * failing would be the worst of the three: the operator agrees to a sentence
+   * that is not what happens.
+   */
+  const { data: plan, isLoading: planLoading, isError: planError } = useQuery<any>({
+    queryKey: ['step-bypass', jo.workOrderId],
+    queryFn: () => api.get(`/production/work-orders/${jo.workOrderId}/step-bypass`),
+    enabled: !!jo.workOrderId,
+  });
+
+  const steps: any[] = plan?.steps ?? [];
+  const byId = (id?: string | null) => steps.find((x) => x.id === id) ?? null;
+  const nameOf = (x: any) => x?.machineName ?? x?.machineCode ?? x?.operationName ?? '—';
+
+  const me = byId(jo.id);
+  const before = byId(plan?.outputStepId);
+  // The server worked this out with the same function it will use to act.
+  const after = restoring
+    ? // Restoring puts this step back; it is the latest, so it becomes the one.
+      (steps.filter((x) => !x.bypassedAt || x.id === jo.id).slice(-1)[0] ?? null)
+    : byId(me?.outputMovesTo);
+
+  // Saying this here means the operator does not type a password to be told no.
+  const liveSteps = steps.filter((x) => !x.bypassedAt);
+  const blocked = !planLoading && !planError
+    && (steps.length === 0 || (!restoring && liveSteps.length <= 1));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4"
+      role="dialog" aria-modal="true" aria-labelledby="bypass-title">
+      <div className="w-full sm:max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl p-5 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center gap-2 mb-1">
+          {restoring ? <Undo2 size={18} className="text-emerald-400" /> : <ShieldAlert size={18} className="text-amber-400" />}
+          <h3 id="bypass-title" className="text-base font-bold text-foreground">
+            {restoring ? 'Put this machine back in the line?' : 'Take this machine out of the line?'}
+          </h3>
+        </div>
+        <p className="text-xs text-foreground/50 mb-4">{nameOf(jo)} · {jo.operationName}</p>
+
+        {planLoading ? (
+          <div className="flex items-center gap-2 text-xs text-foreground/50 py-6">
+            <Loader2 size={14} className="animate-spin" /> Working out what this changes…
+          </div>
+        ) : planError ? (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 mb-4">
+            <div className="text-xs font-bold text-red-400 mb-1">Cannot check this right now</div>
+            <p className="text-[11px] text-foreground/70 leading-relaxed">
+              The line steps could not be loaded, so this screen cannot say which machine the
+              total would move to. Try again rather than guessing.
+            </p>
+          </div>
+        ) : blocked ? (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 mb-4">
+            <div className="text-xs font-bold text-red-400 mb-1">This one cannot be bypassed</div>
+            <p className="text-[11px] text-foreground/70 leading-relaxed">
+              It is the last step still counting. Bypassing it would leave the order with no
+              machine to read output from, and the line would report that it produced nothing.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-xl bg-muted/50 p-3 mb-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-foreground/45 mb-1.5">
+              What changes
+            </div>
+            <p className="text-sm text-foreground leading-relaxed">
+              The line’s good total is read from{' '}
+              <b className="text-foreground">{nameOf(before)}</b> today. After this it will be read from{' '}
+              <b className={restoring ? 'text-emerald-400' : 'text-amber-400'}>{nameOf(after)}</b>.
+            </p>
+            <p className="text-[11px] text-foreground/50 mt-2 leading-relaxed">
+              This applies to the whole work order, on every screen — not only from now on.
+              Scrap already recorded on {nameOf(jo)} still counts as scrap.
+            </p>
+          </div>
+        )}
+
+        {!blocked && !planLoading && !planError && (
+          <>
+            {!restoring && (
+              <label className="block mb-3">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground/45">
+                  Why (optional)
+                </span>
+                <input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Wrapping table gearbox failed"
+                  className="mt-1 w-full h-11 px-3 rounded-xl bg-muted/40 border border-border text-sm text-foreground"
+                />
+              </label>
+            )}
+
+            <label className="block mb-4">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground/45">
+                Supervisor password
+              </span>
+              <input
+                type="password"
+                inputMode="numeric"
+                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && password) onConfirm(password, reason); }}
+                className="mt-1 w-full h-12 px-3 rounded-xl bg-muted/40 border border-border text-lg tracking-widest text-foreground"
+              />
+            </label>
+          </>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={onClose}
+            className="h-12 rounded-xl border border-border/60 text-sm font-semibold text-foreground/70 active:bg-muted/60">
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(password, reason)}
+            disabled={blocked || planLoading || planError || !password || pending}
+            className={cn('h-12 rounded-xl text-sm font-bold flex items-center justify-center gap-2 active:scale-95 transition',
+              restoring ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400',
+              (blocked || planLoading || planError || !password || pending) && 'opacity-40 pointer-events-none')}>
+            {pending ? <Loader2 size={16} className="animate-spin" /> : null}
+            {restoring ? 'Put it back' : 'Bypass it'}
           </button>
         </div>
       </div>

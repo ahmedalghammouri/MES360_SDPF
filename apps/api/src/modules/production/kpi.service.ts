@@ -44,6 +44,9 @@ type JoLite = {
   plannedStart: Date | null; plannedEnd: Date | null;
   actualStart: Date | null; actualEnd: Date | null;
   sequenceOrder: number;
+  /// Set when this step is out of service — see JobOrder.bypassedAt. Optional
+  /// because a caller that does not select it must behave as it always did.
+  bypassedAt?: Date | null;
   // optional — only the analytics queries enrich these for base-unit-correct output
   outputUnit?: string | null;
   workOrderId?: string | null; // groups a routed WO's steps so output = its FINAL step
@@ -67,6 +70,9 @@ const JO_SELECT = {
   id: true, machineId: true, status: true, idealCycleTimeSec: true,
   actualQtyGood: true, actualQtyRejected: true,
   plannedStart: true, plannedEnd: true, actualStart: true, actualEnd: true, sequenceOrder: true,
+  // Without this the bypass would be invisible to every caller of JO_SELECT,
+  // and `finalStepCounts` would quietly go on using the broken machine.
+  bypassedAt: true,
 } as const;
 const DT_SELECT = {
   machineId: true, startTime: true, endTime: true, durationMinutes: true, isPlanned: true, affectsOEE: true,
@@ -176,6 +182,7 @@ export const MINUTE_FACTS = Prisma.sql`(
     o."jobOrderId", o."workOrderId", o."shiftTemplateId", o."shiftCode",
     o."machineState", o."isFinalized",
     j."sequenceOrder", j."operationName",
+    (j."bypassedAt" IS NOT NULL)                  AS bypassed,
     w."productionOrderId", w."skuId",
     m."areaId", m."lineId",
     'MINUTE' AS granularity,
@@ -201,6 +208,31 @@ export const MINUTE_FACTS = Prisma.sql`(
   JOIN job_orders j ON j.id = o."jobOrderId"
   LEFT JOIN work_orders w ON w.id = o."workOrderId"
   LEFT JOIN machines m ON m.id = o."machineId"
+)`;
+
+/**
+ * The final routing step of a work order — the ONE definition.
+ *
+ * A unit passing four stations is one unit, not four, so the line's good output
+ * is the good output of the last step it goes through. That rule was written
+ * out separately in five places; this is the only copy now, because five copies
+ * of a rule is five chances for one of them to be the odd one out.
+ *
+ * ── The bypass ─────────────────────────────────────────────────────
+ * A bypassed step is out of service: product leaves the line one station
+ * earlier, so the step before it becomes final. Bypassed steps are excluded
+ * here, which is what makes the tablet's switch reach every engine at once.
+ *
+ * ── Why the COALESCE ───────────────────────────────────────────────
+ * If EVERY step were bypassed the FILTER would yield NULL, nothing would join,
+ * and the line would report zero output — a silent, total loss of production
+ * figures. The API refuses to bypass the last un-bypassed step, so this should
+ * be unreachable; it is here because "should be unreachable" is not a guarantee
+ * anyone should bet a shift's numbers on.
+ */
+export const FINAL_STEP = Prisma.sql`COALESCE(
+  MAX("sequenceOrder") FILTER (WHERE NOT bypassed),
+  MAX("sequenceOrder")
 )`;
 
 export interface MachineFactTotals {
@@ -701,7 +733,17 @@ export class KpiService {
       const toBase = (qty: number, unit?: string | null) =>
         sku && unit ? toPieces(qty, unit, sku) : qty;
       // Good = FINAL step's good output (what actually left the line).
-      const final = ordered[ordered.length - 1];
+      //
+      // A BYPASSED step is out of service, so product leaves the line one
+      // station earlier and the step before it becomes final. This is the TS
+      // half of `FINAL_STEP`; the SQL half is the same rule, and the pair is
+      // held together by final-step-bypass.spec.ts.
+      //
+      // The `?? last` is the same guard as the SQL COALESCE: if somebody
+      // bypassed every step, report the true last step rather than silently
+      // reporting that the line produced nothing.
+      const live = ordered.filter((j) => !j.bypassedAt);
+      const final = live[live.length - 1] ?? ordered[ordered.length - 1];
       good += toBase(final.actualQtyGood ?? 0, final.outputUnit);
       // Scrap = rejects at every step (a unit can be lost at any stage).
       for (const jo of ordered) scrap += toBase(jo.actualQtyRejected ?? 0, jo.outputUnit);
@@ -972,7 +1014,7 @@ export class KpiService {
         FROM scoped GROUP BY d
       ),
       -- Final step per work order per day, for the same reason as above.
-      fin AS (SELECT d, "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY d, "workOrderId"),
+      fin AS (SELECT d, "workOrderId", ${FINAL_STEP} ms FROM scoped GROUP BY d, "workOrderId"),
       q AS (
         SELECT s.d, SUM(s."totalBase")::float AS "totalBase", SUM(s."goodBase")::float AS "goodBase"
         FROM scoped s JOIN fin f ON f.d = s.d AND f."workOrderId" = s."workOrderId" AND f.ms = s."sequenceOrder"
@@ -1569,7 +1611,7 @@ export class KpiService {
     const where = this.snapWhere(factoryId, from, to, machineIds);
     const rows = await this.prisma.$queryRaw<any[]>(Prisma.sql`
       WITH scoped AS (SELECT * FROM ${MINUTE_FACTS} snap WHERE ${where}),
-           fin AS (SELECT ${col} AS gk, "workOrderId" AS wo, MAX("sequenceOrder") ms FROM scoped GROUP BY ${col}, "workOrderId")
+           fin AS (SELECT ${col} AS gk, "workOrderId" AS wo, ${FINAL_STEP} ms FROM scoped GROUP BY ${col}, "workOrderId")
       SELECT ${col} AS key, ${this.snapMetricCols('f')}
       FROM scoped s JOIN fin f ON f.gk = ${col} AND f.wo = s."workOrderId"
       GROUP BY ${col}`);

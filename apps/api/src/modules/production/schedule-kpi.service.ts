@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MINUTE_FACTS } from './kpi.service';
+import { MINUTE_FACTS, FINAL_STEP } from './kpi.service';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '@prisma/client';
 import { toPieces } from '../../common/units.util';
@@ -457,7 +457,7 @@ export class ScheduleKpiService {
           AND "bucketStart" < ${to}
       ),
       fin AS (
-        SELECT "workOrderId", MAX("sequenceOrder") ms FROM scoped GROUP BY "workOrderId"
+        SELECT "workOrderId", ${FINAL_STEP} ms FROM scoped GROUP BY "workOrderId"
       ),
       daily AS (
         SELECT s.d, s."productionOrderId",

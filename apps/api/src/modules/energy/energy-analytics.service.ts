@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { plantDayKey, plantHourKey, plantWeekKey } from '../../common/plant-time.util';
 import { smallestLadderUnit } from '../../common/units.util';
+import { FINAL_STEP } from '../production/kpi.service';
 
 /**
  * EnergyAnalyticsService — multi-dimensional energy analysis.
@@ -507,7 +508,8 @@ export class EnergyAnalyticsService {
     }>>(Prisma.sql`
       WITH scoped AS (
         SELECT o."machineId", o."workOrderId", o."bucketStart", o."shiftCode",
-               o."goodParts", j."sequenceOrder"
+               o."goodParts", j."sequenceOrder",
+               (j."bypassedAt" IS NOT NULL) AS bypassed
         FROM oee_minutes o
         JOIN job_orders j ON j.id = o."jobOrderId"
         WHERE o."machineId" IN (${Prisma.join(machineIds)})
@@ -515,9 +517,11 @@ export class EnergyAnalyticsService {
           ${factoryId ? Prisma.sql`AND o."factoryId" = ${factoryId}` : Prisma.empty}
       ),
       -- The last step of each work order. Its good count IS the work order's
-      -- output; the earlier steps made the same units.
+      -- output; the earlier steps made the same units. This query builds its own
+      -- scoped set rather than reading MINUTE_FACTS, so the shared FINAL_STEP
+      -- fragment is applied here over the same two columns it needs.
       fin AS (
-        SELECT s2."workOrderId", MAX(s2."sequenceOrder") AS ms
+        SELECT s2."workOrderId", ${FINAL_STEP} AS ms
         FROM scoped s2 GROUP BY s2."workOrderId"
       )
       SELECT s."goodParts"::float8 AS "goodBase",
