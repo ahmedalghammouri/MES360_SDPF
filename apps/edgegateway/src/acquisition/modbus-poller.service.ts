@@ -119,6 +119,68 @@ export class ModbusPollerService implements OnModuleDestroy {
     }
   }
 
+  /**
+   * Counter tags that exist in the database but are not, and cannot be, polled.
+   *
+   * ── Why this is worth a warning ─────────────────────────────────────────────
+   * A tag deleted from the UI leaves its row behind — detached from its device
+   * (`deviceId` null) or simply deactivated. The poller already ignores them,
+   * because it loads tags THROUGH a device and filters on `isActive`. So they do
+   * no harm to the reading.
+   *
+   * What they do harm is every diagnosis after them. On this plant seven such
+   * counters were carrying stale `gateway_counter_states` rows with totals of
+   * 5477, 2300 and 338 — numbers that look exactly like live counts to anyone
+   * reading the table, and that cost real time during the 25 Aug investigation.
+   * They also make an address collision invisible: two rows can claim one input
+   * while only one of them is live, and nothing says which.
+   *
+   * Reported ONCE per process, with the ids, so the list can be acted on rather
+   * than merely noticed. Never deleted here — this service reads configuration,
+   * it does not get to decide what the plant keeps.
+   */
+  private orphansReported = false;
+
+  private async auditOrphanTags(): Promise<void> {
+    if (this.orphansReported) return;
+    this.orphansReported = true;
+    try {
+      const rows = await this.prisma.tagDefinition.findMany({
+        where: {
+          tagType: 'COUNTER',
+          OR: [{ deviceId: null }, { isActive: false }],
+        },
+        select: {
+          id: true, code: true, isActive: true, deviceId: true, address: true,
+          machine: { select: { code: true } },
+        },
+        orderBy: { code: 'asc' },
+      });
+      if (rows.length === 0) return;
+
+      const withState = await this.prisma.gatewayCounterState.findMany({
+        where: { tagId: { in: rows.map((r) => r.id) } },
+        select: { tagId: true, accumulated: true },
+      });
+      const acc = new Map(withState.map((w) => [w.tagId, w.accumulated]));
+
+      const lines = rows.map((r) => {
+        const why = r.deviceId === null ? 'no device' : 'inactive';
+        const carried = acc.get(r.id);
+        return `  ${r.machine?.code ?? '—'} ${r.code} (${why}, address ${r.address ?? '—'})`
+          + (carried ? ` — still carries a stored count of ${carried}` : '');
+      });
+      this.logger.warn(
+        `${rows.length} counter tag(s) exist in the database but are not polled. `
+        + 'They cannot affect a reading, but a stored count on one of them looks '
+        + 'identical to a live count to anyone reading the table:\n'
+        + lines.join('\n'),
+      );
+    } catch {
+      // A configuration audit must never be the reason polling does not start.
+    }
+  }
+
   /** Reconcile runtime against DB config every 10s (also the first load). */
   @Interval('poller-reload', 10_000)
   async reload() {
@@ -145,6 +207,9 @@ export class ModbusPollerService implements OnModuleDestroy {
 
     const seen = new Set<string>();
     const defaultInterval = this.config.get<number>('defaultPollIntervalMs') ?? 1000;
+
+    // Say once what is in the database but not in the plant.
+    void this.auditOrphanTags();
 
     // Which tags may drive machine state, decided across ALL devices before any
     // is rebuilt — the rules are about a MACHINE, and a machine's signals can be

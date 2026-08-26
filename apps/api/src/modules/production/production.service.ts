@@ -3587,6 +3587,12 @@ export class ProductionService implements OnApplicationBootstrap {
       machine: machines.length ? (machines.length === 1 ? machines[0].name : `${machines.length} machines`) : '',
       machineCode: machines[0]?.code ?? '',
       line: wo.line?.name ?? '',
+      // Both needed by the auto-start indicator: whether it is armed, and which
+      // line it would contend for. Without the id the browser cannot tell two
+      // lines apart by name alone, and "is something blocking it" is exactly
+      // the question the indicator exists to answer.
+      lineId: wo.lineId ?? null,
+      autoStart: wo.autoStart ?? false,
       operator: wo.operator?.name ?? '',
       supervisor: wo.supervisor?.name ?? '',
       oee: wo.oee,

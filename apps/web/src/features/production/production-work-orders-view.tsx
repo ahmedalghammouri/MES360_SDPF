@@ -8,7 +8,7 @@ import {
   CheckCircle, Pencil, Trash2, XCircle, ChevronDown,
   Factory, Cpu, User, Clock, BarChart3, Package,
   ClipboardCheck, CheckCircle2, AlertCircle, Layers,
-  CheckSquare, Circle, GitBranch,
+  CheckSquare, Circle, GitBranch, Zap, ZapOff,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
@@ -69,7 +69,89 @@ interface WorkOrder {
   plannedQty: number; actualQty: number; goodQty: number; scrapQty: number; reworkQty?: number;
   progress: number; oee?: number; availability?: number; performance?: number; quality?: number;
   plannedStart: string; plannedEnd: string; actualStart?: string; actualEnd?: string;
+  /** Armed to start itself when its planned time arrives. */
+  autoStart?: boolean;
+  /** Which line it would contend for — two lines can share a name. */
+  lineId?: string | null;
   materialStatus?: 'OK' | 'AWAITING_MATERIALS' | 'SCHEDULED_FOR_DELIVERY'; materialReadyDate?: string | null;
+}
+
+/** How long before its planned start an armed order is worth watching. */
+const DUE_SOON_MIN = 30;
+/** The scheduler's own grace window — past this it will not start at all. */
+const AUTO_START_GRACE_MIN = 4 * 60;
+
+/**
+ * What auto-start is about to do with this order, decided from the same facts
+ * the scheduler uses.
+ *
+ * Computed in the browser from rows already on the page rather than fetched:
+ * the list holds every order and its line, which is exactly what "is something
+ * blocking it" needs. A second endpoint would be a second copy of the rule, and
+ * a second chance for the two to disagree.
+ */
+type AutoState = 'off' | 'armed' | 'soon' | 'held' | 'stale';
+
+function autoStartState(order: WorkOrder, all: WorkOrder[], now: number): AutoState {
+  if (!order.autoStart) return 'off';
+  if (!now) return 'armed'; // before the clock is set — see nowMs
+  if (!['PLANNED', 'RELEASED'].includes(order.status)) return 'armed';
+
+  const start = new Date(order.plannedStart).getTime();
+  const lateMin = (now - start) / 60_000;
+
+  // Past the scheduler's window it will not fire at all — the loudest state,
+  // because nothing further will happen without a person.
+  if (lateMin > AUTO_START_GRACE_MIN) return 'stale';
+
+  // Due or nearly due AND the line is taken. This is the 25 August shape, and
+  // the one worth catching before it happens rather than after.
+  const blocked = !!order.lineId && all.some(
+    (o) => o.id !== order.id && o.lineId === order.lineId && o.status === 'IN_PROGRESS',
+  );
+  if (lateMin > -DUE_SOON_MIN && blocked) return 'held';
+  if (lateMin > -DUE_SOON_MIN) return 'soon';
+  return 'armed';
+}
+
+/**
+ * The auto-start indicator: state, and a click to arm or disarm.
+ *
+ * Colour is never the only signal — each state carries its own icon and a title
+ * that says what will happen next, because "is this going to start itself" is a
+ * question an operator asks at a glance and must not have to decode.
+ *
+ * `held` and `stale` pulse. Nothing else does: a row that draws attention when
+ * nothing is wrong teaches people to ignore it.
+ */
+function AutoStartPill({
+  state, pending, onToggle,
+}: { state: AutoState; pending: boolean; onToggle: () => void }) {
+  const look: Record<AutoState, { cls: string; icon: React.ReactNode; title: string }> = {
+    off:   { cls: 'text-muted-foreground/40 hover:text-muted-foreground',
+             icon: <ZapOff size={14} />, title: 'Auto-start off — click to arm' },
+    armed: { cls: 'text-primary/70 hover:text-primary',
+             icon: <Zap size={14} />, title: 'Auto-start armed — will start at its planned time' },
+    soon:  { cls: 'text-primary',
+             icon: <Zap size={14} />, title: 'Auto-start due shortly — the line is free' },
+    held:  { cls: 'text-amber-500 animate-pulse',
+             icon: <Zap size={14} />, title: 'Due, but another order is running on this line — auto-start is holding it back' },
+    stale: { cls: 'text-red-500 animate-pulse',
+             icon: <ZapOff size={14} />, title: 'Overdue past the auto-start window — it will NOT start on its own' },
+  };
+  const v = look[state];
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      title={v.title}
+      aria-label={v.title}
+      className={cn('inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors disabled:opacity-40', v.cls)}
+    >
+      {v.icon}
+    </button>
+  );
 }
 
 interface WorkOrderDetail extends WorkOrder {
@@ -415,6 +497,22 @@ export function ProductionWorkOrdersView() {
     refetchInterval: 30_000,
   });
   const orders: WorkOrder[] = (workOrdersData as any)?.data ?? [];
+
+  /**
+   * A clock for the auto-start indicator, ticking every half minute.
+   *
+   * Null until after mount, and never read during render on the server: the
+   * pill's state depends on "now", and a value the server computed would differ
+   * from the browser's and hydrate as a mismatch. Every row simply reads as
+   * armed for the first tick, which is the honest thing to show before the
+   * page knows what time it is.
+   */
+  const [nowMs, setNowMs] = React.useState(0);
+  React.useEffect(() => {
+    setNowMs(Date.now());
+    const id = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
   const total: number = (workOrdersData as any)?.total ?? 0;
 
   // ── Smart preview for the Create form (same intelligence as Auto-Generate):
@@ -610,6 +708,7 @@ export function ProductionWorkOrdersView() {
                   <SortableHeader column="plannedQty" label={t('col.qty')} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                   <SortableHeader column="plannedEnd" label={t('col.plannedEnd')} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                   <SortableHeader column="oee" label={t('col.oee')} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground" title="Auto-start">Auto</th>
                   <th className="px-4 py-3 text-end text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('col.actions')}</th>
                 </TableRow>
               </TableHeader>
@@ -617,14 +716,14 @@ export function ProductionWorkOrdersView() {
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i} className="border-border/20">
-                      {Array.from({ length: 10 }).map((_, j) => (
+                      {Array.from({ length: 11 }).map((_, j) => (
                         <TableCell key={j}><div className="shimmer h-3.5 rounded w-20" /></TableCell>
                       ))}
                     </TableRow>
                   ))
                 ) : orders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-12 text-muted-foreground text-sm">{t('noWorkOrders')}</TableCell>
+                    <TableCell colSpan={11} className="text-center py-12 text-muted-foreground text-sm">{t('noWorkOrders')}</TableCell>
                   </TableRow>
                 ) : sortedOrders.map(order => {
                   // The bar tracks QUANTITY so it agrees with the qty cell beside it.
@@ -711,6 +810,13 @@ export function ProductionWorkOrdersView() {
                             {formatPercent(order.oee)}
                           </span>
                         )}
+                      </TableCell>
+                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <AutoStartPill
+                          state={autoStartState(order, orders, nowMs)}
+                          pending={updateMutation.isPending}
+                          onToggle={() => updateMutation.mutate({ id: order.id, dto: { autoStart: !order.autoStart } })}
+                        />
                       </TableCell>
                       <TableCell>
                         <TableRowActions

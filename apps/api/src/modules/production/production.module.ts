@@ -24,9 +24,10 @@ import { MaterialRequestController } from './material-request.controller';
 import { LiveController } from './live.controller';
 import { LiveKpiService } from './live-kpi.service';
 import { HistorianModule } from '../historian/historian.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [ApsModule, HistorianModule, OeeStandardModule, OeeScheduleModule],
+  imports: [ApsModule, HistorianModule, OeeStandardModule, OeeScheduleModule, NotificationsModule],
   controllers: [LiveController, MachineStatusController, ProductionController, DowntimeController, RecipeController, TraceabilityController, MaterialRequestController],
   providers: [
     CycleTimeSyncService,

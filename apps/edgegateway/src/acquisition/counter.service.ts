@@ -676,8 +676,14 @@ export class CounterService {
       p.reportedAt = now;
       this.logger.warn(
         `counter ${tag.id}: shortest signal level seen lasted ${p.minSamples} sample(s) / ${p.minMs}ms. `
-        + 'A pulse is only counted reliably when the device is polled several times faster than it lasts '
-        + "— lower this device's poll interval, or counts will be low.",
+        + 'A level this short can fail in EITHER direction and this measurement '
+        + 'cannot tell which: a real pulse narrower than the sample period is '
+        + 'MISSED and the count comes out low, while contact ring sampled twice '
+        + 'is COUNTED TWICE and the count comes out high. On 25 Aug 2026 this '
+        + 'plant had both at once — M1 reading 1.53x its mechanical ceiling while '
+        + 'M2 read 0.83x, on the same device on the same day. '
+        + "Lower this device's poll interval to see the true shape, then set a "
+        + "debounce from the machine's real cycle if the shape says ring.",
       );
     }
   }
