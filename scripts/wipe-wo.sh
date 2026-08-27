@@ -36,9 +36,31 @@ if [ -z "$WO" ]; then
 fi
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/.." && pwd)"
 PGC="${PGC:-mes-postgres-prod}"
 COMPOSE="${COMPOSE:-docker-compose.hostinger.yml}"
 PG="docker exec -i $PGC psql -U mes_user -d mes360"
+
+# ── The env file the compose stack is actually run with ─────────────────────
+# This plant runs `docker compose -f docker-compose.hostinger.yml --env-file
+# .env.hostinger`. Without the same --env-file, compose resolves ${POSTGRES_
+# PASSWORD} and the rest to empty and either refuses or -- worse -- acts on a
+# differently-configured stack. Picked up automatically, overridable with
+# ENV_FILE=..., and simply omitted when there is no such file.
+ENV_FILE="${ENV_FILE:-$ROOT/.env.hostinger}"
+COMPOSE_ARGS=(-f "$ROOT/$COMPOSE")
+[ -f "$ENV_FILE" ] && COMPOSE_ARGS+=(--env-file "$ENV_FILE")
+dc() { docker compose "${COMPOSE_ARGS[@]}" "$@"; }
+
+# Printed before anything happens, so acting on the wrong stack is visible
+# rather than discovered afterwards.
+echo "postgres : $PGC"
+if [ -f "$ENV_FILE" ]; then
+  echo "compose  : $COMPOSE  --env-file $(basename "$ENV_FILE")"
+else
+  echo "compose  : $COMPOSE  (no env file at $ENV_FILE)"
+fi
+echo
 
 hr() { printf '%s\n' "-------------------------------------------------------------------"; }
 
@@ -76,7 +98,7 @@ fi
 # ── 2. What would go ────────────────────────────────────────────────────────
 echo
 hr; echo "WHAT WOULD BE DELETED FROM $WO"; hr
-sed "s/WO-2026-0005/$WO/g" "$HERE/../apps/api/prisma/sql/wipe-work-order.sql" \
+sed "s/WO-2026-0005/$WO/g" "$ROOT/apps/api/prisma/sql/wipe-work-order.sql" \
   | sed -n '/^WITH wo AS/,/^ORDER BY 1;$/p' | $PG
 
 if [ "$APPLY" -ne 1 ]; then
@@ -92,7 +114,7 @@ fi
 if [ "$STOP_API" -eq 1 ]; then
   echo
   hr; echo "STOPPING THE API so it cannot hold a lock"; hr
-  docker compose -f "$HERE/../$COMPOSE" stop api
+  dc stop api
   # The gateway writes too, but it lives on the plant PC and is not ours to
   # stop from here. Its writes are short; the api's are the ones that overlap.
 fi
@@ -100,7 +122,7 @@ fi
 # ── 4. Do it ────────────────────────────────────────────────────────────────
 echo
 hr; echo "DELETING"; hr
-OUT=$( { sed "s/WO-2026-0005/$WO/g" "$HERE/../apps/api/prisma/sql/wipe-work-order.sql"; echo "COMMIT;"; } \
+OUT=$( { sed "s/WO-2026-0005/$WO/g" "$ROOT/apps/api/prisma/sql/wipe-work-order.sql"; echo "COMMIT;"; } \
        | $PG -v ON_ERROR_STOP=1 2>&1 )
 RC=$?
 echo "$OUT" | grep -E '^(BEGIN|SET|DELETE|UPDATE|COMMIT|ROLLBACK|ERROR|psql)' || true
@@ -108,7 +130,7 @@ echo "$OUT" | grep -E '^(BEGIN|SET|DELETE|UPDATE|COMMIT|ROLLBACK|ERROR|psql)' ||
 if [ "$STOP_API" -eq 1 ]; then
   echo
   hr; echo "STARTING THE API AGAIN"; hr
-  docker compose -f "$HERE/../$COMPOSE" start api
+  dc start api
 fi
 
 # ── 5. Say plainly whether it worked ────────────────────────────────────────
