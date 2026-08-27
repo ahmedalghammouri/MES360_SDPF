@@ -20,7 +20,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Play, Pause, CheckSquare, Plus, AlertTriangle, Loader2, Package, Clock, Factory,
-  Cpu, Layers, RotateCcw, Unplug, ShieldAlert, Undo2,
+  Cpu, Layers, RotateCcw, Unplug, ShieldAlert, Undo2, CalendarClock,
 } from 'lucide-react';
 
 import { api } from '@/services/api.client';
@@ -150,15 +150,42 @@ export function OperatorHmiView() {
   // Shop floor shows ONLY the job orders assigned to the logged-in operator, and
   // only the active ones (executing/ready/paused). The operator cannot reassign —
   // there is no assign control here (that stays with supervisors/managers).
-  const jobs = useMemo(
+  /**
+   * Which cards to show.
+   *
+   * Two work orders can be on the floor at once -- 25 Aug 2026 had exactly that
+   * -- and "everything active" then means five cards from two orders on one
+   * tablet screen. The operator is looking for one of three things: what is
+   * running, what they paused and have to come back to, or what is queued next.
+   * Those are the filters, and nothing else.
+   */
+  const [show, setShow] = useState<'ALL' | 'EXECUTING' | 'PAUSED' | 'READY'>('ALL');
+
+  const mine = useMemo(
     () => allJobs
       .filter((j) => ACTIVE.includes(j.status) && (!me?.id || j.operatorId === me.id))
       .sort((a, b) => (a.status === 'EXECUTING' ? -1 : 1)),
     [allJobs, me?.id],
   );
+
+  const counts = useMemo(() => ({
+    ALL: mine.length,
+    EXECUTING: mine.filter((j) => j.status === 'EXECUTING').length,
+    PAUSED: mine.filter((j) => j.status === 'PAUSED').length,
+    READY: mine.filter((j) => j.status === 'READY').length,
+  }), [mine]);
+
+  const jobs = useMemo(
+    () => (show === 'ALL' ? mine : mine.filter((j) => j.status === show)),
+    [mine, show],
+  );
+  // Deliberately from `mine`, not `jobs`: the machine summary and the downtime
+  // list describe the line the operator is on, and narrowing them with a card
+  // filter would quietly hide a stopped machine the moment they looked at what
+  // was running.
   const machineIds = useMemo(
-    () => [...new Set(jobs.map((j) => j.machine?.id).filter(Boolean) as string[])],
-    [jobs],
+    () => [...new Set(mine.map((j) => j.machine?.id).filter(Boolean) as string[])],
+    [mine],
   );
 
   // Shift downtime totals (per the shift engine) for the Downtime tile.
@@ -279,16 +306,63 @@ export function OperatorHmiView() {
       {/* The whole line, in one place. Sits above the cards because it acts on
           all of them, and an action whose reach is wider than the thing under
           your thumb has to look that way. */}
-      <LineControls jobs={jobs} pending={lineTransition.isPending}
+      {/* Line controls act on EVERY step of a work order, so they are built from
+          the operator's whole list -- a filter showing only what is running must
+          not turn "Pause all" into "pause some". */}
+      <LineControls jobs={mine} pending={lineTransition.isPending}
         onAction={(workOrderId, status) => lineTransition.mutate({ workOrderId, status })} />
 
+      {/* What is planned for this moment, from the same events the Machine
+          status timeline draws on its plan track. */}
+      <PlannedNow machineIds={machineIds} />
+
+      {/* The filter. Counts are on the chips because "Paused 0" and no Paused
+          chip at all look identical at a glance and mean different things. */}
+      <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+        {([
+          ['ALL', 'All'],
+          ['EXECUTING', 'Running now'],
+          ['PAUSED', 'Paused'],
+          ['READY', 'Planned'],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setShow(key)}
+            aria-pressed={show === key}
+            className={cn(
+              'shrink-0 px-3.5 h-9 rounded-full text-xs font-semibold border transition active:scale-95',
+              show === key
+                ? 'border-brand-400/50 bg-brand-400/15 text-brand-400'
+                : 'border-border/60 text-foreground/55 active:bg-muted/60',
+            )}
+          >
+            {label}
+            <span className={cn('ml-1.5 tabular-nums',
+              show === key ? 'text-brand-400/70' : 'text-foreground/35')}>
+              {counts[key]}
+            </span>
+          </button>
+        ))}
+      </div>
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-muted-foreground py-10"><Loader2 className="animate-spin" size={16} /> Loading…</div>
       ) : jobs.length === 0 ? (
         <div className="rounded-2xl border border-border/60 p-10 text-center text-foreground/50">
           <Factory className="mx-auto mb-2 opacity-40" size={28} />
-          No active work order right now.
+          {mine.length === 0 ? (
+            'No active work order right now.'
+          ) : (
+            <>
+              {/* An empty filter and an empty floor are different facts, and a
+                  single "nothing here" would let one be read as the other. */}
+              Nothing {show === 'EXECUTING' ? 'running' : show === 'PAUSED' ? 'paused' : 'waiting to start'} right now.
+              <button onClick={() => setShow('ALL')}
+                className="block mx-auto mt-2 text-brand-400 font-semibold text-sm">
+                Show all {mine.length}
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-4">
@@ -732,6 +806,82 @@ function BypassDialog({ jo, onClose, onConfirm, pending }: {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the plan says is happening right now.
+ *
+ * ── Why the tablet needs this at all ────────────────────────────────────────
+ * The Machine status timeline draws a plan track above each machine -- the blue
+ * "Lunch Break" and "Change Over" bands. The operator standing at the line has
+ * no such screen, so a stop that the plant PLANNED looks exactly like a stop
+ * that went wrong: the counts stop, the tiles go quiet, and nothing says why.
+ *
+ * This reads the same events the timeline's plan track reads, through the same
+ * function, so the two can never disagree about what is scheduled.
+ *
+ * It shows nothing at all when nothing is planned -- an empty strip saying
+ * "no planned stop" would take space on a small screen to report the ordinary
+ * case.
+ */
+function PlannedNow({ machineIds }: { machineIds: string[] }) {
+  const { data } = useQuery<any>({
+    queryKey: ['planned-now', machineIds.join(',')],
+    queryFn: () => api.get('/oee-standard/planned-now', {
+      params: machineIds.length ? { machineIds: machineIds.join(',') } : {},
+    }),
+    // A planned stop starts on a clock, not on an event, so this polls. Half a
+    // minute is well inside the shortest stop the plant configures.
+    refetchInterval: 30_000,
+  });
+
+  const active: any[] = data?.active ?? [];
+  const next: any = (data?.upcoming ?? [])[0] ?? null;
+
+  if (active.length === 0 && !next) return null;
+
+  const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const minsUntil = (iso: string) => Math.max(0, Math.round((+new Date(iso) - Date.now()) / 60_000));
+
+  // One band usually covers the whole line, booked against each machine
+  // separately. Naming it once and listing the machines beside it says the same
+  // thing in a quarter of the space.
+  const byLabel = new Map<string, { label: string; to: string; machines: string[]; charged: boolean }>();
+  for (const a of active) {
+    const k = `${a.label}|${a.to}`;
+    const hit = byLabel.get(k) ?? { label: a.label, to: a.to, machines: [] as string[], charged: !!a.charged };
+    if (a.machineCode) hit.machines.push(a.machineCode);
+    byLabel.set(k, hit);
+  }
+
+  return (
+    <div className="mb-3 space-y-2">
+      {[...byLabel.values()].map((b, i) => (
+        <div key={i} className="flex items-start gap-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3.5 py-2.5">
+          <CalendarClock size={16} className="text-sky-400 shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-bold text-sky-300">{b.label}</div>
+            <div className="text-[11px] text-foreground/60 leading-snug">
+              Planned · until {hhmm(b.to)}
+              {b.machines.length ? ` · ${b.machines.join(' · ')}` : ''}
+              {/* The operator is entitled to know whether this stop is costing
+                  the line's reading -- it changes nothing they do, but it
+                  changes how the shift's number will look to them later. */}
+              {b.charged ? ' · counts against OEE' : ' · excluded from OEE'}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {active.length === 0 && next && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-border/60 px-3.5 py-2 text-xs text-foreground/55">
+          <CalendarClock size={14} className="shrink-0 opacity-60" />
+          Next planned stop: <b className="text-foreground/80">{next.label}</b> in {minsUntil(next.from)} min
+          <span className="opacity-60">({hhmm(next.from)})</span>
+        </div>
+      )}
     </div>
   );
 }

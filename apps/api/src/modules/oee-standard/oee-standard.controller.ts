@@ -201,6 +201,57 @@ export class OeeStandardController {
    *
    * Served from the same rows the page reads, so every option returns something.
    */
+  /**
+   * What the plan says is happening RIGHT NOW, per machine.
+   *
+   * The operator tablet needs one sentence -- "Lunch Break until 13:30" -- and
+   * the Machine status timeline already draws exactly this from
+   * `plannedSegments`. Rather than a second query with its own idea of a
+   * planned stop, this asks the same function for a narrow window around now
+   * and returns whichever band covers it. One definition, two screens.
+   */
+  @Get('planned-now')
+  @RequirePermissions('production:read')
+  @ApiOperation({ summary: 'The planned stop covering this instant, per machine' })
+  @ApiQuery({ name: 'machineIds', required: false, description: 'Comma-separated; omit for the whole factory' })
+  async plannedNow(
+    @CurrentUser() user: RequestUser,
+    @Query('machineIds') machineIds?: string,
+  ) {
+    const now = Date.now();
+    // Wide enough to catch a band that started before this instant, narrow
+    // enough that the query stays cheap on a tablet polling it.
+    const from = new Date(now - 12 * 3600_000);
+    const to = new Date(now + 12 * 3600_000);
+    const ids = (machineIds ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+
+    const segments = await this.timeline.plannedSegments(user.factoryId, from, to);
+
+    // `plannedSegments` encodes whether a stop COSTS the reading in its kind:
+    // an excluded stop is 'planned' and a charged one -- changeover, startup --
+    // is 'downtime'. Filtering on 'planned' alone silently dropped every
+    // changeover, which is the stop the line most wants warning about.
+    // 'running' is the production band and is not a stop at all.
+    const isStop = (sg: { kind: string }) => sg.kind === 'planned' || sg.kind === 'downtime';
+    const mine = (sg: { machineId: string }) => !ids.length || ids.includes(sg.machineId);
+    const stamp = (sg: { kind: string }) => ({ charged: sg.kind === 'downtime' });
+
+    const active = segments
+      .filter((sg) => isStop(sg) && mine(sg)
+        && +new Date(sg.from) <= now && +new Date(sg.to) > now)
+      .map((sg) => ({ ...sg, ...stamp(sg) }));
+
+    // Next up, so a tablet can say "Lunch Break in 20 minutes" rather than only
+    // reporting a stop once the line has already gone quiet.
+    const upcoming = segments
+      .filter((sg) => isStop(sg) && mine(sg) && +new Date(sg.from) > now)
+      .sort((a, b) => +new Date(a.from) - +new Date(b.from))
+      .slice(0, 4)
+      .map((sg) => ({ ...sg, ...stamp(sg) }));
+
+    return { now: new Date(now).toISOString(), active, upcoming };
+  }
+
   @Get('dimensions')
   @RequirePermissions('production:read')
   @ApiOperation({ summary: 'Products, production orders, work orders and shifts present in the window' })
