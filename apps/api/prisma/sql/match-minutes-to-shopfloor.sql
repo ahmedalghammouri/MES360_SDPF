@@ -49,6 +49,20 @@
 
 BEGIN;
 
+-- ── Fail fast instead of hanging ──────────────────────────────────
+-- `oee_minutes` is the busiest table on the plant: the writer updates
+-- isFinalized on it every minute, per machine. A bulk UPDATE here contends with
+-- that directly, and on 27 Aug 2026 a delete on a much quieter table sat locked
+-- for twenty minutes with no message while every attempt to retry queued behind
+-- the last one.
+--
+-- Five seconds, then an error naming the table. If it fires, look for a session
+-- idle in a transaction:
+--
+--   SELECT pid, state, age(now(), xact_start), pg_blocking_pids(pid)
+--     FROM pg_stat_activity WHERE datname = current_database();
+SET LOCAL lock_timeout = '5s';
+
 -- ── 1. The target, in the same base units oee_minutes counts in ─────────────
 CREATE TEMP TABLE _target ON COMMIT DROP AS
 SELECT
