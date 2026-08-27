@@ -38,6 +38,30 @@
 --   WO-2026-0005
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- 0. IF IT HANGS  -- who is holding the lock?
+--
+-- Run this in a SECOND connection while the delete is stuck. It names the
+-- session that is blocking and what it is waiting on.
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SELECT a.pid, a.state, a.wait_event_type, a.wait_event,
+--        age(now(), a.xact_start) AS in_transaction_for,
+--        left(a.query, 90) AS query
+--   FROM pg_stat_activity a
+--  WHERE a.datname = current_database()
+--    AND a.pid <> pg_backend_pid()
+--    AND (a.state <> 'idle' OR a.xact_start IS NOT NULL)
+--  ORDER BY a.xact_start NULLS LAST;
+--
+-- The usual culprit is a row with state = 'idle in transaction' and a long
+-- `in_transaction_for` -- a psql that was Ctrl-C'd on an earlier attempt still
+-- holding its locks. Ending it releases them:
+--
+-- SELECT pg_terminate_backend(<pid>);
+--
+-- Do NOT terminate the api or edge gateway connections to force this through.
+-- They are writing production data; wait for them or stop the service properly.
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- 1. PREVIEW  -- run this on its own first. It changes nothing.
 -- ═══════════════════════════════════════════════════════════════════════════
 WITH wo AS (SELECT id FROM work_orders WHERE "orderNumber" = 'WO-2026-0005'),
@@ -68,6 +92,17 @@ ORDER BY 1;
 -- unexpected -- run ROLLBACK; instead.
 -- ═══════════════════════════════════════════════════════════════════════════
 BEGIN;
+
+-- ── Fail fast instead of hanging ────────────────────────────────────────────
+-- On the live plant this hung with no message at all. Not a slow query -- the
+-- same delete plans in 0.6 ms -- but a LOCK: the API and the edge gateway write
+-- downtime events continuously, and a session that stopped mid-transaction (a
+-- Ctrl-C on an earlier attempt is enough) holds its locks until it is closed.
+--
+-- Without this, psql simply sits there and the operator cannot tell a lock from
+-- a crash from a slow disk. Five seconds, then an error naming the table.
+-- If it fires, see section 0 below.
+SET LOCAL lock_timeout = '5s';
 
 -- The two that would otherwise refuse the delete.
 DELETE FROM scrap_logs
