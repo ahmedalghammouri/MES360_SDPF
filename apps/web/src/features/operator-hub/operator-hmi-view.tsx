@@ -66,12 +66,24 @@ const ACTIVE: JOStatus[] = ['EXECUTING', 'PAUSED', 'READY'];
  * before the operator presses anything.
  */
 function LineControls({
-  jobs, pending, onAction,
+  jobs, show, pending, onAction,
 }: {
   jobs: JO[];
+  /** The card filter. It hides ORDERS, never steps -- see below. */
+  show: JOStatus;
   pending: boolean;
   onAction: (workOrderId: string, status: string) => void;
 }) {
+  /**
+   * The filter decides which work orders APPEAR here; it must never decide
+   * which steps the buttons act on.
+   *
+   * Two orders were on the floor and only one was running, so "Running now"
+   * showing both blocks was noise. But every block keeps ALL of its order's
+   * steps: "Pause all" that paused only the running ones would leave a paused
+   * step behind on a screen that just said it had stopped the line -- which is
+   * the failure this whole component was built to remove.
+   */
   const byWo = new Map<string, { number: string; jobs: JO[] }>();
   for (const jo of jobs) {
     const id = jo.workOrder?.id;
@@ -79,6 +91,12 @@ function LineControls({
     const hit = byWo.get(id) ?? { number: jo.workOrder?.orderNumber ?? '—', jobs: [] };
     hit.jobs.push(jo);
     byWo.set(id, hit);
+  }
+
+  // Hide an order with nothing in the chosen state. Its block would carry four
+  // live buttons for work the operator is not looking at.
+  for (const [id, g] of [...byWo]) {
+    if (!g.jobs.some((j) => j.status === show)) byWo.delete(id);
   }
   if (byWo.size === 0) return null;
 
@@ -157,9 +175,12 @@ export function OperatorHmiView() {
    * -- and "everything active" then means five cards from two orders on one
    * tablet screen. The operator is looking for one of three things: what is
    * running, what they paused and have to come back to, or what is queued next.
-   * Those are the filters, and nothing else.
+   * Those are the filters, and nothing else -- there is deliberately no "All".
+   * With two orders on the floor it put five cards from two orders on one
+   * tablet screen, and the operator's first question is never "show me
+   * everything". The default is what is RUNNING.
    */
-  const [show, setShow] = useState<'ALL' | 'EXECUTING' | 'PAUSED' | 'READY'>('ALL');
+  const [show, setShow] = useState<JOStatus>('EXECUTING');
 
   const mine = useMemo(
     () => allJobs
@@ -169,16 +190,12 @@ export function OperatorHmiView() {
   );
 
   const counts = useMemo(() => ({
-    ALL: mine.length,
     EXECUTING: mine.filter((j) => j.status === 'EXECUTING').length,
     PAUSED: mine.filter((j) => j.status === 'PAUSED').length,
     READY: mine.filter((j) => j.status === 'READY').length,
   }), [mine]);
 
-  const jobs = useMemo(
-    () => (show === 'ALL' ? mine : mine.filter((j) => j.status === show)),
-    [mine, show],
-  );
+  const jobs = useMemo(() => mine.filter((j) => j.status === show), [mine, show]);
   // Deliberately from `mine`, not `jobs`: the machine summary and the downtime
   // list describe the line the operator is on, and narrowing them with a card
   // filter would quietly hide a stopped machine the moment they looked at what
@@ -309,7 +326,7 @@ export function OperatorHmiView() {
       {/* Line controls act on EVERY step of a work order, so they are built from
           the operator's whole list -- a filter showing only what is running must
           not turn "Pause all" into "pause some". */}
-      <LineControls jobs={mine} pending={lineTransition.isPending}
+      <LineControls jobs={mine} show={show} pending={lineTransition.isPending}
         onAction={(workOrderId, status) => lineTransition.mutate({ workOrderId, status })} />
 
       {/* What is planned for this moment, from the same events the Machine
@@ -320,7 +337,6 @@ export function OperatorHmiView() {
           chip at all look identical at a glance and mean different things. */}
       <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
         {([
-          ['ALL', 'All'],
           ['EXECUTING', 'Running now'],
           ['PAUSED', 'Paused'],
           ['READY', 'Planned'],
@@ -357,10 +373,18 @@ export function OperatorHmiView() {
               {/* An empty filter and an empty floor are different facts, and a
                   single "nothing here" would let one be read as the other. */}
               Nothing {show === 'EXECUTING' ? 'running' : show === 'PAUSED' ? 'paused' : 'waiting to start'} right now.
-              <button onClick={() => setShow('ALL')}
-                className="block mx-auto mt-2 text-brand-400 font-semibold text-sm">
-                Show all {mine.length}
-              </button>
+              {/* Point at a filter that HAS something, rather than leaving the
+                  operator to try all three to find where their work went. */}
+              <div className="flex flex-wrap gap-2 justify-center mt-3">
+                {(['EXECUTING', 'PAUSED', 'READY'] as const)
+                  .filter((k) => k !== show && counts[k] > 0)
+                  .map((k) => (
+                    <button key={k} onClick={() => setShow(k)}
+                      className="px-3 h-8 rounded-full border border-brand-400/40 text-brand-400 text-xs font-semibold">
+                      {k === 'EXECUTING' ? 'Running now' : k === 'PAUSED' ? 'Paused' : 'Planned'} {counts[k]}
+                    </button>
+                  ))}
+              </div>
             </>
           )}
         </div>
@@ -822,9 +846,12 @@ function BypassDialog({ jo, onClose, onConfirm, pending }: {
  * This reads the same events the timeline's plan track reads, through the same
  * function, so the two can never disagree about what is scheduled.
  *
- * It shows nothing at all when nothing is planned -- an empty strip saying
- * "no planned stop" would take space on a small screen to report the ordinary
- * case.
+ * ── Why it is ALWAYS on screen ─────────────────────────────────────────────
+ * It used to hide itself when nothing was scheduled, to save space on a small
+ * screen. That made "the plant has nothing planned" and "this strip is broken"
+ * look identical -- which is the exact defect this whole week has been about.
+ * A quiet line saying nothing is scheduled costs one row and answers the
+ * question; an absent strip answers nothing.
  */
 function PlannedNow({ machineIds }: { machineIds: string[] }) {
   const { data } = useQuery<any>({
@@ -839,8 +866,6 @@ function PlannedNow({ machineIds }: { machineIds: string[] }) {
 
   const active: any[] = data?.active ?? [];
   const next: any = (data?.upcoming ?? [])[0] ?? null;
-
-  if (active.length === 0 && !next) return null;
 
   const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const minsUntil = (iso: string) => Math.max(0, Math.round((+new Date(iso) - Date.now()) / 60_000));
@@ -875,11 +900,20 @@ function PlannedNow({ machineIds }: { machineIds: string[] }) {
         </div>
       ))}
 
-      {active.length === 0 && next && (
+      {active.length === 0 && (
         <div className="flex items-center gap-2.5 rounded-xl border border-border/60 px-3.5 py-2 text-xs text-foreground/55">
           <CalendarClock size={14} className="shrink-0 opacity-60" />
-          Next planned stop: <b className="text-foreground/80">{next.label}</b> in {minsUntil(next.from)} min
-          <span className="opacity-60">({hhmm(next.from)})</span>
+          {next ? (
+            <>
+              Next planned stop: <b className="text-foreground/80">{next.label}</b> in {minsUntil(next.from)} min
+              <span className="opacity-60">({hhmm(next.from)})</span>
+            </>
+          ) : (
+            // Said out loud, because a missing strip and an empty schedule are
+            // different facts and the operator cannot tell them apart from a
+            // blank space.
+            <>No planned stop scheduled. Any stop from here is unplanned.</>
+          )}
         </div>
       )}
     </div>
