@@ -21,17 +21,18 @@ set -uo pipefail
 
 WO="${1:-}"
 shift || true
-APPLY=0; STOP_API=0
+APPLY=0; STOP_API=0; FORCE=0
 for a in "$@"; do
   case "$a" in
-    --apply)    APPLY=1 ;;
-    --stop-api) STOP_API=1 ;;
+    --apply)        APPLY=1 ;;
+    --stop-api)     STOP_API=1 ;;
+    --force-unlock) FORCE=1 ;;
     *) echo "unknown option: $a"; exit 2 ;;
   esac
 done
 
 if [ -z "$WO" ]; then
-  echo "usage: $0 <WORK-ORDER-NUMBER> [--apply] [--stop-api]"
+  echo "usage: $0 <WORK-ORDER-NUMBER> [--apply] [--stop-api] [--force-unlock]"
   exit 2
 fi
 
@@ -64,35 +65,43 @@ echo
 
 hr() { printf '%s\n' "-------------------------------------------------------------------"; }
 
-# ── 1. Who is holding a transaction open? ───────────────────────────────────
-hr; echo "SESSIONS HOLDING A TRANSACTION"; hr
+# ── 1. Who is actually BLOCKING? ────────────────────────────────────────────
+# `pg_blocking_pids` answers this exactly, rather than leaving a human to guess
+# from a list of long-running queries. The first run of this script listed
+# twenty sessions and the plant reasonably read the api's writes as the
+# problem -- they were victims, all queued behind one abandoned pgAdmin
+# transaction.
+hr; echo "WHAT IS BLOCKING WHAT"; hr
 $PG -c "
-SELECT pid, state, age(now(), xact_start) AS in_txn,
-       left(regexp_replace(query, '\s+', ' ', 'g'), 60) AS query
-  FROM pg_stat_activity
- WHERE datname = current_database() AND pid <> pg_backend_pid()
-   AND xact_start IS NOT NULL
- ORDER BY xact_start;"
+SELECT w.pid AS waiting, w.state,
+       age(now(), w.xact_start) AS waiting_for,
+       pg_blocking_pids(w.pid) AS blocked_by,
+       left(regexp_replace(w.query, '\s+', ' ', 'g'), 45) AS query
+  FROM pg_stat_activity w
+ WHERE w.datname = current_database()
+   AND cardinality(pg_blocking_pids(w.pid)) > 0
+ ORDER BY w.xact_start;"
 
-STALE=$($PG -At -c "
-SELECT count(*) FROM pg_stat_activity
- WHERE datname = current_database() AND pid <> pg_backend_pid()
-   AND state = 'idle in transaction' AND age(now(), xact_start) > interval '1 minute';")
+# The roots: sessions blocking somebody while waiting for nobody.
+ROOTS=$($PG -At -c "
+SELECT string_agg(DISTINCT b::text, ' ')
+  FROM pg_stat_activity a, unnest(pg_blocking_pids(a.pid)) b
+ WHERE a.datname = current_database()
+   AND cardinality(pg_blocking_pids(b)) = 0;")
 
-if [ "${STALE:-0}" -gt 0 ]; then
+echo
+hr; echo "THE ROOT OF IT"; hr
+if [ -z "${ROOTS:-}" ]; then
+  echo "  Nothing is blocking anything. The database is clear."
+else
+  echo "  These sessions are blocking others and waiting for nobody: $ROOTS"
   echo
-  echo "  !! $STALE session(s) idle in a transaction for over a minute."
-  echo "     Almost certainly an abandoned attempt of this script. They hold the"
-  echo "     locks that make the delete hang. Free them with:"
-  echo
-  $PG -At -F' ' -c "
-    SELECT '       docker exec -i $PGC psql -U mes_user -d mes360 -c \"SELECT pg_terminate_backend(' || pid || ');\"'
-      FROM pg_stat_activity
-     WHERE datname = current_database() AND pid <> pg_backend_pid()
-       AND state = 'idle in transaction' AND age(now(), xact_start) > interval '1 minute';"
-  echo
-  echo "     Terminate ONLY those. Not the api or gateway connections -- they are"
-  echo "     writing production data."
+  $PG -c "
+  SELECT pid, state, age(now(), xact_start) AS in_txn, usename, application_name,
+         left(regexp_replace(query, '\s+', ' ', 'g'), 50) AS query
+    FROM pg_stat_activity
+   WHERE pid IN (SELECT unnest(string_to_array('$ROOTS', ' ')::int[]));"
+  echo "  Nothing will move until these end. --force-unlock terminates them."
 fi
 
 # ── 2. What would go ────────────────────────────────────────────────────────
@@ -110,7 +119,42 @@ if [ "$APPLY" -ne 1 ]; then
   exit 0
 fi
 
-# ── 3. Optionally take the writers out of the way ───────────────────────────
+# ── 3. Refuse to add another blocked query to the queue ─────────────────────
+# Ctrl-C on `docker exec psql` kills the CLIENT. The backend keeps running the
+# DELETE and keeps its locks -- which is how four abandoned attempts came to be
+# queued behind one another, each one making the next one worse. So a blocked
+# database is a reason to stop, not to try again harder.
+if [ -n "${ROOTS:-}" ]; then
+  if [ "$FORCE" -ne 1 ]; then
+    echo
+    hr
+    echo "REFUSING TO RUN. Sessions $ROOTS are blocking the database."
+    echo "Another attempt would simply queue behind them and hold locks of its own."
+    echo
+    echo "  Clear them and retry:   $0 $WO --apply --force-unlock"
+    hr
+    exit 1
+  fi
+
+  echo
+  hr; echo "TERMINATING THE BLOCKERS: $ROOTS"; hr
+  $PG -c "SELECT pid, pg_terminate_backend(pid) AS terminated
+            FROM pg_stat_activity
+           WHERE pid IN (SELECT unnest(string_to_array('$ROOTS', ' ')::int[]));"
+
+  # Backends still running a DELETE from an earlier attempt whose client is
+  # long gone. They hold locks nobody is waiting on the result of.
+  echo
+  echo "  Abandoned deletes from earlier runs of this script:"
+  $PG -c "SELECT pid, age(now(), xact_start) AS running_for, pg_terminate_backend(pid) AS terminated
+            FROM pg_stat_activity
+           WHERE datname = current_database() AND pid <> pg_backend_pid()
+             AND query LIKE 'DELETE FROM downtime_events%'
+             AND age(now(), xact_start) > interval '30 seconds';"
+  sleep 2
+fi
+
+# ── 4. Optionally take the writers out of the way ───────────────────────────
 if [ "$STOP_API" -eq 1 ]; then
   echo
   hr; echo "STOPPING THE API so it cannot hold a lock"; hr
@@ -119,7 +163,7 @@ if [ "$STOP_API" -eq 1 ]; then
   # stop from here. Its writes are short; the api's are the ones that overlap.
 fi
 
-# ── 4. Do it ────────────────────────────────────────────────────────────────
+# ── 5. Do it ────────────────────────────────────────────────────────────────
 echo
 hr; echo "DELETING"; hr
 OUT=$( { sed "s/WO-2026-0005/$WO/g" "$ROOT/apps/api/prisma/sql/wipe-work-order.sql"; echo "COMMIT;"; } \
@@ -133,14 +177,14 @@ if [ "$STOP_API" -eq 1 ]; then
   dc start api
 fi
 
-# ── 5. Say plainly whether it worked ────────────────────────────────────────
+# ── 6. Say plainly whether it worked ────────────────────────────────────────
 echo
 hr; echo "RESULT"; hr
 LEFT=$($PG -At -c "SELECT count(*) FROM work_orders WHERE \"orderNumber\" = '$WO';")
 
 if echo "$OUT" | grep -q 'lock timeout'; then
   echo "  LOCKED. Something else holds the rows and would not let go in 5s."
-  echo "  Re-run with --stop-api, or free the sessions listed at the top."
+  echo "  Re-run with --force-unlock to clear the blocking sessions first."
 elif [ "$RC" -ne 0 ] || echo "$OUT" | grep -q '^ERROR'; then
   echo "  FAILED. Nothing was saved -- the transaction never committed."
   echo "$OUT" | grep '^ERROR' | head -3
