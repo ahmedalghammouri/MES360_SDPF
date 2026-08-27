@@ -43,6 +43,7 @@
 // tool whose first screen looks broken does not get trusted with a number. The
 // comments keep their typography — they are read in an editor, which has no
 // code page to get wrong.
+import { writeFileSync } from 'node:fs';
 import pkg from 'modbus-serial';
 import { PrismaClient } from '@prisma/client';
 
@@ -58,6 +59,24 @@ const num = (f, d) => {
 
 const RING = has('--ring');
 const SPEED = Math.max(0.1, num('--speed', 1));
+
+/**
+ * Drive ONE work order's machines, at ITS cycle times.
+ *
+ * Without this the pace came from whichever job order happened to sort first
+ * across the whole plant, which is fine for "make the line look busy" and
+ * useless for "does the gateway count what I emitted". A comparison needs both
+ * sides to be talking about the same order.
+ */
+const WO = (() => { const i = argv.indexOf('--wo'); return i >= 0 ? argv[i + 1] : null; })();
+
+/**
+ * Where the emitted tally is written, so the check afterwards reads a number
+ * this process actually produced rather than one a human copied off a screen.
+ * Written on every summary tick AND on shutdown, so a Ctrl-C still leaves a
+ * usable file.
+ */
+const TALLY = (() => { const i = argv.indexOf('--tally'); return i >= 0 ? argv[i + 1] : 'sim-tally.json'; })();
 const POINT_LOCAL = has('--point-local');
 const RESTORE = has('--restore-ips');
 
@@ -109,7 +128,14 @@ async function loadDevices() {
  */
 async function loadPace() {
   const jos = await prisma.jobOrder.findMany({
-    where: { machineId: { not: null }, idealCycleTimeSec: { gt: 0 } },
+    where: {
+      machineId: { not: null },
+      idealCycleTimeSec: { gt: 0 },
+      // Scoped to one order when asked. Its machines are the only ones driven,
+      // so a machine belonging to some other order stays silent instead of
+      // adding counts nobody is comparing against.
+      ...(WO ? { workOrder: { orderNumber: WO } } : {}),
+    },
     select: { machineId: true, idealCycleTimeSec: true, status: true, plannedStart: true },
     orderBy: [{ status: 'asc' }, { plannedStart: 'desc' }],
   });
@@ -133,6 +159,31 @@ const key = (deviceId, address) => `${deviceId}:${address}`;
 
 /** Counters, for the run summary. */
 const emitted = new Map();
+/** tagId -> { machine, role }, so the tally reads as machines not as uuids. */
+const tagOwner = new Map();
+
+/**
+ * What this process actually emitted, written where the comparison can read it.
+ *
+ * A number read off a terminal is a number somebody retyped. This is the same
+ * count the generator incremented, in a file, with the moment it was written.
+ */
+function writeTally(startedAt) {
+  const rows = [...emitted.entries()].map(([tagId, pulses]) => ({
+    tagId,
+    machine: tagOwner.get(tagId)?.machine ?? '?',
+    role: tagOwner.get(tagId)?.role ?? '?',
+    pulses,
+  }));
+  try {
+    writeFileSync(TALLY, JSON.stringify({
+      workOrder: WO, ring: RING, speed: SPEED,
+      startedAt, writtenAt: new Date().toISOString(), rows,
+    }, null, 2));
+  } catch (err) {
+    console.error(`tally write failed: ${err.message}`);
+  }
+}
 
 /**
  * Drive one counter tag for one part.
@@ -258,7 +309,39 @@ async function main() {
       byMachine.set(t.machine.id, g);
     }
 
+    // ── One address, one pulse train ────────────────────────────────────
+    // This plant binds DI2 on EDGE_COUNTER_M03 to BOTH M3 and M4's good
+    // counters. On the floor that means one sensor is counted twice, once per
+    // machine -- which is a real thing to know about. Here it would mean two
+    // generators writing one bit at different rates, each cutting the other's
+    // pulse short, and both counts coming out wrong for a reason that has
+    // nothing to do with the gateway.
+    //
+    // So an address is driven ONCE, by the first machine that claims it, and
+    // the sharing is named rather than silently worked around.
+    const driven = new Map(); // "deviceId:address" -> machine code driving it
+
     for (const [machineId, g] of byMachine) {
+      // Scoped run: a machine with no job order in THIS work order is left
+      // resting. Driving it would put counts into the comparison that the
+      // order under test never produced.
+      if (WO && !pace.has(machineId)) {
+        console.log(`    ${g.machine.code}  idle - not part of ${WO}`);
+        continue;
+      }
+
+      const shared = g.tags.filter((t) => driven.has(key(dev.id, t.address)));
+      if (shared.length === g.tags.length && g.tags.length > 0) {
+        const owners = [...new Set(shared.map((t) => driven.get(key(dev.id, t.address))))];
+        console.log(`    ${g.machine.code}  SHARES every input with ${owners.join(', ')}`
+          + ` - not driven separately`);
+        console.log(`          DI${shared.map((t) => t.address).join(',DI')} is ONE physical`
+          + ` input bound to both machines in the tag configuration.`);
+        console.log(`          On the line that means one sensor is counted twice.`);
+        continue;
+      }
+      for (const t of g.tags) driven.set(key(dev.id, t.address), g.machine.code);
+
       const cycleSec = pace.get(machineId) ?? 1.3333;
       const periodMs = Math.max(40, (cycleSec * 1000) / SPEED);
       const total = g.tags.find((t) => t.counterRole === 'TOTAL');
@@ -270,6 +353,10 @@ async function main() {
       console.log(`    ${g.machine.code}  every ${(periodMs / 1000).toFixed(2)}s`
         + `  ${g.tags.map((t) => `DI${t.address}=${t.counterRole}/${t.edgeType}`).join(' ')}`
         + (rejectPct ? `  ~${rejectPct}% reject` : ''));
+
+      // Remembered so the tally can be reported per machine and per role,
+      // which is the shape the comparison needs.
+      for (const t of g.tags) tagOwner.set(t.id, { machine: g.machine.code, role: t.counterRole });
 
       setInterval(() => {
         const isReject = rejectPct > 0 && Math.random() * 100 < rejectPct;
@@ -291,13 +378,28 @@ async function main() {
   console.log('');
 
   // A periodic summary, so a long run can be judged without reading the gateway.
+  const startedAt = new Date().toISOString();
+  writeTally(startedAt);
   setInterval(() => {
-    const parts = [...emitted.entries()].map(([id, n]) => `${id.slice(0, 6)}=${n}`).join(' ');
+    const parts = [...emitted.entries()]
+      .map(([id, n]) => `${tagOwner.get(id)?.machine ?? id.slice(0, 6)}/${tagOwner.get(id)?.role ?? '?'}=${n}`)
+      .join('  ');
     if (parts) console.log(`  emitted: ${parts}`);
-  }, 60_000);
+    writeTally(startedAt);
+  }, 15_000);
+
+  // Ctrl-C must still leave a usable tally, not an empty one from startup.
+  simStartedAt = startedAt;
 }
 
-const shutdown = async () => { await prisma.$disconnect().catch(() => {}); process.exit(0); };
+let simStartedAt = new Date().toISOString();
+const shutdown = async () => {
+  writeTally(simStartedAt);
+  console.log(`
+tally written to ${TALLY}`);
+  await prisma.$disconnect().catch(() => {});
+  process.exit(0);
+};
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 

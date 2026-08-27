@@ -1,0 +1,38 @@
+{
+    "ddc263be-66fc-4f21-bd5d-3402cc3b8316": {
+        "lastRaw": 0,
+        "accumulated": 9843,
+        "synced": 9843,
+        "jobOrderId": "9ba23450-5a70-48d3-aac5-f4f164ba15b4"
+    },
+    "0a3ca104-4d17-447f-895c-228298b36a31": {
+        "lastRaw": 0,
+        "accumulated": 2125,
+        "synced": 2125,
+        "jobOrderId": "9ba23450-5a70-48d3-aac5-f4f164ba15b4"
+    },
+    "4546a798-07b3-4dc1-92e6-258aa678a195": {
+        "lastRaw": 1,
+        "accumulated": 63,
+        "synced": 63,
+        "jobOrderId": "a11dd2bf-e5ba-43af-92ad-085d983a873d"
+    },
+    "2533bef7-8b62-4b59-add8-c08bf854ba51": {
+        "lastRaw": 1,
+        "accumulated": 1306,
+        "synced": 1306,
+        "jobOrderId": "22b19cec-94ed-4cf7-a71e-9e5e632a1d0e"
+    },
+    "ae9ce257-4f13-41cd-861c-3e0e0ff7ea57": {
+        "lastRaw": 1,
+        "accumulated": 62,
+        "synced": 62,
+        "jobOrderId": "eadd1d3c-5f74-4075-af72-7e32d9ef866b"
+    },
+    "f225bad8-65d9-4106-bf91-85a6b3817278": {
+        "lastRaw": 1,
+        "accumulated": 2390,
+        "synced": 2390,
+        "jobOrderId": "22b19cec-94ed-4cf7-a71e-9e5e632a1d0e"
+    }
+}
