@@ -66,5 +66,18 @@ docker exec -i mes-postgres-plocal psql -U mes_user -d mes360 -c \
 # The verify step needs to know when counting legitimately began, so that pulses
 # emitted before this instant are reported separately instead of read as losses.
 date -u +%Y-%m-%dT%H:%M:%S > "$HERE/order-started-at.txt"
+
+# The simulator's tally is cumulative from ITS start, which is deliberately
+# earlier than this. Snapshotting it here lets 05-verify.sh subtract the pulses
+# emitted while nothing was executing -- those were correctly DROPPED, and
+# counting them as missing would report the fix working as a fault.
+if [ -f "$HERE/sim-tally.json" ]; then
+  cp "$HERE/sim-tally.json" "$HERE/tally-at-order-start.json"
+  echo "    tally snapshotted: pulses before this instant are excluded from the comparison"
+else
+  echo "    no simulator tally yet - is 03-simulator.sh running? The comparison will"
+  echo "    treat every pulse as post-start, which understates what was counted."
+fi
+
 echo
 echo "Started at $(cat "$HERE/order-started-at.txt")Z  (recorded for 05-verify.sh)"
