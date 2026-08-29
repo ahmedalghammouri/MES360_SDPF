@@ -29,6 +29,7 @@ import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { cn, getStatusVariant, formatDate, formatDuration, formatPercent } from '@/lib/utils';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 
 interface WorkOrder {
   id: string;
@@ -60,6 +61,13 @@ const STATUS_COLORS = {
 const STATUS_KEYS = ['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'CANCELLED'] as const;
 
 export function ProductionOverview() {
+  /**
+   * Declared, because the shell reads it -- see
+   * analytics-pages-declare-their-mode.spec.ts. A page that skips this does not
+   * get a default; it inherits whatever the LAST page set, so its filter bar
+   * changes depending on where the reader arrived from.
+   */
+  useDeclareViewMode('analytics');
   const { t } = useTranslation(['production', 'common']);
   const { filter: scopeFilter, key: scopeKey } = useScope();
   // The period the reader picked. This hook was imported and never called, so

@@ -14,11 +14,19 @@ import { SectionTitle } from '@/features/command-center/command-center-charts';
 
 import { useQualityCockpit } from './use-quality-cockpit';
 import { FpyTrend, DefectPareto, CategoryBars, SEVERITY_COLOR, RESULT_COLOR, CAPA_COLOR, NCR_STATUS_COLOR } from './quality-charts';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.04, delayChildren: 0.06 } } };
 const itemVariants = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 
 export function QualityIntelligenceView() {
+  /**
+   * Declared, because the shell reads it -- see
+   * analytics-pages-declare-their-mode.spec.ts. A page that skips this does not
+   * get a default; it inherits whatever the LAST page set, so its filter bar
+   * changes depending on where the reader arrived from.
+   */
+  useDeclareViewMode('analytics');
   const { t } = useTranslation(['quality', 'common']);
   const { data, isLoading } = useQualityCockpit();
   const { trendType } = useDashboardPrefsStore();

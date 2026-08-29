@@ -2261,6 +2261,8 @@
     "kpiViewMachine": "By Machine",
     "repViewShift": "Shift & Line",
     "repViewManufacturing": "Manufacturing",
-    "repViewSummary": "Summary"
+    "repViewSummary": "Summary",
+    "outsideDenominator": "not counted",
+    "externalLossHelp": "The line could not feed this machine, so its minutes leave the OEE denominator entirely. A breakdown would stay in it -- that is the machine's own fault."
   }
 }

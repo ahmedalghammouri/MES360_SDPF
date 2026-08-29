@@ -2261,6 +2261,8 @@
     "kpiViewMachine": "حسب الماكينة",
     "repViewShift": "الوردية والخط",
     "repViewManufacturing": "التصنيع",
-    "repViewSummary": "الملخّص"
+    "repViewSummary": "الملخّص",
+    "outsideDenominator": "خارج المقام",
+    "externalLossHelp": "الخط لم يستطع تغذية هذه الماكينة، فخرجت دقائقها من مقام OEE كليّاً. العطل يبقى فيه — لأنه ذنب الماكينة نفسها."
   }
 }

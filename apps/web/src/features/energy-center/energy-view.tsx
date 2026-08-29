@@ -11,11 +11,22 @@ import { PowerGauge, UtilityBreakdown, SectionTitle } from '@/features/command-c
 
 import { useEnergyCockpit } from './use-energy-cockpit';
 import { ConsumptionTrend, WasteSplit, UTILITY_COLOR } from './energy-charts';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.04, delayChildren: 0.06 } } };
 const itemVariants = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 
 export function EnergyCenterView() {
+  /**
+   * Declared, because the shell reads it.
+   *
+   * `useDeclareViewMode` is what shows the period control -- and a page that
+   * skips it inherits whatever the LAST page set. That is why these analytics
+   * screens showed a partial filter bar: not a missing feature, an undeclared
+   * one, and the bar they got depended on where the reader had just been.
+   */
+  useDeclareViewMode('analytics');
+
   const { t } = useTranslation(['dashboard', 'common']);
   const { data, isLoading } = useEnergyCockpit();
   const { trendType } = useDashboardPrefsStore();

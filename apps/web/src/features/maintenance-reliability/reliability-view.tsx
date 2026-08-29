@@ -15,6 +15,7 @@ import { useScope } from '@/hooks/use-scope';
 
 import { useReliabilityCockpit } from './use-reliability-cockpit';
 import { BreakdownDonut, AgingBars, AssetReliabilityChart, STATUS_COLOR, TYPE_COLOR } from './reliability-charts';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.04, delayChildren: 0.06 } } };
 const itemVariants = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
@@ -27,6 +28,13 @@ function rpnColor(rpn: number): string {
 }
 
 export function ReliabilityView() {
+  /**
+   * Declared, because the shell reads it -- see
+   * analytics-pages-declare-their-mode.spec.ts. A page that skips this does not
+   * get a default; it inherits whatever the LAST page set, so its filter bar
+   * changes depending on where the reader arrived from.
+   */
+  useDeclareViewMode('analytics');
   const { t } = useTranslation(['maintenance', 'common']);
   const { filter, key } = useScope();
   const { data, isLoading } = useReliabilityCockpit();

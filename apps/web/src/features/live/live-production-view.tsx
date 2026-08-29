@@ -177,7 +177,28 @@ export function LiveProductionView() {
                       <div className="text-[10px] text-muted-foreground mt-1">{since(m.stateSince)}</div>
                     )}
                   </TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">{fmtMin(m.plannedMin)}</TableCell>
+                  {/*
+                    Zero planned production is a REASON, not a number.
+
+                    A starved or blocked machine loses its minutes to external
+                    loss -- the line could not feed it, so those minutes leave
+                    the denominator entirely. That is standard OEE and it is
+                    correct. But a machine that stood in the shift for eleven
+                    hours showing "0m" of planned production reads as a broken
+                    row, and the plant asked about it for that reason.
+
+                    A breakdown is the machine's own fault and stays in the
+                    denominator, which is why M1 shows its full time and M2
+                    beside it shows none. Saying so is the difference between
+                    a figure that looks wrong and one that explains itself.
+                  */}
+                  <TableCell className="text-right text-xs text-muted-foreground">
+                    {m.plannedMin > 0 ? fmtMin(m.plannedMin) : (
+                      <span title={t('live.externalLossHelp')}>
+                        <span className="text-muted-foreground/60">{t('live.outsideDenominator')}</span>
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right text-xs">{fmtMin(m.runMin)}</TableCell>
                   <TableCell className="text-right text-xs text-red-400">{fmtMin(m.downMin)}</TableCell>
                   <TableCell className="text-right"><LivePct v={m.availability} /></TableCell>

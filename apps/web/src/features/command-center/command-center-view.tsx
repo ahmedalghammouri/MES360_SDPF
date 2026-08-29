@@ -27,6 +27,7 @@ import { useCommandCenter } from './use-command-center';
 import {
   PowerGauge, UtilityBreakdown, EnergyTrend, ExecutiveComparison, SectionTitle,
 } from './command-center-charts';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -38,6 +39,16 @@ const itemVariants = {
 };
 
 export function CommandCenterView() {
+  /**
+   * Declared, because the shell reads it.
+   *
+   * `useDeclareViewMode` is what shows the period control -- and a page that
+   * skips it inherits whatever the LAST page set. That is why these analytics
+   * screens showed a partial filter bar: not a missing feature, an undeclared
+   * one, and the bar they got depended on where the reader had just been.
+   */
+  useDeclareViewMode('analytics');
+
   const { t, i18n } = useTranslation(['dashboard', 'common']);
   const { data, isLoading } = useCommandCenter();
   const { trendType, atOee } = useDashboardPrefsStore();

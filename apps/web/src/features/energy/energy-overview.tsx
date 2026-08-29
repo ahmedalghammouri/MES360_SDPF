@@ -21,6 +21,7 @@ import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useOrderFilterStore } from '@/store/order-filter-store';
 import { cn, formatNumber } from '@/lib/utils';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 
 interface EnergyOverview {
   meterCount: number;
@@ -443,6 +444,16 @@ function EnergyContextPanel() {
 }
 
 export function EnergyOverview() {
+  /**
+   * Declared, because the shell reads it.
+   *
+   * `useDeclareViewMode` is what shows the period control -- and a page that
+   * skips it inherits whatever the LAST page set. That is why these analytics
+   * screens showed a partial filter bar: not a missing feature, an undeclared
+   * one, and the bar they got depended on where the reader had just been.
+   */
+  useDeclareViewMode('analytics');
+
   const { t } = useTranslation('modules');
   const { filter: scopeFilter, key: scopeKey } = useScope();
   const [activeTab, setActiveTab] = useState<'overview' | 'mes'>('overview');
@@ -491,11 +502,28 @@ export function EnergyOverview() {
     [ov.byType],
   );
 
+  /**
+   * Every figure says what it covers.
+   *
+   * The plant read 16 kWh here, 16.22 on Energy Monitoring and 15.0 on Factory
+   * Analytics and took the three for a contradiction. All three were right --
+   * different scopes over different periods -- and nothing on the screen said
+   * so. A number without its window is an invitation to compare it with one
+   * that has a different window.
+   */
+  const monthLabel = new Date().toLocaleDateString(undefined, { month: 'long' });
   const kpis = [
-    { label: t('energy.kpiActiveMeters'), value: ov.meterCount, icon: Gauge, color: 'text-brand-400', bg: 'bg-brand-500/20' },
-    { label: t('energy.kpiConsumptionMtd'), value: ov.totalConsumptionMtd.toLocaleString(), icon: Zap, color: 'text-yellow-400', bg: 'bg-yellow-500/20' },
-    { label: t('energy.kpiCostMtd'), value: ov.totalCostMtd.toLocaleString(), icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/20' },
-    { label: t('energy.kpiTodayConsumption'), value: ov.totalConsumptionToday.toLocaleString(), icon: Activity, color: 'text-cyan-400', bg: 'bg-cyan-500/20' },
+    { label: t('energy.kpiActiveMeters'), value: ov.meterCount, note: t('energy.scopeWholeFactory'),
+      icon: Gauge, color: 'text-brand-400', bg: 'bg-brand-500/20' },
+    { label: t('energy.kpiConsumptionMtd'), value: ov.totalConsumptionMtd.toLocaleString(),
+      note: t('energy.scopeFactorySince', { month: monthLabel }),
+      icon: Zap, color: 'text-yellow-400', bg: 'bg-yellow-500/20' },
+    { label: t('energy.kpiCostMtd'), value: ov.totalCostMtd.toLocaleString(),
+      note: t('energy.scopeFactorySince', { month: monthLabel }),
+      icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/20' },
+    { label: t('energy.kpiTodayConsumption'), value: ov.totalConsumptionToday.toLocaleString(),
+      note: t('energy.scopeFactoryToday'),
+      icon: Activity, color: 'text-cyan-400', bg: 'bg-cyan-500/20' },
   ];
 
   return (
@@ -549,9 +577,12 @@ export function EnergyOverview() {
                   <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', kpi.bg)}>
                     <Icon className={cn('w-5 h-5', kpi.color)} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-[11px] text-muted-foreground">{kpi.label}</div>
                     <div className="text-xl font-bold mt-0.5">{kpi.value}</div>
+                    {kpi.note && (
+                      <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{kpi.note}</div>
+                    )}
                   </div>
                 </>
               )}

@@ -604,7 +604,10 @@
       "delete": "Delete"
     },
     "ratioNoMeterData": "No energy meter readings are linked to this work order yet, so no ratio can be calculated. This populates automatically once the line meters stream against a running order.",
-    "ratioWoNotFound": "No work order matches that number or ID."
+    "ratioWoNotFound": "No work order matches that number or ID.",
+    "scopeWholeFactory": "Whole factory",
+    "scopeFactorySince": "Whole factory · since 1 {{month}}",
+    "scopeFactoryToday": "Whole factory · today"
   },
   "aps": {
     "title": "Production Schedule — APS",

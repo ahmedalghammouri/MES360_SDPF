@@ -14,6 +14,7 @@ import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { toFactoryDayKey } from '@/lib/datetime';
 import { cn } from '@/lib/utils';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 
 /** Dimensions the API can group by. Order drives the selector. */
 const GROUPS = [
@@ -167,6 +168,13 @@ function AnalyticsSkeleton() {
 }
 
 export function EnergyAnalyticsView() {
+  /**
+   * Declared, because the shell reads it -- see
+   * analytics-pages-declare-their-mode.spec.ts. A page that skips this does not
+   * get a default; it inherits whatever the LAST page set, so its filter bar
+   * changes depending on where the reader arrived from.
+   */
+  useDeclareViewMode('analytics');
   const { t } = useTranslation('modules');
   const { filter, key: scopeKey } = useScope();
   // Product is the default: it is the most business-meaningful cut and it always

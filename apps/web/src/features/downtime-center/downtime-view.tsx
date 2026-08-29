@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 
 import { useDowntimeCockpit } from './use-downtime-cockpit';
 import { DowntimeTrend, DowntimeByMachine, CategoryPareto, PlannedSplit } from './downtime-charts';
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.04, delayChildren: 0.06 } } };
 const itemVariants = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
@@ -21,6 +22,16 @@ const itemVariants = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 
 const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${Math.round(m % 60)}m` : `${Math.round(m)}m`);
 
 export function DowntimeCenterView() {
+  /**
+   * Declared, because the shell reads it.
+   *
+   * `useDeclareViewMode` is what shows the period control -- and a page that
+   * skips it inherits whatever the LAST page set. That is why these analytics
+   * screens showed a partial filter bar: not a missing feature, an undeclared
+   * one, and the bar they got depended on where the reader had just been.
+   */
+  useDeclareViewMode('analytics');
+
   const { t } = useTranslation(['downtime', 'common']);
   const { data, isLoading } = useDowntimeCockpit();
   const { trendType } = useDashboardPrefsStore();
