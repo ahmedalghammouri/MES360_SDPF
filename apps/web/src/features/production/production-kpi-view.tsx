@@ -168,7 +168,8 @@ function getISOWeek(date: Date): string {
 
 interface PrimaryKpiCardProps {
   title: string;
-  value: number;
+  /** null when nothing was measured -- rendered as a dash, never as zero. */
+  value: number | null;
   unit: string;
   trend: number;
   target: number;
@@ -186,8 +187,11 @@ function PrimaryKpiCard({
   benchmarkNote,
 }: PrimaryKpiCardProps) {
   const { t } = useTranslation(['production', 'common']);
-  const pct = Math.min(100, (value / target) * 100);
-  const gap = value - target;
+  // A card with nothing behind it draws no bar, no gap and no colour. Zero is
+  // a claim about the plant; a dash is an admission about the data.
+  const missing = value == null || !Number.isFinite(value);
+  const pct = missing ? 0 : Math.min(100, ((value as number) / target) * 100);
+  const gap = missing ? null : (value as number) - target;
   // Percentages keep one decimal; unit counts show as whole, grouped numbers.
   const isPct = unit === '%';
   const fmt = (v: number) => (isPct ? v.toFixed(1) : Math.round(v).toLocaleString());
@@ -206,8 +210,9 @@ function PrimaryKpiCard({
       </div>
 
       <div className="flex items-end gap-2">
-        <span className={cn('text-3xl font-bold tabular-nums', oeeColor(value))}>
-          {fmt(value)}
+        <span className={cn('text-3xl font-bold tabular-nums',
+          missing ? 'text-muted-foreground' : oeeColor(value as number))}>
+          {missing ? '—' : fmt(value as number)}
         </span>
         <span className="text-sm text-muted-foreground mb-1">{unit}</span>
         <div className={cn('flex items-center gap-0.5 ml-auto text-xs font-medium', trendColor(trend))}>
@@ -221,9 +226,10 @@ function PrimaryKpiCard({
       <div className="space-y-1">
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>{t('kpiv.vsTarget', { target, unit })}</span>
-          <span className={cn('font-medium', gap >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
-            {gap >= 0 ? '+' : ''}
-            {fmt(gap)}{unit}
+          <span className={cn('font-medium',
+            gap == null ? 'text-muted-foreground'
+              : gap >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+            {gap == null ? '—' : <>{gap >= 0 ? '+' : ''}{fmt(gap)}{unit}</>}
           </span>
         </div>
         <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
@@ -245,6 +251,10 @@ function PrimaryKpiCard({
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
+
+/** A percentage, or an em-dash when there is no figure. Never a false zero. */
+const showPct = (v: number | null | undefined) =>
+  v == null || !Number.isFinite(v) ? '—' : `${v.toFixed(1)}%`;
 
 export default function ProductionKpiView() {
   const { t } = useTranslation(['production', 'common']);
@@ -373,7 +383,15 @@ export default function ProductionKpiView() {
   // Real FPY from inspection records. Falls back to 0 (not to the quality factor)
   // when no inspections exist in the window, so an absent measurement reads as
   // absent instead of borrowing an unrelated number.
-  const firstPassYield = qualityReport?.fpy ?? 0;
+  /**
+   * No inspections is not zero quality.
+   *
+   * `?? 0` printed 0.0% under the words "No inspections recorded in this
+   * period", and KPI Targets then flagged it as Below Target -99% -- a red
+   * alarm about a problem that does not exist. A dashboard that cries wolf is
+   * how the real alarms come to be ignored.
+   */
+  const firstPassYield: number | null = qualityReport?.fpy ?? null;
   const hasInspections = (qualityReport?.inspectionCount ?? 0) > 0;
   const totalScrap = Math.max(0, summary.totalOutput - summary.goodOutput);
 
@@ -597,9 +615,21 @@ export default function ProductionKpiView() {
         </div>
 
         {/* Time-Based (OEE-TB) — standardized backend metric, beside the schedule-based KPIs above */}
+        {/*
+          One source for OEE-TB, not two.
+
+          This line used to read `kpis.oeeTb` while the card six rows above read
+          `summary.oeeTb` -- a different query for the same metric. The screen
+          showed 55.8% on the card and 0.0% here, at the same moment, under the
+          same name. Whichever was right, a reader had no way to tell.
+
+          `?? 0` was the other half of it: an absent figure printed as a
+          measured zero. A zero is a claim about the plant; a dash is an
+          admission about the data, and only one of them was true.
+        */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground -mt-3 px-1">
-          <span>{t('atOee')}: <b className="text-foreground">{(kpis?.oeeTb ?? 0).toFixed(1)}%</b></span>
-          <span>{t('availabilityTb')}: <b className="text-foreground">{(kpis?.availabilityTb ?? 0).toFixed(1)}%</b></span>
+          <span>{t('atOee')}: <b className="text-foreground">{showPct(summary.oeeTb)}</b></span>
+          <span>{t('availabilityTb')}: <b className="text-foreground">{showPct(summary.availabilityTb)}</b></span>
           <span className="opacity-70">{t('kpiv.atOeeHint')}</span>
         </div>
 
@@ -683,14 +713,22 @@ export default function ProductionKpiView() {
                 </thead>
                 <tbody className="divide-y divide-border/30">
                   {kpiRows.map((row) => {
-                    const gap = row.actual - row.target;
+                    // A metric with nothing measured has no gap and no status.
+                    // Reporting "Below Target -99%" for a quality figure that
+                    // rests on zero inspections is a false alarm, and false
+                    // alarms are how the real ones come to be ignored.
+                    const missing = row.actual == null || !Number.isFinite(row.actual as number);
+                    const gap = missing ? null : (row.actual as number) - row.target;
                     // Percentages keep one decimal; unit counts show as whole numbers.
-                    const rfmt = (v: number) => (row.unit === '%' ? v.toFixed(1) : Math.round(v).toLocaleString());
+                    const rfmt = (v: number | null) =>
+                      v == null || !Number.isFinite(v) ? '—'
+                        : (row.unit === '%' ? v.toFixed(1) : Math.round(v).toLocaleString());
                     return (
                       <tr key={row.metric} className="h-10">
                         <td className="pr-2 font-medium text-foreground/80">{row.metric}</td>
-                        <td className={cn('pr-2 tabular-nums font-bold', oeeColor(row.actual))}>
-                          {rfmt(row.actual)}{row.unit}
+                        <td className={cn('pr-2 tabular-nums font-bold',
+                          missing ? 'text-muted-foreground' : oeeColor(row.actual as number))}>
+                          {rfmt(row.actual)}{missing ? '' : row.unit}
                         </td>
                         <td className="pr-2 text-muted-foreground tabular-nums">
                           {rfmt(row.target)}{row.unit}
@@ -698,13 +736,19 @@ export default function ProductionKpiView() {
                         <td
                           className={cn(
                             'pr-2 tabular-nums font-medium',
-                            gap >= 0 ? 'text-emerald-400' : 'text-rose-400',
+                            gap == null ? 'text-muted-foreground'
+                              : gap >= 0 ? 'text-emerald-400' : 'text-rose-400',
                           )}
                         >
-                          {gap >= 0 ? '+' : ''}
-                          {rfmt(gap)}{row.unit}
+                          {gap == null ? '—' : (
+                            <>{gap >= 0 ? '+' : ''}{rfmt(gap)}{row.unit}</>
+                          )}
                         </td>
-                        <td>{statusChip(gap, t)}</td>
+                        <td>
+                          {gap == null
+                            ? <span className="text-[10px] text-muted-foreground">no data</span>
+                            : statusChip(gap, t)}
+                        </td>
                       </tr>
                     );
                   })}

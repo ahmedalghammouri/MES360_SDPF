@@ -213,19 +213,28 @@ export class OeeStandardController {
   @Get('planned-now')
   @RequirePermissions('production:read')
   @ApiOperation({ summary: 'The planned stop covering this instant, per machine' })
-  @ApiQuery({ name: 'machineIds', required: false, description: 'Comma-separated; omit for the whole factory' })
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({ name: 'lineId', required: false })
+  @ApiQuery({ name: 'machineId', required: false })
   async plannedNow(
     @CurrentUser() user: RequestUser,
-    @Query('machineIds') machineIds?: string,
+    @Query('areaId') areaId?: string,
+    @Query('lineId') lineId?: string,
+    @Query('machineId') machineId?: string,
   ) {
     const now = Date.now();
     // Wide enough to catch a band that started before this instant, narrow
     // enough that the query stays cheap on a tablet polling it.
     const from = new Date(now - 12 * 3600_000);
     const to = new Date(now + 12 * 3600_000);
-    const ids = (machineIds ?? '').split(',').map((x) => x.trim()).filter(Boolean);
-
-    const segments = await this.timeline.plannedSegments(user.factoryId, from, to);
+    // Scope arrives as area / line / machine and is resolved server-side, the
+    // way every other endpoint here does it. An earlier version took a raw
+    // `machineIds` list from the client -- which `scope-reachable.spec.ts`
+    // exists to forbid, and caught. A client-supplied id list walks straight
+    // past the scope resolution that decides what this user may see.
+    const segments = await this.timeline.plannedSegments(
+      user.factoryId, from, to, this.scope({ areaId, lineId, machineId }),
+    );
 
     // `plannedSegments` encodes whether a stop COSTS the reading in its kind:
     // an excluded stop is 'planned' and a charged one -- changeover, startup --
@@ -233,18 +242,17 @@ export class OeeStandardController {
     // changeover, which is the stop the line most wants warning about.
     // 'running' is the production band and is not a stop at all.
     const isStop = (sg: { kind: string }) => sg.kind === 'planned' || sg.kind === 'downtime';
-    const mine = (sg: { machineId: string }) => !ids.length || ids.includes(sg.machineId);
     const stamp = (sg: { kind: string }) => ({ charged: sg.kind === 'downtime' });
 
     const active = segments
-      .filter((sg) => isStop(sg) && mine(sg)
+      .filter((sg) => isStop(sg)
         && +new Date(sg.from) <= now && +new Date(sg.to) > now)
       .map((sg) => ({ ...sg, ...stamp(sg) }));
 
     // Next up, so a tablet can say "Lunch Break in 20 minutes" rather than only
     // reporting a stop once the line has already gone quiet.
     const upcoming = segments
-      .filter((sg) => isStop(sg) && mine(sg) && +new Date(sg.from) > now)
+      .filter((sg) => isStop(sg) && +new Date(sg.from) > now)
       .sort((a, b) => +new Date(a.from) - +new Date(b.from))
       .slice(0, 4)
       .map((sg) => ({ ...sg, ...stamp(sg) }));

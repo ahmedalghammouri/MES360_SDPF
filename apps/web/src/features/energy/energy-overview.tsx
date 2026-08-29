@@ -20,7 +20,7 @@ import {
 import { api } from '@/services/api.client';
 import { useScope } from '@/hooks/use-scope';
 import { useOrderFilterStore } from '@/store/order-filter-store';
-import { cn } from '@/lib/utils';
+import { cn, formatNumber } from '@/lib/utils';
 
 interface EnergyOverview {
   meterCount: number;
@@ -168,7 +168,7 @@ function MachineEnergyRatioPanel({ workOrderId }: { workOrderId: string }) {
         {data?.lineKwhPerUnit != null && (
           <Badge variant="outline" className="text-xs font-mono">
             {t('energy.ratioLineTotal', {
-              value: data.lineKwhPerUnit.toFixed(3),
+              value: formatNumber(data.lineKwhPerUnit, 3),
               unit,
             })}
           </Badge>
@@ -193,7 +193,7 @@ function MachineEnergyRatioPanel({ workOrderId }: { workOrderId: string }) {
                 </div>
                 <div className="flex items-baseline gap-1 shrink-0">
                   <span className="text-lg font-bold text-blue-400">
-                    {ratio != null ? ratio.toFixed(3) : '—'}
+                    {ratio != null ? formatNumber(ratio, 3) : '—'}
                   </span>
                   <span className="text-[10px] text-muted-foreground">kWh/{unit}</span>
                 </div>
@@ -211,7 +211,7 @@ function MachineEnergyRatioPanel({ workOrderId }: { workOrderId: string }) {
                 <div>
                   <span className="text-muted-foreground block">{t('energy.ratioProductive')}</span>
                   <span className="font-semibold">
-                    {m.productiveKwhPerUnit != null ? m.productiveKwhPerUnit.toFixed(3) : '—'}
+                    {m.productiveKwhPerUnit != null ? formatNumber(m.productiveKwhPerUnit, 3) : '—'}
                   </span>
                 </div>
                 <div>
@@ -244,7 +244,7 @@ function MachineEnergyRatioPanel({ workOrderId }: { workOrderId: string }) {
                   <span>
                     {t('energy.ratioDrift', {
                       pct: m.variancePct!.toFixed(1),
-                      baseline: m.baselineKwhPerUnit?.toFixed(3) ?? '—',
+                      baseline: formatNumber(m.baselineKwhPerUnit, 3),
                     })}
                   </span>
                 </div>
@@ -338,7 +338,7 @@ function EnergyContextPanel() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
                 { label: t('energy.mTotalKwh'), value: summary.totalKwh?.toFixed(2) ?? '—', color: 'text-yellow-400', icon: Zap },
-                { label: t('energy.mKwhPerUnit'), value: summary.kwhPerUnit != null ? summary.kwhPerUnit.toFixed(3) : '—', color: 'text-blue-400', icon: Gauge },
+                { label: t('energy.mKwhPerUnit'), value: summary.kwhPerUnit != null ? formatNumber(summary.kwhPerUnit, 3) : '—', color: 'text-blue-400', icon: Gauge },
                 { label: t('energy.mIdleWastePct'), value: `${summary.wastePct?.toFixed(1) ?? '—'}%`, color: 'text-red-400', icon: TrendingDown },
                 { label: t('energy.mAnomalies'), value: String(summary.anomalyCount ?? 0), color: summary.anomalyCount > 0 ? 'text-orange-400' : 'text-muted-foreground', icon: AlertTriangle },
               ].map(({ label, value, color, icon: Icon }) => (

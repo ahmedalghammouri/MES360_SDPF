@@ -30,7 +30,20 @@ export function KPICard({
   subtitle,
   className,
 }: KPICardProps) {
-  const numValue = Number(value ?? 0);
+  /**
+   * A caller that passes a STRING has already formatted it, and the card must
+   * print it as given.
+   *
+   * `formatNumber` runs `Number(value)` and returns an em-dash for anything it
+   * cannot parse. So the Downtime Command Center, which passes "265h 0m" from
+   * its own `fmtMin`, showed four empty cards over a chart full of data -- an
+   * em-dash means "nothing recorded", and the plant had 15,900 minutes of it.
+   *
+   * Numbers still go through `formatNumber` for its thousands separators and
+   * its guard against a small non-zero value printing as 0.
+   */
+  const preformatted = typeof value === 'string' && Number.isNaN(Number(value));
+  const numValue = preformatted ? NaN : Number(value ?? 0);
   const valueColor =
     colorMode === 'oee'
       ? getOEEColor(numValue)
@@ -38,8 +51,11 @@ export function KPICard({
         ? 'text-danger-400'
         : 'text-foreground';
 
-  const atTarget = target !== undefined && numValue >= target;
-  const progressPct = target ? Math.min((numValue / target) * 100, 100) : null;
+  const atTarget = target !== undefined && !preformatted && numValue >= target;
+  // A preformatted value has no scale to draw a bar against.
+  const progressPct = target && !preformatted
+    ? Math.min((numValue / target) * 100, 100)
+    : null;
 
   const trendIcon =
     trend === undefined || trend === 0 ? (
@@ -82,7 +98,7 @@ export function KPICard({
         className="flex items-baseline gap-1.5 mb-2"
       >
         <span className={cn('text-2xl font-bold tabular-nums', valueColor)}>
-          {formatNumber(value, unit === '%' ? 1 : 0)}
+          {preformatted ? value : formatNumber(value, unit === '%' ? 1 : 0)}
         </span>
         {unit && (
           <span className="text-sm text-muted-foreground font-medium">{unit}</span>

@@ -95,8 +95,29 @@ function range(days: number) {
   return { dateFrom: toFactoryDayKey(from), dateTo: toFactoryDayKey(to) };
 }
 
-const num = (n: number | null | undefined, dp = 1) =>
-  n == null ? '—' : n.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });
+/**
+ * A number, at the requested precision -- unless that precision would print a
+ * real measurement as zero.
+ *
+ * The plant read "Energy ratio (kWh/inner) 0.000" on a line that had consumed
+ * 15 kWh, while the table two rows below showed 0.001 and 0.0004 for the same
+ * kind of figure. Nothing was wrong with the arithmetic; three decimal places
+ * simply cannot hold it. A measured value displayed as zero is indistinguishable
+ * from no measurement at all, and this plant has spent a week learning what that
+ * costs.
+ *
+ * So a non-zero value borrows just enough precision to show one significant
+ * digit. A true zero still prints as zero -- it is a fact and must not be
+ * dressed up.
+ */
+const num = (n: number | null | undefined, dp = 1) => {
+  if (n == null || !Number.isFinite(n)) return '—';
+  if (n !== 0 && Math.abs(Number(n.toFixed(dp))) === 0) {
+    const needed = Math.min(6, Math.ceil(-Math.log10(Math.abs(n))) + 1);
+    return n.toFixed(Math.max(dp, needed));
+  }
+  return n.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });
+};
 
 /**
  * Mirrors the loaded layout — KPI strip, chart, table — so the page does not

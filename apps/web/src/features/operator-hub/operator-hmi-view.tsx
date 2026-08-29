@@ -23,6 +23,7 @@ import {
   Cpu, Layers, RotateCcw, Unplug, ShieldAlert, Undo2, CalendarClock,
 } from 'lucide-react';
 
+import { useDeclareViewMode } from '@/components/layout/live-analytics-tabs';
 import { api } from '@/services/api.client';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -163,6 +164,17 @@ export function OperatorHmiView() {
     queryFn: () => api.get('/shifts/analysis'),
     refetchInterval: 20_000,
   });
+
+  /**
+   * This screen is LIVE, and says so.
+   *
+   * It reads a period-scoped endpoint (`planned-now`) while carrying no date
+   * filter at all -- deliberately, because an operator at the line is asking
+   * about this minute and nothing else. `period-reaches-the-page.spec.ts`
+   * requires any page reading such an endpoint either to send the period or to
+   * declare itself live. Declaring it is the truthful half of that choice.
+   */
+  useDeclareViewMode('live');
 
   const allJobs: JO[] = (data as any) ?? [];
   // Shop floor shows ONLY the job orders assigned to the logged-in operator, and
@@ -855,17 +867,22 @@ function BypassDialog({ jo, onClose, onConfirm, pending }: {
  */
 function PlannedNow({ machineIds }: { machineIds: string[] }) {
   const { data } = useQuery<any>({
-    queryKey: ['planned-now', machineIds.join(',')],
-    queryFn: () => api.get('/oee-standard/planned-now', {
-      params: machineIds.length ? { machineIds: machineIds.join(',') } : {},
-    }),
+    queryKey: ['planned-now'],
+    // No machine list is sent. Scope is the server's decision -- a client that
+    // hands over its own id list walks past the resolution that decides what
+    // this user may see, which `scope-reachable.spec.ts` forbids outright.
+    // The factory's planned stops are a handful of rows; the filtering below
+    // is presentation, not authorisation.
+    queryFn: () => api.get('/oee-standard/planned-now'),
     // A planned stop starts on a clock, not on an event, so this polls. Half a
     // minute is well inside the shortest stop the plant configures.
     refetchInterval: 30_000,
   });
 
-  const active: any[] = data?.active ?? [];
-  const next: any = (data?.upcoming ?? [])[0] ?? null;
+  // Narrowed to the machines this operator is standing at, for readability.
+  const onMine = (sg: any) => machineIds.length === 0 || machineIds.includes(sg.machineId);
+  const active: any[] = (data?.active ?? []).filter(onMine);
+  const next: any = ((data?.upcoming ?? []).filter(onMine))[0] ?? null;
 
   const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const minsUntil = (iso: string) => Math.max(0, Math.round((+new Date(iso) - Date.now()) / 60_000));

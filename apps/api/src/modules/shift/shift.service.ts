@@ -9,6 +9,7 @@ import { toBaseUnits, convertUnits, toPieces, fromPieces } from '../../common/un
 import { plantWallClockToUtc, utcBound } from '../../common/plant-time.util';
 import { KpiService } from '../production/kpi.service';
 import { PlannedStopService } from './planned-stop.service';
+import { merge, spanMinutes, type Span } from '../oee-standard/minute-classification';
 import {
   CreateShiftTemplateDto, UpdateShiftTemplateDto, GenerateInstancesDto,
   ListInstancesQueryDto, StartShiftDto, CompleteShiftDto,
@@ -734,17 +735,53 @@ export class ShiftService {
     };
     const downByMachine = new Map<string, number>();
     const reasonTally = new Map<string, { label: string; mins: number; count: number }>();
-    let totalDownMins = 0; let plannedDownMins = 0;
+
+    /**
+     * The LINE's downtime is the UNION of the stops, not their sum.
+     *
+     * Downtime is recorded per machine, so one line-wide stop is four rows at
+     * identical times. Adding them reported 46h 28m of downtime in a shift
+     * 11h 38m old -- exactly four machines times the elapsed time -- and a
+     * duration longer than the shift that contains it is not a duration.
+     *
+     * The tell is that the old figure got WORSE the bigger the line: eight
+     * machines would have doubled it again. A number that grows with the
+     * machine count is not measuring the line.
+     *
+     * `downByMachine` stays a plain sum, because there the question really is
+     * "how long was THIS machine down". Only the line total needs the union,
+     * and it is the same rule `plannedStoppageMins` already applies.
+     */
+    const allSpans: Span[] = [];
+    const plannedSpans: Span[] = [];
+    const unplannedSpans: Span[] = [];
+    /** The old figure under an honest name: machine-minutes, not clock time. */
+    let machineDownMins = 0;
+
     for (const ev of downtimeEvents) {
       const mins = clamp(ev.startTime, ev.endTime);
       if (mins <= 0) continue;
-      totalDownMins += mins;
-      if (ev.isPlanned) plannedDownMins += mins;
+      const a = Math.max(+ev.startTime, +from);
+      const b = Math.min(+(ev.endTime ?? to), +to);
+      if (b > a) {
+        allSpans.push([a, b]);
+        (ev.isPlanned ? plannedSpans : unplannedSpans).push([a, b]);
+      }
+      machineDownMins += mins;
       if (ev.machineId) downByMachine.set(ev.machineId, (downByMachine.get(ev.machineId) ?? 0) + mins);
       const key = ev.cause?.name ?? ev.reason ?? ev.reasonCode ?? 'Unspecified';
       const r = reasonTally.get(key) ?? { label: key, mins: 0, count: 0 };
       r.mins += mins; r.count += 1; reasonTally.set(key, r);
     }
+
+    const totalDownMins = spanMinutes(merge(allSpans));
+    const plannedDownMins = spanMinutes(merge(plannedSpans));
+    // Its own union, NOT `total - planned`. A minute can be a planned stop on
+    // one machine and a breakdown on another, so the two overlap and their sum
+    // can exceed the total. The subtraction would have reported ZERO unplanned
+    // downtime during a breakdown that happened inside a cleaning window --
+    // the one thing a maintenance team needs to see.
+    const unplannedDownMins = spanMinutes(merge(unplannedSpans));
 
     const oeeByMachine = new Map<string, number>();
     for (const o of oeeRecords) {
@@ -835,7 +872,10 @@ export class ShiftService {
         totalMachines: machineRows.length,
         downtimeMins: Math.round(totalDownMins * 10) / 10,
         plannedDownMins: Math.round(plannedDownMins * 10) / 10,
-        unplannedDownMins: Math.round((totalDownMins - plannedDownMins) * 10) / 10,
+        unplannedDownMins: Math.round(unplannedDownMins * 10) / 10,
+        // The sum across machines, for anyone who wants maintenance-hours
+        // rather than clock time. Named so the two cannot be confused again.
+        machineDownMins: Math.round(machineDownMins * 10) / 10,
         // pace vs the time elapsed in the shift (finished base units / hr)
         paceGoodPerHr: status.elapsedMin > 0 ? Math.round((finishedGood / status.elapsedMin) * 60) : null,
         projectedGood: status.elapsedMin > 0 ? Math.round((finishedGood / status.elapsedMin) * status.totalMin) : null,
