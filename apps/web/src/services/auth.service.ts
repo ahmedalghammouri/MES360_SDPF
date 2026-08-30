@@ -20,13 +20,26 @@ export interface FactoryInfo {
   isActive: boolean;
 }
 
+/**
+ * A landing KPI is nullable, and that is the point.
+ *
+ * `null` means the factory reported nothing in the window -- no scheduled time,
+ * so no availability, so no OEE. It is NOT zero. The endpoint used to read a
+ * table that has never held a row and coerce the resulting null to 0, which put
+ * "Overall OEE 0.0%" on the login screen of a plant that had just run a full
+ * order. Every consumer must render null as an em-dash, never as a number.
+ *
+ * The counts below stay plain numbers: a headcount or an alarm tally of zero is
+ * a real, measured zero.
+ */
 export interface FactoryLiveKpis {
-  oee: number;
-  availability: number;
-  performance: number;
-  quality: number;
-  uptime: number;
-  production: number;
+  oee: number | null;
+  availability: number | null;
+  performance: number | null;
+  quality: number | null;
+  uptime: number | null;
+  /** Today's good output at the final routing step, in base units. */
+  production: number | null;
   employees: number;
   activeAlarms: number;
   shiftsToday: number;
@@ -38,9 +51,11 @@ export interface FactoryOverviewItem extends FactoryInfo {
 
 export interface FactoriesOverview {
   factories: FactoryOverviewItem[];
+  /** Rolling window the OEE and quality figures describe, in days. */
+  windowDays: number;
   summary: {
-    avgOEE: number;
-    avgQuality: number;
+    avgOEE: number | null;
+    avgQuality: number | null;
     totalFactories: number;
     totalEmployees: number;
     totalActiveAlarms: number;

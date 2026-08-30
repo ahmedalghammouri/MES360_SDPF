@@ -6,9 +6,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
+// The public landing overview reports OEE, and there is exactly one engine that
+// computes OEE. Nothing imports AuthModule except itself, so this direction is
+// safe -- verified before adding it, because a cycle here breaks every guard.
+import { ProductionModule } from '../production/production.module';
 
 @Module({
   imports: [
+    ProductionModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

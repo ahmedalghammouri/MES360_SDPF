@@ -21,15 +21,27 @@ export interface Factory {
   kpis: FactoryKPI;
 }
 
+/**
+ * Nullable wherever the figure is a MEASUREMENT, plain where it is a COUNT.
+ *
+ * Null means nothing was measured in the window -- no scheduled time, so no
+ * availability and therefore no OEE. It is not zero, and no consumer may render
+ * it as one: `0.0%` on a landing tile reads as "this factory produced nothing",
+ * which is what the login page told every visitor until this was fixed.
+ *
+ * Kept in step with `FactoryLiveKpis` in services/auth.service.ts, which is the
+ * shape the endpoint actually returns.
+ */
 export interface FactoryKPI {
-  oee: number;
-  production: number;
+  oee: number | null;
+  production: number | null;
   productionUnit?: string;
-  quality: number;
-  availability: number;
-  performance: number;
+  quality: number | null;
+  availability: number | null;
+  performance: number | null;
+  /** Counts, not measurements: zero here is a real zero. */
   activeAlarms: number;
   employees: number;
   shiftsToday: number;
-  uptime: number;
+  uptime: number | null;
 }

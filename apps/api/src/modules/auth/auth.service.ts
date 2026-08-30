@@ -10,6 +10,7 @@ import * as crypto from 'crypto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { resolveRolePermissions } from '../../common/rbac/permission-cache';
+import { KpiService, type MachineFactTotals } from '../production/kpi.service';
 import type { User } from '@prisma/client';
 
 export interface JwtPayload {
@@ -35,6 +36,9 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    // The landing page shows OEE, so it reads the OEE engine. Injected rather
+    // than re-derived: see {@link getFactoriesOverview}.
+    private readonly kpi: KpiService,
   ) {}
 
   // Validates credentials — factoryCode optional (SUPER_ADMIN can omit or specify any)
@@ -274,11 +278,37 @@ export class AuthService {
   }
 
   /**
-   * Public landing-page overview: every active factory with REAL KPIs
-   * (OEE/availability/performance/quality averaged from oee_records,
-   * employee headcount, active-alarm count, shifts started today, today's
-   * output) plus a network-wide summary. Powers the factory-selector map
-   * and the login marketing panel with live data instead of static numbers.
+   * Public landing-page overview: every active factory with REAL KPIs, plus a
+   * network-wide summary. Powers the factory-selector map and the login panel.
+   *
+   * ── Why this was rewritten ──────────────────────────────────────────────
+   * It read `oee_records`, and `oee_records` has never been written: it holds
+   * zero rows on every database checked. Prisma's `_avg` over no rows returns
+   * null, `round1` was `Math.round((n ?? 0) * 10) / 10`, and so the login page
+   * greeted every visitor with "Overall OEE 0.0% / Quality Rate 0.0%" for a
+   * plant that had run 14,040 measured minutes.
+   *
+   * That is the same `?? 0` fault this codebase has now paid for repeatedly:
+   * an absent measurement rendered as a measured zero. A zero OEE is a claim —
+   * it says the line produced nothing — and it is the most damaging thing a
+   * landing page can say about a working factory.
+   *
+   * ── Where the numbers come from now ─────────────────────────────────────
+   * `KpiService.machineFactTotals` and `factorsFromFacts` — the same engine
+   * every other OEE surface reads, guarded by availability-one-engine.spec.
+   * A landing tile computing its own OEE is exactly how two screens come to
+   * disagree, and this endpoint had drifted so far it was reading a dead table.
+   *
+   * Summing a factory's machines is safe because that engine already filters
+   * QUANTITY to the final routing step per work order — the upstream machines
+   * carry time but zero parts, so a unit that crosses four stations is counted
+   * once. Time is additive by nature. This is precisely the arithmetic the
+   * engine exists to own.
+   *
+   * ── Null, never zero ────────────────────────────────────────────────────
+   * `factorsFromFacts` returns null when a denominator is absent, and that null
+   * travels all the way to the browser, where it renders as an em-dash. A
+   * factory that has not run this month says so instead of claiming failure.
    */
   async getFactoriesOverview() {
     const factories = await this.prisma.factory.findMany({
@@ -288,25 +318,43 @@ export class AuthService {
     });
     const ids = factories.map((f) => f.id);
     if (ids.length === 0) {
-      return { factories: [], summary: { avgOEE: 0, avgQuality: 0, totalFactories: 0, totalEmployees: 0, totalActiveAlarms: 0 } };
+      return {
+        windowDays: 30,
+        factories: [],
+        // Null, not 0: there is no network here to have an average.
+        summary: { avgOEE: null, avgQuality: null, totalFactories: 0, totalEmployees: 0, totalActiveAlarms: 0 },
+      };
     }
 
     const dayStart = new Date();
     dayStart.setHours(0, 0, 0, 0);
+    // A landing tile needs a window wide enough that a plant which ran last
+    // week still has something to show, and narrow enough that the figure
+    // describes the factory as it is now. Thirty days is stated in the payload
+    // as `windowDays` so the page can label what it is showing -- an unlabelled
+    // percentage is the ambiguity that started the dashboard audit.
+    const WINDOW_DAYS = 30;
+    const now = new Date();
+    const windowFrom = new Date(now.getTime() - WINDOW_DAYS * 86_400_000);
 
-    const [oeeAll, oeeToday, employees, alarms, shifts] = await Promise.all([
-      // OEE quality metrics averaged over all records (stable snapshot)
-      this.prisma.oEERecord.groupBy({
-        by: ['factoryId'],
-        where: { factoryId: { in: ids } },
-        _avg: { oee: true, availability: true, performance: true, quality: true },
-      }),
-      // Today's output for the production figure
-      this.prisma.oEERecord.groupBy({
-        by: ['factoryId'],
-        where: { factoryId: { in: ids }, recordDate: { gte: dayStart } },
-        _sum: { totalOutput: true },
-      }),
+    const machines = await this.prisma.machine.findMany({
+      where: { factoryId: { in: ids }, isActive: true, archivedAt: null },
+      select: { id: true, factoryId: true },
+    });
+    const machinesOf = new Map<string, string[]>();
+    for (const m of machines) {
+      const list = machinesOf.get(m.factoryId) ?? [];
+      list.push(m.id);
+      machinesOf.set(m.factoryId, list);
+    }
+    const allMachineIds = machines.map((m) => m.id);
+
+    const [windowFacts, todayFacts, employees, alarms, shifts] = await Promise.all([
+      // The canonical engine, over the rolling window.
+      this.kpi.machineFactTotals(allMachineIds, windowFrom, now),
+      // Today's output, through the same final-step rule so it cannot disagree
+      // with the production figure any other page shows.
+      this.kpi.machineFactTotals(allMachineIds, dayStart, now),
       this.prisma.user.groupBy({
         by: ['factoryId'],
         where: { factoryId: { in: ids }, isActive: true, deletedAt: null },
@@ -324,25 +372,56 @@ export class AuthService {
       }),
     ]);
 
-    const round1 = (n: number | null | undefined) => Math.round((n ?? 0) * 10) / 10;
-    const oeeMap = new Map(oeeAll.map((r) => [r.factoryId, r._avg]));
-    const prodMap = new Map(oeeToday.map((r) => [r.factoryId, r._sum.totalOutput ?? 0]));
     const empMap = new Map(employees.map((r) => [r.factoryId, r._count._all]));
     const alarmMap = new Map(alarms.map((r) => [r.factoryId, r._count._all]));
     const shiftMap = new Map(shifts.map((r) => [r.factoryId, r._count._all]));
 
+    /**
+     * One factory's machines added together.
+     *
+     * Returns undefined when the factory has no machine that reported anything
+     * in the window -- which is a different fact from "reported zeros", and
+     * `factorsFromFacts` turns it into nulls rather than into 0%.
+     */
+    const rollUp = (
+      facts: Map<string, MachineFactTotals>,
+      factoryId: string,
+    ): MachineFactTotals | undefined => {
+      const own = (machinesOf.get(factoryId) ?? [])
+        .map((id) => facts.get(id))
+        .filter((x): x is MachineFactTotals => x != null);
+      if (own.length === 0) return undefined;
+      return own.reduce((a, b) => ({
+        plannedMin: a.plannedMin + b.plannedMin,
+        runMin: a.runMin + b.runMin,
+        downMin: a.downMin + b.downMin,
+        plannedDownMin: a.plannedDownMin + b.plannedDownMin,
+        externalMin: a.externalMin + b.externalMin,
+        microStopMin: a.microStopMin + b.microStopMin,
+        idealRunMin: a.idealRunMin + b.idealRunMin,
+        unmeasuredMin: a.unmeasuredMin + b.unmeasuredMin,
+        // Safe to add only because the engine already reduced quantity to the
+        // final routing step per work order; upstream machines contribute 0.
+        totalBase: a.totalBase + b.totalBase,
+        goodBase: a.goodBase + b.goodBase,
+        scrapBase: a.scrapBase + b.scrapBase,
+      }));
+    };
+
     const enriched = factories.map((f) => {
-      const o = oeeMap.get(f.id);
-      const availability = round1(o?.availability);
+      const k = this.kpi.factorsFromFacts(rollUp(windowFacts, f.id));
+      const today = rollUp(todayFacts, f.id);
       return {
         ...f,
         kpis: {
-          oee: round1(o?.oee),
-          availability,
-          performance: round1(o?.performance),
-          quality: round1(o?.quality),
-          uptime: availability, // availability is the real uptime proxy
-          production: prodMap.get(f.id) ?? 0,
+          oee: k.oee,
+          availability: k.availability,
+          performance: k.performance,
+          quality: k.quality,
+          // Uptime is the time-based availability, not the schedule-based one:
+          // "while it was up, how much was productive" is what the word means.
+          uptime: k.availabilityTb,
+          production: today ? Math.round(today.goodBase) : null,
           employees: empMap.get(f.id) ?? 0,
           activeAlarms: alarmMap.get(f.id) ?? 0,
           shiftsToday: shiftMap.get(f.id) ?? 0,
@@ -350,14 +429,20 @@ export class AuthService {
       };
     });
 
-    const withOEE = enriched.filter((f) => f.kpis.oee > 0);
-    const avg = (arr: number[]) => (arr.length ? arr.reduce((s, n) => s + n, 0) / arr.length : 0);
+    // Averaged over the factories that HAVE a figure. A site that did not run
+    // must not drag the network average toward zero -- it has no OEE to
+    // contribute, which is not the same as contributing a bad one.
+    const mean = (xs: Array<number | null>) => {
+      const real = xs.filter((n): n is number => n != null);
+      return real.length ? Math.round((real.reduce((s, n) => s + n, 0) / real.length) * 10) / 10 : null;
+    };
 
     return {
+      windowDays: WINDOW_DAYS,
       factories: enriched,
       summary: {
-        avgOEE: round1(avg(withOEE.map((f) => f.kpis.oee))),
-        avgQuality: round1(avg(withOEE.map((f) => f.kpis.quality))),
+        avgOEE: mean(enriched.map((f) => f.kpis.oee)),
+        avgQuality: mean(enriched.map((f) => f.kpis.quality)),
         totalFactories: factories.length,
         totalEmployees: enriched.reduce((s, f) => s + f.kpis.employees, 0),
         totalActiveAlarms: enriched.reduce((s, f) => s + f.kpis.activeAlarms, 0),

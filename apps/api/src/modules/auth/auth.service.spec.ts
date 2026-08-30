@@ -5,6 +5,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../database/prisma.service';
+import { KpiService } from '../production/kpi.service';
 import * as bcrypt from 'bcryptjs';
 
 const mockPrisma = {
@@ -45,6 +46,20 @@ const mockConfigService = {
 
 const mockEventEmitter = { emit: jest.fn() };
 
+/**
+ * The landing overview reports OEE, so AuthService now depends on the one
+ * engine that computes it. `factorsFromFacts` returns nulls for an absent
+ * measurement -- mirrored here, because the whole point of the change is that
+ * "no data" must never arrive at a screen as 0%.
+ */
+const mockKpiService = {
+  machineFactTotals: jest.fn().mockResolvedValue(new Map()),
+  factorsFromFacts: jest.fn().mockReturnValue({
+    availability: null, performance: null, quality: null,
+    oee: null, availabilityTb: null, oeeTb: null,
+  }),
+};
+
 describe('AuthService', () => {
   let service: AuthService;
 
@@ -57,6 +72,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: KpiService, useValue: mockKpiService },
       ],
     }).compile();
 

@@ -52,21 +52,36 @@ function LoginPageInner() {
     authService.getFactoriesOverview().then(setOverview).catch(() => {});
   }, []);
 
+  /**
+   * A percentage that was never measured renders as an em-dash, not as 0.0%.
+   *
+   * The tiles read "Overall OEE 0.0%" for a running plant because the endpoint
+   * coerced a missing measurement to zero. The API returns null now, and this
+   * is the last place that could undo it -- `(null).toFixed` would have thrown,
+   * so the type change alone forces the decision to be made here rather than
+   * silently defaulted somewhere.
+   */
+  const pct = (n: number | null | undefined) => (n == null ? '—' : `${n.toFixed(1)}%`);
+
   // Stats reflect the selected factory's live KPIs, or the network summary
   const liveStats = (() => {
     if (!overview) return null;
     const f = factoryCode ? overview.factories.find((x) => x.code === factoryCode) : null;
+    // The window is named on the label. A bare percentage invites the reader to
+    // assume it means "right now", which is the one thing it does not mean.
+    const w = `${overview.windowDays}d`;
     if (f) {
       return [
-        { label: 'Overall OEE', value: `${f.kpis.oee.toFixed(1)}%` },
-        { label: 'Quality Rate', value: `${f.kpis.quality.toFixed(1)}%` },
+        { label: `Overall OEE · ${w}`, value: pct(f.kpis.oee) },
+        { label: `Quality Rate · ${w}`, value: pct(f.kpis.quality) },
+        // Not nullable: an alarm count of zero is a real, measured zero.
         { label: 'Active Alarms', value: `${f.kpis.activeAlarms}` },
       ];
     }
     return [
-      { label: 'Network Avg OEE', value: `${overview.summary.avgOEE.toFixed(1)}%` },
+      { label: `Network Avg OEE · ${w}`, value: pct(overview.summary.avgOEE) },
       { label: 'Active Factories', value: `${overview.summary.totalFactories}` },
-      { label: 'Avg Quality', value: `${overview.summary.avgQuality.toFixed(1)}%` },
+      { label: `Avg Quality · ${w}`, value: pct(overview.summary.avgQuality) },
     ];
   })();
 

@@ -29,10 +29,15 @@ function AnimatedNumber({ value, decimals = 1 }: { value: number; decimals?: num
   return <>{display.toFixed(decimals)}</>;
 }
 
-function OEEGauge({ value, color }: { value: number; color: string }) {
+/**
+ * The gauge takes a nullable reading. With no reading the arc is empty and the
+ * centre says so -- a full-looking ring above an em-dash would be worse than
+ * either honest answer.
+ */
+function OEEGauge({ value, color }: { value: number | null; color: string }) {
   const radius = 42;
   const circumference = 2 * Math.PI * radius;
-  const arc = (value / 100) * circumference;
+  const arc = ((value ?? 0) / 100) * circumference;
   return (
     <svg viewBox="0 0 100 100" className="w-24 h-24">
       <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
@@ -44,8 +49,9 @@ function OEEGauge({ value, color }: { value: number; color: string }) {
         transform="rotate(-90 50 50)"
         style={{ filter: `drop-shadow(0 0 6px ${color})` }}
       />
-      <text x="50" y="46" textAnchor="middle" fill={color} fontSize="16" fontWeight="bold" fontFamily="monospace">
-        {value.toFixed(1)}
+      <text x="50" y="46" textAnchor="middle" fill={value == null ? 'rgba(255,255,255,0.35)' : color}
+            fontSize="16" fontWeight="bold" fontFamily="monospace">
+        {value == null ? '—' : value.toFixed(1)}
       </text>
       <text x="50" y="60" textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="9" fontFamily="monospace">
         OEE %
@@ -71,9 +77,21 @@ function KPIBadge({ label, value, unit, icon: Icon, color }: {
   );
 }
 
+/**
+ * A KPI that was never measured shows an em-dash, never a number.
+ *
+ * These tiles read 0% for every site because the overview endpoint coerced a
+ * missing measurement to zero. The API returns null now; this is where that
+ * null has to survive contact with the UI. A zero here is a claim that the
+ * factory produced nothing, which is the opposite of "we have no reading".
+ */
+const pct = (n: number | null | undefined) => (n == null ? '—' : `${n.toFixed(1)}%`);
+/** Bar width for a null reading is 0 -- an empty track, not a full one. */
+const barPct = (n: number | null | undefined) => (n == null ? 0 : n);
+
 function GlobalStats({ summary }: { summary: FactoriesOverview['summary'] | null }) {
   const { t } = useTranslation('modules');
-  const avgOEE = summary ? summary.avgOEE.toFixed(1) : '—';
+  const avgOEE = summary?.avgOEE != null ? summary.avgOEE.toFixed(1) : '—';
   const factories = summary ? summary.totalFactories : 0;
   const employees = summary ? summary.totalEmployees : 0;
   const alarms = summary ? summary.totalActiveAlarms : 0;
@@ -297,11 +315,11 @@ export function FactorySelector() {
                     <div className="mt-2 pt-2 border-t border-white/5 pl-4 grid grid-cols-2 gap-1">
                       <div>
                         <div className="text-[10px] text-white/30">{t('factorySel.oee')}</div>
-                        <div className="text-xs font-mono font-bold" style={{ color: f.color }}>{f.kpis.oee}%</div>
+                        <div className="text-xs font-mono font-bold" style={{ color: f.color }}>{pct(f.kpis.oee)}</div>
                       </div>
                       <div>
                         <div className="text-[10px] text-white/30">{t('factorySel.quality')}</div>
-                        <div className="text-xs font-mono font-bold text-white/70">{f.kpis.quality}%</div>
+                        <div className="text-xs font-mono font-bold text-white/70">{pct(f.kpis.quality)}</div>
                       </div>
                     </div>
                   )}
@@ -378,12 +396,12 @@ export function FactorySelector() {
                       <div key={m.label}>
                         <div className="flex justify-between text-[10px] mb-0.5">
                           <span className="text-white/40 font-mono">{m.label}</span>
-                          <span className="font-mono" style={{ color: active.color }}>{m.value}%</span>
+                          <span className="font-mono" style={{ color: active.color }}>{pct(m.value)}</span>
                         </div>
                         <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all duration-700"
-                            style={{ width: `${m.value}%`, background: active.color, boxShadow: `0 0 6px ${active.color}` }}
+                            style={{ width: `${barPct(m.value)}%`, background: active.color, boxShadow: `0 0 6px ${active.color}` }}
                           />
                         </div>
                       </div>
@@ -393,9 +411,9 @@ export function FactorySelector() {
 
                 {/* KPI grid */}
                 <div className="grid grid-cols-2 gap-2">
-                  <KPIBadge label={t('factorySel.production')} value={active.kpis.production.toLocaleString()} unit={active.kpis.productionUnit ?? t('factorySel.today')} icon={TrendingUp} color={active.color} />
+                  <KPIBadge label={t('factorySel.production')} value={active.kpis.production?.toLocaleString() ?? '—'} unit={active.kpis.productionUnit ?? t('factorySel.today')} icon={TrendingUp} color={active.color} />
                   <KPIBadge label={t('factorySel.employees')} value={active.kpis.employees} icon={Users} color="#d9bb75" />
-                  <KPIBadge label={t('factorySel.uptime')} value={active.kpis.uptime} unit="%" icon={Zap} color="#22c55e" />
+                  <KPIBadge label={t('factorySel.uptime')} value={active.kpis.uptime ?? '—'} unit={active.kpis.uptime == null ? '' : '%'} icon={Zap} color="#22c55e" />
                   <KPIBadge label={t('factorySel.shiftsToday')} value={active.kpis.shiftsToday} icon={Clock} color="#f59e0b" />
                 </div>
 
@@ -435,7 +453,7 @@ export function FactorySelector() {
                       </div>
                       <span className="text-white/25">{f.city}</span>
                       <span className="font-mono font-bold" style={{ color: f.color }}>
-                        {f.kpis.oee}%
+                        {pct(f.kpis.oee)}
                       </span>
                     </div>
                   ))}
