@@ -32,6 +32,16 @@
 // beyond city/address, which are corrected to match the new pins.
 //
 // Run:  docker exec mes-api npx ts-node prisma/seed-factory-coordinates.ts
+//
+// ⚠  ON A SMALL BOX, USE THE SQL INSTEAD
+// --------------------------------------
+// ts-node type-checks the whole api project before running a line of this, and
+// on the Hostinger VPS that dies at ~384 MB with "Reached heap limit". Five
+// UPDATE statements do not need a compiler, so the same change also lives at
+//     prisma/sql/factory-coordinates.sql
+// which needs no Node at all. The two write identical numbers and were verified
+// against each other -- re-running one after the other reports 0 m moved. Edit
+// one and you must edit the other.
 // ============================================================
 
 import { PrismaClient } from '@prisma/client';
