@@ -214,3 +214,181 @@ so they are not lost:
 - Install the rebuilt `edgegateway.exe` on the plant PC (built 26 Aug 10:07)
 - The field question on `EDGE_COUNTER_M03` address 2: does the wrapper have
   its own sensor wired, or do M3 and M4 genuinely share one signal?
+
+---
+---
+
+# Batch 2 — 31 Aug 2026, before the morning run
+
+**Two destinations, and they are not the same machine.** Nothing in this batch
+touches the api or the web: `git diff --stat cccf8dd..HEAD` is five files, all
+of them either edge-gateway source or SQL. So **Hostinger needs no rebuild** —
+only a pull and two scripts. The part that matters for the morning run goes to
+the **plant PC**, as an exe.
+
+| Commit | Where it goes |
+|---|---|
+| `6b1e1e8` counting governor + run gate | plant PC (exe) |
+| `6810881` limits screen shows the real cap | plant PC (exe) |
+| `56b81c1` line balancer in detect-only | Hostinger (SQL) |
+| dead-tag criteria (d) | Hostinger (SQL) |
+
+---
+
+## 0 · Push, from this machine
+
+The three commits are local only — `origin/ASSA_POC_SDPF` is still at
+`85802d5`. Without this, the pull on Hostinger gets nothing.
+
+```bash
+cd "d:/NEW WORKS/New folder/MES360_SDPF"
+git push
+git ls-remote origin ASSA_POC_SDPF     # expect 56b81c1
+```
+
+---
+
+## A · Plant PC — the edge gateway
+
+This is the one that decides whether tomorrow's counts are sane. Do it first.
+
+The build is at `apps/edgegateway/build/edgegateway.exe`, built 05:12 on
+31 Aug. Verified to contain `WINDOW_MINUTES`, `stoppedWhileIdleCounts`,
+`capSource` and `droppedWhileStopped`.
+
+Copy that one file to the gateway folder on the plant PC. Everything else in
+the folder — `gateway-config.json`, `buffer\`, `logs\`, `nssm-2.24\` — stays
+exactly as it is.
+
+From an Administrator prompt, in the gateway folder:
+
+```bat
+nssm stop Mes360EdgeGateway
+
+REM Keep the running build. The naming convention is already in this folder
+REM (edgegateway.exe.bak-2026-08-19) and it is the whole of the rollback.
+copy edgegateway.exe edgegateway.exe.bak-2026-08-31
+
+REM ...now copy the new edgegateway.exe over the old one...
+
+nssm start Mes360EdgeGateway
+nssm status Mes360EdgeGateway
+```
+
+**Do not create a `machineLimits` block.** The cap is on by default now — that
+is the point of `6b1e1e8`. Configure one only to make a machine TIGHTER than
+design speed + 25%.
+
+### Rollback, if the counts look wrong in the first ten minutes
+
+```bat
+nssm stop Mes360EdgeGateway
+copy edgegateway.exe.bak-2026-08-31 edgegateway.exe
+nssm start Mes360EdgeGateway
+```
+
+The run gate is the change to watch. It DROPS pulses seen while the machine is
+not running, and it takes `running` from the state engine. If the state engine
+were wrong about a machine, real counts would be lost rather than delayed —
+which is why `droppedWhileStopped` exists and why it is the first number to
+read in the morning.
+
+---
+
+## B · Hostinger — two scripts, no rebuild
+
+```bash
+cd /opt/mes360
+git pull
+git log --oneline -1        # expect 56b81c1
+
+# The dump first. Both scripts change rows.
+docker compose -f docker-compose.hostinger.yml --env-file .env.hostinger \
+  exec -T postgres pg_dump -U mes_user -d mes360 \
+  | gzip > ~/mes360-before-$(date +%Y%m%d-%H%M).sql.gz
+ls -lh ~/mes360-before-*.sql.gz
+```
+
+### B1 · Dead tags
+
+```bash
+# preview
+docker compose -f docker-compose.hostinger.yml --env-file .env.hostinger \
+  exec -T postgres psql -U mes_user -d mes360 \
+  < apps/api/prisma/sql/delete-dead-tags.sql
+
+# apply
+{ cat apps/api/prisma/sql/delete-dead-tags.sql; echo "COMMIT;"; } | \
+docker compose -f docker-compose.hostinger.yml --env-file .env.hostinger \
+  exec -T postgres psql -U mes_user -d mes360
+```
+
+Expect **13 rows**, every one with `alarms_blocking = 0`. If any row shows a
+non-zero alarm count, stop — that tag is wired to an alarm definition and the
+delete would take the alarm with it.
+
+### B2 · The line balancer, detect-only
+
+```bash
+# preview
+docker compose -f docker-compose.hostinger.yml --env-file .env.hostinger \
+  exec -T postgres psql -U mes_user -d mes360 \
+  < apps/api/prisma/sql/line-balance-detect-only.sql
+
+# apply
+{ cat apps/api/prisma/sql/line-balance-detect-only.sql; echo "COMMIT;"; } | \
+docker compose -f docker-compose.hostinger.yml --env-file .env.hostinger \
+  exec -T postgres psql -U mes_user -d mes360 -v apply=1
+```
+
+The last check must print **0 rows**: nothing may have `applyAdjustment` set.
+Takes effect on the balancer's next tick — no gateway restart.
+
+Off again, if it is noisy:
+
+```bash
+{ cat apps/api/prisma/sql/line-balance-detect-only.sql; echo "COMMIT;"; } | \
+docker compose ... psql -U mes_user -d mes360 -v apply=1 -v off=1
+```
+
+---
+
+## C · Is batch 1 actually on the box?
+
+The database was repaired by hand, but the api and web of `85802d5` may not
+have been rebuilt. One command tells you:
+
+```bash
+curl -s https://$APP_DOMAIN/api/v1/auth/factories/overview | grep -o 'windowDays'
+```
+
+Prints `windowDays` → batch 1 is deployed. Prints nothing → it is not, and
+section 1 of the batch-1 runbook above (build api, build web, up -d, compare
+digests) still has to run.
+
+---
+
+## D · What to read in the morning
+
+On the gateway's local screens:
+
+- **`machine-limits`** — `capSource` should read `default` on all four
+  machines. `trimmedGood` climbing on M1/M2 is the burst cap doing its job;
+  climbing hard on M3/M4 is the sustained-rate cap doing its job.
+- **`droppedWhileStopped`** — should stay at or near zero. A number that climbs
+  is an input turning while its machine stands still, and no cap or debounce
+  explains that. Report it rather than tuning around it.
+- **The balancer** — expect every step **CLAMPED**. The ceiling is 10% and the
+  real gaps are several hundred per cent. Clamped is the design working: the
+  worse a counter gets, the louder it becomes.
+
+### The one number that is still not defended
+
+The line's headline output comes from M4, the final step, and M4 counted 6.5x
+the plant's own figure on WO-2026-0005. The cap sits 16x above M4's real rate,
+so it will not touch that.
+
+M3 and M4 both read **address 2 on EDGE_COUNTER_M03**, on opposite edges — one
+physical input serving both the wrapper and the palletiser, and the balancer's
+configured anchor is M3. Until there is a field answer on whether the wrapper
+has its own sensor wired, that number is reported, not repaired.
