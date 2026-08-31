@@ -358,13 +358,29 @@ docker compose ... psql -U mes_user -d mes360 -v apply=1 -v off=1
 The database was repaired by hand, but the api and web of `85802d5` may not
 have been rebuilt. One command tells you:
 
+Do NOT reach for `curl https://$APP_DOMAIN/...` here. `APP_DOMAIN` lives in
+`.env.hostinger`, which docker compose reads and the login shell does not, so
+the variable is empty and the request goes to `https:///api/v1/...`. With
+`-s` that fails silently and prints nothing — which is indistinguishable from
+"batch 1 is not deployed", and is the wrong answer to act on.
+
+Ask the container what code it is running instead. No DNS, no TLS, no
+environment:
+
 ```bash
-curl -s https://$APP_DOMAIN/api/v1/auth/factories/overview | grep -o 'windowDays'
+docker compose -f docker-compose.hostinger.yml --env-file .env.hostinger   exec -T api sh -c "grep -rl windowDays dist 2>/dev/null | head -3"
 ```
 
-Prints `windowDays` → batch 1 is deployed. Prints nothing → it is not, and
-section 1 of the batch-1 runbook above (build api, build web, up -d, compare
-digests) still has to run.
+Prints a path → batch 1 is deployed. Prints nothing → it is not, and section 1
+of the batch-1 runbook above (build api, build web, up -d, compare digests)
+still has to run.
+
+If you do want it over HTTP, source the file first:
+
+```bash
+set -a; . ./.env.hostinger; set +a
+curl -s "https://$APP_DOMAIN/api/v1/auth/factories/overview" | head -c 200; echo
+```
 
 ---
 
