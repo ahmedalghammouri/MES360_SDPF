@@ -122,6 +122,66 @@ export function formatDateTime(value: Date | string | number | null | undefined,
   return `${formatDate(d, tz)} ${formatTime(d, tz)}`;
 }
 
+/**
+ * Axis labels for a series of time buckets, formatted to the bucket SIZE.
+ *
+ * ── The defect this replaces ────────────────────────────────────────────────
+ * Four panels — availability, performance, quality and loss — each carried
+ * their own copy of
+ *
+ *     const hhmm = (iso) => `${d.getHours()}:${d.getMinutes()}`
+ *
+ * and used it for the x axis. `trend()` buckets by HOUR OR DAY depending on the
+ * window, so on any multi-day window every bucket is midnight and every tick on
+ * the axis read `00:00`. A time axis where all six labels are identical is not
+ * a time axis, and it was wrong on four pages at once because the rule was
+ * written four times.
+ *
+ * The same copies also read `getHours()`, which is the BROWSER's clock. These
+ * timestamps are UTC and the plant is Riyadh, so the labels were three hours
+ * out for anyone not sitting in +03 — silently, since a wrong hour still looks
+ * like an hour.
+ *
+ * ── How the format is chosen ────────────────────────────────────────────────
+ * From the median gap between consecutive buckets, not from a granularity flag
+ * the caller has to remember to pass. The data already knows how coarse it is,
+ * and a label that derives from the data cannot disagree with it.
+ *
+ *   under a day    `14:00`
+ *   about a day    `28 Aug`
+ *   coarser        `Aug 2026`
+ *
+ * Median rather than mean: one missing bucket in a month of hourly points would
+ * drag a mean past the day threshold and relabel the whole axis.
+ */
+export function bucketLabels(
+  values: Array<Date | string | number | null | undefined>,
+  timeZone?: string,
+): string[] {
+  const tz = timeZone ?? getFactoryTimeZone();
+  const dates = values.map((v) => toDate(v));
+
+  const times = dates.filter((d): d is Date => d != null).map((d) => d.getTime()).sort((a, b) => a - b);
+  const gaps: number[] = [];
+  for (let i = 1; i < times.length; i += 1) {
+    const g = times[i] - times[i - 1];
+    if (g > 0) gaps.push(g);
+  }
+  gaps.sort((a, b) => a - b);
+  // No gap to measure — a single bucket, or every bucket on the same instant.
+  // The finest format is the safe default: it never merges distinct labels.
+  const median = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 0;
+
+  const DAY = 86_400_000;
+  const format = median >= 27 * DAY
+    ? (d: Date) => { const p = zonedParts(d, tz); return `${MONTHS[p.month - 1]} ${p.year}`; }
+    : median >= 23 * 3_600_000
+      ? (d: Date) => { const p = zonedParts(d, tz); return `${pad(p.day)} ${MONTHS[p.month - 1]}`; }
+      : (d: Date) => formatTime(d, tz);
+
+  return dates.map((d) => (d ? format(d) : '—'));
+}
+
 /** `+03` — the factory's UTC offset at that instant. */
 export function formatZoneOffset(value: Date | string | number | null | undefined, timeZone?: string): string {
   const d = toDate(value) ?? new Date();

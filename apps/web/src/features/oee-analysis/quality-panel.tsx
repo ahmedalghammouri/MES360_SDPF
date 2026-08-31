@@ -14,7 +14,7 @@ import { useTheme } from 'next-themes';
 import { Info } from 'lucide-react';
 
 import { Gauge, pctText, STATUS, TrendChart, echartsAxisColours, resolveChartColour } from './chart-kit';
-import { formatDateTime } from '@/lib/datetime';
+import { formatDateTime, bucketLabels } from '@/lib/datetime';
 
 export interface QualityTrendPoint {
   at: string;
@@ -32,10 +32,11 @@ export interface RejectReasons {
   reasons: RejectReason[];
 }
 
-const hhmm = (iso: string) => {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
+// The axis label is not a fixed HH:mm any more. `trend()` buckets by hour or
+// day, so on a multi-day window every bucket is midnight and every tick on
+// the axis read `00:00`. `bucketLabels` picks the format from the bucket
+// spacing, and formats in FACTORY time -- the old copy called getHours(),
+// which is the browser's clock, three hours out for anyone not in +03.
 // 'en-US' pinned, not the runtime default: `.toLocaleString()` with no
 // locale follows Node's ICU default on the server and the visitor's OWN
 // BROWSER LANGUAGE on the client — an Arabic-language browser renders
@@ -69,7 +70,8 @@ export function QualityPanel({
   const paretoBar = resolveChartColour(PARETO_BAR, isDark);
   const paretoLine = resolveChartColour(PARETO_LINE, isDark);
 
-  const rejects = trend.map((p) => ({ t: hhmm(p.at), at: p.at, rejected: p.counts?.rejected ?? 0 }));
+  const tickLabels = bucketLabels(trend.map((p) => p.at));
+  const rejects = trend.map((p, i) => ({ t: tickLabels[i], at: p.at, rejected: p.counts?.rejected ?? 0 }));
   const values = rejects.map((r) => r.rejected);
   const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
 
@@ -95,7 +97,7 @@ export function QualityPanel({
             <p className="py-10 text-center text-sm text-muted-foreground">No buckets in this window yet.</p>
           ) : (
             <TrendChart
-              data={trend.map((p) => ({ at: p.at, t: hhmm(p.at), quality: p.quality }))}
+              data={trend.map((p, i) => ({ at: p.at, t: tickLabels[i], quality: p.quality }))}
               height={220}
               series={[{ key: 'quality', name: 'Quality', colour: 'var(--viz-3)', emphasis: true }]}
               exportName="quality"

@@ -10,13 +10,15 @@
 import React from 'react';
 
 import { Gauge, TimeModel, dur, pctText, type TimeModelBar, TrendChart } from './chart-kit';
+import { bucketLabels } from '@/lib/datetime';
 
 export interface LossTrendPoint { at: string; teep: number | null }
 
-const hhmm = (iso: string) => {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
+// The axis label is not a fixed HH:mm any more. `trend()` buckets by hour or
+// day, so on a multi-day window every bucket is midnight and every tick on
+// the axis read `00:00`. `bucketLabels` picks the format from the bucket
+// spacing, and formats in FACTORY time -- the old copy called getHours(),
+// which is the browser's clock, three hours out for anyone not in +03.
 
 export function LossPanel({
   teep, oee, utilization, trend, bars, labels, machineCount, topMin,
@@ -30,6 +32,10 @@ export function LossPanel({
   machineCount: number;
   topMin: number;
 }) {
+  // `tickLabels`, not `labels`: this component already takes a `labels` prop
+  // (the time-model bar names), and shadowing it here would have silently
+  // relabelled the bars with timestamps.
+  const tickLabels = bucketLabels(trend.map((p) => p.at));
   return (
     <div className="flex flex-col gap-5">
       <div className="grid gap-3 lg:grid-cols-[200px_1fr]">
@@ -45,7 +51,7 @@ export function LossPanel({
             <p className="py-10 text-center text-sm text-muted-foreground">No buckets in this window yet.</p>
           ) : (
             <TrendChart
-              data={trend.map((p) => ({ at: p.at, t: hhmm(p.at), teep: p.teep }))}
+              data={trend.map((p, i) => ({ at: p.at, t: tickLabels[i], teep: p.teep }))}
               height={220}
               series={[{ key: 'teep', name: 'TEEP', colour: 'var(--viz-7)', emphasis: true }]}
               exportName="teep"

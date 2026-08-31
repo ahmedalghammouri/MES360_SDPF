@@ -18,6 +18,7 @@ import ReactECharts from 'echarts-for-react';
 import { useTheme } from 'next-themes';
 
 import { Gauge, pctText, TrendChart, echartsAxisColours, resolveChartColour } from './chart-kit';
+import { bucketLabels } from '@/lib/datetime';
 
 export interface PerformanceTrendPoint {
   at: string;
@@ -37,10 +38,11 @@ const SERIES = [
   { key: 'good', name: 'Good parts', colour: 'var(--viz-3)', onByDefault: false },
 ] as const;
 
-const hhmm = (iso: string) => {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
+// The axis label is not a fixed HH:mm any more. `trend()` buckets by hour or
+// day, so on a multi-day window every bucket is midnight and every tick on
+// the axis read `00:00`. `bucketLabels` picks the format from the bucket
+// spacing, and formats in FACTORY time -- the old copy called getHours(),
+// which is the browser's clock, three hours out for anyone not in +03.
 // 'en-US' pinned, not the runtime default: `.toLocaleString()` with no
 // locale follows Node's ICU default on the server and the visitor's OWN
 // BROWSER LANGUAGE on the client — an Arabic-language browser renders
@@ -68,8 +70,10 @@ export function PerformancePanel({
   const c = echartsAxisColours(isDark);
   const vizColour = (v: string) => resolveChartColour(v, isDark);
 
-  const overTime = trend.map((p) => ({
-    t: hhmm(p.at),
+  const tickLabels = bucketLabels(trend.map((p) => p.at));
+
+  const overTime = trend.map((p, i) => ({
+    t: tickLabels[i],
     produced: p.counts?.total ?? 0,
     goal: p.counts?.theoretical ?? 0,
   }));
@@ -77,13 +81,13 @@ export function PerformancePanel({
   // Accumulated from zero, in order. A flat stretch is time nothing was made in.
   const cumulative = React.useMemo(() => {
     let total = 0, goal = 0, good = 0;
-    return trend.map((p) => {
+    return trend.map((p, i) => {
       total += p.counts?.total ?? 0;
       goal += p.counts?.theoretical ?? 0;
       good += p.counts?.good ?? 0;
-      return { t: hhmm(p.at), total, goal, good };
+      return { t: tickLabels[i], total, goal, good };
     });
-  }, [trend]);
+  }, [trend, tickLabels]);
 
   const produced = overTime.map((p) => p.produced);
   const avg = produced.length ? produced.reduce((a, b) => a + b, 0) / produced.length : 0;
@@ -116,7 +120,7 @@ export function PerformancePanel({
             <p className="py-10 text-center text-sm text-muted-foreground">No buckets in this window yet.</p>
           ) : (
             <TrendChart
-              data={trend.map((p) => ({ at: p.at, t: hhmm(p.at), performance: p.performance }))}
+              data={trend.map((p, i) => ({ at: p.at, t: tickLabels[i], performance: p.performance }))}
               height={220}
               series={[{ key: 'performance', name: 'Performance', colour: 'var(--viz-2)', emphasis: true }]}
               exportName="performance"

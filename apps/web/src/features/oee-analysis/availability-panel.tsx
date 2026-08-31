@@ -12,6 +12,7 @@ import React from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useTheme } from 'next-themes';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { bucketLabels } from '@/lib/datetime';
 
 import {
   Gauge, STATUS, SEGMENT_COLOUR, SEGMENT_LABEL, dur, type SegmentKind, TrendChart,
@@ -42,10 +43,11 @@ const STACK: Array<{ key: string; kind: SegmentKind }> = [
   { key: 'unmeasuredMin', kind: 'unmeasured' },
 ];
 
-const hhmm = (iso: string) => {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
+// The axis label is not a fixed HH:mm any more. `trend()` buckets by hour or
+// day, so on a multi-day window every bucket is midnight and every tick on
+// the axis read `00:00`. `bucketLabels` picks the format from the bucket
+// spacing, and formats in FACTORY time -- the old copy called getHours(),
+// which is the browser's clock, three hours out for anyone not in +03.
 
 export function AvailabilityPanel({
   availability, trend, netProductionMin, availabilityLossMin, production, distribution,
@@ -70,11 +72,12 @@ export function AvailabilityPanel({
     ? { occurrence: level.occurrence, totalMin: level.minutes, medianMin: level.medianMin, averageMin: level.averageMin }
     : distribution;
 
-  const data = trend.map((p) => ({
+  const tickLabels = bucketLabels(trend.map((p) => p.at));
+  const data = trend.map((p, i) => ({
     // `at` rides along unplotted so the CSV export can lead with a real
     // timestamp — "07:00" on its own is not one. See exportCsv in chart-kit.
     at: p.at,
-    t: hhmm(p.at),
+    t: tickLabels[i],
     availability: p.availability,
     ...Object.fromEntries(STACK.map((s) => [s.key, p.time?.[s.key] ?? 0])),
   }));
