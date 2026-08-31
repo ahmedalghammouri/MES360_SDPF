@@ -595,17 +595,46 @@ export class LocalApiController {
       select: { id: true, code: true, name: true },
       orderBy: { code: 'asc' },
     });
-    return machines.map((m) => ({
-      machineId: m.id,
-      code: m.code,
-      name: m.name,
-      // Zero debounce and a null tolerance are both OFF, and both are the
-      // default. A limit a plant has not stated is not a limit.
-      debounceMs: stored[m.id]?.debounceMs ?? 0,
-      tolerancePerMin: stored[m.id]?.tolerancePerMin ?? null,
-      trimmedGood: trims.get(m.id)?.trimmedGood ?? 0,
-      trimmedBad: trims.get(m.id)?.trimmedBad ?? 0,
-    }));
+    const dropped = new Map(this.counter.stoppedWhileIdleCounts().map((d) => [d.tagId, d.count]));
+    const tags = await this.prisma.tagDefinition.findMany({
+      where: { isActive: true, counterRole: { not: null } },
+      select: { id: true, machineId: true },
+    });
+    const stoppedByMachine = new Map<string, number>();
+    for (const t of tags) {
+      if (!t.machineId) continue;
+      const n = dropped.get(t.id) ?? 0;
+      if (n > 0) stoppedByMachine.set(t.machineId, (stoppedByMachine.get(t.machineId) ?? 0) + n);
+    }
+
+    return machines.map((m) => {
+      const entry = stored[m.id];
+      return {
+        machineId: m.id,
+        code: m.code,
+        name: m.name,
+        debounceMs: entry?.debounceMs ?? 0,
+        tolerancePerMin: entry?.tolerancePerMin ?? null,
+        // ── What the cap ACTUALLY is, which is not what is stored ──────────
+        // This used to report a null tolerance as "off", and say so in a
+        // comment, because off WAS the default. It is not any more: an
+        // unconfigured machine is now capped at design speed + 25%.
+        //
+        // Leaving the old label would have put "no limit" on a screen while
+        // the gateway was trimming counts behind it -- and an operator who
+        // cannot see that a limit is trimming cannot tell a sensor that has
+        // been fixed from a cap that is hiding it.
+        capSource: entry === undefined
+          ? 'default'                                        // design + 25%
+          : entry.tolerancePerMin === null ? 'off' : 'stated',
+        trimmedGood: trims.get(m.id)?.trimmedGood ?? 0,
+        trimmedBad: trims.get(m.id)?.trimmedBad ?? 0,
+        // Pulses seen while this machine was NOT running. Dropped, not booked.
+        // A number that climbs here is an input turning while its machine
+        // stands still -- which no cap and no debounce will explain.
+        droppedWhileStopped: stoppedByMachine.get(m.id) ?? 0,
+      };
+    });
   }
 
   @UseGuards(JwtAuthGuard)
