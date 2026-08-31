@@ -272,6 +272,17 @@ export class CounterService {
   orphanedCounts(): Array<{ tagId: string; count: number }> {
     return [...this.orphaned].map(([tagId, count]) => ({ tagId, count }));
   }
+
+  /**
+   * Pulses dropped because the machine was not running, per tag.
+   *
+   * Sits beside {@link orphanedCounts} on the health view. The two answer
+   * different questions: orphaned means "nothing was scheduled", stopped means
+   * "something was scheduled and the machine was standing still".
+   */
+  stoppedWhileIdleCounts(): Array<{ tagId: string; count: number }> {
+    return [...this.stoppedCounts].map(([tagId, count]) => ({ tagId, count }));
+  }
   private static readonly CTX_TTL_MS = 1_000;
   private readonly stateFile: string;
 
@@ -455,15 +466,96 @@ export class CounterService {
   /** Throttle for the good-above-total warning, per machine. */
   private readonly goodOverTotalAt = new Map<string, number>();
 
+  /**
+   * Pulses seen while the machine was NOT running, per tag.
+   *
+   * Dropped rather than booked, and counted rather than forgotten. A steadily
+   * climbing figure here is a real finding -- it means an input is turning
+   * while its machine stands still, which no debounce and no cap will explain.
+   */
+  private readonly stoppedCounts = new Map<string, number>();
+
   private readonly minuteTally = new Map<string, {
     minute: number; emitted: number;
     trimmedGood: number; trimmedBad: number; warnedAt: number;
   }>();
 
-  /** Room left in this machine's minute, or -1 when no cap applies. */
+  /**
+   * A rolling record of what each machine emitted, minute by minute, so a
+   * SUSTAINED over-rate can be caught as well as a single burst.
+   *
+   * One entry per machine, holding the last {@link WINDOW_MINUTES} minutes.
+   */
+  private readonly windowTally = new Map<string, Map<number, number>>();
+
+  /**
+   * The cap when the plant has not stated one.
+   *
+   * ── Why there is a default at all ───────────────────────────────────────
+   * This gate used to require `tolerancePerMin` in gateway-config.json, and
+   * that file has never had a `machineLimits` block. So the cap was off on
+   * every machine, on every deployment, and a counter reporting 9,424 pieces
+   * in a minute whose ceiling is 43 was written to the job order unchallenged.
+   *
+   * A safety limit that must be configured before it protects anything is not
+   * a safety limit. Off is now a DECISION -- `tolerancePerMin: null` -- rather
+   * than the consequence of never having written the file.
+   *
+   * A quarter above design speed is deliberately generous. It is not trying to
+   * measure the machine; it is trying to be unmistakably above anything the
+   * machine can physically do, so that what it trims is only ever impossible.
+   */
+  private static readonly DEFAULT_TOLERANCE_FRACTION = 0.25;
+
+  /**
+   * The window for the sustained-rate cap, in minutes.
+   *
+   * ── Why a per-minute cap is not enough ──────────────────────────────────
+   * The per-minute cap is floored at one whole unit, and that floor is
+   * load-bearing: a palletiser rated at 0.28 pallets a minute really does put
+   * one whole pallet into one minute, and trimming it to 0.28 of a pallet would
+   * shave away real output on every slow machine in the plant.
+   *
+   * But the floor is also a hole. A machine rated 0.28 a minute can honestly
+   * produce 1 in a minute; it cannot honestly produce 1 in EVERY minute. On
+   * this line M3 and M4 exceeded their ceiling in 99% and 100% of their
+   * counting minutes -- an average of 4.2x design, sustained for hours -- and
+   * every one of those minutes passed the per-minute cap because each held
+   * about one unit.
+   *
+   * Fifteen minutes is long enough that the floor stops hiding a sustained
+   * over-rate, and short enough that a genuine burst after a stoppage is not
+   * charged against an hour of history.
+   */
+  private static readonly WINDOW_MINUTES = 15;
+
+  /**
+   * Room left in this machine's minute, or -1 when no cap applies.
+   *
+   * Two caps, because the two failures on this line look nothing alike:
+   *
+   *   per minute   catches a BURST -- 2,986 pieces on M1 and 9,424 on M2, in
+   *                single minutes whose ceilings are 46 and 43. That is not a
+   *                fast minute, it is a backlog paid out in the wrong place.
+   *
+   *   per window   catches a SUSTAINED over-rate the floor lets through, which
+   *                is the whole of what M3 and M4 do.
+   *
+   * The tighter of the two wins, and either alone would have missed half of
+   * what this line actually did.
+   */
   private roomLeftThisMinute(machineId: string, designPerMin: number | null): number {
-    const tol = this.limits()[machineId]?.tolerancePerMin;
-    if (designPerMin === null || typeof tol !== 'number') return -1; // no cap stated
+    const entry = this.limits()[machineId];
+    const tol = entry?.tolerancePerMin;
+    // No design speed means no ceiling to compare against -- the job order has
+    // no ideal cycle time, and a cap invented here would be a guess.
+    if (designPerMin === null) return -1;
+    // An explicit null is the plant switching the cap OFF, and is honoured.
+    if (tol === null) return -1;
+    const tolerance = typeof tol === 'number'
+      ? tol
+      : designPerMin * CounterService.DEFAULT_TOLERANCE_FRACTION;
+
     const minute = Math.floor(Date.now() / 60_000);
     let t = this.minuteTally.get(machineId);
     if (!t || t.minute !== minute) {
@@ -481,8 +573,38 @@ export class CounterService {
     // You cannot make a fraction of a countable thing. A minute holding one unit
     // is never evidence of over-counting, whatever the rated speed, so the cap
     // never falls below one.
-    const cap = Math.max(1, designPerMin + tol);
-    return Math.max(0, cap - t.emitted);
+    const cap = Math.max(1, designPerMin + tolerance);
+    const roomThisMinute = Math.max(0, cap - t.emitted);
+
+    // ── The sustained-rate cap ────────────────────────────────────────────
+    // Over WINDOW_MINUTES a machine cannot beat its design speed, and the
+    // one-unit floor that protects a slow machine's honest minute does not
+    // apply across a window: a palletiser may put one pallet in one minute,
+    // but not one in every minute for a quarter of an hour.
+    const w = this.windowFor(machineId, minute);
+    let emittedInWindow = 0;
+    for (const n of w.values()) emittedInWindow += n;
+    const windowCap = Math.max(
+      1,
+      (designPerMin + tolerance) * CounterService.WINDOW_MINUTES,
+    );
+    const roomInWindow = Math.max(0, windowCap - emittedInWindow);
+
+    // The tighter of the two. A burst is caught by the first, a grinding
+    // over-count by the second, and neither can be smuggled past the other.
+    return Math.min(roomThisMinute, roomInWindow);
+  }
+
+  /** This machine's rolling window, pruned to the last WINDOW_MINUTES. */
+  private windowFor(machineId: string, minute: number): Map<number, number> {
+    let w = this.windowTally.get(machineId);
+    if (!w) {
+      w = new Map<number, number>();
+      this.windowTally.set(machineId, w);
+    }
+    const oldest = minute - CounterService.WINDOW_MINUTES + 1;
+    for (const k of w.keys()) if (k < oldest) w.delete(k);
+    return w;
   }
 
   /** What the balance has taken off each machine — surfaced on the health view. */
@@ -825,13 +947,38 @@ export class CounterService {
         continue;
       }
 
-      // NOTE what is deliberately no longer here: `|| !c.running`.
+      // ── Pulses while the machine is not running ───────────────────────
+      // DROPPED, exactly like the no-order case above, and for the same
+      // reason: the danger is never the pulse, it is the BACKLOG.
       //
-      // An EXECUTING order and a pulse on the input means a unit was made. The
-      // state engine's opinion about the machine cannot unmake a physical unit,
-      // and holding the count until the machine is agreed to be RUNNING did not
-      // discard it — it just paid it out later, in the wrong minute, which is
-      // how a minute marked STARVED came to carry 2100 pieces.
+      // An earlier version of this gate read `|| !c.running` and simply
+      // `continue`d, leaving `synced` where it was. That HELD the counts
+      // instead of discarding them, and the moment the machine was agreed to
+      // be RUNNING the whole backlog flushed as one delta into one minute.
+      // That is the 25-26 Aug shape, and it is still measurable in this
+      // plant's data: single minutes carrying 2,986 pieces on M1 and 9,424 on
+      // M2 against ceilings of 46 and 43.
+      //
+      // So the gate returns, but with drop semantics. `synced` is advanced to
+      // `accumulated`, which means the counter neither buffers nor counts
+      // against itself while the machine stands still; it simply resumes when
+      // the machine does. The dropped pulses are tallied and surfaced on the
+      // health view, because a counter that turns while its machine is stopped
+      // is itself the fault worth seeing.
+      //
+      // `running` is hardware-backed: the state engine derives it from each
+      // machine's own RUN_MODE discrete input (M1 addr 2, M2 addr 3, M3 addr 4
+      // on EDGECOUNTER01; M4 addr 5 on EDGE_COUNTER_M03), not from a guess.
+      if (!c.running) {
+        const stopped = accumulated - mem.synced;
+        if (stopped > 0) {
+          mem.synced = accumulated;
+          this.dirty = true;
+          this.stoppedCounts.set(tag.id, (this.stoppedCounts.get(tag.id) ?? 0) + stopped);
+        }
+        continue;
+      }
+
       const delta = accumulated - mem.synced;
       if (delta <= 0) continue;
 
@@ -897,7 +1044,14 @@ export class CounterService {
         m.goodDelta = bal.good;
         m.scrapDelta = bal.bad;
         const t = this.minuteTally.get(m.machineId)!;
-        t.emitted += bal.good + bal.bad;
+        const emitted = bal.good + bal.bad;
+        t.emitted += emitted;
+        // The same figure into the rolling window, so the sustained-rate cap
+        // sees what was ACTUALLY booked rather than what was offered. Counting
+        // the offer would let a trimmed minute eat the next minute's room.
+        const minute = Math.floor(Date.now() / 60_000);
+        const w = this.windowFor(m.machineId, minute);
+        w.set(minute, (w.get(minute) ?? 0) + emitted);
       }
 
       // A machine with a TOTAL counter and NO good counter knows how much it

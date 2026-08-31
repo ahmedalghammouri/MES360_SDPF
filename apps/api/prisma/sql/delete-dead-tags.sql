@@ -25,11 +25,22 @@
 --     produce a reading under any configuration.
 -- (b) A DELETED MACHINE. Machines removed from the line are prefixed 'X-'.
 --     Their tags describe equipment that is not on the floor.
--- (c) INACTIVE AND SUPERSEDED. Deactivated tags on a live device, where an
---     ACTIVE tag already covers the same device and address. Without that last
---     clause this group would also delete a tag someone parked deliberately.
+-- (c) INACTIVE AND SUPERSEDED ON THE SAME ADDRESS. Deactivated tags on a live
+--     device, where an ACTIVE tag already covers the same device and address.
+-- (d) INACTIVE AND THE ROLE IS COVERED. Deactivated, and the same machine
+--     already has an ACTIVE tag in the same counter role -- so the job that tag
+--     used to do is being done, just from a different address.
 --
--- Nothing active is ever a candidate, whatever else is true of it.
+--     (d) exists because (c) alone missed one. `EDGE_COUNTER_M02_DI1` is M2's
+--     old GOOD counter on address 0; the live one sits on address 1. Nothing
+--     supersedes it on ITS address, so it slipped through a criterion written
+--     around addresses -- while being just as unreachable as the rest, since
+--     the poller filters `isActive` before it ever looks at an address.
+--
+-- Both (c) and (d) require the work to be covered by something ACTIVE. That is
+-- what keeps a tag someone parked deliberately -- one whose role NOTHING else
+-- fills -- out of the list. Nothing active is ever a candidate, whatever else
+-- is true of it.
 
 -- ═══ 1. PREVIEW ═════════════════════════════════════════════════════════════
 SELECT t.id, t.name, m.code AS machine, d.name AS device, t.address,
@@ -37,7 +48,12 @@ SELECT t.id, t.name, m.code AS machine, d.name AS device, t.address,
        CASE
          WHEN t."deviceId" IS NULL       THEN 'a) no device - can never be polled'
          WHEN m.code LIKE 'X-%'          THEN 'b) machine was removed from the line'
-         ELSE                                 'c) inactive, superseded on same address'
+         WHEN EXISTS (
+                SELECT 1 FROM tag_definitions o
+                WHERE o.id <> t.id AND o."isActive"
+                  AND o."deviceId" = t."deviceId" AND o.address = t.address
+              )                          THEN 'c) inactive, superseded on same address'
+         ELSE                                 'd) inactive, role covered elsewhere'
        END AS why,
        (SELECT count(*) FROM alarm_definitions a WHERE a."tagId" = t.id)      AS alarms_blocking,
        (SELECT count(*) FROM gateway_counter_states g WHERE g."tagId" = t.id) AS counter_rows_lost,
@@ -54,6 +70,12 @@ WHERE t."isActive" = false
           WHERE o.id <> t.id AND o."isActive"
             AND o."deviceId" = t."deviceId" AND o.address = t.address
         )
+     OR (t."counterRole" IS NOT NULL AND EXISTS (
+          SELECT 1 FROM tag_definitions o
+          WHERE o.id <> t.id AND o."isActive"
+            AND o."machineId" = t."machineId"
+            AND o."counterRole" = t."counterRole"
+        ))
   )
 ORDER BY why, d.name NULLS FIRST, t.name;
 
@@ -77,6 +99,12 @@ WHERE id IN (
             WHERE o.id <> t.id AND o."isActive"
               AND o."deviceId" = t."deviceId" AND o.address = t.address
           )
+       OR (t."counterRole" IS NOT NULL AND EXISTS (
+            SELECT 1 FROM tag_definitions o
+            WHERE o.id <> t.id AND o."isActive"
+              AND o."machineId" = t."machineId"
+              AND o."counterRole" = t."counterRole"
+          ))
     )
 );
 
