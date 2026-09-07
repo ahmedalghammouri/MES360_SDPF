@@ -60,6 +60,14 @@
 -- previous statement and is IDLE in this one, so those fifty minutes now make
 -- nothing. One running band remains, 13:15-15:06.
 --
+-- ── AND A RECONSTRUCTED FIGURE IS STILL A GUESS ────────────────────────────
+-- Everything below computes what a machine SHOULD have made. That is a model,
+-- not a measurement, and on this line the model is 25% optimistic. If the real
+-- output will be known at end of shift and entered by hand, `-v rate=none` is
+-- the better answer: it leaves the window holding no production at all and
+-- reverses anything an earlier run put there, so the hand-entered figure lands
+-- on an empty window instead of on top of an estimate.
+--
 -- Design speed on this order is 45 pieces a minute at every step, and the SKU
 -- ladder is 1 unit per inner, 4 inners per carton, 40 cartons per pallet -- so
 -- a pallet is 160 pieces. Over the 111 running minutes above:
@@ -103,7 +111,18 @@
 --   APPLY:    { cat rewrite-shift-window.sql; echo "COMMIT;"; } | psql ... -v apply=1
 --
 --   -v day=2026-09-07   -v machines='M1,M2,M3,M4'
---   -v rate=design|actual        -v no_production=1   (states only)
+--   -v rate=design|actual|none   -v no_production=1
+--
+--   rate=none          the window holds NO production. The running bands are
+--                      written as running and produce nothing, and the
+--                      cumulative counters are reversed by exactly what the
+--                      window held -- so a figure reconstructed by an earlier
+--                      run is removed rather than left behind. Use this when
+--                      the real output will be entered by hand at end of shift.
+--
+--   no_production=1    a different thing: the states are rewritten and the
+--                      counts are not touched AT ALL. Whatever production the
+--                      window already holds stays exactly as it is.
 --
 -- Opens a transaction and never closes it, so a plain run cannot save anything.
 
@@ -232,7 +251,9 @@ SELECT m.id AS machine_id, m.code, j.id AS jo_id, j."outputUnit" AS unit,
 
 CREATE TEMP TABLE _rate ON COMMIT DROP AS
 SELECT p.*,
-       CASE WHEN lower(:'rate') = 'actual' AND p.actual_ppm > 0 THEN p.actual_ppm ELSE p.design_ppm END AS ppm
+       CASE WHEN lower(:'rate') = 'none'                        THEN 0
+            WHEN lower(:'rate') = 'actual' AND p.actual_ppm > 0 THEN p.actual_ppm
+            ELSE p.design_ppm END AS ppm
   FROM _plan p;
 
 -- ── What the window holds RIGHT NOW ─────────────────────────────────────────
