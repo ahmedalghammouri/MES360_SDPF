@@ -6,10 +6,14 @@
 -- it: the window is its first start to its last end, and production is written
 -- into every RUNNING band it contains.
 --
---   IDLE      10:45 -> 12:05     the break; nothing was made
---   RUNNING   12:05 -> 12:55     fifty minutes of production
---   STARVED   12:55 -> 13:15     starved of material
---   RUNNING   13:15 -> 15:06     a hundred and eleven minutes more
+--   band            M1          M2           M3         M4
+--   10:45 - 12:05   BLOCKED     BREAKDOWN    STARVED    STARVED
+--   12:05 - 12:55   IDLE        IDLE         IDLE       IDLE
+--   12:55 - 13:15   STARVED     STARVED      STARVED    STARVED
+--   13:15 - 15:06   RUNNING     RUNNING      RUNNING    RUNNING
+--
+-- The first band differs PER MACHINE, so `_seq` carries a machine column. `*`
+-- means every machine in scope; a code names one.
 --
 -- This is a DECLARATION, not a derivation. The script clears the window and
 -- writes the sequence, rather than hunting down whatever is already in it.
@@ -33,18 +37,34 @@
 -- and moves the cumulative counters by new minus old. Run it twice and the
 -- second difference is zero. Correct a band and only the correction moves.
 --
--- ══ ⚠ WHICH MACHINES ═══════════════════════════════════════════════════════
--- The supplied table listed four rows per block, labelled M1, M1, M2, M4. Four
--- rows for a four-machine line reads as M1, M2, M3, M4 with one label mistyped,
--- and that is the default. For the three that carried the long bands only:
---     -v machines='M1,M2,M4'
+-- ══ ⚠ HOW THE MACHINE LABELS WERE READ ═════════════════════════════════════
+-- The supplied table labels its four rows M1, M1, M2, M4 in every block. Read
+-- literally that is three machines with one duplicated; read as M1, M2, M3, M4
+-- it is the whole line. The first band settles it, because its states are not
+-- uniform and they line up exactly with what was MEASURED on the day:
+--
+--   stated        blocked   breakdown   starved   starved
+--   measured      M1 BLOCKED   M2 BREAKDOWN   (M3 none)   M4 STARVED
+--
+-- `blocked` sits on M1 and `breakdown` on M2 in the measured data, in that
+-- order, which is the order the table lists them. So the rows are M1, M2, M3,
+-- M4 and the labels slipped by one. M3 -- the machine that recorded nothing at
+-- all through the stop -- takes `starved`.
+--
+-- If that reading is wrong, correct the `_seq` rows directly; they name their
+-- machine. Nothing is lost by getting it wrong once.
 --
 -- ══ THE PRODUCTION FIGURE ══════════════════════════════════════════════════
+-- PRODUCTION IS WRITTEN INTO RUNNING BANDS AND NOWHERE ELSE. That is the whole
+-- rule, and it is why the figure moved: the 12:05-12:55 band was RUNNING in the
+-- previous statement and is IDLE in this one, so those fifty minutes now make
+-- nothing. One running band remains, 13:15-15:06.
+--
 -- Design speed on this order is 45 pieces a minute at every step, and the SKU
 -- ladder is 1 unit per inner, 4 inners per carton, 40 cartons per pallet -- so
--- a pallet is 160 pieces. Over the 161 running minutes above:
+-- a pallet is 160 pieces. Over the 111 running minutes above:
 --
---   M1  INNER   7,245     M2  CARTON  1,811     M3/M4  PALLET  45
+--   M1  INNER   4,995     M2  CARTON  1,249     M3/M4  PALLET  31
 --
 -- Design is what "should have produced" means and is what was asked for. It is
 -- also optimistic here: M1 measured 35.08 pieces a minute and M2 33.33 in the
@@ -116,16 +136,21 @@ SET LOCAL lock_timeout = '10s';
 -- Plant local time. The bands must be contiguous and in order; the preview
 -- checks both and refuses to run on a gap or an overlap.
 CREATE TEMP TABLE _seq ON COMMIT DROP AS
-SELECT seq, state::"MachineState" AS state,
+SELECT seq, machine, state::"MachineState" AS state,
        ((:'day' || ' ' || from_local)::timestamp AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'utc' AS t_from,
        ((:'day' || ' ' || to_local)::timestamp   AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'utc' AS t_to,
        from_local, to_local
 FROM (VALUES
-  (1, '10:45:00', '12:05:00', 'IDLE'),
-  (2, '12:05:00', '12:55:00', 'RUNNING'),
-  (3, '12:55:00', '13:15:00', 'STARVED'),
-  (4, '13:15:00', '15:06:00', 'RUNNING')
-) AS v(seq, from_local, to_local, state);
+  -- The break: each machine stopped for its own reason, as measured.
+  (1, '10:45:00', '12:05:00', 'M1', 'BLOCKED'),
+  (1, '10:45:00', '12:05:00', 'M2', 'BREAKDOWN'),
+  (1, '10:45:00', '12:05:00', 'M3', 'STARVED'),
+  (1, '10:45:00', '12:05:00', 'M4', 'STARVED'),
+  -- The rest is line-wide. `*` is every machine in scope.
+  (2, '12:05:00', '12:55:00', '*',  'IDLE'),
+  (3, '12:55:00', '13:15:00', '*',  'STARVED'),
+  (4, '13:15:00', '15:06:00', '*',  'RUNNING')
+) AS v(seq, from_local, to_local, machine, state);
 
 -- The window is the sequence's own extent. Nothing else defines it, so adding
 -- a band cannot leave the clipping and the writing disagreeing about where the
@@ -137,23 +162,43 @@ CREATE TEMP TABLE _m ON COMMIT DROP AS
 SELECT m.id, m.code, m."factoryId" FROM machines m
  WHERE m.code = ANY (string_to_array(:'machines', ','));
 
+-- ── The sequence, resolved to one row per machine per band ──────────────────
+-- `*` expands here and nowhere else, so every later step reads a table in
+-- which every band already names its machine. Nothing downstream has to
+-- remember that a wildcard exists.
+CREATE TEMP TABLE _band ON COMMIT DROP AS
+SELECT m.id AS machine_id, m.code, m."factoryId",
+       q.seq, q.state, q.t_from, q.t_to, q.from_local, q.to_local
+  FROM _seq q
+  JOIN _m m ON q.machine = '*' OR q.machine = m.code;
+
 \echo ''
 \echo '0. THE SEQUENCE MUST BE CONTIGUOUS (want 0 rows)'
 -- A gap would leave minutes classified by nothing; an overlap would let two
 -- bands both claim a minute and the later write would silently win.
-SELECT a.seq AS ends_band, a.to_local AS ends_at, b.seq AS next_band, b.from_local AS starts_at,
+-- Per MACHINE, because a band may name one machine and its neighbour another;
+-- checking the sequence alone would miss a machine that is skipped in a band.
+SELECT a.code, a.seq AS ends_band, a.to_local AS ends_at,
+       b.seq AS next_band, b.from_local AS starts_at,
        CASE WHEN b.t_from > a.t_to THEN 'GAP' ELSE 'OVERLAP' END AS fault
-  FROM _seq a JOIN _seq b ON b.seq = a.seq + 1
- WHERE b.t_from <> a.t_to;
+  FROM _band a JOIN _band b ON b.machine_id = a.machine_id AND b.seq = a.seq + 1
+ WHERE b.t_from <> a.t_to
+ UNION ALL
+-- And every machine must appear in every band, or its timeline has a hole.
+SELECT m.code, q.seq, q.from_local, NULL, NULL, 'MACHINE MISSING FROM BAND'
+  FROM (SELECT DISTINCT seq, from_local FROM _seq) q CROSS JOIN _m m
+ WHERE NOT EXISTS (SELECT 1 FROM _band b WHERE b.machine_id = m.id AND b.seq = q.seq);
 
 \echo ''
 \echo '1. THE WINDOW AS DECLARED'
-SELECT seq, state, from_local AS riyadh_from, to_local AS riyadh_to,
-       round((EXTRACT(EPOCH FROM (t_to - t_from)) / 60)::numeric, 0) AS minutes
-  FROM _seq ORDER BY seq;
+SELECT seq, from_local AS riyadh_from, to_local AS riyadh_to,
+       round((EXTRACT(EPOCH FROM (t_to - t_from)) / 60)::numeric, 0) AS minutes,
+       string_agg(code || '=' || state::text, '  ' ORDER BY code) AS per_machine
+  FROM _band GROUP BY seq, from_local, to_local, t_from, t_to ORDER BY seq;
 SELECT (t0 + interval '3 hours') AS window_from, (t1 + interval '3 hours') AS window_to,
-       (SELECT round(SUM(EXTRACT(EPOCH FROM (t_to - t_from)) / 60)::numeric, 0)
-          FROM _seq WHERE state = 'RUNNING') AS running_minutes
+       (SELECT round(MAX(mins)::numeric, 0) FROM (
+          SELECT SUM(EXTRACT(EPOCH FROM (t_to - t_from)) / 60) AS mins
+            FROM _band WHERE state = 'RUNNING' GROUP BY machine_id) x) AS running_minutes
   FROM _span;
 SELECT string_agg(code, ',' ORDER BY code) AS machines, count(*) AS n FROM _m;
 
@@ -171,7 +216,10 @@ SELECT m.id AS machine_id, m.code, j.id AS jo_id, j."outputUnit" AS unit,
             AND o."bucketStart" >= (SELECT t0 FROM _span) - interval '2 hours'
             AND o."bucketStart" <  (SELECT t0 FROM _span)
        ), 0)::float8 AS actual_ppm,
-       (SELECT SUM(EXTRACT(EPOCH FROM (t_to - t_from)) / 60) FROM _seq WHERE state = 'RUNNING') AS run_minutes
+       -- Per machine: this table's first band gives each one a different
+       -- state, so "how long did it run" is a per-machine question now.
+       COALESCE((SELECT SUM(EXTRACT(EPOCH FROM (b.t_to - b.t_from)) / 60)
+                   FROM _band b WHERE b.machine_id = m.id AND b.state = 'RUNNING'), 0) AS run_minutes
   FROM _m m
   JOIN job_orders j ON j."machineId" = m.id AND j.status = 'EXECUTING'
   JOIN work_orders w ON w.id = j."workOrderId"
@@ -257,11 +305,11 @@ SELECT m.code, rec.state, count(*) AS records, round(SUM(rec."durationMinutes"):
   INSERT INTO machine_state_records
     (id, "factoryId", "machineId", state, "startTime", "endTime", "durationMinutes",
      "isPlannedStop", "downtimeCauseId", notes, source)
-  SELECT gen_random_uuid()::text, m."factoryId", m.id, q.state, q.t_from, q.t_to,
+  SELECT gen_random_uuid()::text, q."factoryId", q.machine_id, q.state, q.t_from, q.t_to,
          EXTRACT(EPOCH FROM (q.t_to - q.t_from)) / 60, false, NULL,
          '[stated by the plant: ' || q.state::text || ' ' || q.from_local || '-' || q.to_local || ']',
          'MANUAL'
-    FROM _m m CROSS JOIN _seq q;
+    FROM _band q;
 
   -- ── 3. Downtime events must not contradict the bands ──────────────────────
   -- Unplanned events inside the window go; ones straddling its start are
@@ -291,13 +339,31 @@ SELECT m.code, rec.state, count(*) AS records, round(SUM(rec."durationMinutes"):
     (id, "factoryId", "machineId", reason, category, "reasonCode",
      "startTime", "endTime", "durationMinutes", "affectsOEE", "isPlanned",
      acknowledged, "updatedAt")
-  SELECT gen_random_uuid()::text, m."factoryId", m.id,
+  SELECT gen_random_uuid()::text, q."factoryId", q.machine_id,
          'Stated by the plant: ' || q.state::text,
-         (CASE q.state WHEN 'STARVED' THEN 'MATERIAL' ELSE 'PROCESS' END)::"DowntimeCategory",
-         (CASE q.state WHEN 'STARVED' THEN 'STARVED' ELSE 'IDLE_NO_ORDER' END)::"DowntimeReasonCode",
+         -- Category and code per state, taken from what the plant's own events
+         -- already use rather than invented: the measured M1 BLOCKED event was
+         -- PROCESS/BLOCKED, M2's BREAKDOWN was MECHANICAL/UNPLANNED_BREAKDOWN,
+         -- M4's STARVED was MATERIAL/STARVED. A first draft here guessed
+         -- `IDLE_NO_ORDER`, which is not in the enum at all and aborted the
+         -- transaction -- the reason nothing may be typed from memory.
+         (CASE q.state
+            WHEN 'STARVED'   THEN 'MATERIAL'
+            WHEN 'BREAKDOWN' THEN 'MECHANICAL'
+            ELSE                  'PROCESS'
+          END)::"DowntimeCategory",
+         (CASE q.state
+            WHEN 'STARVED'   THEN 'STARVED'
+            WHEN 'BREAKDOWN' THEN 'UNPLANNED_BREAKDOWN'
+            ELSE                  'BLOCKED'
+          END)::"DowntimeReasonCode",
          q.t_from, q.t_to, EXTRACT(EPOCH FROM (q.t_to - q.t_from)) / 60,
-         false, false, false, now()
-    FROM _m m CROSS JOIN _seq q
+         -- A BREAKDOWN is the machine's own fault and counts against its
+         -- availability. STARVED and BLOCKED are the line failing to feed or
+         -- drain it -- external, and they leave the denominator. Flattening
+         -- all three to one flag is how a starved machine comes to look broken.
+         (q.state = 'BREAKDOWN'), false, false, now()
+    FROM _band q
    WHERE q.state IN ('STARVED', 'BLOCKED', 'BREAKDOWN');
 
   -- ── 4. The minutes ────────────────────────────────────────────────────────
@@ -315,8 +381,9 @@ SELECT m.code, rec.state, count(*) AS records, round(SUM(rec."durationMinutes"):
                             WHEN q.state = 'RUNNING' THEN o."goodParts" ELSE 0 END,
          "rejectedParts" = 0,
          "theoreticalParts" = CASE WHEN q.state = 'RUNNING' THEN r.design_ppm ELSE 0 END
-    FROM _seq q, _rate r
+    FROM _band q, _rate r
    WHERE o."jobOrderId" = r.jo_id
+     AND q.machine_id = r.machine_id
      AND o."bucketStart" >= q.t_from AND o."bucketStart" < q.t_to;
 
   \if :no_production
@@ -399,7 +466,7 @@ SELECT m.code, rec.state, count(*) AS records, round(SUM(rec."durationMinutes"):
   SELECT DISTINCT rec.state FROM machine_state_records rec
     JOIN _m m ON m.id = rec."machineId" CROSS JOIN _span s
    WHERE rec."startTime" >= s.t0 AND rec."startTime" < s.t1
-     AND rec.state NOT IN (SELECT state FROM _seq);
+     AND rec.state NOT IN (SELECT state FROM _band);
 
   \echo ''
   \echo 'APPLIED, NOT SAVED. Append COMMIT; to keep it.'
