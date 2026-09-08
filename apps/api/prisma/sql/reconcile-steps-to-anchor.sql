@@ -61,6 +61,14 @@
 --   APPLY:    { cat reconcile-steps-to-anchor.sql; echo "COMMIT;"; } | psql ... -v apply=1
 --
 --   -v mode=cap|equal        -v anchor=M1
+--   -v anchor_qty=6000       the plant STATES the anchor's real output, in the
+--                            anchor's own unit. Every step is then derived from
+--                            that instead of from what M1's counter reported.
+--                            Pair it with -v mode=equal: a stated figure is a
+--                            measurement, and capping would only lower steps
+--                            that are above it while leaving the rest reporting
+--                            a run that did not happen.
+--
 --   -v chain=1               cap each step against the one BEFORE it, not
 --                            against M1. Catches a palletiser above the
 --                            cartoner that is still under the filler --
@@ -95,6 +103,12 @@
 \else
   \set chain 0
 \endif
+-- The anchor's TRUE output, in the anchor's own unit, when the plant states it
+-- rather than the counter reporting it. Zero means "use what M1 recorded".
+\if :{?anchor_qty}
+\else
+  \set anchor_qty 0
+\endif
 
 BEGIN;
 SET LOCAL lock_timeout = '10s';
@@ -124,9 +138,18 @@ SELECT w."orderNumber" AS wo, w.id AS wo_id, m.code, j.id AS jo_id,
   JOIN job_orders j ON j."workOrderId" = w.id
   JOIN machines m ON m.id = j."machineId";
 
+-- ── The anchor's effective quantity ─────────────────────────────────────────
+-- `good` stays the RECORDED value so `moves_by` still shows the correction
+-- honestly. `eff_good` is what the ceiling and the chain are computed from --
+-- the plant's stated figure when there is one, the counter's otherwise. Folding
+-- the override into `good` would have made the anchor's own move invisible.
+ALTER TABLE _step ADD COLUMN eff_good float8;
+UPDATE _step SET eff_good =
+  CASE WHEN code = :'anchor' AND :anchor_qty > 0 THEN :anchor_qty ELSE good END;
+
 -- ── What the anchor fed the line, in pieces ─────────────────────────────────
 CREATE TEMP TABLE _anchor ON COMMIT DROP AS
-SELECT wo_id, good * per_unit AS anchor_pieces
+SELECT wo_id, eff_good * per_unit AS anchor_pieces
   FROM _step WHERE code = :'anchor';
 
 -- ── The ceiling, and the verdict ────────────────────────────────────────────
@@ -164,8 +187,8 @@ CREATE TEMP TABLE _chain ON COMMIT DROP AS
 WITH RECURSIVE ordered AS (
   SELECT s.*, row_number() OVER (PARTITION BY s.wo_id ORDER BY s.seq) AS n FROM _step s
 ), walk AS (
-  SELECT o.jo_id, o.wo_id, o.n, o.per_unit, o.good AS chain_good,
-         o.good * o.per_unit AS chain_pieces
+  SELECT o.jo_id, o.wo_id, o.n, o.per_unit, o.eff_good AS chain_good,
+         o.eff_good * o.per_unit AS chain_pieces
     FROM ordered o WHERE o.n = 1
   UNION ALL
   SELECT o.jo_id, o.wo_id, o.n, o.per_unit,
@@ -182,9 +205,11 @@ SELECT jo_id, chain_good FROM walk;
 CREATE TEMP TABLE _target ON COMMIT DROP AS
 SELECT p.*,
        CASE
-         WHEN lower(:'mode') = 'equal' AND p.verdict <> 'ANCHOR' THEN p.derived_units
-         WHEN :chain <> 0                                        THEN c.chain_good
-         WHEN p.verdict = 'ABOVE CEILING'                        THEN p.derived_units
+         -- The stated figure wins outright on the anchor itself.
+         WHEN p.code = :'anchor' AND :anchor_qty > 0              THEN p.eff_good
+         WHEN lower(:'mode') = 'equal' AND p.verdict <> 'ANCHOR'  THEN p.derived_units
+         WHEN :chain <> 0                                         THEN c.chain_good
+         WHEN p.verdict = 'ABOVE CEILING'                         THEN p.derived_units
          ELSE p.good
        END AS new_good
   FROM _plan p JOIN _chain c ON c.jo_id = p.jo_id;
@@ -204,6 +229,7 @@ SELECT t.jo_id, t.good AS jo_good,
 \echo ''
 \echo '1. THE SETTINGS'
 SELECT :'mode' AS mode, (:chain <> 0) AS chained, :'anchor' AS anchor,
+       CASE WHEN :anchor_qty > 0 THEN :anchor_qty::text ELSE 'as counted' END AS anchor_output,
        CASE WHEN :'orders' = '' THEN 'status = ' || :'status' ELSE :'orders' END AS scope,
        (SELECT count(*) FROM _wo) AS work_orders;
 
