@@ -61,6 +61,10 @@
 --   APPLY:    { cat reconcile-steps-to-anchor.sql; echo "COMMIT;"; } | psql ... -v apply=1
 --
 --   -v mode=cap|equal        -v anchor=M1
+--   -v chain=1               cap each step against the one BEFORE it, not
+--                            against M1. Catches a palletiser above the
+--                            cartoner that is still under the filler --
+--                            which is five of the eleven orders here.
 --   -v status=COMPLETED      which work orders to touch
 --   -v orders='WO-2026-0003,WO-2026-0008'   only these, whatever their status
 --
@@ -86,6 +90,10 @@
 \if :{?orders}
 \else
   \set orders ''
+\endif
+\if :{?chain}
+\else
+  \set chain 0
 \endif
 
 BEGIN;
@@ -138,15 +146,48 @@ SELECT s.*, a.anchor_pieces,
        END AS verdict
   FROM _step s JOIN _anchor a ON a.wo_id = s.wo_id;
 
+-- ── The CHAINED ceiling: each step against the one before it ────────────────
+-- The first version of this capped everything against M1, and that leaves a
+-- hole the plant's own data walked straight through: M3 stayed ABOVE M2 on
+-- five orders after the cap, by 880 pieces on WO-2026-0003 and 312 on
+-- WO-2026-0008, because both were still under M1's ceiling. A palletiser
+-- cannot stack cartons the cartoner never made, whatever the filler did.
+--
+-- So the ceiling walks the routing: M2 <= M1, M3 <= M2 as CAPPED, M4 <= M3 as
+-- capped. Recursive, because each step's ceiling depends on the corrected
+-- value of the step before it, not on its recorded one -- otherwise an
+-- over-count in the middle raises the ceiling for everything after it.
+--
+-- The same one-whole-unit allowance applies at every link, for the same reason
+-- it applies at the anchor: a part pallet at the end of a run is real.
+CREATE TEMP TABLE _chain ON COMMIT DROP AS
+WITH RECURSIVE ordered AS (
+  SELECT s.*, row_number() OVER (PARTITION BY s.wo_id ORDER BY s.seq) AS n FROM _step s
+), walk AS (
+  SELECT o.jo_id, o.wo_id, o.n, o.per_unit, o.good AS chain_good,
+         o.good * o.per_unit AS chain_pieces
+    FROM ordered o WHERE o.n = 1
+  UNION ALL
+  SELECT o.jo_id, o.wo_id, o.n, o.per_unit,
+         CASE WHEN o.good * o.per_unit > w.chain_pieces + o.per_unit
+              THEN floor(w.chain_pieces / o.per_unit)
+              ELSE o.good END,
+         CASE WHEN o.good * o.per_unit > w.chain_pieces + o.per_unit
+              THEN floor(w.chain_pieces / o.per_unit) * o.per_unit
+              ELSE o.good * o.per_unit END
+    FROM walk w JOIN ordered o ON o.wo_id = w.wo_id AND o.n = w.n + 1
+)
+SELECT jo_id, chain_good FROM walk;
+
 CREATE TEMP TABLE _target ON COMMIT DROP AS
 SELECT p.*,
        CASE
-         WHEN p.verdict IN ('ANCHOR', 'WITHIN ROUNDING') THEN p.good
-         WHEN lower(:'mode') = 'equal'                   THEN p.derived_units
-         WHEN p.verdict = 'ABOVE CEILING'                THEN p.derived_units
+         WHEN lower(:'mode') = 'equal' AND p.verdict <> 'ANCHOR' THEN p.derived_units
+         WHEN :chain <> 0                                        THEN c.chain_good
+         WHEN p.verdict = 'ABOVE CEILING'                        THEN p.derived_units
          ELSE p.good
        END AS new_good
-  FROM _plan p;
+  FROM _plan p JOIN _chain c ON c.jo_id = p.jo_id;
 
 -- ── The job-order / minute-store gap as it stands BEFORE anything is written ─
 -- Several of these orders already disagree with their own minute store --
@@ -162,7 +203,7 @@ SELECT t.jo_id, t.good AS jo_good,
 
 \echo ''
 \echo '1. THE SETTINGS'
-SELECT :'mode' AS mode, :'anchor' AS anchor,
+SELECT :'mode' AS mode, (:chain <> 0) AS chained, :'anchor' AS anchor,
        CASE WHEN :'orders' = '' THEN 'status = ' || :'status' ELSE :'orders' END AS scope,
        (SELECT count(*) FROM _wo) AS work_orders;
 
