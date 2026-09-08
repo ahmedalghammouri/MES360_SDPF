@@ -193,6 +193,23 @@ export class LiveShiftService {
           : {}),
         actualStart: { not: null, lt: to },
         OR: [{ actualEnd: null }, { actualEnd: { gt: from } }],
+        // ── An abandoned order is not current work ──────────────────────────
+        // The overlap rule above is right for an order that closed twenty
+        // minutes ago, and wrong for one that was never closed at all. A job
+        // order that STARTED and has no `actualEnd` overlaps every future
+        // window forever, so cancelling WO-2026-0010 on 6 Sep left its four
+        // PAUSED job orders reporting themselves as the shift's current work
+        // on every screen, every day after -- correctly, by the old rule.
+        //
+        // Cancelling and archiving are the two ways a plant says "this is over
+        // whatever the rows still claim", and both are honoured here. The job
+        // order's own CANCELLED is honoured too: the three together are the
+        // only statements of intent the data carries.
+        //
+        // PAUSED is deliberately still included. A paused order is expected
+        // back, and dropping it would hide production the shift really made.
+        status: { not: 'CANCELLED' },
+        workOrder: { is: { archivedAt: null, status: { not: 'CANCELLED' } } },
       },
       select: {
         id: true, operationName: true, status: true, sequenceOrder: true,
